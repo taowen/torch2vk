@@ -25,6 +25,7 @@ echo "==> qwen3 shaders"
 uv run python scripts/compile_qwen3_shaders.py
 uv run python scripts/vulkan_qwen3_embedding_smoke.py
 uv run python scripts/vulkan_qwen3_swiglu_smoke.py
+uv run python scripts/vulkan_qwen3_argmax_smoke.py
 
 echo "==> pytest"
 set +e

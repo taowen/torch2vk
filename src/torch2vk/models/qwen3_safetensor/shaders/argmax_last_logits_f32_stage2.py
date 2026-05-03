@@ -27,7 +27,7 @@ ARGMAX_LAST_LOGITS_STAGE2 = ShaderVariant(
             Binding("partial_indices", 1, BindingAccess.READ),
             Binding("output", 2, BindingAccess.WRITE),
         ),
-        dispatch=("B", 1, 1),
+        dispatch=(1, 1, "B"),
         uniforms=(UniformBlock("sizes", 3, ("C", "B", 1, 1)),),
     ),
     source=copied_shader_variant_source(
