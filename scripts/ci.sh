@@ -39,6 +39,7 @@ uv run python scripts/vulkan_qwen3_fa_split_reduce_smoke.py
 uv run python scripts/vulkan_qwen3_flash_attn_smoke.py
 uv run python scripts/vulkan_qwen3_runner_smoke.py
 uv run python scripts/vulkan_qwen3_prefill_smoke.py
+uv run python scripts/vulkan_qwen3_safetensor_embedding_smoke.py
 
 echo "==> pytest"
 set +e

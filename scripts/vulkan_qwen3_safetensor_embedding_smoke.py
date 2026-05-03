@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import struct
+import os
 from pathlib import Path
 
 import torch
@@ -18,17 +19,28 @@ from torch2vk.models.qwen3_safetensor.weights import (
     qwen3_safetensor_weight_bytes,
     verify_qwen3_safetensor_weights,
 )
-from torch2vk.shader import pack_uniform_blocks
+from torch2vk.shader import DispatchTarget
+from torch2vk.storage import bind_storage, plan_storage
 from torch2vk.vulkan_backend import create_compute_context
+from torch2vk.vulkan_runner import (
+    VulkanSequenceRunner,
+    allocate_storage_buffers,
+    read_bound_tensor_bytes,
+    write_bound_tensor_bytes,
+)
 
 
-MODEL_DIR = Path("models/weights/qwen3-0.6b-safetensor")
+DEFAULT_MODEL_DIR = Path("models/weights/qwen3-0.6b-safetensor")
 WEIGHT_KEY = "model.embed_tokens.weight"
 
 
 def main() -> int:
-    spec = load_qwen3_spec(MODEL_DIR)
-    verification = verify_qwen3_safetensor_weights(MODEL_DIR, spec=spec)
+    model_dir = Path(os.environ.get("QWEN3_SAFETENSOR_DIR", str(DEFAULT_MODEL_DIR)))
+    if not model_dir.exists():
+        print(f"qwen3_safetensor_embedding_dispatch=skip reason=missing_model_dir path={model_dir}")
+        return 0
+    spec = load_qwen3_spec(model_dir)
+    verification = verify_qwen3_safetensor_weights(model_dir, spec=spec)
     verification.raise_for_mismatches()
     checkpoint_tensor = verification.checkpoint_tensors[WEIGHT_KEY]
     with safe_open(checkpoint_tensor.shard, framework="pt", device="cpu") as handle:
@@ -53,63 +65,38 @@ def main() -> int:
             shape=(batch, steps, spec.hidden_size),
         ),
     }
-    symbols = variant.contract.validate(tensors)
+    target = DispatchTarget()
+    variant(target, **tensors)
+    unbound = tuple(tensors.values())
+    plan = plan_storage(unbound, allocation_id="qwen3-real-embedding")
+    bound = {tensor.name: tensor for tensor in bind_storage(unbound, plan)}
 
     context = create_compute_context()
     try:
-        output = context.create_host_buffer(nbytes=expected.numel() * 4)
-        ids = context.create_host_buffer(nbytes=len(input_ids) * 4)
-        weight = context.create_host_buffer(nbytes=embed.numel() * 2)
-        sizes = context.create_host_buffer(nbytes=16)
-        ids.write(struct.pack(f"<{len(input_ids)}i", *input_ids))
-        weight.write(qwen3_safetensor_weight_bytes(MODEL_DIR, tensors["weight"], spec=spec))
-        sizes.write(pack_uniform_blocks(variant.contract, symbols)["sizes"])
-
-        module = context.create_shader_module(
-            Path(f"build/shaders/qwen3_safetensor/{variant.name}.spv").read_bytes()
+        allocations = allocate_storage_buffers(context, plan)
+        write_bound_tensor_bytes(
+            bound["input_ids"],
+            allocations,
+            struct.pack(f"<{len(input_ids)}i", *input_ids),
         )
-        descriptor_layout = context.create_descriptor_set_layout(variant.contract)
-        descriptor_pool = context.create_descriptor_pool(variant.contract)
-        pipeline_layout = context.create_pipeline_layout(variant.contract, descriptor_layout)
-        pipeline = context.create_compute_pipeline(
-            shader_module=module,
-            pipeline_layout=pipeline_layout,
+        write_bound_tensor_bytes(
+            bound["weight"],
+            allocations,
+            qwen3_safetensor_weight_bytes(model_dir, tensors["weight"], spec=spec),
         )
-        command_pool = context.create_command_pool()
-        fence = context.create_fence()
+        runner = VulkanSequenceRunner(
+            context=context,
+            shader_dir=Path("build/shaders/qwen3_safetensor"),
+            variants={variant.name: variant},
+        )
         try:
-            descriptor_set = context.allocate_descriptor_set(
-                descriptor_pool=descriptor_pool,
-                descriptor_set_layout=descriptor_layout,
+            runner.run_bound_storage(
+                tuple(target.records),
+                tensors=bound,
+                allocations=allocations,
             )
-            context.update_descriptor_set(
-                descriptor_set,
-                {
-                    0: output,
-                    1: ids,
-                    2: weight,
-                    3: sizes,
-                },
-                descriptor_types={
-                    0: "storage_buffer",
-                    1: "storage_buffer",
-                    2: "storage_buffer",
-                    3: "uniform_buffer",
-                },
-            )
-            command_buffer = command_pool.allocate_command_buffer()
-            command_buffer.begin()
-            command_buffer.bind_compute_pipeline(pipeline)
-            command_buffer.bind_descriptor_set(
-                pipeline_layout=pipeline_layout,
-                descriptor_set=descriptor_set,
-            )
-            command_buffer.dispatch((spec.hidden_size + 511) // 512, steps, batch)
-            command_buffer.end()
-            command_buffer.submit_and_wait(fence)
-
             actual = torch.frombuffer(
-                bytearray(output.read(nbytes=expected.numel() * 4)),
+                bytearray(read_bound_tensor_bytes(bound["output"], allocations)),
                 dtype=torch.float32,
             ).reshape_as(expected)
             if not actual.allclose(expected, rtol=0.0, atol=0.0):
@@ -120,17 +107,8 @@ def main() -> int:
                 f"tokens={input_ids} hidden={spec.hidden_size}"
             )
         finally:
-            fence.close()
-            command_pool.close()
-            pipeline.close()
-            pipeline_layout.close()
-            descriptor_pool.close()
-            descriptor_layout.close()
-            module.close()
-            sizes.close()
-            weight.close()
-            ids.close()
-            output.close()
+            for allocation in allocations.values():
+                allocation.close()
     finally:
         context.close()
     return 0
