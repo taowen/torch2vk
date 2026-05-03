@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torch2vk"
+version = "0.1.0"
+description = "Python-first PyTorch model porting to Vulkan compute shaders"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pyright==1.1.408",
+  "ruff==0.11.13",
+  "pytest==8.4.2",
+  "huggingface-hub==1.11.0",
+  "pillow==11.3.0",
+  "safetensors==0.7.0",
+  "packaging==26.1",
+  "numpy==2.4.4",
+  "scipy==1.17.1",
+  "vulkan @ git+https://github.com/dsvensson/vulkan.git@8002ea383a0442d107f8e515bd4010ae601cc74e",
+  "torch @ https://download-r2.pytorch.org/whl/rocm7.2/torch-2.11.0%2Brocm7.2-cp312-cp312-manylinux_2_28_x86_64.whl",
+  "torchvision @ https://download-r2.pytorch.org/whl/rocm7.2/torchvision-0.26.0%2Brocm7.2-cp312-cp312-manylinux_2_28_x86_64.whl",
+  "torchaudio @ https://download-r2.pytorch.org/whl/rocm7.2/torchaudio-2.11.0%2Brocm7.2-cp312-cp312-manylinux_2_28_x86_64.whl",
+  "triton-rocm @ https://download-r2.pytorch.org/whl/triton_rocm-3.6.0-cp312-cp312-linux_x86_64.whl",
+  "transformers==5.5.4",
+  "omnivoice==0.1.5",
+  "sentencepiece==0.2.1",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+filterwarnings = [
+  "ignore:.*SWIG.*:Warning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "ANN401", # validation intentionally accepts framework tensor-like objects
+  "COM812", # conflicts with formatter
+  "D", # public docs live in docs/; code docstrings stay pragmatic during bring-up
+  "EM101", # direct exception messages keep validation errors readable
+  "EM102",
+  "ISC001", # conflicts with formatter
+  "N802", # schema helpers intentionally mirror declaration notation like W(...)
+  "PLR0913", # schema factory functions naturally have several keyword-only fields
+  "PLR2004", # tensor ranks and dispatch dimensions are clearer inline
+  "S105", # tensor role TOKEN is not a password
+  "TC001", # runtime imports are preferred while package is small
+  "TC003", # annotation-only stdlib imports are clearer at top level in this small package
+  "TRY003", # validation errors are intentionally explicit at raise sites
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+  "INP001", # tests are discovered directly
+  "PT009", # unittest is supported for zero-dependency execution
+  "PT027",
+  "S101", # tests may use assert for type narrowing
+]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+pythonPlatform = "Linux"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = "error"
+reportUnknownArgumentType = "error"
+reportUnknownMemberType = "error"
+reportUnknownVariableType = "error"
+reportUnknownParameterType = "error"
+reportUnusedImport = "error"
+reportUnusedVariable = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
