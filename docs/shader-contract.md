@@ -662,7 +662,7 @@ manifest 的用途：
 
 ## 和 torch2vk 现有架构的关系
 
-`agentorch` 的 contract 直接处理 `DeviceTensor`；`torch2vk` 第一版应该改成处理 `LogicalTensor`：
+`agentorch` 的 contract 直接处理执行态 tensor wrapper；`torch2vk` 第一版应该改成处理 `LogicalTensor`：
 
 ```text
 模型 adapter:

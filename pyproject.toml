@@ -12,6 +12,7 @@ dependencies = [
   "pyright>=1.1.409,<1.2",
   "ruff>=0.11,<0.12",
   "pytest>=8.3,<9",
+  "import-linter>=2.11,<3",
   "huggingface-hub>=0.34,<2",
   "pillow>=11,<12",
   "vulkan @ git+https://github.com/dsvensson/vulkan.git@8002ea383a0442d107f8e515bd4010ae601cc74e",
@@ -54,6 +55,27 @@ torchaudio = [
 line-length = 100
 target-version = "py312"
 
+[tool.importlinter]
+root_package = "torch2vk"
+
+[[tool.importlinter.contracts]]
+name = "vulkan driver does not know logical/runtime layers"
+type = "forbidden"
+source_modules = ["torch2vk.vulkan"]
+forbidden_modules = [
+  "torch2vk.logical",
+  "torch2vk.runtime",
+]
+
+[[tool.importlinter.contracts]]
+name = "logical declarations stay driver independent"
+type = "forbidden"
+source_modules = ["torch2vk.logical"]
+forbidden_modules = [
+  "torch2vk.runtime",
+  "torch2vk.checkpoints",
+]
+
 [tool.pytest.ini_options]
 addopts = ["--assert=plain"]
 pythonpath = ["src"]
@@ -69,6 +91,6 @@ filterwarnings = [
 ]
 
 [tool.pyright]
-include = ["src/models", "tests"]
+include = ["src/models", "src/torch2vk", "tests"]
 exclude = ["src/omnivoice", "src/qwen_asr"]
 reportPrivateImportUsage = false
