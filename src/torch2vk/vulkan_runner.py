@@ -10,6 +10,7 @@ from .logical import LogicalTensor
 from .shader import (
     DispatchRecord,
     ShaderVariant,
+    TensorContract,
     dispatch_dimensions,
     pack_push_constants,
     pack_uniform_blocks,
@@ -27,6 +28,7 @@ from .vulkan_backend import (
 )
 
 type VulkanDescriptorBuffer = VulkanBuffer | VulkanBufferSlice
+type LogicalTensorLookup = Mapping[str, LogicalTensor | tuple[LogicalTensor, ...]]
 
 
 @dataclass(slots=True)
@@ -153,7 +155,7 @@ class VulkanSequenceRunner:
         self,
         records: tuple[DispatchRecord, ...],
         *,
-        tensors: Mapping[str, LogicalTensor],
+        tensors: LogicalTensorLookup,
         tensor_buffers: Mapping[str, VulkanDescriptorBuffer],
         resource_buffers: Mapping[str, Mapping[str, VulkanDescriptorBuffer]] | None = None,
     ) -> None:
@@ -184,11 +186,14 @@ class VulkanSequenceRunner:
         self,
         records: tuple[DispatchRecord, ...],
         *,
-        tensors: Mapping[str, LogicalTensor],
+        tensors: LogicalTensorLookup,
         allocations: Mapping[str, VulkanBuffer],
         resource_buffers: Mapping[str, Mapping[str, VulkanDescriptorBuffer]] | None = None,
     ) -> None:
-        tensor_buffers = storage_descriptor_buffers(tensors.values(), allocations=allocations)
+        tensor_buffers = storage_descriptor_buffers(
+            _iter_lookup_tensors(tensors),
+            allocations=allocations,
+        )
         self.run(
             records,
             tensors=tensors,
@@ -271,18 +276,82 @@ def read_bound_tensor_bytes(
 def _record_tensors(
     record: DispatchRecord,
     variant: ShaderVariant,
-    tensors: Mapping[str, LogicalTensor],
+    tensors: LogicalTensorLookup,
 ) -> dict[str, LogicalTensor]:
     resolved: dict[str, LogicalTensor] = {}
+    symbols: dict[str, int] = {}
     for binding in variant.contract.bindings:
         tensor_name = record.reads.get(binding.field, record.writes.get(binding.field))
         if tensor_name is None:
             continue
+        contract = variant.contract.inputs.get(
+            binding.field,
+            variant.contract.outputs.get(binding.field),
+        )
+        if contract is None:
+            continue
         try:
-            resolved[binding.field] = tensors[tensor_name]
+            candidate = tensors[tensor_name]
         except KeyError as exc:
             raise KeyError(f"Missing LogicalTensor {tensor_name}") from exc
+        tensor, symbols = _select_tensor_view(
+            tensor_name=tensor_name,
+            candidate=candidate,
+            contract=contract,
+            symbols=symbols,
+        )
+        resolved[binding.field] = tensor
     return resolved
+
+
+def _select_tensor_view(
+    *,
+    tensor_name: str,
+    candidate: LogicalTensor | tuple[LogicalTensor, ...],
+    contract: TensorContract,
+    symbols: Mapping[str, int],
+) -> tuple[LogicalTensor, dict[str, int]]:
+    candidates = (candidate,) if isinstance(candidate, LogicalTensor) else candidate
+    for tensor in candidates:
+        matched_symbols = _match_tensor_contract(tensor, contract, symbols)
+        if matched_symbols is not None:
+            return tensor, matched_symbols
+    raise ValueError(
+        f"No LogicalTensor view for {tensor_name} matches "
+        f"dtype={contract.dtype} rank={len(contract.shape)}"
+    )
+
+
+def _match_tensor_contract(
+    tensor: LogicalTensor,
+    contract: TensorContract,
+    symbols: Mapping[str, int],
+) -> dict[str, int] | None:
+    if tensor.dtype != contract.dtype or len(tensor.shape) != len(contract.shape):
+        return None
+    matched = dict(symbols)
+    for actual_dim, expected_dim in zip(tensor.shape, contract.shape, strict=True):
+        if not isinstance(actual_dim, int):
+            return None
+        if isinstance(expected_dim, int):
+            if actual_dim != expected_dim:
+                return None
+            continue
+        known = matched.get(expected_dim)
+        if known is not None and known != actual_dim:
+            return None
+        matched[expected_dim] = actual_dim
+    return matched
+
+
+def _iter_lookup_tensors(tensors: LogicalTensorLookup) -> tuple[LogicalTensor, ...]:
+    values: list[LogicalTensor] = []
+    for value in tensors.values():
+        if isinstance(value, LogicalTensor):
+            values.append(value)
+        else:
+            values.extend(value)
+    return tuple(values)
 
 
 def _uniform_buffers(
