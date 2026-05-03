@@ -12,8 +12,9 @@ from torch2vk.models.qwen3_safetensor.shaders.embedding_lookup_bf16_f32_sequence
     EMBEDDING_LOOKUP_BF16_F32,
 )
 from torch2vk.models.qwen3_safetensor.shaders.swiglu_f32 import SWIGLU_F32
+from torch2vk.shader import DispatchTarget
 from torch2vk.vulkan_backend import VulkanContext, create_compute_context
-from torch2vk.vulkan_runner import VulkanShaderDispatch
+from torch2vk.vulkan_runner import VulkanSequenceRunner, VulkanShaderDispatch
 
 
 SHADER_DIR = Path("build/shaders/qwen3_safetensor")
@@ -24,9 +25,10 @@ def main() -> int:
     try:
         _run_embedding(context)
         _run_swiglu(context)
+        _run_sequence(context)
     finally:
         context.close()
-    print("qwen3_runner_dispatch=ok shaders=2")
+    print("qwen3_runner_dispatch=ok shaders=2 sequence_dispatches=2")
     return 0
 
 
@@ -108,6 +110,62 @@ def _run_swiglu(context: VulkanContext) -> None:
         output.close()
         up_buffer.close()
         gate_buffer.close()
+
+
+def _run_sequence(context: VulkanContext) -> None:
+    batch = 1
+    steps = 1
+    width = 4
+    gate_a = (0.0, 1.0, -1.0, 2.0)
+    up_a = (1.0, 2.0, 3.0, 4.0)
+    gate_b = (0.5, -0.5, 1.5, -1.5)
+    up_b = (4.0, 3.0, 2.0, 1.0)
+    expected_a = tuple(_silu(a) * b for a, b in zip(gate_a, up_a, strict=True))
+    expected_b = tuple(_silu(a) * b for a, b in zip(gate_b, up_b, strict=True))
+    tensors = {
+        "seq.gate_a": activation_tensor("seq.gate_a", dtype="float32", shape=(batch, steps, width)),
+        "seq.up_a": activation_tensor("seq.up_a", dtype="float32", shape=(batch, steps, width)),
+        "seq.out_a": activation_tensor("seq.out_a", dtype="float32", shape=(batch, steps, width)),
+        "seq.gate_b": activation_tensor("seq.gate_b", dtype="float32", shape=(batch, steps, width)),
+        "seq.up_b": activation_tensor("seq.up_b", dtype="float32", shape=(batch, steps, width)),
+        "seq.out_b": activation_tensor("seq.out_b", dtype="float32", shape=(batch, steps, width)),
+    }
+    target = DispatchTarget()
+    SWIGLU_F32(target, gate=tensors["seq.gate_a"], up=tensors["seq.up_a"], output=tensors["seq.out_a"])
+    SWIGLU_F32(target, gate=tensors["seq.gate_b"], up=tensors["seq.up_b"], output=tensors["seq.out_b"])
+
+    buffers = {
+        "seq.gate_a": context.create_host_buffer(nbytes=len(gate_a) * 4),
+        "seq.up_a": context.create_host_buffer(nbytes=len(up_a) * 4),
+        "seq.out_a": context.create_host_buffer(nbytes=len(expected_a) * 4),
+        "seq.gate_b": context.create_host_buffer(nbytes=len(gate_b) * 4),
+        "seq.up_b": context.create_host_buffer(nbytes=len(up_b) * 4),
+        "seq.out_b": context.create_host_buffer(nbytes=len(expected_b) * 4),
+    }
+    buffers["seq.gate_a"].write(struct.pack(f"<{len(gate_a)}f", *gate_a))
+    buffers["seq.up_a"].write(struct.pack(f"<{len(up_a)}f", *up_a))
+    buffers["seq.gate_b"].write(struct.pack(f"<{len(gate_b)}f", *gate_b))
+    buffers["seq.up_b"].write(struct.pack(f"<{len(up_b)}f", *up_b))
+    try:
+        runner = VulkanSequenceRunner(
+            context=context,
+            shader_dir=SHADER_DIR,
+            variants={SWIGLU_F32.name: SWIGLU_F32},
+        )
+        runner.run(tuple(target.records), tensors=tensors, tensor_buffers=buffers)
+        actual_a = struct.unpack(
+            f"<{len(expected_a)}f",
+            buffers["seq.out_a"].read(nbytes=len(expected_a) * 4),
+        )
+        actual_b = struct.unpack(
+            f"<{len(expected_b)}f",
+            buffers["seq.out_b"].read(nbytes=len(expected_b) * 4),
+        )
+        _assert_close(actual_a, expected_a, tolerance=1e-5)
+        _assert_close(actual_b, expected_b, tolerance=1e-5)
+    finally:
+        for buffer in buffers.values():
+            buffer.close()
 
 
 def _embedding_reference(

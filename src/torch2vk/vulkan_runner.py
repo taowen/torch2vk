@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .logical import LogicalTensor
-from .shader import ShaderVariant, dispatch_dimensions, pack_push_constants, pack_uniform_blocks
+from .shader import (
+    DispatchRecord,
+    ShaderVariant,
+    dispatch_dimensions,
+    pack_push_constants,
+    pack_uniform_blocks,
+)
 from .vulkan_backend import (
     VulkanBuffer,
     VulkanComputePipeline,
@@ -129,6 +135,61 @@ class VulkanShaderDispatch:
         finally:
             for buffer in uniform_buffers.values():
                 buffer.close()
+
+
+@dataclass(frozen=True, slots=True)
+class VulkanSequenceRunner:
+    context: VulkanContext
+    shader_dir: Path
+    variants: Mapping[str, ShaderVariant]
+
+    def run(
+        self,
+        records: tuple[DispatchRecord, ...],
+        *,
+        tensors: Mapping[str, LogicalTensor],
+        tensor_buffers: Mapping[str, VulkanBuffer],
+        resource_buffers: Mapping[str, Mapping[str, VulkanBuffer]] | None = None,
+    ) -> None:
+        resources: Mapping[str, Mapping[str, VulkanBuffer]] = (
+            {} if resource_buffers is None else resource_buffers
+        )
+        for record in records:
+            try:
+                variant = self.variants[record.shader]
+            except KeyError as exc:
+                raise KeyError(f"Missing ShaderVariant for dispatch {record.shader}") from exc
+            dispatch_tensors = _record_tensors(record, variant, tensors)
+            dispatch = VulkanShaderDispatch.load(
+                self.context,
+                variant,
+                shader_dir=self.shader_dir,
+            )
+            try:
+                dispatch.run(
+                    tensors=dispatch_tensors,
+                    tensor_buffers=tensor_buffers,
+                    resource_buffers=resources.get(record.shader),
+                )
+            finally:
+                dispatch.close()
+
+
+def _record_tensors(
+    record: DispatchRecord,
+    variant: ShaderVariant,
+    tensors: Mapping[str, LogicalTensor],
+) -> dict[str, LogicalTensor]:
+    resolved: dict[str, LogicalTensor] = {}
+    for binding in variant.contract.bindings:
+        tensor_name = record.reads.get(binding.field, record.writes.get(binding.field))
+        if tensor_name is None:
+            continue
+        try:
+            resolved[binding.field] = tensors[tensor_name]
+        except KeyError as exc:
+            raise KeyError(f"Missing LogicalTensor {tensor_name}") from exc
+    return resolved
 
 
 def _uniform_buffers(
