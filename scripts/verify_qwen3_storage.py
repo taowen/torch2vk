@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import fields, is_dataclass
 
 from torch2vk.logical import BufferSlice, LogicalTensor
-from torch2vk.models.qwen3_safetensor.execution import qwen3_execution_tensors
-from torch2vk.models.qwen3_safetensor.schema import qwen3_weight_tensors
+from torch2vk.models.qwen3_safetensor.runtime import qwen3_collect_logical_tensors
 from torch2vk.models.qwen3_safetensor.spec import Qwen3Spec
+from torch2vk.models.qwen3_safetensor.tensors.decode import qwen3_decode_tensors
+from torch2vk.models.qwen3_safetensor.tensors.prefill import qwen3_prefill_tensors
+from torch2vk.models.qwen3_safetensor.tensors.weights import qwen3_weights
 from torch2vk.replay import RecordedSequence, ReplayRegime, storage_fingerprints
 from torch2vk.storage import bind_storage, plan_storage, tensor_nbytes
 
@@ -29,9 +30,38 @@ def main() -> int:
         rms_norm_eps=1e-6,
         rope_theta=1_000_000.0,
     )
-    execution_tensors = qwen3_execution_tensors(batch=1, steps=3, spec=spec, max_seq_len=8)
-    tensors = (*_collect_logical_tensors(execution_tensors), *qwen3_weight_tensors(spec))
-    plan = plan_storage(tensors, allocation_id="qwen3-test")
+    weights = qwen3_weights(spec)
+    prefill_tensors = qwen3_prefill_tensors(batch=1, steps=3, spec=spec, max_seq_len=8)
+    prefill_plan = _verify_storage_plan(
+        (
+            *qwen3_collect_logical_tensors(prefill_tensors),
+            *qwen3_collect_logical_tensors(weights),
+        ),
+        phase="prefill",
+    )
+
+    decode_tensors = qwen3_decode_tensors(batch=1, spec=spec, max_seq_len=8, step_index=3)
+    decode_plan = _verify_storage_plan(
+        (
+            *qwen3_collect_logical_tensors(decode_tensors),
+            *qwen3_collect_logical_tensors(weights),
+        ),
+        phase="decode",
+    )
+    print(
+        "storage_plan=ok "
+        f"prefill_tensors={prefill_plan[0]} prefill_unique={prefill_plan[1]} "
+        f"decode_tensors={decode_plan[0]} decode_unique={decode_plan[1]}"
+    )
+    return 0
+
+
+def _verify_storage_plan(
+    tensors: tuple[LogicalTensor, ...],
+    *,
+    phase: str,
+) -> tuple[int, int]:
+    plan = plan_storage(tensors, allocation_id=f"qwen3-test-{phase}")
     _validate_plan_covers_tensors(tensors, plan.slices)
     bound_tensors = bind_storage(tensors, plan)
     fingerprints = storage_fingerprints(bound_tensors)
@@ -40,30 +70,7 @@ def main() -> int:
         dispatches=(),
         storage=fingerprints,
     ).validate_storage(bound_tensors)
-    print(
-        "storage_plan=ok "
-        f"tensors={len(tensors)} unique={len(plan.slices)} fingerprints={len(fingerprints)}"
-    )
-    return 0
-
-
-def _collect_logical_tensors(value: object) -> tuple[LogicalTensor, ...]:
-    found: list[LogicalTensor] = []
-    _collect(value, found)
-    return tuple(found)
-
-
-def _collect(value: object, found: list[LogicalTensor]) -> None:
-    if isinstance(value, LogicalTensor):
-        found.append(value)
-        return
-    if isinstance(value, tuple):
-        for item in value:
-            _collect(item, found)
-        return
-    if is_dataclass(value) and not isinstance(value, type):
-        for field in fields(value):
-            _collect(getattr(value, field.name), found)
+    return len(tensors), len(plan.slices)
 
 
 def _validate_plan_covers_tensors(

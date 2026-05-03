@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 
 class TensorRole(StrEnum):
@@ -83,9 +83,15 @@ class ComparePolicy:
 
 
 @dataclass(frozen=True, slots=True)
-class ReferenceRule:
-    source: str
+class PyTorchProbe:
+    kind: Literal["module_output", "module_input", "manual", "derived"]
+    target: str | None = None
+    index: int = 0
+    source: str | None = None
+    inputs: tuple[str, ...] = ()
+    transform: str | None = None
     selector: str | None = None
+    normalize: str = "float32_contiguous"
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,7 +103,7 @@ class LogicalTensor:
     memory: MemoryPolicy = MemoryPolicy.FRAME_WORKSPACE
     storage: BufferSlice | None = None
     source: WeightSource | None = None
-    ref: ReferenceRule | None = None
+    pytorch_probe: PyTorchProbe | None = None
     compare: ComparePolicy | None = None
 
     def __post_init__(self) -> None:
@@ -138,26 +144,44 @@ class LogicalTensor:
             memory=self.memory,
             storage=self.storage,
             source=self.source,
-            ref=self.ref,
+            pytorch_probe=self.pytorch_probe,
             compare=self.compare,
         )
 
 
-def input_tensor(name: str, *, dtype: str, shape: tuple[int | str, ...]) -> LogicalTensor:
+def input_tensor(
+    name: str,
+    *,
+    dtype: str,
+    shape: tuple[int | str, ...],
+    pytorch_probe: PyTorchProbe | None = None,
+    compare: ComparePolicy | None = None,
+) -> LogicalTensor:
     return LogicalTensor(
         name=name,
         spec=TensorSpec(dtype=dtype, shape=shape),
         role=TensorRole.INPUT,
         memory=MemoryPolicy.HOST_VISIBLE_INPUT,
+        pytorch_probe=pytorch_probe,
+        compare=compare,
     )
 
 
-def output_tensor(name: str, *, dtype: str, shape: tuple[int | str, ...]) -> LogicalTensor:
+def output_tensor(
+    name: str,
+    *,
+    dtype: str,
+    shape: tuple[int | str, ...],
+    pytorch_probe: PyTorchProbe | None = None,
+    compare: ComparePolicy | None = None,
+) -> LogicalTensor:
     return LogicalTensor(
         name=name,
         spec=TensorSpec(dtype=dtype, shape=shape),
         role=TensorRole.OUTPUT,
         memory=MemoryPolicy.HOST_VISIBLE_OUTPUT,
+        pytorch_probe=pytorch_probe,
+        compare=compare,
     )
 
 
@@ -188,7 +212,7 @@ def activation_tensor(
     shape: tuple[int | str, ...],
     role: TensorRole = TensorRole.ACTIVATION,
     memory: MemoryPolicy = MemoryPolicy.FRAME_WORKSPACE,
-    ref: ReferenceRule | None = None,
+    pytorch_probe: PyTorchProbe | None = None,
     compare: ComparePolicy | None = None,
 ) -> LogicalTensor:
     return LogicalTensor(
@@ -196,7 +220,7 @@ def activation_tensor(
         spec=TensorSpec(dtype=dtype, shape=shape),
         role=role,
         memory=memory,
-        ref=ref,
+        pytorch_probe=pytorch_probe,
         compare=compare,
     )
 

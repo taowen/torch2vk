@@ -9,6 +9,7 @@ import struct
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any
 
 from .logical import ROW_MAJOR_LAYOUT, LogicalTensor, TensorLayout
 
@@ -152,8 +153,13 @@ class ShaderVariant:
                 f"ShaderVariant {self.name!r} contract name must match, got {self.contract.name!r}"
             )
 
-    def __call__(self, target: DispatchTarget, **tensors: LogicalTensor) -> None:
-        target.run(self, **tensors)
+    def __call__(
+        self,
+        ctx: Any,
+        pytorch_model: object,
+        **tensors: LogicalTensor,
+    ) -> None:
+        ctx.dispatch(self, pytorch_model, tensors)
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +185,14 @@ class DispatchTarget:
     validate: bool = True
 
     def run(self, variant: ShaderVariant, **tensors: LogicalTensor) -> None:
+        self.dispatch(variant, None, tensors)
+
+    def dispatch(
+        self,
+        variant: ShaderVariant,
+        _pytorch_model: object,
+        tensors: Mapping[str, LogicalTensor],
+    ) -> None:
         symbols = variant.contract.validate(tensors) if self.validate else {}
         self.records.append(
             DispatchRecord(

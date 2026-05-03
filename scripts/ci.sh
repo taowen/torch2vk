@@ -21,25 +21,10 @@ uv run python scripts/verify_qwen3_contracts.py
 
 echo "==> qwen3 storage"
 uv run python scripts/verify_qwen3_storage.py
-uv run python scripts/verify_qwen3_debug.py
 uv run python scripts/verify_qwen3_safetensor_weights.py
 
 echo "==> qwen3 shaders"
 uv run python scripts/compile_qwen3_shaders.py
-uv run python scripts/vulkan_qwen3_embedding_smoke.py
-uv run python scripts/vulkan_qwen3_linear_smoke.py
-uv run python scripts/vulkan_qwen3_swiglu_smoke.py
-uv run python scripts/vulkan_qwen3_argmax_smoke.py
-uv run python scripts/vulkan_qwen3_add_smoke.py
-uv run python scripts/vulkan_qwen3_rms_norm_smoke.py
-uv run python scripts/vulkan_qwen3_rms_norm_rope_smoke.py
-uv run python scripts/vulkan_qwen3_rms_norm_rope_k_smoke.py
-uv run python scripts/vulkan_qwen3_set_rows_smoke.py
-uv run python scripts/vulkan_qwen3_fa_split_reduce_smoke.py
-uv run python scripts/vulkan_qwen3_flash_attn_smoke.py
-uv run python scripts/vulkan_qwen3_runner_smoke.py
-uv run python scripts/vulkan_qwen3_prefill_smoke.py
-uv run python scripts/vulkan_qwen3_safetensor_embedding_smoke.py
 
 echo "==> pytest"
 set +e

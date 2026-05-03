@@ -6,12 +6,18 @@ from __future__ import annotations
 import importlib
 import pkgutil
 
-from torch2vk.models.qwen3_safetensor.debug import qwen3_prefill_initial_tensors
+from torch2vk.models.qwen3_safetensor.debug import (
+    qwen3_decode_initial_tensors,
+    qwen3_prefill_initial_tensors,
+)
 from torch2vk.models.qwen3_safetensor.execution import (
-    qwen3_execution_tensors,
-    record_qwen3_prefill,
+    run_qwen3_decode_step,
+    run_qwen3_prefill,
 )
 from torch2vk.models.qwen3_safetensor.spec import Qwen3Spec
+from torch2vk.models.qwen3_safetensor.tensors.decode import qwen3_decode_tensors
+from torch2vk.models.qwen3_safetensor.tensors.prefill import qwen3_prefill_tensors
+from torch2vk.models.qwen3_safetensor.tensors.weights import qwen3_weights
 from torch2vk.shader import DispatchTarget, ShaderVariant, validate_shader_source_bindings
 from torch2vk.validation import validate_dispatch_read_write_chain
 
@@ -39,15 +45,43 @@ def main() -> int:
         rms_norm_eps=1e-6,
         rope_theta=1_000_000.0,
     )
-    tensors = qwen3_execution_tensors(batch=1, steps=3, spec=spec, max_seq_len=8)
-    target = DispatchTarget()
-    record_qwen3_prefill(target, spec=spec, tensors=tensors)
-    report = validate_dispatch_read_write_chain(
-        target.records,
-        initial_tensors=qwen3_prefill_initial_tensors(spec=spec, tensors=tensors),
+    weights = qwen3_weights(spec)
+
+    prefill_tensors = qwen3_prefill_tensors(batch=1, steps=3, spec=spec, max_seq_len=8)
+    prefill_target = DispatchTarget()
+    run_qwen3_prefill(
+        prefill_target,
+        None,
+        spec=spec,
+        tensors=prefill_tensors,
+        weights=weights,
     )
-    report.raise_for_issues()
-    print(f"dispatch_read_write=ok dispatches={len(target.records)}")
+    validate_dispatch_read_write_chain(
+        prefill_target.records,
+        initial_tensors=qwen3_prefill_initial_tensors(
+            tensors=prefill_tensors,
+            weights=weights,
+        ),
+    ).raise_for_issues()
+
+    decode_tensors = qwen3_decode_tensors(batch=1, spec=spec, max_seq_len=8, step_index=3)
+    decode_target = DispatchTarget()
+    run_qwen3_decode_step(
+        decode_target,
+        None,
+        spec=spec,
+        tensors=decode_tensors,
+        weights=weights,
+    )
+    validate_dispatch_read_write_chain(
+        decode_target.records,
+        initial_tensors=qwen3_decode_initial_tensors(tensors=decode_tensors, weights=weights),
+    ).raise_for_issues()
+    print(
+        "dispatch_read_write=ok "
+        f"prefill_dispatches={len(prefill_target.records)} "
+        f"decode_dispatches={len(decode_target.records)}"
+    )
     return 0
 
 

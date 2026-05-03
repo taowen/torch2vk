@@ -14,8 +14,8 @@ from safetensors import safe_open
 
 from torch2vk.logical import LogicalTensor
 
-from .schema import qwen3_weight_tensors
 from .spec import Qwen3Spec, load_qwen3_spec
+from .tensors.weights import qwen3_weight_tensors, qwen3_weights
 
 
 class _SafetensorSlice(Protocol):
@@ -86,7 +86,7 @@ def qwen3_weight_manifest(
     return Qwen3WeightManifest(
         model_dir=resolved,
         checkpoint_path=_checkpoint_path(resolved),
-        weights=qwen3_weight_tensors(resolved_spec),
+        weights=qwen3_weight_tensors(qwen3_weights(resolved_spec)),
     )
 
 
