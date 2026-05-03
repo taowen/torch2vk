@@ -55,6 +55,10 @@ class PushConstantBlock:
             raise ValueError(f"Push constant size must be positive, got {self.size}")
 
 
+def _empty_specialization_constants() -> Mapping[int, int]:
+    return {}
+
+
 @dataclass(frozen=True, slots=True)
 class ShaderContract:
     name: str
@@ -114,6 +118,9 @@ class ShaderVariant:
     source: str = ""
     compile_defines: tuple[str, ...] = ()
     include_dirs: tuple[str, ...] = ()
+    specialization_constants: Mapping[int, int] = field(
+        default_factory=_empty_specialization_constants
+    )
 
     def __post_init__(self) -> None:
         if not self.name:

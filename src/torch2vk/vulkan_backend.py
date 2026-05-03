@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib
+import struct
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -144,6 +146,37 @@ class VulkanContext:
         layout = self.vk.vkCreatePipelineLayout(self.device, create_info, None)
         return VulkanPipelineLayout(context=self, layout=layout)
 
+    def create_compute_pipeline(
+        self,
+        *,
+        shader_module: VulkanShaderModule,
+        pipeline_layout: VulkanPipelineLayout,
+        specialization_constants: Mapping[int, int] | None = None,
+    ) -> VulkanComputePipeline:
+        specialization_info = None
+        if specialization_constants:
+            specialization_info = _specialization_info(self.vk, specialization_constants)
+        stage = self.vk.VkPipelineShaderStageCreateInfo(
+            sType=self.vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            stage=self.vk.VK_SHADER_STAGE_COMPUTE_BIT,
+            module=shader_module.module,
+            pName="main",
+            pSpecializationInfo=specialization_info,
+        )
+        create_info = self.vk.VkComputePipelineCreateInfo(
+            sType=self.vk.VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+            stage=stage,
+            layout=pipeline_layout.layout,
+        )
+        pipeline = self.vk.vkCreateComputePipelines(
+            self.device,
+            self.vk.VK_NULL_HANDLE,
+            1,
+            [create_info],
+            None,
+        )[0]
+        return VulkanComputePipeline(context=self, pipeline=pipeline)
+
 
 @dataclass(slots=True)
 class VulkanBuffer:
@@ -205,6 +238,15 @@ class VulkanPipelineLayout:
 
     def close(self) -> None:
         self.context.vk.vkDestroyPipelineLayout(self.context.device, self.layout, None)
+
+
+@dataclass(slots=True)
+class VulkanComputePipeline:
+    context: VulkanContext
+    pipeline: Any
+
+    def close(self) -> None:
+        self.context.vk.vkDestroyPipeline(self.context.device, self.pipeline, None)
 
 
 def enumerate_physical_devices() -> tuple[VulkanPhysicalDevice, ...]:
@@ -349,3 +391,25 @@ def _descriptor_type(vk: Any, descriptor_type: str) -> int:
     if descriptor_type == "uniform_buffer":
         return int(vk.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
     raise ValueError(f"Unsupported descriptor type {descriptor_type!r}")
+
+
+def _specialization_info(vk: Any, constants: Mapping[int, int]) -> Any:
+    entries: list[Any] = []
+    values = bytearray()
+    for constant_id, value in sorted(constants.items()):
+        offset = len(values)
+        values.extend(struct.pack("<I", value))
+        entries.append(
+            vk.VkSpecializationMapEntry(
+                constantID=constant_id,
+                offset=offset,
+                size=4,
+            )
+        )
+    value_bytes = bytes(values)
+    return vk.VkSpecializationInfo(
+        mapEntryCount=len(entries),
+        pMapEntries=entries,
+        dataSize=len(value_bytes),
+        pData=vk.ffi.from_buffer(value_bytes),
+    )
