@@ -19,15 +19,15 @@ _SOURCE = (
     )
     .replace(
         "layout (binding = 1) readonly buffer B {B_TYPE data_b[];};",
-        "layout (binding = 1) readonly buffer B {uint data_b[];};",
+        "layout (binding = 1) readonly buffer B {uint16_t data_b[];};",
     )
     .replace(
         "FLOAT_TYPE(data_b[b_offset + fastmod(col, p.ne10)])",
-        "bf16_to_fp32(data_b[b_offset + fastmod(col, p.ne10)])",
+        "bf16_to_fp32(uint(data_b[b_offset + fastmod(col, p.ne10)]))",
     )
     .replace(
         "FLOAT_TYPE(data_b[b_offset + col])",
-        "bf16_to_fp32(data_b[b_offset + col])",
+        "bf16_to_fp32(uint(data_b[b_offset + col]))",
     )
 )
 
