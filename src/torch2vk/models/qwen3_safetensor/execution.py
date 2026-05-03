@@ -47,6 +47,7 @@ class Qwen3LayerTensors:
     value_cache_flat: LogicalTensor
     attention_split_k: LogicalTensor
     attention_sinks_placeholder: LogicalTensor
+    attention_context_heads: LogicalTensor
     attention_context: LogicalTensor
     attention_o_proj: LogicalTensor
     attention_residual: LogicalTensor
@@ -279,7 +280,7 @@ def _record_qwen3_layer(
         target,
         split_k_input=layer.attention_split_k,
         sinks_placeholder=layer.attention_sinks_placeholder,
-        output=layer.attention_context,
+        output=layer.attention_context_heads,
     )
     LINEAR_BF16_F32(
         target,
@@ -335,6 +336,14 @@ def _qwen3_layer_tensors(
     kv_width = spec.kv_proj_out_features
     q_width = spec.q_proj_out_features
     attention_split_width = q_width + 2 * spec.num_attention_heads
+    attention_context_heads = _activation4(
+        prefix,
+        "self_attn.context",
+        batch,
+        steps,
+        spec.num_attention_heads,
+        spec.head_dim,
+    )
     q_proj = _activation(prefix, "self_attn.q_proj", batch, steps, q_width)
     k_proj = _activation(prefix, "self_attn.k_proj", batch, steps, kv_width)
     v_proj = _activation(prefix, "self_attn.v_proj", batch, steps, kv_width)
@@ -394,17 +403,22 @@ def _qwen3_layer_tensors(
         attention_split_k=activation_tensor(
             f"{prefix}.self_attn.split_k",
             dtype="float32",
-            shape=(batch, steps, attention_split_width * 4),
+            shape=(batch * steps * attention_split_width * 4,),
             role=TensorRole.SCRATCH,
         ),
-        attention_sinks_placeholder=_activation(
+        attention_sinks_placeholder=_activation4(
             prefix,
             "self_attn.sinks_placeholder",
             batch,
             steps,
-            q_width,
+            spec.num_attention_heads,
+            spec.head_dim,
         ),
-        attention_context=_activation(prefix, "self_attn.context", batch, steps, q_width),
+        attention_context_heads=attention_context_heads,
+        attention_context=attention_context_heads.view_as(
+            f"{prefix}.self_attn.context",
+            spec=TensorSpec(dtype="float32", shape=(batch, steps, q_width)),
+        ),
         attention_o_proj=_activation(prefix, "self_attn.o_proj", batch, steps, spec.hidden_size),
         attention_residual=_activation(
             prefix,

@@ -282,6 +282,13 @@ def _resolve_symbolic_int(
 ) -> int:
     if isinstance(value, int):
         return value
+    if "*" in value:
+        product = 1
+        for part in value.split("*"):
+            product *= _resolve_symbolic_int(contract_name, part.strip(), symbols)
+        return product
+    if value.isdecimal():
+        return int(value)
     resolved = symbols.get(value)
     if resolved is None:
         raise ValueError(f"{contract_name} uniform references unresolved symbol {value!r}")
@@ -296,6 +303,8 @@ def _resolve_push_constant_value(
 ) -> int | float:
     if isinstance(value, int | float):
         return value
+    if value.isdecimal():
+        return int(value)
     if "*" in value:
         product = 1
         for part in value.split("*"):
@@ -455,6 +464,6 @@ def _validate_dispatch(
     if len(dispatch) != 3:
         raise ValueError(f"{shader_name} dispatch must have 3 dimensions")
     for dim in dispatch:
-        value = symbols[dim] if isinstance(dim, str) else dim
+        value = _resolve_symbolic_int(shader_name, dim, symbols) if isinstance(dim, str) else dim
         if value <= 0:
             raise ValueError(f"{shader_name} dispatch dimension must be positive, got {dim!r}")
