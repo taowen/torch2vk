@@ -19,10 +19,13 @@ from .storage import StoragePlan
 from .vulkan_backend import (
     VulkanBuffer,
     VulkanBufferSlice,
+    VulkanCommandBuffer,
+    VulkanCommandPool,
     VulkanComputePipeline,
     VulkanContext,
     VulkanDescriptorPool,
     VulkanDescriptorSetLayout,
+    VulkanFence,
     VulkanPipelineLayout,
     VulkanShaderModule,
 )
@@ -200,6 +203,178 @@ class VulkanSequenceRunner:
             tensor_buffers=tensor_buffers,
             resource_buffers=resource_buffers,
         )
+
+
+@dataclass(slots=True)
+class VulkanReplayDispatch:
+    dispatch: VulkanShaderDispatch
+    uniform_buffers: Mapping[str, VulkanBuffer]
+    command_pool: VulkanCommandPool
+    fence: VulkanFence
+    command_buffer: VulkanCommandBuffer
+
+    def replay(self) -> None:
+        self.command_buffer.submit_and_wait(self.fence)
+
+    def close(self) -> None:
+        self.fence.close()
+        self.command_pool.close()
+        for buffer in self.uniform_buffers.values():
+            buffer.close()
+        self.dispatch.close()
+
+
+@dataclass(slots=True)
+class VulkanReplaySequence:
+    dispatches: tuple[VulkanReplayDispatch, ...]
+
+    @classmethod
+    def capture(
+        cls,
+        records: tuple[DispatchRecord, ...],
+        *,
+        context: VulkanContext,
+        shader_dir: Path,
+        variants: Mapping[str, ShaderVariant],
+        tensors: LogicalTensorLookup,
+        tensor_buffers: Mapping[str, VulkanDescriptorBuffer],
+        resource_buffers: Mapping[str, Mapping[str, VulkanDescriptorBuffer]] | None = None,
+    ) -> VulkanReplaySequence:
+        resources: Mapping[str, Mapping[str, VulkanDescriptorBuffer]] = (
+            {} if resource_buffers is None else resource_buffers
+        )
+        replay_dispatches: list[VulkanReplayDispatch] = []
+        try:
+            for record in records:
+                try:
+                    variant = variants[record.shader]
+                except KeyError as exc:
+                    raise KeyError(f"Missing ShaderVariant for dispatch {record.shader}") from exc
+                dispatch_tensors = _record_tensors(record, variant, tensors)
+                replay_dispatches.append(
+                    _capture_replay_dispatch(
+                        context=context,
+                        shader_dir=shader_dir,
+                        variant=variant,
+                        tensors=dispatch_tensors,
+                        tensor_buffers=tensor_buffers,
+                        resource_buffers=resources.get(record.shader),
+                    )
+                )
+        except Exception:
+            for replay_dispatch in reversed(replay_dispatches):
+                replay_dispatch.close()
+            raise
+        return cls(tuple(replay_dispatches))
+
+    @classmethod
+    def capture_bound_storage(
+        cls,
+        records: tuple[DispatchRecord, ...],
+        *,
+        context: VulkanContext,
+        shader_dir: Path,
+        variants: Mapping[str, ShaderVariant],
+        tensors: LogicalTensorLookup,
+        allocations: Mapping[str, VulkanBuffer],
+        resource_buffers: Mapping[str, Mapping[str, VulkanDescriptorBuffer]] | None = None,
+    ) -> VulkanReplaySequence:
+        return cls.capture(
+            records,
+            context=context,
+            shader_dir=shader_dir,
+            variants=variants,
+            tensors=tensors,
+            tensor_buffers=storage_descriptor_buffers(
+                _iter_lookup_tensors(tensors),
+                allocations=allocations,
+            ),
+            resource_buffers=resource_buffers,
+        )
+
+    def replay(self) -> None:
+        for replay_dispatch in self.dispatches:
+            replay_dispatch.replay()
+
+    def close(self) -> None:
+        for replay_dispatch in reversed(self.dispatches):
+            replay_dispatch.close()
+
+
+def _capture_replay_dispatch(
+    *,
+    context: VulkanContext,
+    shader_dir: Path,
+    variant: ShaderVariant,
+    tensors: Mapping[str, LogicalTensor],
+    tensor_buffers: Mapping[str, VulkanDescriptorBuffer],
+    resource_buffers: Mapping[str, VulkanDescriptorBuffer] | None,
+) -> VulkanReplayDispatch:
+    symbols = variant.contract.validate(tensors)
+    dispatch = VulkanShaderDispatch.load(context, variant, shader_dir=shader_dir)
+    uniform_buffers = _uniform_buffers(context, variant, symbols)
+    command_pool = context.create_command_pool()
+    fence = context.create_fence()
+    try:
+        descriptors: dict[int, VulkanDescriptorBuffer] = {}
+        descriptor_types: dict[int, str] = {}
+        resources: Mapping[str, VulkanDescriptorBuffer] = (
+            {} if resource_buffers is None else resource_buffers
+        )
+        for binding in variant.contract.bindings:
+            tensor = tensors[binding.field]
+            try:
+                descriptors[binding.binding] = tensor_buffers[tensor.name]
+            except KeyError as exc:
+                raise KeyError(f"Missing Vulkan buffer for tensor {tensor.name}") from exc
+            descriptor_types[binding.binding] = binding.descriptor_type
+        for resource in variant.contract.resources:
+            try:
+                descriptors[resource.binding] = resources[resource.name]
+            except KeyError as exc:
+                raise KeyError(f"Missing Vulkan resource buffer {resource.name}") from exc
+            descriptor_types[resource.binding] = resource.descriptor_type
+        for uniform in variant.contract.uniforms:
+            descriptors[uniform.binding] = uniform_buffers[uniform.name]
+            descriptor_types[uniform.binding] = "uniform_buffer"
+
+        descriptor_set = context.allocate_descriptor_set(
+            descriptor_pool=dispatch.descriptor_pool,
+            descriptor_set_layout=dispatch.descriptor_layout,
+        )
+        context.update_descriptor_set(
+            descriptor_set,
+            descriptors,
+            descriptor_types=descriptor_types,
+        )
+        command_buffer = command_pool.allocate_command_buffer()
+        command_buffer.begin(one_time=False)
+        command_buffer.bind_compute_pipeline(dispatch.pipeline)
+        command_buffer.bind_descriptor_set(
+            pipeline_layout=dispatch.pipeline_layout,
+            descriptor_set=descriptor_set,
+        )
+        if variant.contract.push_constants is not None:
+            command_buffer.push_constants(
+                pipeline_layout=dispatch.pipeline_layout,
+                data=pack_push_constants(variant.contract, tensors, symbols) or b"",
+            )
+        command_buffer.dispatch(*dispatch_dimensions(variant.contract, symbols))
+        command_buffer.end()
+        return VulkanReplayDispatch(
+            dispatch=dispatch,
+            uniform_buffers=uniform_buffers,
+            command_pool=command_pool,
+            fence=fence,
+            command_buffer=command_buffer,
+        )
+    except Exception:
+        fence.close()
+        command_pool.close()
+        for buffer in uniform_buffers.values():
+            buffer.close()
+        dispatch.close()
+        raise
 
 
 def storage_descriptor_buffers(

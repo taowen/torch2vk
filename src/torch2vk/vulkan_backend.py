@@ -395,10 +395,10 @@ class VulkanCommandBuffer:
     context: VulkanContext
     command_buffer: Any
 
-    def begin(self) -> None:
+    def begin(self, *, one_time: bool = True) -> None:
         begin_info = self.context.vk.VkCommandBufferBeginInfo(
             sType=self.context.vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            flags=self.context.vk.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            flags=self.context.vk.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT if one_time else 0,
         )
         self.context.vk.vkBeginCommandBuffer(self.command_buffer, begin_info)
 
@@ -447,6 +447,7 @@ class VulkanCommandBuffer:
         self.context.vk.vkCmdDispatch(self.command_buffer, x, y, z)
 
     def submit_and_wait(self, fence: VulkanFence) -> None:
+        self.context.vk.vkResetFences(self.context.device, 1, [fence.fence])
         submit_info = self.context.vk.VkSubmitInfo(
             sType=self.context.vk.VK_STRUCTURE_TYPE_SUBMIT_INFO,
             commandBufferCount=1,

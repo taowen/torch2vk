@@ -16,6 +16,7 @@ from torch2vk.shader import DispatchTarget
 from torch2vk.storage import bind_storage, plan_storage
 from torch2vk.vulkan_backend import VulkanContext, create_compute_context
 from torch2vk.vulkan_runner import (
+    VulkanReplaySequence,
     VulkanSequenceRunner,
     VulkanShaderDispatch,
     allocate_storage_buffers,
@@ -217,6 +218,31 @@ def _run_bound_storage_sequence(context: VulkanContext) -> None:
             read_bound_tensor_bytes(tensors["shared.out"], allocations),
         )
         _assert_close(actual, expected, tolerance=1e-5)
+        write_bound_tensor_bytes(tensors["shared.out"], allocations, bytes(len(expected) * 4))
+        replay = VulkanReplaySequence.capture_bound_storage(
+            tuple(target.records),
+            context=context,
+            shader_dir=SHADER_DIR,
+            variants={SWIGLU_F32.name: SWIGLU_F32},
+            tensors=tensors,
+            allocations=allocations,
+        )
+        try:
+            replay.replay()
+            actual = struct.unpack(
+                f"<{len(expected)}f",
+                read_bound_tensor_bytes(tensors["shared.out"], allocations),
+            )
+            _assert_close(actual, expected, tolerance=1e-5)
+            write_bound_tensor_bytes(tensors["shared.out"], allocations, bytes(len(expected) * 4))
+            replay.replay()
+            actual = struct.unpack(
+                f"<{len(expected)}f",
+                read_bound_tensor_bytes(tensors["shared.out"], allocations),
+            )
+            _assert_close(actual, expected, tolerance=1e-5)
+        finally:
+            replay.close()
     finally:
         for allocation in allocations.values():
             allocation.close()
