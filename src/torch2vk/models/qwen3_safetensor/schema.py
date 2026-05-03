@@ -38,7 +38,7 @@ def qwen3_weight_tensors(spec: Qwen3Spec) -> tuple[LogicalTensor, ...]:
         W(
             "weights.norm",
             safetensor_key="model.norm.weight",
-            dtype="float32",
+            dtype="bfloat16",
             shape=(spec.hidden_size,),
         ),
         W(
@@ -56,13 +56,13 @@ def qwen3_weight_tensors(spec: Qwen3Spec) -> tuple[LogicalTensor, ...]:
                 W(
                     f"{logical_prefix}.input_layernorm",
                     safetensor_key=f"{checkpoint_prefix}.input_layernorm.weight",
-                    dtype="float32",
+                    dtype="bfloat16",
                     shape=(spec.hidden_size,),
                 ),
                 W(
                     f"{logical_prefix}.post_attention_layernorm",
                     safetensor_key=f"{checkpoint_prefix}.post_attention_layernorm.weight",
-                    dtype="float32",
+                    dtype="bfloat16",
                     shape=(spec.hidden_size,),
                 ),
                 W(
@@ -92,13 +92,13 @@ def qwen3_weight_tensors(spec: Qwen3Spec) -> tuple[LogicalTensor, ...]:
                 W(
                     f"{logical_prefix}.self_attn.q_norm",
                     safetensor_key=f"{checkpoint_prefix}.self_attn.q_norm.weight",
-                    dtype="float32",
+                    dtype="bfloat16",
                     shape=(spec.head_dim,),
                 ),
                 W(
                     f"{logical_prefix}.self_attn.k_norm",
                     safetensor_key=f"{checkpoint_prefix}.self_attn.k_norm.weight",
-                    dtype="float32",
+                    dtype="bfloat16",
                     shape=(spec.head_dim,),
                 ),
                 W(
@@ -185,4 +185,3 @@ def qwen3_model_schema(spec: Qwen3Spec) -> ModelSchema:
         weights=qwen3_weight_tensors(spec),
         boundaries=qwen3_boundaries(),
     )
-
