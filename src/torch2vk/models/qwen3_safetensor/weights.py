@@ -153,30 +153,39 @@ def qwen3_safetensor_weight_bytes(
     *,
     spec: Qwen3Spec | None = None,
 ) -> bytes:
-    verification = verify_qwen3_safetensor_weights(model_dir, spec=spec)
-    verification.raise_for_mismatches()
-    if weight.source is None:
-        raise ValueError(f"{weight.name} has no safetensor source")
-    checkpoint_tensor = verification.checkpoint_tensors[weight.source.key]
-    handle_context = cast(
-        "AbstractContextManager[_SafetensorHandle]",
-        safe_open(checkpoint_tensor.shard, framework="pt", device="cpu"),
-    )
-    with handle_context as handle:
-        tensor = handle.get_tensor(weight.source.key).contiguous()
-    return _raw_tensor_bytes(weight, tensor)
+    payloads = qwen3_safetensor_weight_payloads(model_dir, spec=spec, weights=(weight,))
+    return payloads[weight.name]
 
 
 def qwen3_safetensor_weight_payloads(
     model_dir: str | Path,
     *,
     spec: Qwen3Spec | None = None,
+    weights: tuple[LogicalTensor, ...] | None = None,
 ) -> dict[str, bytes]:
-    manifest = qwen3_weight_manifest(model_dir, spec=spec)
-    return {
-        weight.name: qwen3_safetensor_weight_bytes(model_dir, weight, spec=spec)
-        for weight in manifest.weights
-    }
+    verification = verify_qwen3_safetensor_weights(model_dir, spec=spec)
+    verification.raise_for_mismatches()
+    selected = verification.manifest.weights if weights is None else weights
+    by_shard: dict[Path, list[LogicalTensor]] = {}
+    for weight in selected:
+        if weight.source is None:
+            raise ValueError(f"{weight.name} has no safetensor source")
+        checkpoint_tensor = verification.checkpoint_tensors[weight.source.key]
+        by_shard.setdefault(checkpoint_tensor.shard, []).append(weight)
+
+    payloads: dict[str, bytes] = {}
+    for shard, shard_weights in sorted(by_shard.items()):
+        handle_context = cast(
+            "AbstractContextManager[_SafetensorHandle]",
+            safe_open(shard, framework="pt", device="cpu"),
+        )
+        with handle_context as handle:
+            for weight in shard_weights:
+                if weight.source is None:
+                    raise ValueError(f"{weight.name} has no safetensor source")
+                tensor = handle.get_tensor(weight.source.key).contiguous()
+                payloads[weight.name] = _raw_tensor_bytes(weight, tensor)
+    return payloads
 
 
 def _checkpoint_path(model_dir: Path) -> Path:
