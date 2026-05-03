@@ -53,7 +53,7 @@ RMS_NORM_MUL_ROPE_Q_F32 = ShaderVariant(
             Binding("output", 5, BindingAccess.WRITE),
             Binding("row_indices", 6, BindingAccess.READ),
         ),
-        dispatch=("D", "S", "B"),
+        dispatch=("N", "S", "B"),
         push_constants=PushConstantBlock(
             size=224,
             fields=(
