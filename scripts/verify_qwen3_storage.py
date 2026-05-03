@@ -10,7 +10,8 @@ from torch2vk.logical import BufferSlice, LogicalTensor
 from torch2vk.models.qwen3_safetensor.execution import qwen3_execution_tensors
 from torch2vk.models.qwen3_safetensor.schema import qwen3_weight_tensors
 from torch2vk.models.qwen3_safetensor.spec import Qwen3Spec
-from torch2vk.storage import plan_storage, tensor_nbytes
+from torch2vk.replay import RecordedSequence, ReplayRegime, storage_fingerprints
+from torch2vk.storage import bind_storage, plan_storage, tensor_nbytes
 
 
 def main() -> int:
@@ -32,7 +33,17 @@ def main() -> int:
     tensors = (*_collect_logical_tensors(execution_tensors), *qwen3_weight_tensors(spec))
     plan = plan_storage(tensors, allocation_id="qwen3-test")
     _validate_plan_covers_tensors(tensors, plan.slices)
-    print(f"storage_plan=ok tensors={len(tensors)} unique={len(plan.slices)}")
+    bound_tensors = bind_storage(tensors, plan)
+    fingerprints = storage_fingerprints(bound_tensors)
+    RecordedSequence(
+        regime=ReplayRegime(model="qwen3_safetensor", phase="prefill", values={}),
+        dispatches=(),
+        storage=fingerprints,
+    ).validate_storage(bound_tensors)
+    print(
+        "storage_plan=ok "
+        f"tensors={len(tensors)} unique={len(plan.slices)} fingerprints={len(fingerprints)}"
+    )
     return 0
 
 
