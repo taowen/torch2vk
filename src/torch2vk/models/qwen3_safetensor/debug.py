@@ -19,7 +19,9 @@ def qwen3_prefill_initial_tensors(
         tensors.input_ids,
         tensors.position_ids,
         tensors.row_indices,
+        tensors.rope_freq_factors_placeholder,
         tensors.attention_mask,
+        *(layer.attention_sinks_placeholder for layer in tensors.layers),
         *qwen3_weight_tensors(spec),
     )
 

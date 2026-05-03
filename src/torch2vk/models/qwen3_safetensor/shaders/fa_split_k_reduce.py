@@ -10,11 +10,15 @@ FA_SPLIT_K_REDUCE = ShaderVariant(
     family="flash_attention_reduce",
     contract=ShaderContract(
         name="fa_split_k_reduce",
-        inputs={"split_k_input": TensorContract(dtype="float32", shape=("B", "S", "A"))},
+        inputs={
+            "split_k_input": TensorContract(dtype="float32", shape=("B", "S", "A")),
+            "sinks_placeholder": TensorContract(dtype="float32", shape=("B", "S", "Q")),
+        },
         outputs={"output": TensorContract(dtype="float32", shape=("B", "S", "Q"))},
         bindings=(
             Binding("split_k_input", 0, BindingAccess.READ),
-            Binding("output", 1, BindingAccess.WRITE),
+            Binding("sinks_placeholder", 1, BindingAccess.READ),
+            Binding("output", 2, BindingAccess.WRITE),
         ),
         dispatch=("Q", "S", "B"),
     ),

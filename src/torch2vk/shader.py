@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -141,6 +142,28 @@ class DispatchTarget:
 
     def reset(self) -> None:
         self.records.clear()
+
+
+def validate_shader_source_bindings(variant: ShaderVariant) -> None:
+    source_bindings = _shader_source_bindings(variant.source)
+    if not source_bindings:
+        raise ValueError(f"{variant.name} source has no GLSL layout(binding=...) declarations")
+    for binding in variant.contract.bindings:
+        if binding.binding not in source_bindings:
+            raise ValueError(
+                f"{variant.name}.{binding.field} contract binding {binding.binding} "
+                "is missing from GLSL source"
+            )
+
+
+def _shader_source_bindings(source: str) -> set[int]:
+    return {
+        int(match)
+        for match in re.findall(
+            r"layout\s*\([^)]*\bbinding\s*=\s*(\d+)\b[^)]*\)",
+            source,
+        )
+    }
 
 
 def _validate_tensor_contract(

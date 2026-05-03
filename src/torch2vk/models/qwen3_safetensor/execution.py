@@ -46,6 +46,7 @@ class Qwen3LayerTensors:
     value_cache: LogicalTensor
     value_cache_flat: LogicalTensor
     attention_split_k: LogicalTensor
+    attention_sinks_placeholder: LogicalTensor
     attention_context: LogicalTensor
     attention_o_proj: LogicalTensor
     attention_residual: LogicalTensor
@@ -61,6 +62,7 @@ class Qwen3ExecutionTensors:
     input_ids: LogicalTensor
     position_ids: LogicalTensor
     row_indices: LogicalTensor
+    rope_freq_factors_placeholder: LogicalTensor
     attention_mask: LogicalTensor
     hidden: LogicalTensor
     layers: tuple[Qwen3LayerTensors, ...]
@@ -99,8 +101,14 @@ def qwen3_execution_tensors(
         layer_input = layer.output
     return Qwen3ExecutionTensors(
         input_ids=input_tensor("input.input_ids", dtype="int32", shape=(batch, steps)),
-        position_ids=input_tensor("input.position_ids", dtype="int64", shape=(steps,)),
+        position_ids=input_tensor("input.position_ids", dtype="int32", shape=(steps,)),
         row_indices=input_tensor("input.row_indices", dtype="int64", shape=(steps,)),
+        rope_freq_factors_placeholder=activation_tensor(
+            "input.rope_freq_factors_placeholder",
+            dtype="float32",
+            shape=(spec.head_dim,),
+            role=TensorRole.SCRATCH,
+        ),
         attention_mask=activation_tensor(
             "input.attention_mask_f16",
             dtype="float16",
@@ -158,6 +166,7 @@ def record_qwen3_prefill(
             layer=layer,
             position_ids=tensors.position_ids,
             row_indices=tensors.row_indices,
+            rope_freq_factors_placeholder=tensors.rope_freq_factors_placeholder,
             attention_mask=tensors.attention_mask,
         )
     RMS_NORM_F32(
@@ -204,6 +213,7 @@ def _record_qwen3_layer(
     layer: Qwen3LayerTensors,
     position_ids: LogicalTensor,
     row_indices: LogicalTensor,
+    rope_freq_factors_placeholder: LogicalTensor,
     attention_mask: LogicalTensor,
 ) -> None:
     prefix = f"weights.layer.{layer_index:02d}"
@@ -236,6 +246,7 @@ def _record_qwen3_layer(
         x=layer.q_heads,
         weight=weights[f"{prefix}.self_attn.q_norm"],
         position_ids=position_ids,
+        freq_factors_placeholder=rope_freq_factors_placeholder,
         row_indices=row_indices,
         output=layer.q_rope,
     )
@@ -244,6 +255,7 @@ def _record_qwen3_layer(
         x=layer.k_heads,
         weight=weights[f"{prefix}.self_attn.k_norm"],
         position_ids=position_ids,
+        freq_factors_placeholder=rope_freq_factors_placeholder,
         row_indices=row_indices,
         output=layer.key_cache,
     )
@@ -259,11 +271,14 @@ def _record_qwen3_layer(
         k=layer.key_cache,
         v=layer.value_cache,
         mask=attention_mask,
+        sinks_placeholder=layer.q_rope,
+        mask_opt_placeholder=layer.q_rope,
         split_k_output=layer.attention_split_k,
     )
     FA_SPLIT_K_REDUCE(
         target,
         split_k_input=layer.attention_split_k,
+        sinks_placeholder=layer.attention_sinks_placeholder,
         output=layer.attention_context,
     )
     LINEAR_BF16_F32(
@@ -381,6 +396,13 @@ def _qwen3_layer_tensors(
             dtype="float32",
             shape=(batch, steps, attention_split_width * 4),
             role=TensorRole.SCRATCH,
+        ),
+        attention_sinks_placeholder=_activation(
+            prefix,
+            "self_attn.sinks_placeholder",
+            batch,
+            steps,
+            q_width,
         ),
         attention_context=_activation(prefix, "self_attn.context", batch, steps, q_width),
         attention_o_proj=_activation(prefix, "self_attn.o_proj", batch, steps, spec.hidden_size),

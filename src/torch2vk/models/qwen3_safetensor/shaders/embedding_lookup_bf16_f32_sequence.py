@@ -16,9 +16,9 @@ EMBEDDING_LOOKUP_BF16_F32 = ShaderVariant(
         },
         outputs={"output": TensorContract(dtype="float32", shape=("B", "S", "H"))},
         bindings=(
-            Binding("input_ids", 0, BindingAccess.READ),
-            Binding("weight", 1, BindingAccess.READ),
-            Binding("output", 2, BindingAccess.WRITE),
+            Binding("output", 0, BindingAccess.WRITE),
+            Binding("input_ids", 1, BindingAccess.READ),
+            Binding("weight", 2, BindingAccess.READ),
         ),
         dispatch=("H", "S", "B"),
     ),

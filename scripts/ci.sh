@@ -15,6 +15,9 @@ uv run ruff check src tests
 echo "==> pyright"
 uv run pyright src tests
 
+echo "==> qwen3 contracts"
+uv run python scripts/verify_qwen3_contracts.py
+
 echo "==> pytest"
 set +e
 uv run pytest
