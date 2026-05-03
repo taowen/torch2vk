@@ -1,1 +1,0 @@
-"""OmniVoice safetensor model support."""
