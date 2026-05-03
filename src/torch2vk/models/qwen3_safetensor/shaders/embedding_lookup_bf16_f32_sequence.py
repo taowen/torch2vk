@@ -6,10 +6,10 @@ from torch2vk.copied_shader_source import copied_shader_variant_source
 from torch2vk.shader import (
     Binding,
     BindingAccess,
-    ResourceBinding,
     ShaderContract,
     ShaderVariant,
     TensorContract,
+    UniformBlock,
 )
 
 EMBEDDING_LOOKUP_BF16_F32 = ShaderVariant(
@@ -28,7 +28,7 @@ EMBEDDING_LOOKUP_BF16_F32 = ShaderVariant(
             Binding("weight", 2, BindingAccess.READ),
         ),
         dispatch=("H", "S", "B"),
-        resources=(ResourceBinding("sizes", 3, "uniform_buffer"),),
+        uniforms=(UniformBlock("sizes", 3, ("H", "S", "B", "V")),),
     ),
     source=copied_shader_variant_source(
         "embedding_lookup_bf16_f32_sequence.py",

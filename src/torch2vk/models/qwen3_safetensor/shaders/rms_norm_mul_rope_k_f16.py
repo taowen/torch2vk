@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from torch2vk.copied_shader_source import copied_shader_variant_source
-from torch2vk.shader import Binding, BindingAccess, ShaderContract, ShaderVariant, TensorContract
+from torch2vk.shader import (
+    Binding,
+    BindingAccess,
+    PushConstantBlock,
+    ShaderContract,
+    ShaderVariant,
+    TensorContract,
+)
 
 _SOURCE = (
     copied_shader_variant_source(
@@ -46,6 +53,7 @@ RMS_NORM_MUL_ROPE_K_F16 = ShaderVariant(
             Binding("row_indices", 6, BindingAccess.READ),
         ),
         dispatch=("D", "S", "B"),
+        push_constants=PushConstantBlock(size=224),
     ),
     source=_SOURCE,
     include_dirs=("copied/agentorch_shader_source/llama_cpp_glsl",),

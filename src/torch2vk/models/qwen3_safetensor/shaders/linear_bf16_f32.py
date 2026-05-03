@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from torch2vk.copied_shader_source import copied_assignment_string
-from torch2vk.shader import Binding, BindingAccess, ShaderContract, ShaderVariant, TensorContract
+from torch2vk.shader import (
+    Binding,
+    BindingAccess,
+    PushConstantBlock,
+    ShaderContract,
+    ShaderVariant,
+    TensorContract,
+)
 
 LINEAR_BF16_F32 = ShaderVariant(
     name="linear_bf16_f32",
@@ -21,6 +28,7 @@ LINEAR_BF16_F32 = ShaderVariant(
             Binding("output", 2, BindingAccess.WRITE),
         ),
         dispatch=("N", "S", "B"),
+        push_constants=PushConstantBlock(size=68),
     ),
     source=copied_assignment_string(
         "matmul_bf16_f32_f16acc_aligned_l.py",

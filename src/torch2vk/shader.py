@@ -39,6 +39,23 @@ class ResourceBinding:
 
 
 @dataclass(frozen=True, slots=True)
+class UniformBlock:
+    name: str
+    binding: int
+    values: tuple[int | str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PushConstantBlock:
+    size: int
+    fields: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.size <= 0:
+            raise ValueError(f"Push constant size must be positive, got {self.size}")
+
+
+@dataclass(frozen=True, slots=True)
 class ShaderContract:
     name: str
     inputs: Mapping[str, TensorContract]
@@ -46,6 +63,8 @@ class ShaderContract:
     bindings: tuple[Binding, ...]
     dispatch: tuple[int | str, int | str, int | str]
     resources: tuple[ResourceBinding, ...] = ()
+    uniforms: tuple[UniformBlock, ...] = ()
+    push_constants: PushConstantBlock | None = None
 
     def validate(self, tensors: Mapping[str, LogicalTensor]) -> dict[str, int]:
         expected = set(self.inputs) | set(self.outputs)
@@ -116,6 +135,8 @@ class DispatchRecord:
     reads: Mapping[str, str]
     writes: Mapping[str, str]
     symbols: Mapping[str, int]
+    uniforms: Mapping[str, tuple[int, ...]]
+    push_constant_size: int | None
 
 
 def _new_dispatch_records() -> list[DispatchRecord]:
@@ -145,6 +166,10 @@ class DispatchTarget:
                     if field in tensors
                 },
                 symbols=symbols,
+                uniforms=resolve_uniform_blocks(variant.contract, symbols),
+                push_constant_size=None
+                if variant.contract.push_constants is None
+                else variant.contract.push_constants.size,
             )
         )
 
@@ -168,6 +193,26 @@ def validate_shader_source_bindings(variant: ShaderVariant) -> None:
                 f"{variant.name}.{binding.name} resource binding {binding.binding} "
                 "is missing from GLSL source"
             )
+    for uniform in variant.contract.uniforms:
+        if uniform.binding not in source_bindings:
+            raise ValueError(
+                f"{variant.name}.{uniform.name} uniform binding {uniform.binding} "
+                "is missing from GLSL source"
+            )
+    if "push_constant" in variant.source and variant.contract.push_constants is None:
+        raise ValueError(f"{variant.name} source declares push constants but contract has none")
+
+
+def resolve_uniform_blocks(
+    contract: ShaderContract,
+    symbols: Mapping[str, int],
+) -> dict[str, tuple[int, ...]]:
+    return {
+        uniform.name: tuple(
+            _resolve_symbolic_int(contract.name, value, symbols) for value in uniform.values
+        )
+        for uniform in contract.uniforms
+    }
 
 
 def _shader_source_bindings(source: str) -> set[int]:
@@ -178,6 +223,19 @@ def _shader_source_bindings(source: str) -> set[int]:
             source,
         )
     }
+
+
+def _resolve_symbolic_int(
+    contract_name: str,
+    value: int | str,
+    symbols: Mapping[str, int],
+) -> int:
+    if isinstance(value, int):
+        return value
+    resolved = symbols.get(value)
+    if resolved is None:
+        raise ValueError(f"{contract_name} uniform references unresolved symbol {value!r}")
+    return resolved
 
 
 def _validate_tensor_contract(
@@ -228,19 +286,31 @@ def _validate_bindings(contract: ShaderContract) -> None:
     seen_bindings: set[int] = set()
     fields = set(contract.inputs) | set(contract.outputs)
     for binding in contract.bindings:
-        if binding.binding in seen_bindings:
-            raise ValueError(f"{contract.name} duplicate descriptor binding {binding.binding}")
-        seen_bindings.add(binding.binding)
+        _reserve_descriptor_binding(contract.name, binding.binding, seen_bindings)
         if binding.field not in fields:
             raise ValueError(f"{contract.name} binding references unknown field {binding.field!r}")
         if binding.access is BindingAccess.WRITE and binding.field not in contract.outputs:
             raise ValueError(f"{contract.name}.{binding.field} write binding must be an output")
     for resource in contract.resources:
-        if resource.binding in seen_bindings:
-            raise ValueError(f"{contract.name} duplicate descriptor binding {resource.binding}")
-        seen_bindings.add(resource.binding)
+        _reserve_descriptor_binding(contract.name, resource.binding, seen_bindings)
         if not resource.name:
             raise ValueError(f"{contract.name} resource binding must have a name")
+    for uniform in contract.uniforms:
+        _reserve_descriptor_binding(contract.name, uniform.binding, seen_bindings)
+        if not uniform.name:
+            raise ValueError(f"{contract.name} uniform binding must have a name")
+        if not uniform.values:
+            raise ValueError(f"{contract.name}.{uniform.name} uniform must declare values")
+
+
+def _reserve_descriptor_binding(
+    contract_name: str,
+    binding: int,
+    seen_bindings: set[int],
+) -> None:
+    if binding in seen_bindings:
+        raise ValueError(f"{contract_name} duplicate descriptor binding {binding}")
+    seen_bindings.add(binding)
 
 
 def _validate_dispatch(

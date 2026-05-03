@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from torch2vk.copied_shader_source import copied_shader_variant_source
-from torch2vk.shader import Binding, BindingAccess, ShaderContract, ShaderVariant, TensorContract
+from torch2vk.shader import (
+    Binding,
+    BindingAccess,
+    PushConstantBlock,
+    ShaderContract,
+    ShaderVariant,
+    TensorContract,
+)
 
 SWIGLU_F32 = ShaderVariant(
     name="swiglu_f32",
@@ -21,6 +28,7 @@ SWIGLU_F32 = ShaderVariant(
             Binding("output", 2, BindingAccess.WRITE),
         ),
         dispatch=("I", "S", "B"),
+        push_constants=PushConstantBlock(size=64),
     ),
     source=copied_shader_variant_source("swiglu_f32.py", "SWIGLU_F32"),
 )

@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from torch2vk.copied_shader_source import copied_shader_variant_source
-from torch2vk.shader import Binding, BindingAccess, ShaderContract, ShaderVariant, TensorContract
+from torch2vk.shader import (
+    Binding,
+    BindingAccess,
+    PushConstantBlock,
+    ShaderContract,
+    ShaderVariant,
+    TensorContract,
+)
 
 FLASH_ATTN_F32_F16 = ShaderVariant(
     name="flash_attn_f32_f16_aligned_f32accf16",
@@ -29,6 +36,7 @@ FLASH_ATTN_F32_F16 = ShaderVariant(
             Binding("mask_opt_placeholder", 6, BindingAccess.READ),
         ),
         dispatch=("S", "QH", "B"),
+        push_constants=PushConstantBlock(size=128),
     ),
     source=copied_shader_variant_source(
         "flash_attn_f32_f16_aligned_f32accf16.py",

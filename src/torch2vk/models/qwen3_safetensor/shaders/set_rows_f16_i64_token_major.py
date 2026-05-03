@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from torch2vk.copied_shader_source import copied_shader_variant_source
-from torch2vk.shader import Binding, BindingAccess, ShaderContract, ShaderVariant, TensorContract
+from torch2vk.shader import (
+    Binding,
+    BindingAccess,
+    PushConstantBlock,
+    ShaderContract,
+    ShaderVariant,
+    TensorContract,
+)
 
 SET_ROWS_F16_I64_TOKEN_MAJOR = ShaderVariant(
     name="set_rows_f16_i64",
@@ -21,6 +28,7 @@ SET_ROWS_F16_I64_TOKEN_MAJOR = ShaderVariant(
             Binding("output", 2, BindingAccess.WRITE),
         ),
         dispatch=("W", "S", "B"),
+        push_constants=PushConstantBlock(size=112),
     ),
     source=copied_shader_variant_source(
         "set_rows_f16_i64_token_major.py",

@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from torch2vk.copied_shader_source import copied_assignment_string
-from torch2vk.shader import Binding, BindingAccess, ShaderContract, ShaderVariant, TensorContract
+from torch2vk.shader import (
+    Binding,
+    BindingAccess,
+    PushConstantBlock,
+    ShaderContract,
+    ShaderVariant,
+    TensorContract,
+)
 
 _SOURCE = (
     copied_assignment_string(
@@ -40,6 +47,7 @@ RMS_NORM_F32 = ShaderVariant(
             Binding("output", 2, BindingAccess.WRITE),
         ),
         dispatch=("S", "B", 1),
+        push_constants=PushConstantBlock(size=112),
     ),
     source=_SOURCE,
 )

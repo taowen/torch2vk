@@ -6,6 +6,7 @@ from torch2vk.copied_shader_source import copied_shader_variant_source
 from torch2vk.shader import (
     Binding,
     BindingAccess,
+    PushConstantBlock,
     ResourceBinding,
     ShaderContract,
     ShaderVariant,
@@ -29,6 +30,7 @@ ADD_F32 = ShaderVariant(
         ),
         dispatch=("H", "S", "B"),
         resources=(ResourceBinding("partial_buffer", 3, "storage_buffer"),),
+        push_constants=PushConstantBlock(size=112),
     ),
     source=copied_shader_variant_source(
         "add_f32_f32_f32_norepeat.py",
