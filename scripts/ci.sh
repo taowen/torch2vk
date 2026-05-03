@@ -16,6 +16,7 @@ echo "==> pyright"
 uv run pyright src tests
 
 echo "==> qwen3 contracts"
+uv run python scripts/verify_qwen3_shader_sources.py
 uv run python scripts/verify_qwen3_contracts.py
 
 echo "==> qwen3 storage"
