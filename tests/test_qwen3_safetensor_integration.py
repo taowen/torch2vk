@@ -51,6 +51,7 @@ from torch2vk.vulkan_runner import (
 DEFAULT_MODEL_DIR = Path("models/weights/qwen3-0.6b-safetensor")
 PACKAGE = "torch2vk.models.qwen3_safetensor.shaders"
 SHADER_DIR = Path("build/shaders/qwen3_safetensor")
+PROMPT_IDS = (0, 1)
 
 
 class Qwen3SafetensorIntegrationTest(unittest.TestCase):
@@ -65,7 +66,12 @@ class Qwen3SafetensorIntegrationTest(unittest.TestCase):
         verification = verify_qwen3_safetensor_weights(model_dir, spec=spec)
         verification.raise_for_mismatches()
 
-        execution_tensors = qwen3_execution_tensors(batch=1, steps=1, spec=spec, max_seq_len=1)
+        execution_tensors = qwen3_execution_tensors(
+            batch=1,
+            steps=len(PROMPT_IDS),
+            spec=spec,
+            max_seq_len=len(PROMPT_IDS),
+        )
         dispatch_target = DispatchTarget()
         record_qwen3_prefill(dispatch_target, spec=spec, tensors=execution_tensors)
         validate_dispatch_read_write_chain(
@@ -144,9 +150,21 @@ def _write_initial_tensors(
     for tensor in initial:
         bound_tensor = qwen3_first_tensor(tensors[tensor.name])
         if tensor.name in {"input.input_ids", "input.position_ids"}:
-            payload = struct.pack("<i", 0)
+            values = (
+                PROMPT_IDS
+                if tensor.name == "input.input_ids"
+                else tuple(range(len(PROMPT_IDS)))
+            )
+            payload = struct.pack(f"<{len(PROMPT_IDS)}i", *values)
         elif tensor.name == "input.row_indices":
-            payload = struct.pack("<q", 0)
+            payload = struct.pack(f"<{len(PROMPT_IDS)}q", *range(len(PROMPT_IDS)))
+        elif tensor.name == "input.attention_mask_f16":
+            mask = tuple(
+                0.0 if key <= query else -65504.0
+                for query in range(len(PROMPT_IDS))
+                for key in range(len(PROMPT_IDS))
+            )
+            payload = struct.pack(f"<{len(mask)}e", *mask)
         else:
             payload = bytes(tensor_nbytes(bound_tensor))
         write_bound_tensor_bytes(bound_tensor, allocations, payload)
@@ -162,7 +180,7 @@ def _pytorch_qwen3_prefill_logits(model_dir: Path) -> torch.Tensor:
     )
     model.eval()
     with torch.no_grad():
-        output = model(input_ids=torch.tensor([[0]], dtype=torch.long), use_cache=False)
+        output = model(input_ids=torch.tensor([PROMPT_IDS], dtype=torch.long), use_cache=False)
     return cast("torch.Tensor", output.logits).float().contiguous()
 
 

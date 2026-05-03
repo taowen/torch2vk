@@ -52,8 +52,8 @@ float bf16_to_fp32(uint16_t bits) {
 
 void main() {
     uint row = gl_WorkGroupID.x;
-    uint batch = gl_WorkGroupID.y;
-    uint step = gl_WorkGroupID.z;
+    uint step = gl_WorkGroupID.y;
+    uint batch = gl_WorkGroupID.z;
 
     uint nrows = p.stride_d;
     if (row >= nrows) {

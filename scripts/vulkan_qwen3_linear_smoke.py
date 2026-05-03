@@ -8,7 +8,7 @@ from pathlib import Path
 
 from torch2vk.logical import activation_tensor, weight_tensor
 from torch2vk.models.qwen3_safetensor.shaders.linear_bf16_f32 import LINEAR_BF16_F32
-from torch2vk.shader import pack_push_constants
+from torch2vk.shader import dispatch_dimensions, pack_push_constants
 from torch2vk.vulkan_backend import create_compute_context
 
 
@@ -101,11 +101,7 @@ def main() -> int:
                 pipeline_layout=pipeline_layout,
                 data=pack_push_constants(variant.contract, tensors, symbols) or b"",
             )
-            command_buffer.dispatch(
-                out_features,
-                batch,
-                steps,
-            )
+            command_buffer.dispatch(*dispatch_dimensions(variant.contract, symbols))
             command_buffer.end()
             command_buffer.submit_and_wait(fence)
 
