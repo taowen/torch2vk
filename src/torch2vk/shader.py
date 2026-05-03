@@ -324,6 +324,8 @@ def _pack_push_constant_value(
 ) -> bytes:
     if field.dtype == "uint32":
         return struct.pack("<I", int(value))
+    if field.dtype == "int32":
+        return struct.pack("<i", int(value))
     if field.dtype == "float32":
         return struct.pack("<f", float(value))
     raise ValueError(
