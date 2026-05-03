@@ -2,10 +2,26 @@
 
 from __future__ import annotations
 
-from torch2vk.logical import ComparePolicy
+from torch2vk.logical import ComparePolicy, LogicalTensor
 from torch2vk.schema import BoundaryRule
 
 from .execution import Qwen3ExecutionTensors
+from .schema import qwen3_weight_tensors
+from .spec import Qwen3Spec
+
+
+def qwen3_prefill_initial_tensors(
+    *,
+    spec: Qwen3Spec,
+    tensors: Qwen3ExecutionTensors,
+) -> tuple[LogicalTensor, ...]:
+    return (
+        tensors.input_ids,
+        tensors.position_ids,
+        tensors.row_indices,
+        tensors.attention_mask,
+        *qwen3_weight_tensors(spec),
+    )
 
 
 def qwen3_prefill_debug_boundaries(

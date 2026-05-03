@@ -74,6 +74,55 @@ class BoundaryCompareReport:
         raise AssertionError(self.mismatch.message())
 
 
+@dataclass(frozen=True, slots=True)
+class DispatchReadWriteIssue:
+    dispatch_index: int
+    shader: str
+    field: str
+    tensor: str
+
+
+@dataclass(frozen=True, slots=True)
+class DispatchReadWriteReport:
+    issues: tuple[DispatchReadWriteIssue, ...]
+
+    @property
+    def ok(self) -> bool:
+        return not self.issues
+
+    def raise_for_issues(self) -> None:
+        if not self.issues:
+            return
+        first = self.issues[0]
+        raise ValueError(
+            "Dispatch reads tensor without an earlier writer or initial declaration: "
+            f"{first.shader}.{first.field} -> {first.tensor} at dispatch {first.dispatch_index}"
+        )
+
+
+def validate_dispatch_read_write_chain(
+    dispatch_records: Sequence[DispatchRecord],
+    *,
+    initial_tensors: Sequence[LogicalTensor] = (),
+) -> DispatchReadWriteReport:
+    written = {tensor.name for tensor in initial_tensors}
+    issues: list[DispatchReadWriteIssue] = []
+    for record in dispatch_records:
+        for field, tensor_name in record.reads.items():
+            if tensor_name in written:
+                continue
+            issues.append(
+                DispatchReadWriteIssue(
+                    dispatch_index=record.index,
+                    shader=record.shader,
+                    field=field,
+                    tensor=tensor_name,
+                )
+            )
+        written.update(record.writes.values())
+    return DispatchReadWriteReport(tuple(issues))
+
+
 def validate_tensor_matches_reference(tensor: LogicalTensor, reference: Any) -> None:
     dtype = getattr(reference, "dtype", None)
     shape = getattr(reference, "shape", None)

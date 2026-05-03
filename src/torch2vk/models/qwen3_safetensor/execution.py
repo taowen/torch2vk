@@ -323,6 +323,14 @@ def _qwen3_layer_tensors(
     q_proj = _activation(prefix, "self_attn.q_proj", batch, steps, q_width)
     k_proj = _activation(prefix, "self_attn.k_proj", batch, steps, kv_width)
     v_proj = _activation(prefix, "self_attn.v_proj", batch, steps, kv_width)
+    value_cache = _kv_cache(
+        prefix,
+        "value_cache",
+        batch,
+        cache_steps,
+        spec.num_key_value_heads,
+        spec.head_dim,
+    )
     return Qwen3LayerTensors(
         input=layer_input,
         input_norm=_activation(prefix, "input_norm", batch, steps, spec.hidden_size),
@@ -363,15 +371,11 @@ def _qwen3_layer_tensors(
             spec.num_key_value_heads,
             spec.head_dim,
         ),
-        value_cache=_kv_cache(
-            prefix,
-            "value_cache",
-            batch,
-            cache_steps,
-            spec.num_key_value_heads,
-            spec.head_dim,
+        value_cache=value_cache,
+        value_cache_flat=value_cache.view_as(
+            value_cache.name,
+            spec=TensorSpec(dtype="float16", shape=(1, batch, cache_steps, kv_width)),
         ),
-        value_cache_flat=_kv_cache(prefix, "value_cache_flat", 1, batch, cache_steps, kv_width),
         attention_split_k=activation_tensor(
             f"{prefix}.self_attn.split_k",
             dtype="float32",
