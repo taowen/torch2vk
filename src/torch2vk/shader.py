@@ -254,6 +254,17 @@ def pack_uniform_blocks(
     }
 
 
+def dispatch_dimensions(
+    contract: ShaderContract,
+    symbols: Mapping[str, int],
+) -> tuple[int, int, int]:
+    x, y, z = (
+        _resolve_symbolic_int(contract.name, value, symbols)
+        for value in contract.dispatch
+    )
+    return x, y, z
+
+
 def pack_push_constants(
     contract: ShaderContract,
     tensors: Mapping[str, LogicalTensor],

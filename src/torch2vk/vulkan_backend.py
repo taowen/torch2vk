@@ -39,7 +39,10 @@ class VulkanContext:
         buffer_info = self.vk.VkBufferCreateInfo(
             sType=self.vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
             size=nbytes,
-            usage=self.vk.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            usage=(
+                self.vk.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                | self.vk.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+            ),
             sharingMode=self.vk.VK_SHARING_MODE_EXCLUSIVE,
         )
         buffer = self.vk.vkCreateBuffer(self.device, buffer_info, None)
