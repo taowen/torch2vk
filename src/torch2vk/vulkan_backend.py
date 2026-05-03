@@ -383,6 +383,35 @@ class VulkanCommandBuffer:
     def end(self) -> None:
         self.context.vk.vkEndCommandBuffer(self.command_buffer)
 
+    def bind_compute_pipeline(self, pipeline: VulkanComputePipeline) -> None:
+        self.context.vk.vkCmdBindPipeline(
+            self.command_buffer,
+            self.context.vk.VK_PIPELINE_BIND_POINT_COMPUTE,
+            pipeline.pipeline,
+        )
+
+    def bind_descriptor_set(
+        self,
+        *,
+        pipeline_layout: VulkanPipelineLayout,
+        descriptor_set: VulkanDescriptorSet,
+    ) -> None:
+        self.context.vk.vkCmdBindDescriptorSets(
+            self.command_buffer,
+            self.context.vk.VK_PIPELINE_BIND_POINT_COMPUTE,
+            pipeline_layout.layout,
+            0,
+            1,
+            [descriptor_set.descriptor_set],
+            0,
+            None,
+        )
+
+    def dispatch(self, x: int, y: int = 1, z: int = 1) -> None:
+        if x <= 0 or y <= 0 or z <= 0:
+            raise ValueError(f"dispatch dimensions must be positive, got {(x, y, z)}")
+        self.context.vk.vkCmdDispatch(self.command_buffer, x, y, z)
+
     def submit_and_wait(self, fence: VulkanFence) -> None:
         submit_info = self.context.vk.VkSubmitInfo(
             sType=self.context.vk.VK_STRUCTURE_TYPE_SUBMIT_INFO,
