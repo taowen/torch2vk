@@ -122,6 +122,76 @@ class VulkanContext:
         layout = self.vk.vkCreateDescriptorSetLayout(self.device, create_info, None)
         return VulkanDescriptorSetLayout(context=self, layout=layout)
 
+    def create_descriptor_pool(
+        self,
+        contract: ShaderContract,
+        *,
+        max_sets: int = 1,
+    ) -> VulkanDescriptorPool:
+        if max_sets <= 0:
+            raise ValueError(f"max_sets must be positive, got {max_sets}")
+        counts = _descriptor_type_counts(self.vk, contract)
+        pool_sizes = [
+            self.vk.VkDescriptorPoolSize(
+                type=descriptor_type,
+                descriptorCount=count * max_sets,
+            )
+            for descriptor_type, count in sorted(counts.items())
+        ]
+        create_info = self.vk.VkDescriptorPoolCreateInfo(
+            sType=self.vk.VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            maxSets=max_sets,
+            poolSizeCount=len(pool_sizes),
+            pPoolSizes=pool_sizes,
+        )
+        pool = self.vk.vkCreateDescriptorPool(self.device, create_info, None)
+        return VulkanDescriptorPool(context=self, pool=pool)
+
+    def allocate_descriptor_set(
+        self,
+        *,
+        descriptor_pool: VulkanDescriptorPool,
+        descriptor_set_layout: VulkanDescriptorSetLayout,
+    ) -> VulkanDescriptorSet:
+        allocate_info = self.vk.VkDescriptorSetAllocateInfo(
+            sType=self.vk.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            descriptorPool=descriptor_pool.pool,
+            descriptorSetCount=1,
+            pSetLayouts=[descriptor_set_layout.layout],
+        )
+        descriptor_set = self.vk.vkAllocateDescriptorSets(self.device, allocate_info)[0]
+        return VulkanDescriptorSet(context=self, descriptor_set=descriptor_set)
+
+    def update_descriptor_set(
+        self,
+        descriptor_set: VulkanDescriptorSet,
+        descriptors: Mapping[int, VulkanBuffer],
+        *,
+        descriptor_types: Mapping[int, str],
+    ) -> None:
+        writes: list[Any] = []
+        buffer_infos: list[Any] = []
+        for binding, buffer in sorted(descriptors.items()):
+            descriptor_type = descriptor_types[binding]
+            buffer_info = self.vk.VkDescriptorBufferInfo(
+                buffer=buffer.buffer,
+                offset=0,
+                range=buffer.nbytes,
+            )
+            buffer_infos.append(buffer_info)
+            writes.append(
+                self.vk.VkWriteDescriptorSet(
+                    sType=self.vk.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    dstSet=descriptor_set.descriptor_set,
+                    dstBinding=binding,
+                    dstArrayElement=0,
+                    descriptorCount=1,
+                    descriptorType=_descriptor_type(self.vk, descriptor_type),
+                    pBufferInfo=[buffer_info],
+                )
+            )
+        self.vk.vkUpdateDescriptorSets(self.device, len(writes), writes, 0, None)
+
     def create_pipeline_layout(
         self,
         contract: ShaderContract,
@@ -229,6 +299,21 @@ class VulkanDescriptorSetLayout:
 
     def close(self) -> None:
         self.context.vk.vkDestroyDescriptorSetLayout(self.context.device, self.layout, None)
+
+
+@dataclass(slots=True)
+class VulkanDescriptorPool:
+    context: VulkanContext
+    pool: Any
+
+    def close(self) -> None:
+        self.context.vk.vkDestroyDescriptorPool(self.context.device, self.pool, None)
+
+
+@dataclass(slots=True)
+class VulkanDescriptorSet:
+    context: VulkanContext
+    descriptor_set: Any
 
 
 @dataclass(slots=True)
@@ -391,6 +476,20 @@ def _descriptor_type(vk: Any, descriptor_type: str) -> int:
     if descriptor_type == "uniform_buffer":
         return int(vk.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
     raise ValueError(f"Unsupported descriptor type {descriptor_type!r}")
+
+
+def _descriptor_type_counts(vk: Any, contract: ShaderContract) -> dict[int, int]:
+    counts: dict[int, int] = {}
+    for binding in contract.bindings:
+        descriptor_type = _descriptor_type(vk, binding.descriptor_type)
+        counts[descriptor_type] = counts.get(descriptor_type, 0) + 1
+    for resource in contract.resources:
+        descriptor_type = _descriptor_type(vk, resource.descriptor_type)
+        counts[descriptor_type] = counts.get(descriptor_type, 0) + 1
+    for _uniform in contract.uniforms:
+        descriptor_type = _descriptor_type(vk, "uniform_buffer")
+        counts[descriptor_type] = counts.get(descriptor_type, 0) + 1
+    return counts
 
 
 def _specialization_info(vk: Any, constants: Mapping[int, int]) -> Any:
