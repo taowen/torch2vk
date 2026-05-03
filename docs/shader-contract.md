@@ -559,7 +559,7 @@ GLSL，artifact layer 只负责缓存和编译结果。
 ```text
 1. 检查当前处于 rt.frame(...)
 2. 根据 ShaderContract.fields 检查 required tensor fields 和 unexpected fields
-3. resolve/materialize input fields，reserve/materialize output fields
+3. resolve/materialize input fields，reserve/materialize output fields；weight input 只解析 Frame enter 已预加载的 buffer
 4. 从 LogicalTensor 绑定 tensor shape symbols
 5. 从 tensor layout 绑定 layout symbols
 6. 校验 dtype / rank / shape / layout
@@ -613,6 +613,7 @@ dispatch 阶段应该失败的错误：
 缺少 tensor field
 传入 unknown tensor field
 read tensor 无法 materialize
+weight tensor 没有在 Frame enter dependencies 中预加载
 write tensor role/memory/lifetime 不合法
 shape symbol 绑定冲突
 layout symbol 绑定冲突

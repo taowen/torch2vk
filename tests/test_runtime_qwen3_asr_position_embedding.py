@@ -28,7 +28,6 @@ def test_runtime_compares_qwen3_asr_position_embedding_frame(tmp_path) -> None:
     pytorch_model = SinusoidsPositionEmbedding(length=32, channels=channels).eval()
 
     with RuntimeSession.open(device_index=0, artifact_dir=tmp_path / "generated") as rt:
-        rt.register_model(tensors.all())
         run_qwen3_asr_audio_tower_position_embedding(
             rt,
             tensors,
@@ -41,6 +40,8 @@ def test_runtime_compares_qwen3_asr_position_embedding_frame(tmp_path) -> None:
     assert len(records) == 1
     assert records[0].frame == "qwen3_asr.audio_tower.position_embedding"
     assert records[0].shader == "qwen3_asr_position_embedding_f32"
+    assert records[0].writes[0] == ("output", tensors.output)
+    assert records[0].logical_writes[0] == ("output", tensors.output.name)
     assert len(compare_results) == 1
     assert compare_results[0].tensor is tensors.output
     assert compare_results[0].passed

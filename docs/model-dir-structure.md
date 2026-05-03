@@ -129,10 +129,9 @@ model/request/frame lifetime 管理 pool/arena；dispatch 只从对应 pool/aren
 推荐启动形态：
 
 ```python
-with RuntimeSession.open(device_index=0) as rt:
+with RuntimeSession.open(device_index=0, model_dir=model_dir) as rt:
     tensors = declare_omnivoice_tensors(model_dir)
 
-    rt.register_model(tensors, model_dir=model_dir)
     rt.register_inputs(
         {
             tensors.pipeline.prompt_token_ids: prompt_token_ids,
@@ -150,17 +149,21 @@ with RuntimeSession.open(device_index=0) as rt:
 `register_inputs()` 的 key 是声明好的 `LogicalTensor` 对象，不是 logical name 字符串。这样输入绑定和
 shader dispatch 使用的是同一批 tensor 对象，不需要额外的 input key 映射。
 
-`rt.register_model(...)` 只做声明边界上的校验和 session 级 `model_dir` 设置：
+`RuntimeSession.open(..., model_dir=...)` 只设置权重相对路径根目录。`LogicalTensor` 的 dtype/shape/layout、
+`WeightSource`、role、memory、lifetime 等声明组合在实际使用点校验：`register_inputs()` 校验输入 tensor，
+`rt.frame(..., dependencies=...)` 校验 frame 入口依赖并预加载权重，`RuntimeSession.dispatch()` 校验本次
+shader 调用传入的 tensor。
 
-1. 遍历 declarations；
-2. 检查 logical name 是否重复；
-3. 检查 dtype/shape/layout metadata 是否完整；
-4. 校验 `WeightSource`、role、memory、lifetime 等声明组合。
+Runtime 不维护 `name -> LogicalTensor` registry，也不把 compare/probe/debug metadata 复制到另一份表里。后续
+dispatch、readback、compare 和 replay 都必须继续拿着原始 `LogicalTensor` 对象走。Frame 中实际执行了哪些
+tensor，由 `ShaderVariant(rt, ...)` 调用在运行时收集到 dispatch records。
 
-它不维护 `name -> LogicalTensor` registry，也不把 compare/probe/debug metadata 复制到另一份表里。后续
-dispatch、readback、compare 和 replay 都必须继续拿着原始 `LogicalTensor` 对象走。
+具体 frame function 应把本次 forward 可能读取的权重和外部依赖作为 `rt.frame(..., dependencies=...)`
+传入。Runtime 在 frame enter 校验这些 `LogicalTensor`，并加载其中带 `WeightSource` 的权重。这个依赖集合
+只服务于 frame 入口的权重预加载和早期校验，不替代 dispatch records；实际读写了哪些 tensor 仍由 shader
+调用过程收集。
 
-但它不应该预先把所有 activation 都分配出来。activation/output/state 的当前 buffer 状态应由
+Runtime 不应该预先把所有 activation 都分配出来。activation/output/state 的当前 buffer 状态应由
 `RuntimeSession.dispatch()` 根据当前 FrameScope 和 shader contract 触发，并从 RuntimeSession 管理的
 pool/arena 中取得 slice 后写回对应 `LogicalTensor`。
 
@@ -429,7 +432,9 @@ LogicalTensor(
 )
 ```
 
-`WeightSource` 是声明 metadata。实际打开 checkpoint、校验 key/dtype/shape、上传 device local memory 由 RuntimeSession 在 read materialization 时完成。
+`WeightSource` 是声明 metadata。实际打开 checkpoint、校验 key/dtype/shape、上传 device local memory 由
+RuntimeSession 在 Frame enter 阶段根据 `rt.frame(..., dependencies=...)` 完成。dispatch 读到 weight
+时只使用已经预加载的 model-lifetime materialization；如果 dependency 漏声明，dispatch 必须报错。
 
 如果未来需要 packed weight，必须显式声明新的 layout 或 preprocessing artifact，例如：
 
@@ -481,6 +486,7 @@ def run_audio_codec_decoder_frame(
     with rt.frame(
         "audio_codec_decoder",
         scope=scope,
+        dependencies=tensors.dependencies(),
         pytorch_model=pytorch_model,
     ):
         NORMALIZE_AUDIO_TOKENS(

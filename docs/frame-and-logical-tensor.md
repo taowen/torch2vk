@@ -136,6 +136,7 @@ def run_audio_codec_decoder_frame(
     with rt.frame(
         "audio_codec_decoder",
         scope={"domain": "audio"},
+        dependencies=tensors.dependencies(),
         pytorch_model=pytorch_model,
     ):
         return run_audio_codec_decoder_shader_sequence(rt, tensors)
@@ -147,10 +148,13 @@ def run_audio_codec_decoder_frame(
 进入 Frame:
   设置当前 FrameScope
   设置当前 allocation lifetime context
+  校验 frame dependencies
+  预加载 dependencies 中带 WeightSource 的权重
   开始收集 dispatch records
 
 Frame 内:
   ShaderVariant.__call__ 调 RuntimeSession.dispatch
+  RuntimeSession 收集本次 dispatch 实际使用的 LogicalTensor
   RuntimeSession resolve reads/writes，并更新 LogicalTensor 当前 buffer 状态
   RuntimeSession 绑定 descriptor 并提交 Vulkan dispatch
   RuntimeSession 记录每次 dispatch 的 reads/writes/writer/scope
@@ -566,8 +570,10 @@ CONV1D_F32(rt, x=x, weight=weight, bias=bias, output=output)
 
 ```text
 WEIGHT/source
+  必须已经由 Frame enter 的 dependencies 预加载
   如果已加载，复用 MODEL materialization
-  否则读取 checkpoint，校验 dtype/shape/layout，上传到 MODEL_WEIGHT pool
+  如果未加载，说明 frame dependencies 漏声明，dispatch 报错
+  dispatch 不打开 checkpoint、不临场上传权重
   MODEL_WEIGHT pool 可按 checkpoint/model 分块扩容，但不按 shader 临时分配
 
 INPUT

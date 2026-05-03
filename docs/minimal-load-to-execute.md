@@ -90,7 +90,7 @@ with rt.frame("toy.elementwise_mul", scope={"case": "mvp"}):
 目标 API：
 
 ```python
-with RuntimeSession.open(device_index=0) as rt:
+with RuntimeSession.open(device_index=0, model_dir=model_dir) as rt:
     x = LogicalTensor(
         name="toy.x",
         spec=TensorSpec(dtype="float32", shape=(1024,)),
@@ -120,12 +120,12 @@ with RuntimeSession.open(device_index=0) as rt:
         compare=ComparePolicy(kind="tensor", rtol=1e-5, atol=1e-6),
     )
 
-    rt.register_model([x, w, y])
     rt.register_inputs({x: x_cpu})
 
     with rt.frame(
         "toy.elementwise_mul",
         scope={"case": "mvp"},
+        dependencies=(w,),
         reference_model=toy_reference_model,
     ):
         ELEMENTWISE_MUL_F32(rt, x=x, weight=w, output=y)
@@ -324,14 +324,12 @@ MVP 推荐 API：
 ```python
 class RuntimeSession:
     @classmethod
-    def open(cls, *, device_index: int = 0) -> "RuntimeSession": ...
-
-    def register_model(
-        self,
-        tensors: Iterable[LogicalTensor],
+    def open(
+        cls,
         *,
+        device_index: int = 0,
         model_dir: Path | None = None,
-    ) -> None: ...
+    ) -> "RuntimeSession": ...
 
     def register_inputs(self, inputs: Mapping[LogicalTensor, object]) -> None: ...
 
@@ -341,6 +339,7 @@ class RuntimeSession:
         name: str,
         *,
         scope: Mapping[str, str | int] | None = None,
+        dependencies: Iterable[LogicalTensor] = (),
         pytorch_model: PyTorchFrameModel | None = None,
         reference_model: FrameReferenceProvider | None = None,
     ) -> Iterator[FrameContext]: ...
@@ -355,14 +354,22 @@ class RuntimeSession:
 ```
 
 `RuntimeSession.open(...)` 返回的 session 必须支持 context manager；`__exit__` 调用幂等 `close()`。
+`model_dir` 只作为相对 `WeightSource.checkpoint` 的解析根目录。
 
-`register_model()` 校验传入 declarations，但不建立 `name -> LogicalTensor` registry。后续 dispatch、
-input binding、readback 和 compare 都直接使用调用方持有的 `LogicalTensor` 对象。
+`LogicalTensor` declaration 在实际使用点校验：`register_inputs()` 校验输入 tensor，`frame(...,
+dependencies=...)` 校验 frame 入口依赖并预加载权重，`dispatch()` 根据 shader fields 校验本次调用传入的
+tensor，并把本 Frame 实际读写的 `LogicalTensor` 收集进 dispatch records。后续 dispatch、input binding、
+readback 和 compare 都直接使用调用方持有的 `LogicalTensor` 对象。
+
+Frame 入口可以接收 `dependencies`，表示本次 forward 边界可能读取的 `LogicalTensor`。Runtime 在进入
+Frame 时校验这些 declarations，并预先 materialize 其中带 `WeightSource` 的权重 tensor。这个列表不是
+graph IR；dispatch records 仍以实际执行的 shader 调用为准。activation/output 的
+write materialization 仍在对应 `dispatch()` 发生。
 
 `RuntimeSession` 负责：
 
 1. 创建和销毁 Vulkan device/context；
-2. 校验并注册 `LogicalTensor` declarations；
+2. 在 `register_inputs()` / `dispatch()` 使用点校验 `LogicalTensor` declarations；
 3. 管理 frame stack；
 4. 按 model/request/frame/host pool 分配或扩容 device-local、host-visible、staging、readback buffer；
 5. 读取 checkpoint 并上传 weight；
@@ -407,7 +414,7 @@ w = LogicalTensor(
 )
 ```
 
-`RuntimeSession` 在 shader read materialization 时加载权重：
+`RuntimeSession` 在进入 Frame 时根据 `dependencies` 加载权重：
 
 1. 打开 checkpoint；
 2. 检查 key 存在；
@@ -417,6 +424,10 @@ w = LogicalTensor(
 6. 上传到 device-local allocation；
 7. 注册 model-lifetime materialization；
 8. 后续 frame 复用同一 weight。
+
+`RuntimeSession.dispatch()` 不打开 checkpoint。shader read 到 weight 时只接受已经在 Frame enter 阶段
+materialize 好的 `MODEL_WEIGHT` buffer；如果 frame function 漏把该 weight 放进
+`rt.frame(..., dependencies=...)`，dispatch 必须报错，而不是临场加载。
 
 MVP 先支持 safetensors。GGUF 后续再加 `CheckpointReader` 抽象。
 

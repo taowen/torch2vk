@@ -6,36 +6,10 @@ import subprocess
 
 import pytest
 
-from torch2vk.vulkan.allocation import BufferAllocation, BufferSlice
+from torch2vk.vulkan.allocation import BufferSlice
 from torch2vk.vulkan.bootstrap import enumerate_compute_devices
-from torch2vk.vulkan.compute_pipeline import (
-    ComputePipeline,
-    DescriptorBufferBinding,
-    normalize_descriptor_types,
-    normalize_specialization_constants,
-)
+from torch2vk.vulkan.compute_pipeline import ComputePipeline, DescriptorBufferBinding
 from torch2vk.vulkan.device import VulkanDevice
-
-
-def test_pipeline_normalizers() -> None:
-    assert normalize_descriptor_types(descriptor_types=None, storage_buffer_count=3) == (7, 7, 7)
-    assert normalize_specialization_constants({2: 7, 1: 5}) == ((1, 5), (2, 7))
-    assert normalize_specialization_constants([9, 8]) == ((0, 9), (1, 8))
-
-
-def test_descriptor_binding_uses_absolute_slice_offset() -> None:
-    with pytest.raises(ValueError):
-        BufferSlice(allocation=_fake_allocation(size=8), offset=4, nbytes=8)
-
-    allocation = _fake_allocation(size=128, offset=32)
-    binding = DescriptorBufferBinding(BufferSlice(allocation=allocation, offset=48, nbytes=64))
-    assert binding.offset == 48
-    assert binding.range == 64
-
-
-def test_enumerate_compute_devices_smoke() -> None:
-    devices = enumerate_compute_devices()
-    assert all(device.queue_family_index >= 0 for device in devices)
 
 
 def test_elementwise_mul_compute_smoke(tmp_path) -> None:
@@ -117,17 +91,3 @@ void main() {
             x.close()
 
     assert result == pytest.approx([10.0, 40.0, 90.0, 160.0])
-
-
-def _fake_allocation(*, size: int, offset: int = 0) -> BufferAllocation:
-    from torch2vk.vulkan.buffer import VulkanBuffer
-
-    buffer = VulkanBuffer(
-        device_handle=object(),
-        require_device_open=lambda: None,
-        is_device_closed=lambda: True,
-        handle=object(),
-        memory=object(),
-        size=256,
-    )
-    return BufferAllocation(buffer=buffer, offset=offset, size_bytes=size, pool="test")

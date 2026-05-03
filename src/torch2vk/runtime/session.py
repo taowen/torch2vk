@@ -41,7 +41,7 @@ from torch2vk.runtime.shader import (
 from torch2vk.vulkan.allocation import BufferAllocation, BufferSlice
 from torch2vk.vulkan.compute_pipeline import ComputePipeline, DescriptorBufferBinding
 from torch2vk.vulkan.device import VulkanDevice
-from torch2vk.vulkan.types import TensorSpec, concrete_nbytes
+from torch2vk.vulkan.types import TensorSpec, bind_tensor_layout_symbols, concrete_nbytes
 
 
 class _PyTorchModuleLike(Protocol):
@@ -61,10 +61,16 @@ class _ForwardHookModuleLike(Protocol):
 class RuntimeSession:
     """The single runtime owner for LogicalTensor materialization and shader dispatch."""
 
-    def __init__(self, *, device_index: int = 0, artifact_dir: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        device_index: int = 0,
+        artifact_dir: str | Path | None = None,
+        model_dir: str | Path | None = None,
+    ) -> None:
         self.device = VulkanDevice(physical_device_index=device_index)
         self.artifact_dir = Path(".cache/torch2vk/generated" if artifact_dir is None else artifact_dir)
-        self.model_dir: Path | None = None
+        self.model_dir = None if model_dir is None else Path(model_dir).expanduser().resolve()
         self._inputs: dict[LogicalTensor, object] = {}
         self._frame_stack: list[FrameContext] = []
         self._dispatch_records: list[DispatchRecord] = []
@@ -76,8 +82,14 @@ class RuntimeSession:
         self._closed = False
 
     @classmethod
-    def open(cls, *, device_index: int = 0, artifact_dir: str | Path | None = None) -> "RuntimeSession":
-        return cls(device_index=device_index, artifact_dir=artifact_dir)
+    def open(
+        cls,
+        *,
+        device_index: int = 0,
+        artifact_dir: str | Path | None = None,
+        model_dir: str | Path | None = None,
+    ) -> "RuntimeSession":
+        return cls(device_index=device_index, artifact_dir=artifact_dir, model_dir=model_dir)
 
     def __enter__(self) -> "RuntimeSession":
         return self
@@ -98,20 +110,11 @@ class RuntimeSession:
     def compare_results(self) -> tuple[TensorCompareResult, ...]:
         return tuple(self._compare_results)
 
-    def register_model(self, tensors: Iterable[LogicalTensor], *, model_dir: str | Path | None = None) -> None:
-        if model_dir is not None:
-            self.model_dir = Path(model_dir).expanduser().resolve()
-        names: set[str] = set()
-        for tensor in tensors:
-            tensor.validate_declaration()
-            if tensor.name in names:
-                raise ValueError(f"Duplicate LogicalTensor name {tensor.name}")
-            names.add(tensor.name)
-
     def register_inputs(self, inputs: Mapping[LogicalTensor, object]) -> None:
         for tensor, value in inputs.items():
             if not isinstance(tensor, LogicalTensor):
                 raise TypeError(f"register_inputs key must be LogicalTensor, got {type(tensor).__name__}")
+            tensor.validate_declaration()
             if tensor.role is not TensorRole.INPUT:
                 raise ValueError(f"{tensor.name} is not an input tensor")
             self._inputs[tensor] = value
@@ -122,6 +125,7 @@ class RuntimeSession:
         name: str,
         *,
         scope: Mapping[str, str | int] | None = None,
+        dependencies: Iterable[LogicalTensor] = (),
         pytorch_model: object | None = None,
         pytorch_args: tuple[object, ...] = (),
         pytorch_kwargs: Mapping[str, object] | None = None,
@@ -129,9 +133,11 @@ class RuntimeSession:
     ):
         if not name:
             raise ValueError("frame name must be non-empty")
+        frame_dependencies = tuple(dependencies)
         context = FrameContext(
             scope=FrameScope(frame=name, values={} if scope is None else dict(scope)),
             start_dispatch_index=len(self._dispatch_records),
+            dependencies=frame_dependencies,
             pytorch_model=pytorch_model,
             pytorch_args=tuple(pytorch_args),
             pytorch_kwargs={} if pytorch_kwargs is None else dict(pytorch_kwargs),
@@ -140,6 +146,7 @@ class RuntimeSession:
         self._frame_stack.append(context)
         candidate_completed = False
         try:
+            self._materialize_frame_dependencies(frame_dependencies)
             yield context
             candidate_completed = True
         finally:
@@ -167,7 +174,9 @@ class RuntimeSession:
         for name, argument in arguments.items():
             if not isinstance(argument, LogicalTensor):
                 raise TypeError(f"{variant.name}.{name} expects LogicalTensor, got {type(argument).__name__}")
+            argument.validate_declaration()
             tensors[name] = argument
+        frame.used_tensors.extend(tensors[field.name] for field in contract.fields)
 
         symbols = self._bind_shape_symbols(contract.fields, tensors)
         for field in contract.input_fields:
@@ -206,8 +215,10 @@ class RuntimeSession:
             frame=frame.scope.frame,
             scope_values=tuple(sorted(frame.scope.values.items())),
             shader=variant.name,
-            reads=tuple((field.name, tensors[field.name].name) for field in contract.input_fields),
-            writes=tuple((field.name, tensors[field.name].name) for field in contract.output_fields),
+            reads=tuple((field.name, tensors[field.name]) for field in contract.input_fields),
+            writes=tuple((field.name, tensors[field.name]) for field in contract.output_fields),
+            logical_reads=tuple((field.name, tensors[field.name].name) for field in contract.input_fields),
+            logical_writes=tuple((field.name, tensors[field.name].name) for field in contract.output_fields),
             symbols=tuple(sorted(symbols.items())),
             dispatch_size=dispatch_size,
             descriptor_views=tuple(
@@ -219,12 +230,13 @@ class RuntimeSession:
         self._dispatch_records.append(record)
         for field in contract.output_fields:
             tensor = tensors[field.name]
-            tensor.version += 1
-            tensor.writer = DispatchWriter(
-                frame=frame.scope.frame,
-                shader=variant.name,
-                dispatch_index=index,
-            )
+            with tensor.runtime_write_scope():
+                tensor.version += 1
+                tensor.writer = DispatchWriter(
+                    frame=frame.scope.frame,
+                    shader=variant.name,
+                    dispatch_index=index,
+                )
             frame.written_tensors.append(tensor)
 
     def readback(self, tensor: LogicalTensor) -> np.ndarray:
@@ -420,18 +432,29 @@ class RuntimeSession:
                     expected_value = eval_expr(expected_dim, symbols)
                     if actual_dim != expected_value:
                         raise ValueError(f"{field.name} expects dim {expected_value}, got {actual_dim}")
+            bind_tensor_layout_symbols(contract.layout, tensor.layout, symbols)
         return symbols
 
     def _materialize_read(self, tensor: LogicalTensor) -> None:
         if tensor.buffer is not None:
             return
         if tensor.source is not None:
-            self._materialize_weight(tensor)
-            return
+            raise RuntimeError(
+                f"{tensor.name} is a weight tensor but was not preloaded at frame enter; "
+                "include it in rt.frame(..., dependencies=...)"
+            )
         if tensor.role is TensorRole.INPUT:
             self._materialize_input(tensor)
             return
         raise RuntimeError(f"{tensor.name} cannot be read before it is materialized or written")
+
+    def _materialize_frame_dependencies(self, dependencies: Iterable[LogicalTensor]) -> None:
+        for tensor in dependencies:
+            if not isinstance(tensor, LogicalTensor):
+                raise TypeError(f"frame dependencies must be LogicalTensor, got {type(tensor).__name__}")
+            tensor.validate_declaration()
+            if tensor.source is not None and tensor.buffer is None:
+                self._materialize_weight(tensor)
 
     def _materialize_write(self, tensor: LogicalTensor, *, io_kind: IOKind) -> None:
         if io_kind is IOKind.INOUT and tensor.buffer is not None:
@@ -454,8 +477,9 @@ class RuntimeSession:
             self._request_allocations.append(allocation)
         else:
             raise ValueError(f"{tensor.name} cannot be materialized for write with memory={tensor.memory}")
-        tensor.buffer = BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=size)
-        tensor.descriptor_nbytes = size
+        with tensor.runtime_write_scope():
+            tensor.buffer = BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=size)
+            tensor.descriptor_nbytes = size
         if tensor.lifetime in {TensorLifetime.FRAME, TensorLifetime.OP}:
             self._frame_allocations.append((tensor, allocation))
 
@@ -477,8 +501,9 @@ class RuntimeSession:
             (slice_, allocation), = self.device.upload_checkpoint_tensors_with_allocations(
                 [(tensor.name, checkpoint_tensor)]
             )
-        tensor.buffer = slice_
-        tensor.descriptor_nbytes = slice_.nbytes
+        with tensor.runtime_write_scope():
+            tensor.buffer = slice_
+            tensor.descriptor_nbytes = slice_.nbytes
         self._model_allocations.append(allocation)
 
     def _materialize_input(self, tensor: LogicalTensor) -> None:
@@ -491,16 +516,18 @@ class RuntimeSession:
             raise ValueError(f"{tensor.name} input has {array.nbytes} bytes, expected {expected}")
         if tensor.memory is MemoryClass.HOST_INPUT:
             allocation = self.device.allocate_host_visible_allocation(expected)
-            allocation.buffer.write_bytes_at(allocation.offset, memoryview(array))
+            allocation.buffer.write_bytes_at(allocation.offset, memoryview(array).cast("B"))
             self.device.memory_manager.host_upload_ring.flush(allocation=allocation)
         else:
             (slice_, allocation), = self.device.upload_numpy_arrays_with_allocations([(tensor.name, array)])
-            tensor.buffer = slice_
-            tensor.descriptor_nbytes = slice_.nbytes
+            with tensor.runtime_write_scope():
+                tensor.buffer = slice_
+                tensor.descriptor_nbytes = slice_.nbytes
             self._request_allocations.append(allocation)
             return
-        tensor.buffer = BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=expected)
-        tensor.descriptor_nbytes = expected
+        with tensor.runtime_write_scope():
+            tensor.buffer = BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=expected)
+            tensor.descriptor_nbytes = expected
         if tensor.lifetime in {TensorLifetime.FRAME, TensorLifetime.OP}:
             self._frame_allocations.append((tensor, allocation))
 
@@ -579,8 +606,9 @@ class RuntimeSession:
         while self._frame_allocations:
             tensor, allocation = self._frame_allocations.pop()
             if tensor.buffer is not None and tensor.buffer.allocation is allocation:
-                tensor.buffer = None
-                tensor.descriptor_nbytes = None
+                with tensor.runtime_write_scope():
+                    tensor.buffer = None
+                    tensor.descriptor_nbytes = None
             allocation.close()
 
 

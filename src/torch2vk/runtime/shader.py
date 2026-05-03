@@ -6,10 +6,13 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field as dataclass_field
 from enum import StrEnum
 from pathlib import Path
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 from torch2vk.vulkan.types import CONTIGUOUS_LAYOUT, Dim, TensorLayout
 from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
+
+if TYPE_CHECKING:
+    from torch2vk.runtime.logical import LogicalTensor
 
 @dataclass(frozen=True, slots=True)
 class CeilDivExpr:
@@ -182,8 +185,10 @@ class DispatchRecord:
     frame: str
     scope_values: tuple[tuple[str, str | int], ...]
     shader: str
-    reads: tuple[tuple[str, str], ...]
-    writes: tuple[tuple[str, str], ...]
+    reads: tuple[tuple[str, "LogicalTensor"], ...]
+    writes: tuple[tuple[str, "LogicalTensor"], ...]
+    logical_reads: tuple[tuple[str, str], ...]
+    logical_writes: tuple[tuple[str, str], ...]
     symbols: tuple[tuple[str, int], ...]
     dispatch_size: tuple[int, int, int]
     descriptor_views: tuple[tuple[str, int, int, int], ...]

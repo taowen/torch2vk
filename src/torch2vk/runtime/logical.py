@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
+from dataclasses import field
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
 from torch2vk.vulkan.allocation import BufferSlice
-from torch2vk.vulkan.types import CONTIGUOUS_LAYOUT, TensorLayout, TensorSpec, dtype_nbytes
+from torch2vk.vulkan.types import CONTIGUOUS_LAYOUT, TensorLayout, TensorSpec, dtype_nbytes, validate_tensor_layout
 
 
 class TensorRole(StrEnum):
@@ -90,10 +93,60 @@ class LogicalTensor:
     semantic: TensorSemantic | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
-    buffer: BufferSlice | None = None
-    descriptor_nbytes: int | None = None
-    version: int = 0
-    writer: DispatchWriter | None = None
+    _runtime_writable: bool = field(default=False, init=False, repr=False)
+    _buffer: BufferSlice | None = field(default=None, init=False, repr=False)
+    _descriptor_nbytes: int | None = field(default=None, init=False, repr=False)
+    _version: int = field(default=0, init=False, repr=False)
+    _writer: DispatchWriter | None = field(default=None, init=False, repr=False)
+
+    @property
+    def runtime_writable(self) -> bool:
+        return self._runtime_writable
+
+    @contextmanager
+    def runtime_write_scope(self) -> Iterator[None]:
+        previous = self._runtime_writable
+        self._runtime_writable = True
+        try:
+            yield
+        finally:
+            self._runtime_writable = previous
+
+    @property
+    def buffer(self) -> BufferSlice | None:
+        return self._buffer
+
+    @buffer.setter
+    def buffer(self, value: BufferSlice | None) -> None:
+        self._require_runtime_writable("buffer")
+        self._buffer = value
+
+    @property
+    def descriptor_nbytes(self) -> int | None:
+        return self._descriptor_nbytes
+
+    @descriptor_nbytes.setter
+    def descriptor_nbytes(self, value: int | None) -> None:
+        self._require_runtime_writable("descriptor_nbytes")
+        self._descriptor_nbytes = value
+
+    @property
+    def version(self) -> int:
+        return self._version
+
+    @version.setter
+    def version(self, value: int) -> None:
+        self._require_runtime_writable("version")
+        self._version = value
+
+    @property
+    def writer(self) -> DispatchWriter | None:
+        return self._writer
+
+    @writer.setter
+    def writer(self, value: DispatchWriter | None) -> None:
+        self._require_runtime_writable("writer")
+        self._writer = value
 
     def validate_declaration(self) -> None:
         if not self.name:
@@ -103,6 +156,7 @@ class LogicalTensor:
         dtype_nbytes(self.spec.dtype)
         if not self.spec.shape:
             raise ValueError(f"{self.name} shape must have fixed rank")
+        validate_tensor_layout(self.layout, self.spec.shape)
         if self.source is not None:
             if self.memory is not MemoryClass.MODEL_WEIGHT:
                 raise ValueError(f"{self.name} has WeightSource but memory={self.memory}")
@@ -128,6 +182,13 @@ class LogicalTensor:
                 raise ValueError(f"{self.name} has unresolved symbolic shape {self.spec.shape}")
             dims.append(dim)
         return tuple(dims)
+
+    def _require_runtime_writable(self, field_name: str) -> None:
+        if not self._runtime_writable:
+            raise RuntimeError(
+                f"{self.name}.{field_name} is runtime state and cannot be written during "
+                "LogicalTensor declaration"
+            )
 
 
 def _validate_role_memory_lifetime(tensor: LogicalTensor) -> None:

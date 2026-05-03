@@ -114,8 +114,7 @@ dispatch 参数。
 `RuntimeSession` 可以提供 capture scope：
 
 ```python
-with RuntimeSession.open(device_index=0) as rt:
-    rt.register_model(tensors, model_dir=model_dir)
+with RuntimeSession.open(device_index=0, model_dir=model_dir) as rt:
     inputs = {
         tensors.pipeline.prompt_token_ids: prompt_token_ids,
         tensors.pipeline.language_id: language_id,
