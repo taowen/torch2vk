@@ -8,6 +8,7 @@ from torch2vk.logical import (
     LogicalTensor,
     MemoryPolicy,
     TensorRole,
+    TensorSpec,
     activation_tensor,
     input_tensor,
     output_tensor,
@@ -319,29 +320,33 @@ def _qwen3_layer_tensors(
     kv_width = spec.kv_proj_out_features
     q_width = spec.q_proj_out_features
     attention_split_width = q_width + 2 * spec.num_attention_heads
+    q_proj = _activation(prefix, "self_attn.q_proj", batch, steps, q_width)
+    k_proj = _activation(prefix, "self_attn.k_proj", batch, steps, kv_width)
+    v_proj = _activation(prefix, "self_attn.v_proj", batch, steps, kv_width)
     return Qwen3LayerTensors(
         input=layer_input,
         input_norm=_activation(prefix, "input_norm", batch, steps, spec.hidden_size),
-        q_proj=_activation(prefix, "self_attn.q_proj", batch, steps, q_width),
-        k_proj=_activation(prefix, "self_attn.k_proj", batch, steps, kv_width),
-        v_proj=_activation(prefix, "self_attn.v_proj", batch, steps, kv_width),
-        q_heads=_activation4(
-            prefix,
-            "self_attn.q_heads",
-            batch,
-            steps,
-            spec.num_attention_heads,
-            spec.head_dim,
+        q_proj=q_proj,
+        k_proj=k_proj,
+        v_proj=v_proj,
+        q_heads=q_proj.view_as(
+            q_proj.name,
+            spec=TensorSpec(
+                dtype="float32",
+                shape=(batch, steps, spec.num_attention_heads, spec.head_dim),
+            ),
         ),
-        k_heads=_activation4(
-            prefix,
-            "self_attn.k_heads",
-            batch,
-            steps,
-            spec.num_key_value_heads,
-            spec.head_dim,
+        k_heads=k_proj.view_as(
+            k_proj.name,
+            spec=TensorSpec(
+                dtype="float32",
+                shape=(batch, steps, spec.num_key_value_heads, spec.head_dim),
+            ),
         ),
-        v_rows_flat=_activation4(prefix, "self_attn.v_rows_flat", 1, batch, steps, kv_width),
+        v_rows_flat=v_proj.view_as(
+            v_proj.name,
+            spec=TensorSpec(dtype="float32", shape=(1, batch, steps, kv_width)),
+        ),
         q_rope=_activation4(
             prefix,
             "self_attn.q_rope",
