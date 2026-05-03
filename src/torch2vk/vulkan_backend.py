@@ -407,6 +407,18 @@ class VulkanCommandBuffer:
             None,
         )
 
+    def push_constants(self, *, pipeline_layout: VulkanPipelineLayout, data: bytes) -> None:
+        if not data:
+            raise ValueError("push constant data must be non-empty")
+        self.context.vk.vkCmdPushConstants(
+            self.command_buffer,
+            pipeline_layout.layout,
+            self.context.vk.VK_SHADER_STAGE_COMPUTE_BIT,
+            0,
+            len(data),
+            self.context.vk.ffi.from_buffer(data),
+        )
+
     def dispatch(self, x: int, y: int = 1, z: int = 1) -> None:
         if x <= 0 or y <= 0 or z <= 0:
             raise ValueError(f"dispatch dimensions must be positive, got {(x, y, z)}")
