@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +16,7 @@ from .shader import (
 )
 from .vulkan_backend import (
     VulkanBuffer,
+    VulkanBufferSlice,
     VulkanComputePipeline,
     VulkanContext,
     VulkanDescriptorPool,
@@ -23,6 +24,8 @@ from .vulkan_backend import (
     VulkanPipelineLayout,
     VulkanShaderModule,
 )
+
+type VulkanDescriptorBuffer = VulkanBuffer | VulkanBufferSlice
 
 
 @dataclass(slots=True)
@@ -74,14 +77,16 @@ class VulkanShaderDispatch:
         self,
         *,
         tensors: Mapping[str, LogicalTensor],
-        tensor_buffers: Mapping[str, VulkanBuffer],
-        resource_buffers: Mapping[str, VulkanBuffer] | None = None,
+        tensor_buffers: Mapping[str, VulkanDescriptorBuffer],
+        resource_buffers: Mapping[str, VulkanDescriptorBuffer] | None = None,
     ) -> None:
         symbols = self.variant.contract.validate(tensors)
-        resources: Mapping[str, VulkanBuffer] = {} if resource_buffers is None else resource_buffers
+        resources: Mapping[str, VulkanDescriptorBuffer] = (
+            {} if resource_buffers is None else resource_buffers
+        )
         uniform_buffers = _uniform_buffers(self.context, self.variant, symbols)
         try:
-            descriptors: dict[int, VulkanBuffer] = {}
+            descriptors: dict[int, VulkanDescriptorBuffer] = {}
             descriptor_types: dict[int, str] = {}
             for binding in self.variant.contract.bindings:
                 tensor = tensors[binding.field]
@@ -148,10 +153,10 @@ class VulkanSequenceRunner:
         records: tuple[DispatchRecord, ...],
         *,
         tensors: Mapping[str, LogicalTensor],
-        tensor_buffers: Mapping[str, VulkanBuffer],
-        resource_buffers: Mapping[str, Mapping[str, VulkanBuffer]] | None = None,
+        tensor_buffers: Mapping[str, VulkanDescriptorBuffer],
+        resource_buffers: Mapping[str, Mapping[str, VulkanDescriptorBuffer]] | None = None,
     ) -> None:
-        resources: Mapping[str, Mapping[str, VulkanBuffer]] = (
+        resources: Mapping[str, Mapping[str, VulkanDescriptorBuffer]] = (
             {} if resource_buffers is None else resource_buffers
         )
         for record in records:
@@ -173,6 +178,45 @@ class VulkanSequenceRunner:
                 )
             finally:
                 dispatch.close()
+
+    def run_bound_storage(
+        self,
+        records: tuple[DispatchRecord, ...],
+        *,
+        tensors: Mapping[str, LogicalTensor],
+        allocations: Mapping[str, VulkanBuffer],
+        resource_buffers: Mapping[str, Mapping[str, VulkanDescriptorBuffer]] | None = None,
+    ) -> None:
+        tensor_buffers = storage_descriptor_buffers(tensors.values(), allocations=allocations)
+        self.run(
+            records,
+            tensors=tensors,
+            tensor_buffers=tensor_buffers,
+            resource_buffers=resource_buffers,
+        )
+
+
+def storage_descriptor_buffers(
+    tensors: Iterable[LogicalTensor],
+    *,
+    allocations: Mapping[str, VulkanBuffer],
+) -> dict[str, VulkanBufferSlice]:
+    buffers: dict[str, VulkanBufferSlice] = {}
+    for tensor in tensors:
+        if tensor.storage is None:
+            raise ValueError(f"{tensor.name} has no bound storage")
+        try:
+            allocation = allocations[tensor.storage.allocation_id]
+        except KeyError as exc:
+            raise KeyError(
+                f"Missing Vulkan allocation {tensor.storage.allocation_id} for {tensor.name}"
+            ) from exc
+        buffers[tensor.name] = VulkanBufferSlice(
+            buffer=allocation,
+            offset=tensor.storage.offset,
+            nbytes=tensor.storage.nbytes,
+        )
+    return buffers
 
 
 def _record_tensors(

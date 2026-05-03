@@ -168,18 +168,19 @@ class VulkanContext:
     def update_descriptor_set(
         self,
         descriptor_set: VulkanDescriptorSet,
-        descriptors: Mapping[int, VulkanBuffer],
+        descriptors: Mapping[int, VulkanBuffer | VulkanBufferSlice],
         *,
         descriptor_types: Mapping[int, str],
     ) -> None:
         writes: list[Any] = []
         buffer_infos: list[Any] = []
-        for binding, buffer in sorted(descriptors.items()):
+        for binding, descriptor in sorted(descriptors.items()):
             descriptor_type = descriptor_types[binding]
+            buffer, offset, nbytes = _descriptor_buffer_range(descriptor)
             buffer_info = self.vk.VkDescriptorBufferInfo(
                 buffer=buffer.buffer,
-                offset=0,
-                range=buffer.nbytes,
+                offset=offset,
+                range=nbytes,
             )
             buffer_infos.append(buffer_info)
             writes.append(
@@ -298,6 +299,24 @@ class VulkanBuffer:
             return bytes(mapped[:size])
         finally:
             vk.vkUnmapMemory(self.context.device, self.memory)
+
+
+@dataclass(frozen=True, slots=True)
+class VulkanBufferSlice:
+    buffer: VulkanBuffer
+    offset: int
+    nbytes: int
+
+    def __post_init__(self) -> None:
+        if self.offset < 0:
+            raise ValueError(f"buffer slice offset must be non-negative, got {self.offset}")
+        if self.nbytes <= 0:
+            raise ValueError(f"buffer slice size must be positive, got {self.nbytes}")
+        if self.offset + self.nbytes > self.buffer.nbytes:
+            raise ValueError(
+                f"buffer slice [{self.offset}, {self.offset + self.nbytes}) "
+                f"exceeds buffer size {self.buffer.nbytes}"
+            )
 
 
 @dataclass(slots=True)
@@ -608,6 +627,14 @@ def _descriptor_type_counts(vk: Any, contract: ShaderContract) -> dict[int, int]
         descriptor_type = _descriptor_type(vk, "uniform_buffer")
         counts[descriptor_type] = counts.get(descriptor_type, 0) + 1
     return counts
+
+
+def _descriptor_buffer_range(
+    descriptor: VulkanBuffer | VulkanBufferSlice,
+) -> tuple[VulkanBuffer, int, int]:
+    if isinstance(descriptor, VulkanBufferSlice):
+        return descriptor.buffer, descriptor.offset, descriptor.nbytes
+    return descriptor, 0, descriptor.nbytes
 
 
 def _specialization_info(vk: Any, constants: Mapping[int, int]) -> Any:

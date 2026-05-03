@@ -7,7 +7,7 @@ import math
 import struct
 from pathlib import Path
 
-from torch2vk.logical import activation_tensor, input_tensor, output_tensor, weight_tensor
+from torch2vk.logical import BufferSlice, activation_tensor, input_tensor, output_tensor, weight_tensor
 from torch2vk.models.qwen3_safetensor.shaders.embedding_lookup_bf16_f32_sequence import (
     EMBEDDING_LOOKUP_BF16_F32,
 )
@@ -26,9 +26,10 @@ def main() -> int:
         _run_embedding(context)
         _run_swiglu(context)
         _run_sequence(context)
+        _run_bound_storage_sequence(context)
     finally:
         context.close()
-    print("qwen3_runner_dispatch=ok shaders=2 sequence_dispatches=2")
+    print("qwen3_runner_dispatch=ok shaders=2 sequence_dispatches=4")
     return 0
 
 
@@ -166,6 +167,54 @@ def _run_sequence(context: VulkanContext) -> None:
     finally:
         for buffer in buffers.values():
             buffer.close()
+
+
+def _run_bound_storage_sequence(context: VulkanContext) -> None:
+    batch = 1
+    steps = 1
+    width = 4
+    gate = (0.25, 0.5, 0.75, 1.0)
+    up = (1.0, 2.0, 3.0, 4.0)
+    expected = tuple(_silu(a) * b for a, b in zip(gate, up, strict=True))
+    tensors = {
+        "shared.gate": activation_tensor("shared.gate", dtype="float32", shape=(batch, steps, width)).bind(
+            BufferSlice("shared", 0, len(gate) * 4)
+        ),
+        "shared.up": activation_tensor("shared.up", dtype="float32", shape=(batch, steps, width)).bind(
+            BufferSlice("shared", 256, len(up) * 4)
+        ),
+        "shared.out": activation_tensor("shared.out", dtype="float32", shape=(batch, steps, width)).bind(
+            BufferSlice("shared", 512, len(expected) * 4)
+        ),
+    }
+    target = DispatchTarget()
+    SWIGLU_F32(
+        target,
+        gate=tensors["shared.gate"],
+        up=tensors["shared.up"],
+        output=tensors["shared.out"],
+    )
+    shared = context.create_host_buffer(nbytes=1024)
+    try:
+        shared.write(struct.pack(f"<{len(gate)}f", *gate), offset=0)
+        shared.write(struct.pack(f"<{len(up)}f", *up), offset=256)
+        runner = VulkanSequenceRunner(
+            context=context,
+            shader_dir=SHADER_DIR,
+            variants={SWIGLU_F32.name: SWIGLU_F32},
+        )
+        runner.run_bound_storage(
+            tuple(target.records),
+            tensors=tensors,
+            allocations={"shared": shared},
+        )
+        actual = struct.unpack(
+            f"<{len(expected)}f",
+            shared.read(offset=512, nbytes=len(expected) * 4),
+        )
+        _assert_close(actual, expected, tolerance=1e-5)
+    finally:
+        shared.close()
 
 
 def _embedding_reference(
