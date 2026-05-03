@@ -68,6 +68,19 @@ class VulkanContext:
             self.vk.vkDestroyBuffer(self.device, buffer, None)
             raise
 
+    def create_shader_module(self, spirv: bytes) -> VulkanShaderModule:
+        if not spirv:
+            raise ValueError("SPIR-V bytecode must be non-empty")
+        if len(spirv) % 4 != 0:
+            raise ValueError(f"SPIR-V bytecode length must be 4-byte aligned, got {len(spirv)}")
+        create_info = self.vk.VkShaderModuleCreateInfo(
+            sType=self.vk.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            codeSize=len(spirv),
+            pCode=spirv,
+        )
+        module = self.vk.vkCreateShaderModule(self.device, create_info, None)
+        return VulkanShaderModule(context=self, module=module)
+
 
 @dataclass(slots=True)
 class VulkanBuffer:
@@ -102,6 +115,15 @@ class VulkanBuffer:
             return bytes(mapped[:size])
         finally:
             vk.vkUnmapMemory(self.context.device, self.memory)
+
+
+@dataclass(slots=True)
+class VulkanShaderModule:
+    context: VulkanContext
+    module: Any
+
+    def close(self) -> None:
+        self.context.vk.vkDestroyShaderModule(self.context.device, self.module, None)
 
 
 def enumerate_physical_devices() -> tuple[VulkanPhysicalDevice, ...]:
