@@ -39,6 +39,7 @@ def qwen3_prefill_debug_boundaries(
             tensors=(tensors.hidden,),
             compare=tensor_compare,
             checkpoint=tensors.input_ids,
+            readback="writer-io",
         )
     ]
     for layer_index, layer in enumerate(tensors.layers):
@@ -61,6 +62,7 @@ def qwen3_prefill_debug_boundaries(
                     ),
                     compare=tensor_compare,
                     checkpoint=layer.input,
+                    readback="writer-io",
                 ),
                 BoundaryRule(
                     name=f"prefill.layer.{layer_index:02d}.mlp",
@@ -75,6 +77,7 @@ def qwen3_prefill_debug_boundaries(
                     ),
                     compare=tensor_compare,
                     checkpoint=layer.post_attention_norm,
+                    readback="writer-io",
                 ),
             )
         )
@@ -87,6 +90,7 @@ def qwen3_prefill_debug_boundaries(
                 tensors=(tensors.final_norm,),
                 compare=tensor_compare,
                 checkpoint=tensors.layers[-1].output,
+                readback="writer-io",
             ),
             BoundaryRule(
                 name="prefill.logits",
@@ -95,6 +99,7 @@ def qwen3_prefill_debug_boundaries(
                 tensors=(tensors.logits,),
                 compare=tensor_compare,
                 checkpoint=tensors.final_norm,
+                readback="writer-io",
             ),
             BoundaryRule(
                 name="prefill.next_token",
@@ -103,6 +108,7 @@ def qwen3_prefill_debug_boundaries(
                 tensors=(tensors.next_token_id,),
                 compare=token_compare,
                 checkpoint=tensors.logits,
+                readback="writer-io",
             ),
         )
     )

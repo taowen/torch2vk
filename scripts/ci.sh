@@ -21,6 +21,7 @@ uv run python scripts/verify_qwen3_contracts.py
 
 echo "==> qwen3 storage"
 uv run python scripts/verify_qwen3_storage.py
+uv run python scripts/verify_qwen3_debug.py
 uv run python scripts/verify_qwen3_safetensor_weights.py
 
 echo "==> qwen3 shaders"

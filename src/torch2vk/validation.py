@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -72,6 +72,14 @@ class BoundaryCompareReport:
         if self.mismatch is None:
             return
         raise AssertionError(self.mismatch.message())
+
+
+@dataclass(frozen=True, slots=True)
+class DebugReadbackPlan:
+    tensor_names: tuple[str, ...]
+
+    def __contains__(self, tensor_name: str) -> bool:
+        return tensor_name in self.tensor_names
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,11 +160,12 @@ def compare_declared_boundaries(
     writers = _writer_by_tensor(dispatch_records)
     for boundary in sorted(boundaries, key=lambda item: item.order):
         for tensor in (*boundary.tensors, *boundary.tokens):
+            policy = tensor.compare if tensor.compare is not None else boundary.compare
             difference = artifact_difference(
                 tensor.name,
                 reference=reference,
                 candidate=candidate,
-                policy=boundary.compare,
+                policy=policy,
             )
             if difference is None:
                 continue
@@ -172,11 +181,38 @@ def compare_declared_boundaries(
                         writer,
                         reference=reference,
                         candidate=candidate,
-                        policy=boundary.compare,
+                        policy=policy,
                     ),
                 )
             )
     return BoundaryCompareReport(None)
+
+
+def debug_readback_plan(
+    boundaries: Sequence[BoundaryRule],
+    *,
+    dispatch_records: Sequence[DispatchRecord],
+) -> DebugReadbackPlan:
+    writers = _writer_by_tensor(dispatch_records)
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for boundary in sorted(boundaries, key=lambda item: item.order):
+        boundary_tensors = (*boundary.tensors, *boundary.tokens)
+        _append_unique(ordered, seen, (tensor.name for tensor in boundary_tensors))
+        if boundary.readback == "none":
+            continue
+        for tensor in boundary_tensors:
+            writer = writers.get(tensor.name)
+            if writer is None:
+                continue
+            if boundary.readback == "writer-output":
+                _append_unique(ordered, seen, writer.writes.values())
+            elif boundary.readback == "writer-io":
+                _append_unique(ordered, seen, writer.reads.values())
+                _append_unique(ordered, seen, writer.writes.values())
+            else:
+                raise ValueError(f"Unknown boundary readback policy {boundary.readback!r}")
+    return DebugReadbackPlan(tuple(ordered))
 
 
 def drilldown_writer(
@@ -249,6 +285,18 @@ def _writer_by_tensor(records: Sequence[DispatchRecord]) -> dict[str, DispatchRe
         for tensor_name in record.writes.values():
             writers[tensor_name] = record
     return writers
+
+
+def _append_unique(
+    values: list[str],
+    seen: set[str],
+    names: Iterable[str],
+) -> None:
+    for name in names:
+        if name in seen:
+            continue
+        seen.add(name)
+        values.append(name)
 
 
 def _value_difference(reference: Any, candidate: Any, *, policy: ComparePolicy) -> str | None:

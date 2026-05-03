@@ -191,11 +191,13 @@ Each model family should have one high-value integration test:
 1. load a small checkpoint or fixture;
 2. run PyTorch eager reference;
 3. run Vulkan eager candidate;
-4. compare declared boundaries;
-5. run replay if supported;
-6. compare replay output;
-7. print first semantic mismatch on failure.
+4. use `debug_readback_plan` to decide which candidate logical tensors to
+   read back, including writer inputs and outputs for boundaries marked
+   `writer-io`;
+5. compare declared boundaries;
+6. run replay if supported;
+7. compare replay output;
+8. print first semantic mismatch on failure.
 
-Small unit tests are useful for utilities, but the integration test is the
-contract that the model port still means the same thing as PyTorch.
-
+The model integration test is the contract that the model port still means the
+same thing as PyTorch.
