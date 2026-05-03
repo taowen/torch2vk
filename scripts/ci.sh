@@ -18,6 +18,9 @@ uv run pyright src tests
 echo "==> qwen3 contracts"
 uv run python scripts/verify_qwen3_contracts.py
 
+echo "==> qwen3 storage"
+uv run python scripts/verify_qwen3_storage.py
+
 echo "==> pytest"
 set +e
 uv run pytest
