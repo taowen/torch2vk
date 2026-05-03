@@ -16,4 +16,12 @@ echo "==> pyright"
 uv run pyright src tests
 
 echo "==> pytest"
+set +e
 uv run pytest
+pytest_status=$?
+set -e
+if [[ "$pytest_status" -eq 5 ]]; then
+  echo "pytest collected no tests; skipping until integration tests are added"
+elif [[ "$pytest_status" -ne 0 ]]; then
+  exit "$pytest_status"
+fi

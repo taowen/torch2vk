@@ -1,0 +1,33 @@
+"""Qwen3 flash attention shader."""
+
+from __future__ import annotations
+
+from torch2vk.copied_shader_source import copied_shader_variant_source
+from torch2vk.shader import Binding, BindingAccess, ShaderContract, ShaderVariant, TensorContract
+
+FLASH_ATTN_F32_F16 = ShaderVariant(
+    name="flash_attn_f32_f16_aligned_f32accf16",
+    family="flash_attention",
+    contract=ShaderContract(
+        name="flash_attn_f32_f16_aligned_f32accf16",
+        inputs={
+            "q": TensorContract(dtype="float32", shape=("B", "S", "QH", "D")),
+            "k": TensorContract(dtype="float16", shape=("B", "T", "KH", "D")),
+            "v": TensorContract(dtype="float16", shape=("B", "T", "KH", "D")),
+            "mask": TensorContract(dtype="float16", shape=("B", 1, "S", "T")),
+        },
+        outputs={"split_k_output": TensorContract(dtype="float32", shape=("B", "S", "A"))},
+        bindings=(
+            Binding("q", 0, BindingAccess.READ),
+            Binding("k", 1, BindingAccess.READ),
+            Binding("v", 2, BindingAccess.READ),
+            Binding("mask", 3, BindingAccess.READ),
+            Binding("split_k_output", 4, BindingAccess.WRITE),
+        ),
+        dispatch=("S", "QH", "B"),
+    ),
+    source=copied_shader_variant_source(
+        "flash_attn_f32_f16_aligned_f32accf16.py",
+        "FLASH_ATTN_F32_F16_ALIGNED_F32ACCF16",
+    ),
+)
