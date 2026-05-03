@@ -27,6 +27,7 @@ from torch2vk.vulkan_runner import (
     allocate_storage_buffers,
     read_bound_tensor_bytes,
     write_bound_tensor_bytes,
+    write_bound_tensor_payloads,
 )
 
 
@@ -79,10 +80,10 @@ def main() -> int:
             allocations,
             struct.pack(f"<{len(input_ids)}i", *input_ids),
         )
-        write_bound_tensor_bytes(
-            bound["weight"],
+        write_bound_tensor_payloads(
+            bound,
             allocations,
-            qwen3_safetensor_weight_bytes(model_dir, tensors["weight"], spec=spec),
+            {"weight": qwen3_safetensor_weight_bytes(model_dir, tensors["weight"], spec=spec)},
         )
         runner = VulkanSequenceRunner(
             context=context,

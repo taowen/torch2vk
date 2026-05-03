@@ -260,6 +260,19 @@ def write_bound_tensor_bytes(
     allocation.write(data, offset=tensor.storage.offset)
 
 
+def write_bound_tensor_payloads(
+    tensors: LogicalTensorLookup,
+    allocations: Mapping[str, VulkanBuffer],
+    payloads: Mapping[str, bytes],
+) -> None:
+    for tensor_name, payload in payloads.items():
+        try:
+            tensor = _first_lookup_tensor(tensors[tensor_name])
+        except KeyError as exc:
+            raise KeyError(f"Missing LogicalTensor for payload {tensor_name}") from exc
+        write_bound_tensor_bytes(tensor, allocations, payload)
+
+
 def read_bound_tensor_bytes(
     tensor: LogicalTensor,
     allocations: Mapping[str, VulkanBuffer],
@@ -271,6 +284,10 @@ def read_bound_tensor_bytes(
     except KeyError as exc:
         raise KeyError(f"Missing Vulkan allocation {tensor.storage.allocation_id}") from exc
     return allocation.read(offset=tensor.storage.offset, nbytes=tensor.storage.nbytes)
+
+
+def _first_lookup_tensor(value: LogicalTensor | tuple[LogicalTensor, ...]) -> LogicalTensor:
+    return value if isinstance(value, LogicalTensor) else value[0]
 
 
 def _record_tensors(
