@@ -15,6 +15,15 @@ execution.py 串联 frame/pipeline
 
 显存分配、释放、Vulkan descriptor、dispatch record、PyTorch 对拍、replay、liveness/aliasing 都由通用 `RuntimeSession` 接管。
 
+模型目录给 `LogicalTensor` 附加 metadata 只为四个目标：
+
+1. 声明权重来源，让 runtime 托管加载和校验；
+2. 声明 storage/lifetime，让 runtime 托管显存分配和释放；
+3. 声明 compare/probe，让 runtime 和 PyTorch 对拍；
+4. 声明 spec/layout，让 runtime 校验 shader contract 匹配。
+
+不影响这四件事的模型语义不要放进核心执行规则。`LOGITS`、`TOKEN`、`KV_CACHE` 等可以作为 semantic metadata 服务 debug、compare 和报告。
+
 ## 仓库边界
 
 建议分成两层：
@@ -141,7 +150,7 @@ with RuntimeSession.open(device_index=0) as rt:
 2. 检查 logical name 是否重复；
 3. 检查 dtype/shape/layout metadata 是否完整；
 4. 记录 `WeightSource` 的 checkpoint root；
-5. 从 `LogicalTensor.compare` / `LogicalTensor.pytorch_probe` 记录 compare/probe metadata；
+5. 从 `LogicalTensor.compare` / `LogicalTensor.pytorch_probe` / semantic metadata 记录 compare/probe/debug 信息；
 6. 可选预加载 model-lifetime weights。
 
 但它不应该把所有 activation 都分配成 bound tensor tree。activation/output/state 的具体 tensor instance 应由 `RuntimeSession.dispatch()` 根据当前 FrameScope 和 shader contract 触发，并从 RuntimeSession 管理的 pool/arena 中取得 slice。
@@ -330,7 +339,7 @@ text_llm.state.layer.00.value_cache
 
 cond/uncond、audio token index 不写进 base name。它们由 `FrameScope` 表达。
 
-KV cache 必须是 `role=KV_CACHE`、`memory=REQUEST_STATE`、`lifetime=REQUEST`。
+KV cache 必须是 `role=STATE`、`semantic=KV_CACHE`、`memory=REQUEST_STATE`、`lifetime=REQUEST`。
 
 ### tensors/audio_token_selector.py
 
@@ -346,7 +355,7 @@ audio_token_selector.next_token
 audio_token_selector.done
 ```
 
-`next_token` 如果要给后续 frame 使用，应声明为 request lifetime 或 pipeline output。
+`next_token` 如果要给后续 frame 使用，应声明为 request lifetime 或 pipeline output，并可标记 `semantic=TOKEN`。
 
 ### tensors/audio_codec_decoder.py
 

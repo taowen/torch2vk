@@ -13,6 +13,15 @@ RuntimeSession 接管执行态：materialize / dispatch / record / compare / rel
 
 模型目录只表达模型计算。显存分配、释放、Vulkan descriptor、dispatch record、PyTorch 对拍、replay 和后续 liveness/aliasing 优化都属于通用 runtime。
 
+`LogicalTensor` 上的 metadata 只为四件事服务：
+
+1. 权重加载托管给框架，模型目录只声明 `WeightSource`；
+2. 显存分配和释放由 runtime 根据 storage/lifetime 决定；
+3. candidate 和 PyTorch 对拍时能定位 artifact、校验数值；
+4. shader 调用时能校验传入 tensor 和 `ShaderContract` 匹配。
+
+不服务于这四件事的字段不进入核心 schema。语义分类可以作为 debug/compare metadata，但不能替代 storage/lifetime 等执行规则。
+
 ## 一句话规则
 
 ```text
@@ -27,19 +36,19 @@ RuntimeSession 根据 LogicalTensor + Frame 自动分配、复用、释放显存
 
 ### LogicalTensor
 
-`LogicalTensor` 是模型语义 tensor 的声明对象，不是显存句柄。
+`LogicalTensor` 是模型语义 tensor 的声明对象。声明阶段它没有 buffer；运行时会被 `RuntimeSession` materialize 成带 `BufferSlice` 的具体 tensor instance。
 
 它描述：
 
 1. tensor 的稳定语义名；
 2. dtype、shape、layout；
-3. role、memory、lifetime；
+3. role、storage class、lifetime；
 4. 权重来源；
 5. 输入 feed 规则；
 6. PyTorch probe 和 compare policy；
 7. 运行时 materialize 所需的其它 metadata。
 
-它不描述：
+声明阶段它不描述：
 
 1. Vulkan buffer；
 2. descriptor set；
@@ -72,11 +81,12 @@ class LogicalTensor:
     layout: TensorLayout = ROW_MAJOR
     source: WeightSource | None = None
     feed: InputFeed | None = None
+    semantic: TensorSemantic | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
 ```
 
-不要把 `storage` 放进模型层依赖的 `LogicalTensor` API。`storage` 是执行态事实，应该存在于 `RuntimeSession` 的 materialization table 里。
+不要把 `storage` 放进模型层依赖的 `LogicalTensor` API。`storage` 是执行态事实，应该存在于 `RuntimeSession` 的 materialization table 里的 `MaterializedTensor` / tensor instance 上。
 
 如果调试时需要查看某个 tensor 当前绑定到哪个 buffer，提供 runtime 查询接口：
 
@@ -166,7 +176,7 @@ Frame 内:
 
 ```text
 tensors/ = 点
-  声明 LogicalTensor：name/spec/role/memory/lifetime/source/feed/probe/compare
+  声明 LogicalTensor：name/spec/role/memory/lifetime/source/feed/semantic/probe/compare
 
 shaders/ = 线
   声明 ShaderContract + wrapper：读哪些点、写哪些点、参数和 dispatch 规则是什么
@@ -272,11 +282,11 @@ sample_block_index
 
 ## Role、Memory、Lifetime
 
-三者分别回答不同问题。
+三者分别回答不同问题，且都必须服务于 runtime 决策。
 
 ```text
-TensorRole: 这个 tensor 在模型语义上是什么？
-MemoryClass: 这个 tensor 默认放在哪类 runtime pool？
+TensorRole: 这个 tensor 在执行关系里大致从哪里来、用作什么？
+MemoryClass: runtime materialize 时默认使用哪类 storage/pool？
 TensorLifetime: 这个 tensor 至少需要活多久？
 ```
 
@@ -291,12 +301,20 @@ ACTIVATION  中间激活
 SCRATCH     op 内临时空间
 OUTPUT      frame 或 pipeline 输出
 STATE       request/pipeline 状态
-KV_CACHE    LLM KV cache
-LOGITS      logits 边界
-TOKEN       token/index 边界
 ```
 
-`role` 主要用于默认 materialization 行为、错误信息和调试报告。不要把生命周期只藏在 `role` 里。
+`role` 主要用于默认 materialization 行为、错误信息和调试报告。不要把生命周期、storage class 或模型细分语义只藏在 `role` 里。
+
+`LOGITS`、`TOKEN`、`KV_CACHE` 这类名称不是第一版核心 role。它们可能同时是 activation、output、state 或 input，更适合作为可选 semantic metadata：
+
+```python
+class TensorSemantic(StrEnum):
+    LOGITS = "logits"
+    TOKEN = "token"
+    KV_CACHE = "kv_cache"
+    MASK = "mask"
+    WAVEFORM = "waveform"
+```
 
 ### MemoryClass
 
@@ -307,11 +325,13 @@ MODEL_WEIGHT      model lifetime，只读，通常 device local
 REQUEST_STATE     request/pipeline lifetime，跨 Frame 存活
 FRAME_WORKSPACE   Frame lifetime，Frame 结束可释放/复用
 OP_SCRATCH        单个 shader/op 临时空间
-HOST_INPUT        host input/upload
-HOST_READBACK     readback/debug/最终输出
+HOST_INPUT        host-visible shader input port
+HOST_OUTPUT       host-visible shader output port
 ```
 
-`MemoryClass` 描述 runtime 默认从哪个 pool 分配，或者使用哪类 transfer/readback 路径。
+`MemoryClass` 不是模型语义分类。它描述 runtime materialize 某个 `LogicalTensor` 时默认使用哪类 storage/pool。
+
+`HOST_INPUT` / `HOST_OUTPUT` 仍然是 tensor storage class。它们表示 shader 可通过 descriptor 读写的 host-visible buffer/port，或者 backend 可以在内部选择等价 copy 路径。它们不表示 frame exit 必然自动读回。
 
 ### TensorLifetime
 
@@ -359,11 +379,11 @@ Runtime 必须校验 `role/memory/lifetime` 的组合。
 推荐默认规则：
 
 ```text
-role == WEIGHT or source != None
+source != None
   memory = MODEL_WEIGHT
   lifetime = MODEL
 
-role == INPUT
+feed != None
   memory = HOST_INPUT 或 REQUEST_STATE
   lifetime = FRAME 或 REQUEST
 
@@ -376,10 +396,10 @@ role == SCRATCH
   lifetime = OP
 
 role == OUTPUT
-  memory = FRAME_WORKSPACE 或 HOST_READBACK
+  memory = FRAME_WORKSPACE 或 HOST_OUTPUT
   lifetime = FRAME 或 REQUEST
 
-role == STATE or KV_CACHE
+role == STATE
   memory = REQUEST_STATE
   lifetime = REQUEST
 ```
@@ -387,12 +407,12 @@ role == STATE or KV_CACHE
 如果声明显式覆盖默认值，RuntimeSession 必须检查是否合理。典型非法组合：
 
 ```text
-WEIGHT + lifetime FRAME
+source != None 但 lifetime 不是 MODEL
+source != None 但 memory 不是 MODEL_WEIGHT
 ACTIVATION + memory MODEL_WEIGHT
-KV_CACHE + lifetime FRAME
-source != None 但 role 不是 WEIGHT
-role == WEIGHT 但 source == None
+semantic == KV_CACHE 但 lifetime 不是 REQUEST
 role == INPUT 但没有 feed 或 runtime feed
+role == WEIGHT 但 source == None，除非它是 runtime 已注册的外部 weight
 symbolic shape 在 dispatch 前仍未 resolve
 ```
 
@@ -479,8 +499,9 @@ OP_SCRATCH
   可以并入 FRAME_WORKSPACE 的一段 scratch 区，也可以单独小 arena。
   op 结束后 bump pointer 回退或由 dispatch sequence 复用。
 
-HOST_INPUT / HOST_READBACK
-  staging/readback pool，按 transfer/readback 需求复用。
+HOST_INPUT / HOST_OUTPUT
+  host-visible input/output port pool。适合小输入、控制流标量、debug 边界，或 backend 明确支持 host-visible descriptor 的场景。
+  大 tensor 默认仍应放 device-local/frame/request storage，再由显式 RuntimeSession readback API 读取。
 ```
 
 MVP 的 allocator 可以很简单：
@@ -490,7 +511,7 @@ MODEL_WEIGHT      grow-only pool
 REQUEST_STATE     grow-only pool per request
 FRAME_WORKSPACE   one bump arena per frame，frame exit 整体 reset
 OP_SCRATCH        先并入 FRAME_WORKSPACE
-HOST_*            staging/readback buffers 复用或按需扩容
+HOST_*            host-visible ports / staging buffers 复用或按需扩容
 ```
 
 这样即使 write materialization 发生在 dispatch 前，也只是从当前 Frame arena 切 slice，不会造成 Vulkan allocation 级别的碎片化。
@@ -567,13 +588,13 @@ WEIGHT/source
 INPUT/feed
   从 runtime feed 查数据
   校验 dtype/shape
-  上传或绑定 HOST_INPUT/REQUEST_STATE
+  materialize 为 HOST_INPUT/REQUEST_STATE/FRAME_WORKSPACE，具体由 tensor.memory 和 backend policy 决定
 
-STATE/KV_CACHE
+STATE 或 semantic=KV_CACHE
   从 request materialization table 查当前 instance
   不存在则根据声明初始化，或报错
 
-ACTIVATION/OUTPUT/LOGITS/TOKEN
+ACTIVATION/OUTPUT 等上游写出值
   必须已经在当前 FrameScope 或可见上游 scope 中被写出
   未写先读时报错
 ```
@@ -602,7 +623,7 @@ Frame 内写出的 tensor 默认只在本 Frame 可见。
 跨 Frame 使用必须满足至少一个条件：
 
 1. `lifetime == REQUEST`；
-2. `role in {STATE, KV_CACHE}`；
+2. `role == STATE`；
 3. `role == OUTPUT` 且声明为 pipeline output 或 downstream input；
 4. pipeline declaration 显式声明下游 Frame 引用该 tensor。
 
@@ -773,7 +794,7 @@ OP exit
 
 Frame exit
   compare/readback 完成后 release/reuse FRAME_WORKSPACE
-  keep REQUEST_STATE / KV_CACHE
+  keep REQUEST_STATE，包括 semantic=KV_CACHE 的 state
   keep MODEL_WEIGHT
   keep explicitly exported pipeline outputs
 

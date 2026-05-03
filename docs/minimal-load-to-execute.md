@@ -43,6 +43,13 @@ Frame
 6. `RuntimeSession` 拥有所有 allocation，并按 Frame/request/model 生命周期释放；
 7. dispatch records 是后续 compare、replay、liveness/aliasing 的事实来源。
 
+`LogicalTensor` metadata 只为四个目标服务：
+
+1. 权重加载托管给框架，模型目录只声明 `WeightSource`；
+2. 显存分配和释放由 runtime 根据 storage/lifetime 决定；
+3. candidate 和 PyTorch/CPU 对拍时能定位 artifact、校验数值；
+4. shader 调用时能校验传入 tensor 和 `ShaderContract` 匹配。
+
 注意：这里的 materialize 不是每个 shader 现场创建 Vulkan buffer 或 `vkAllocateMemory`。底层 allocation 必须按 model/request/frame pool 管理；dispatch 只从已有 pool/arena 取得 slice 或登记 tensor instance。
 
 ## 为什么必须有 Frame
@@ -102,33 +109,32 @@ with RuntimeSession.open(device_index=0) as rt:
         name="toy.y",
         spec=TensorSpec(dtype="float32", shape=(1024,)),
         role=TensorRole.OUTPUT,
-        memory=MemoryClass.HOST_READBACK,
+        memory=MemoryClass.HOST_OUTPUT,
         lifetime=TensorLifetime.FRAME,
         compare=ComparePolicy(kind="tensor", rtol=1e-5, atol=1e-6),
-        pytorch_probe=PyTorchProbe(kind="manual_hook", target="toy.y"),
     )
 
-    rt.register_tensors([x, w, y])
+    rt.register_model([x, w, y])
     rt.register_inputs({"toy.x": x_cpu})
 
     with rt.frame(
         "toy.elementwise_mul",
         scope={"case": "mvp"},
-        pytorch_model=toy_pytorch_model,
+        reference_model=toy_reference_model,
     ):
         elementwise_mul_f32(rt, x=x, weight=w, output=y)
 ```
 
 这里没有 binding table 暴露给模型，也没有 bound tensor tree。`x/w/y` 都是声明对象。执行态 storage 存在于 `RuntimeSession` 的 materialization table。
 
-MVP 可以先让 toy frame 传入一个最小 PyTorch/CPU model callable，作为当前 Frame 的 lockstep model：
+MVP 可以先让 toy frame 传入一个最小 manual reference callable，作为当前 Frame 的 lockstep reference：
 
 ```python
-def toy_pytorch_model(feeds: Mapping[str, object]) -> Mapping[str, object]:
+def toy_reference_model(feeds: Mapping[str, object]) -> Mapping[str, object]:
     return {"toy.y": feeds["toy.x"] * load_cpu_weight("toy.safetensors", "scale")}
 ```
 
-但对 RuntimeSession 来说，compare 仍然由 candidate frame 实际写出的 `toy.y` 驱动。
+manual callable 只是 toy MVP 的 reference provider。真实模型路径必须使用当前 Frame 传入的 PyTorch model.forward + `LogicalTensor.pytorch_probe` 捕获 artifact。无论哪种 provider，compare targets 都由 candidate frame 实际写出的 tensors 驱动。
 
 ## 推荐目录结构
 
@@ -136,7 +142,7 @@ def toy_pytorch_model(feeds: Mapping[str, object]) -> Mapping[str, object]:
 src/torch2vk/
   __init__.py
   types.py                 # TensorSpec、TensorLayout、dtype_nbytes、nbytes
-  logical.py               # LogicalTensor、TensorRole、MemoryClass、TensorLifetime、WeightSource、ComparePolicy
+  logical.py               # LogicalTensor、TensorRole、TensorSemantic、MemoryClass、TensorLifetime、WeightSource、ComparePolicy
   frame.py                 # FrameScope、frame context state
   memory.py                # BufferAllocation、BufferSlice、allocation registry
   materialize.py           # materialization table、TensorInstanceKey、read/write materialization
@@ -196,6 +202,7 @@ class LogicalTensor:
     layout: TensorLayout = ROW_MAJOR
     source: WeightSource | None = None
     feed: InputFeed | None = None
+    semantic: TensorSemantic | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
 ```
@@ -208,8 +215,9 @@ class LogicalTensor:
 4. shape rank 固定；
 5. execution 前 symbolic shape 必须 resolve；
 6. `role/memory/lifetime` 组合必须合法；
-7. `role == WEIGHT` 必须有 `source`；
-8. `role == INPUT` 必须能通过 `feed` 或 runtime feed 找到输入。
+7. `source != None` 必须能托管加载权重，且 `memory=MODEL_WEIGHT`、`lifetime=MODEL`；
+8. `role == WEIGHT` 必须有 `source`，除非它是 runtime 已注册的外部 weight；
+9. `role == INPUT` 必须能通过 `feed` 或 runtime feed 找到输入。
 
 ### TensorRole
 
@@ -221,9 +229,17 @@ class TensorRole(StrEnum):
     SCRATCH = "scratch"
     OUTPUT = "output"
     STATE = "state"
-    KV_CACHE = "kv_cache"
+```
+
+`TensorRole` 只表达粗粒度执行关系。`LOGITS`、`TOKEN`、`KV_CACHE` 这类模型语义使用可选 semantic metadata：
+
+```python
+class TensorSemantic(StrEnum):
     LOGITS = "logits"
     TOKEN = "token"
+    KV_CACHE = "kv_cache"
+    MASK = "mask"
+    WAVEFORM = "waveform"
 ```
 
 ### MemoryClass
@@ -235,8 +251,10 @@ class MemoryClass(StrEnum):
     FRAME_WORKSPACE = "frame_workspace"
     OP_SCRATCH = "op_scratch"
     HOST_INPUT = "host_input"
-    HOST_READBACK = "host_readback"
+    HOST_OUTPUT = "host_output"
 ```
+
+`MemoryClass` 描述 runtime materialize 某个 `LogicalTensor` 时默认使用哪类 storage/pool。`HOST_INPUT` / `HOST_OUTPUT` 仍然是 tensor storage class，表示 shader 可绑定的 host-visible port 或 backend 内部等价 copy 路径；它们不表示 frame exit 必然自动读回。
 
 ### TensorLifetime
 
@@ -307,7 +325,12 @@ class RuntimeSession:
     @classmethod
     def open(cls, *, device_index: int = 0) -> "RuntimeSession": ...
 
-    def register_tensors(self, tensors: Iterable[LogicalTensor]) -> None: ...
+    def register_model(
+        self,
+        tensors: Iterable[LogicalTensor],
+        *,
+        model_dir: Path | None = None,
+    ) -> None: ...
 
     def register_inputs(self, feeds: Mapping[str, object]) -> None: ...
 
@@ -318,6 +341,7 @@ class RuntimeSession:
         *,
         scope: Mapping[str, str | int] | None = None,
         pytorch_model: PyTorchFrameModel | None = None,
+        reference_model: FrameReferenceProvider | None = None,
     ) -> Iterator[FrameContext]: ...
 
     def dispatch(self, variant: ShaderVariant, **tensors: LogicalTensor) -> None: ...
@@ -328,6 +352,8 @@ class RuntimeSession:
 
     def close(self) -> None: ...
 ```
+
+`RuntimeSession.open(...)` 返回的 session 必须支持 context manager；`__exit__` 调用幂等 `close()`。
 
 `RuntimeSession` 负责：
 
@@ -541,10 +567,10 @@ class DispatchRecord:
 
 ## PyTorch/CPU lockstep 对拍
 
-MVP 可以先让当前 Frame 传入的 PyTorch model 是 manual callable，不急着接 module hook：
+MVP toy 可以先使用 manual reference callable，不急着接 module hook：
 
 ```python
-def toy_pytorch_model(feeds: Mapping[str, object]) -> Mapping[str, object]:
+def toy_reference_model(feeds: Mapping[str, object]) -> Mapping[str, object]:
     x_cpu = feeds["toy.x"]
     w_cpu = read_safetensors_tensor("toy.safetensors", "scale")
     return {"toy.y": x_cpu * w_cpu}
@@ -556,9 +582,11 @@ Frame exit 时 RuntimeSession：
 收集本 Frame written tensors
 过滤 compare != None 的 tensor
 readback candidate TensorInstanceKey
-读取当前 frame pytorch_model.forward/callable 产生的 artifact
+从当前 frame 的 reference provider 取得 artifact；真实模型 provider 必须来自 PyTorch model.forward hook
 compare_tensor(policy, candidate, expected)
 ```
+
+manual reference provider 可以按 `LogicalTensor.name` 返回 expected artifact。真实 PyTorch provider 必须要求参与 compare 的 tensor 同时声明 `pytorch_probe`，用于在当前 frame 的 PyTorch model.forward 中捕获 artifact。
 
 `compare_tensor()` 使用 `LogicalTensor.compare`：
 
@@ -599,7 +627,7 @@ first mismatch index if practical
 
 1. `src/torch2vk/types.py`；
 2. `src/torch2vk/logical.py`；
-3. `TensorRole` / `MemoryClass` / `TensorLifetime`；
+3. `TensorRole` / `TensorSemantic` / `MemoryClass` / `TensorLifetime`；
 4. `WeightSource` / `InputFeed` / `ComparePolicy` / `PyTorchProbe`；
 5. `tests/test_logical.py`。
 
