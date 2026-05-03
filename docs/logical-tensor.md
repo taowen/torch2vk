@@ -1,48 +1,71 @@
 # LogicalTensor Tree 设计
 
-`LogicalTensor` 是 `torch2vk` 的模型可见 tensor 句柄。最终形态应该是一棵集中声明的
-LogicalTensor tree：它描述模型里所有值得被命名、存储、读写、对拍、缓存和诊断的 tensor。
+`LogicalTensor` 是模型可见 tensor 的语义句柄。它不是 storage slot，不是 hook id，也不是
+某一次 dispatch 的临时名字。它描述一个 tensor 在模型算法里的身份，以及如何和 reference
+artifact 对齐。
 
-执行顺序不属于 LogicalTensor tree。执行顺序来自 Python execution source 里 shader
-像函数一样被 eager 调用的顺序。
-
-## 目标目录
-
-每个模型 family 应该有一个 `tensors/` 子目录，集中放 logical tensor tree。
+之前的设计过于偏向单模型 forward。对于 OmniVoice 这种多模型串联、循环生成的系统，最终
+设计必须同时表达：
 
 ```text
-src/torch2vk/models/qwen3_safetensor/
-  execution.py
-  tensors/
-    __init__.py
-    prefill.py
-    decode.py
-    weights.py
-    probes.py
+submodel: stage0 / qwen3 cond / qwen3 uncond / stage1 / wav postprocess
+generation step: 第 0..N 步
+row: cond / uncond
+layer: 第几层
+tensor role: input / activation / logits / token / waveform
+reference probe: 从 official/PyTorch trace 的哪里取
+compare policy: tensor / token / waveform
 ```
 
-职责划分：
+这个 tree 服务的是 torch2vk runtime 本身。候选执行必须走 torch2vk 的
+`DebugIntegrationCase`、`DebugContext`、storage plan、Vulkan dispatch 和 readback；
+外部项目的 trace 只能作为 reference/设计材料，不能替代候选侧的 LogicalTensor tree。
+
+LogicalTensor tree 还要保护 shader ABI，不允许为了快速对拍把 checkpoint 权重转换成另一个
+dtype 去适配旧 shader。以 OmniVoice stage0 为例，`audio_embeddings.weight` 和
+`audio_heads.weight` 是 `float32`，`codebook_layer_offsets` 是 `int64`；tree、verifier 和
+shader contract 都必须反映这个事实。性能敏感边界如果暂时没有匹配真实 dtype 的并行 shader，
+宁可先标记为 coverage gap，也不要接入一个慢 scalar kernel 伪装成候选实现。
+
+## Base Name 和 Scope
+
+`LogicalTensor.name` 表示语义位置，不直接编码“第几次出现”。
 
 ```text
-tensors/prefill.py
-  prefill dataclass tree 和 prefill tensor factory
-
-tensors/decode.py
-  decode dataclass tree 和 decode tensor factory
-
-tensors/weights.py
-  structured weight tree 和 checkpoint source
-
-tensors/probes.py
-  PyTorch probe helper 和路径约定
-
-execution.py
-  使用 tensor tree，按 eager 顺序调用 Vulkan shader
+stage0.audio_embedding.output
+qwen3.layer.03.output
+stage0.audio_head.logits
+selection.guided_scores
+stage1.decoder.waveform
+output.wav_pcm16
 ```
+
+端到端 run 中的动态维度由 scope 表示：
+
+```text
+generate.step_005/stage0.audio_head/row=cond + stage0.audio_head.logits
+generate.step_005/qwen3.prefill/row=uncond/layer=03 + qwen3.layer.03.output
+stage1.decoder + stage1.decoder.waveform
+```
+
+框架生成 artifact key：
+
+```python
+artifact_key = scope.key(tensor.name)
+```
+
+不要为每一步创建完全不同的字符串表：
+
+```text
+bad: generate.step_005.stage0.audio_head.logits.cond
+good: scope(step=5, phase="stage0.audio_head", row="cond") + tensor.name
+```
+
+这样同一个 tensor tree 可以在 generation loop 中复用。
 
 ## Core API
 
-理想的 `LogicalTensor` 形态：
+理想核心对象：
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -58,343 +81,395 @@ class LogicalTensor:
     compare: ComparePolicy | None = None
 ```
 
-`name` 是唯一语义 key。`storage` 是物理 backing。两者必须分离。
-
-同一个 `LogicalTensor.name` 会被这些系统使用：
-
-1. Vulkan shader dispatch 的 reads/writes；
-2. PyTorch probe artifact；
-3. Vulkan readback artifact；
-4. artifact cache；
-5. liveness planner；
-6. replay fingerprint；
-7. mismatch report。
-
-不要再引入第二套模型可见 tensor id，例如 `TensorSlot`、`WorkspaceTensor`、
-`candidate_qproj`。
-
-## Tensor Tree
-
-模型应该暴露结构化 tree，而不是散落的字符串表。
+需要新增的 run-scope 概念不应该塞进 `LogicalTensor.name`：
 
 ```python
 @dataclass(frozen=True, slots=True)
-class Qwen3LayerTensors:
-    input: LogicalTensor
-    input_norm: LogicalTensor
-    q_proj: LogicalTensor
-    k_proj: LogicalTensor
-    v_proj: LogicalTensor
-    q_rope: LogicalTensor
-    key_cache: LogicalTensor
-    value_cache: LogicalTensor
-    attention_context: LogicalTensor
-    attention_o_proj: LogicalTensor
-    attention_residual: LogicalTensor
-    post_attention_norm: LogicalTensor
-    mlp_gate: LogicalTensor
-    mlp_up: LogicalTensor
-    mlp_gated: LogicalTensor
-    mlp_down: LogicalTensor
-    output: LogicalTensor
+class RunScope:
+    path: tuple[str, ...] = ()
+    labels: Mapping[str, int | str] = {}
 
-
-@dataclass(frozen=True, slots=True)
-class Qwen3PrefillTensors:
-    input_ids: LogicalTensor
-    position_ids: LogicalTensor
-    attention_mask: LogicalTensor
-    hidden: LogicalTensor
-    layers: tuple[Qwen3LayerTensors, ...]
-    final_norm: LogicalTensor
-    logits: LogicalTensor
-    next_token_id: LogicalTensor
+    def child(self, name: str, **labels) -> RunScope: ...
+    def key(self, tensor_name: str) -> str: ...
 ```
 
-访问 tensor 时应该走 tree：
+`LogicalTensor` 保持纯语义；`RunScope` 描述一次端到端执行中的位置。
+
+execution 代码只消费这些 tree 对象，不持有 PyTorch model：
 
 ```python
-LINEAR_BF16_F32(
-    ctx,
-    pytorch_model,
-    x=layer.input_norm,
-    weight=weights.layers[3].self_attn.q_proj,
-    output=layer.q_proj,
-)
+def run_stage1_decoder(ctx, *, tensors, weights):
+    OMNIVOICE_STAGE1_CONV1D_K7_F32(
+        ctx,
+        x=tensors.project_out_sum_hidden256,
+        weight=weights.decoder_conv1_weight,
+        bias=weights.decoder_conv1_bias,
+        output=tensors.decoder_conv1,
+    )
 ```
 
-不要在 execution 里拼 tensor 名：
+这里 `x/weight/bias/output` 本身就是 LogicalTensor 映射关系。框架从 shader contract 得到
+哪些字段是 read、哪些字段是 write，再从实际 dispatch timeline 收集需要对拍的 writes。
+PyTorch/official reference 不参与收集 LogicalTensor，只负责在候选 run 结束后为这些 tensor
+names/probes 产出 reference artifact。
 
-```python
-name = f"decode.layer.{i:02d}.self_attn.q_proj"
-workspace.tensor(name)
-```
+## Tensor Tree 目录
 
-名字属于 tensor tree 构造阶段，execution 只使用已经声明好的对象。
-
-## Prefill 和 Decode
-
-Prefill 和 decode 必须有不同的 tree factory。
-
-```python
-def qwen3_prefill_tensors(
-    *,
-    batch: int,
-    steps: int,
-    spec: Qwen3Spec,
-    max_seq_len: int,
-) -> Qwen3PrefillTensors: ...
-
-
-def qwen3_decode_tensors(
-    *,
-    batch: int,
-    spec: Qwen3Spec,
-    max_seq_len: int,
-    step_index: int,
-) -> Qwen3DecodeTensors: ...
-```
-
-原因：
+每个模型 family 仍然需要 `tensors/` 子目录，但 OmniVoice 不能只有一个平铺 tree。
 
 ```text
-prefill:
-  steps = prompt length
-  attention mask 是 prompt 内的 causal mask
-  KV cache 批量写入多行
-
-decode:
-  steps = 1
-  attention 读取历史 cache
-  KV cache 追加当前 token
-  cache position / row index / state checkpoint 是 step 级状态
+src/torch2vk/models/omnivoice_safetensor/
+  execution.py
+  tensors/
+    __init__.py
+    case.py
+    run.py
+    stage0.py
+    qwen3.py
+    stage1.py
+    weights.py
+    probes.py
 ```
 
-可以共享 `Qwen3LayerTensors` 的一部分字段，但不要用一个 factory 同时隐式处理 prefill
-和 decode 的 shape 语义。
+职责：
 
-## PyTorch Probe
+```text
+case.py
+  Debug/generation case 参数：text、language、target_steps、num_steps、seed
 
-`LogicalTensor` 应该集中声明它如何和 PyTorch eager 对齐。
+run.py
+  端到端 run tree，组合 stage0/qwen3/stage1/output
+
+stage0.py
+  audio embedding、audio head、selection 相关 tensor
+
+qwen3.py
+  cond/uncond prefill/decode 使用的 LLM tensor tree，可复用 qwen3_safetensor 的 layer tree
+
+stage1.py
+  audio tokenizer / decoder / waveform tensor
+
+weights.py
+  generator、llm、audio tokenizer 权重 tree
+
+probes.py
+  official/PyTorch trace source 到 LogicalTensor 的 probe helper
+
+boundaries.py
+  端到端 debug 的 boundary 顺序、compare policy 和 step/global scope
+
+reference.py
+  把 official/PyTorch 端到端 trace 接成 `ReferenceProvider`
+```
+
+## OmniVoice Run Tree
+
+端到端 tree 应该表达完整生成流程：
 
 ```python
-layer.q_proj = activation_tensor(
-    "decode.layer.03.self_attn.q_proj",
-    dtype="float32",
-    shape=(batch, steps, spec.q_proj_out_features),
-    pytorch_probe=module_output(
-        "model.layers.3.self_attn.q_proj",
-        normalize="float32_contiguous",
-    ),
-    compare=ComparePolicy(kind="tensor", rtol=1e-2, atol=1e-2),
+@dataclass(frozen=True, slots=True)
+class OmniVoiceStepTensors:
+    tokens_before: LogicalTensor
+    stage0: OmniVoiceStage0Tensors
+    qwen3_cond: Qwen3PrefillTensors
+    qwen3_uncond: Qwen3PrefillTensors
+    selection: OmniVoiceSelectionTensors
+    tokens_after: LogicalTensor
+
+
+@dataclass(frozen=True, slots=True)
+class OmniVoiceRunTensors:
+    prompt_ids: LogicalTensor
+    steps: tuple[OmniVoiceStepTensors, ...]
+    stage1: OmniVoiceStage1Tensors
+    waveform: LogicalTensor
+    wav_pcm16: LogicalTensor
+```
+
+`steps` 的长度来自 debug case 的 `num_steps`。每个 step 复用相同的 base names，但执行时用
+`RunScope(step=i)` 区分 artifact。
+
+这个 tree 不是为了拆出多层测试。集成测试仍然只跑端到端 case。tree 的职责是给端到端
+自动归因提供边界、checkpoint 和 dispatch 归属。
+
+实际执行时不能无条件把整棵最终 tree 都交给 storage planner。尚未落地的边界可能有符号 shape
+（例如 `stage1.decoder.waveform: (B, samples, 1)`），它们应该留在 schema 中表达最终目标，
+但不进入当前 run 的 `DebugIntegrationCase.tensors`。每个 debug run 只绑定本次真正执行和比较的
+LogicalTensor；否则会把“未来覆盖范围”错误地变成当前 storage/dispatch 要求。
+
+Tree 还应该把 token normalization 作为边界 contract 写清楚。OmniVoice stage0 使用
+`1024` 作为 audio mask token，但 stage1 quantizer codebook 的 vocab 是 1024，合法 embedding
+index 是 `0..1023`。进入 stage1 quantizer 边界时，candidate shader 和 reference probe 都按
+`clamp(token, 0, vocab - 1)` 对齐。
+
+当前已接入的 stage1 concrete tensors 包括 `stage1.quantizer.embed_sum`、
+`stage1.quantizer.project_out_sum.hidden1024`、
+`stage1.quantizer.project_out_sum.hidden256`、`stage1.decoder.conv1`、
+`stage1.decoder.block0.deconv`、`stage1.decoder.block0.res_unit{1,2,3}.conv1`、
+`stage1.decoder.block0.res_unit{1,2,3}.output`、`stage1.decoder.block1.deconv`、
+`stage1.decoder.block1.res_unit{1,2,3}.conv1` 和
+`stage1.decoder.block1.res_unit{1,2,3}.output`、`stage1.decoder.block2.deconv`、
+`stage1.decoder.block2.res_unit{1,2,3}.conv1` 和
+`stage1.decoder.block2.res_unit{1,2,3}.output`、`stage1.decoder.block3.deconv`、
+`stage1.decoder.block3.res_unit{1,2,3}.conv1` 和
+`stage1.decoder.block3.res_unit{1,2,3}.output`、`stage1.decoder.block4.deconv`、
+`stage1.decoder.block4.res_unit{1,2,3}.conv1`、
+`stage1.decoder.block4.res_unit{1,2,3}.output` 和 `stage1.decoder.waveform`。当前 debug
+case 用 concrete `steps * 960` samples 绑定 waveform；最终 tree 仍可以用符号 `samples`
+表达通用形态。
+
+## Boundary 和 Checkpoint
+
+端到端 debug 需要 first-class boundary。Boundary 是“可以比较、可以回溯、可以 drilldown”
+的语义边界，不是独立测试层级。
+
+```python
+@dataclass(frozen=True, slots=True)
+class DebugBoundary:
+    name: str
+    order: int
+    scope: BoundaryScope
+    artifacts: tuple[str, ...]
+    tensors: tuple[LogicalTensor, ...]
+    tokens: tuple[LogicalTensor, ...] = ()
+    checkpoint: LogicalTensor | None = None
+    writer_dispatch: bool = False
+```
+
+OmniVoice 需要的边界类似：
+
+```text
+tokens.before
+stage0.audio_embedding.output
+qwen3.prefill.input
+qwen3.layer.00.output
+...
+qwen3.layer.27.output
+qwen3.final_norm
+stage0.audio_head.logits
+selection.guided_scores
+tokens.after
+stage1.decoder.waveform
+output.wav
+```
+
+`name` 是归因报告里的边界名，`artifacts` 是实际需要比较的 artifact 名。比如
+`stage0.audio_head.logits` 这个 boundary 应同时比较
+`stage0.audio_head.logits.cond` 和 `stage0.audio_head.logits.uncond`；LLM layer boundary
+同理比较 cond/uncond 两侧。这样集成测试仍然只有一个边界顺序，但不会把多 row 的模型状态压扁
+成单个 tensor。
+
+`order` 用于同一个 step 内回溯；step N 的开头依赖 step N-1 的 `tokens.after`。如果某个
+boundary drilldown 后发现 `input_bad_output_bad`，框架按 `(step, order)` 自动找上游
+boundary，而不是让测试作者手动决定下一个测什么。
+
+Checkpoint 是 drilldown 的重跑入口：
+
+```text
+boundary: stage0.audio_head.logits
+checkpoint: stage0.audio_head.input_hidden
+metadata:
+  step=5
+  row=cond
+  tokens_before=...
+```
+
+没有 checkpoint 的 boundary 只能 locate，不能高效 drilldown。文档里的 tensor tree 必须
+明确哪些 boundary 能提供 checkpoint，否则端到端失败时只能报告“覆盖不足”。
+
+## 归因状态
+
+LogicalTensor tree 和 boundary schema 应支持这些状态：
+
+```text
+match
+  端到端 reference 和 Vulkan candidate 一致
+
+input_ok_output_bad
+  boundary 输入对，输出错；writer shader 是根因候选
+
+input_bad_output_bad
+  boundary 输入已经错；自动回溯上游 boundary
+
+boundary_output_match
+  locate 发现错，但 drilldown 不复现；说明 state transition 或 instrumentation gap
+
+boundary_coverage_insufficient
+  缺少可比较 tensor、checkpoint 或 dispatch 归属
+```
+
+这些状态属于同一个端到端集成测试的自动诊断流程。
+
+## Probe
+
+单模型 forward 的 probe 不够，需要支持端到端 trace source：
+
+```python
+PyTorchProbe(
+    kind="trace",
+    source="audio_head.logits",
+    selector="cond",
+    normalize="float32_contiguous",
 )
 ```
 
-Probe 类型：
+建议 probe 语义：
 
-```python
-PyTorchProbe(kind="module_output", target="model.layers.3.self_attn.q_proj")
-PyTorchProbe(kind="module_input", target="model.layers.3.self_attn.q_proj", index=0)
-PyTorchProbe(kind="manual", source="next_token_id")
-PyTorchProbe(kind="derived", inputs=(...), transform="apply_rope_ref")
-```
+```text
+module_output
+  单个 PyTorch/HF module forward hook，适合 Qwen3 单模型
 
-Probe 的职责：
+module_input
+  单个 module 的输入 hook
 
-1. 从 PyTorch eager 中捕获 reference tensor；
-2. 归一化 dtype、shape、contiguity；
-3. 以 `LogicalTensor.name` 写入 artifact cache；
-4. 不参与 Vulkan 执行顺序。
+manual
+  从 forward/generate 返回对象取值
 
-PyTorch probe 不是 execution node。它只是 `LogicalTensor` 到 PyTorch eager artifact 的映射。
+derived
+  由其他 artifact 计算
 
-## 自动对拍
-
-默认情况下，不需要单独列出“要对拍哪些 tensor”。shader 调用写出的 output
-`LogicalTensor` 如果声明了 `pytorch_probe` 和 `compare`，就自然是可对拍 tensor。
-
-Debug loop 的顺序来自 shader 函数调用产生的 `DispatchRecord`。最小形态是直接比较
-当前 dispatch 写出的 comparable tensors：
-
-```python
-for record in dispatch_records:
-    vulkan_runner.run_one(record)
-    for tensor in comparable_writes(record):
-        candidate[tensor.name] = readback(tensor)
-        compare(tensor, reference, candidate)
-```
-
-## Factory API
-
-推荐给模型 tensor tree 提供小而明确的 factory。
-
-```python
-def A(
-    name: str,
-    *,
-    dtype: str,
-    shape: tuple[int, ...],
-    probe: PyTorchProbe | None = None,
-    compare: ComparePolicy | None = None,
-    role: TensorRole = TensorRole.ACTIVATION,
-    memory: MemoryPolicy = MemoryPolicy.FRAME_WORKSPACE,
-) -> LogicalTensor: ...
-
-
-def I(name: str, *, dtype: str, shape: tuple[int, ...]) -> LogicalTensor: ...
-def O(name: str, *, dtype: str, shape: tuple[int, ...]) -> LogicalTensor: ...
-def K(name: str, *, dtype: str, shape: tuple[int, ...]) -> LogicalTensor: ...
+trace
+  从端到端 reference trace 按当前 RunScope 取值
 ```
 
 示例：
 
 ```python
-def _layer_tensors(
-    *,
-    layer_index: int,
-    batch: int,
-    steps: int,
-    spec: Qwen3Spec,
-    layer_input: LogicalTensor,
-) -> Qwen3LayerTensors:
-    prefix = f"decode.layer.{layer_index:02d}"
-    torch_prefix = f"model.layers.{layer_index}"
-
-    return Qwen3LayerTensors(
-        input=layer_input,
-        input_norm=A(
-            f"{prefix}.input_norm",
-            dtype="float32",
-            shape=(batch, steps, spec.hidden_size),
-            probe=module_output(f"{torch_prefix}.input_layernorm"),
-        ),
-        q_proj=A(
-            f"{prefix}.self_attn.q_proj",
-            dtype="float32",
-            shape=(batch, steps, spec.q_proj_out_features),
-            probe=module_output(f"{torch_prefix}.self_attn.q_proj"),
-        ),
-        ...
-    )
-```
-
-## Views
-
-Views are allowed, but they must not create hidden semantics.
-
-同一个值的 ABI 视图可以保留同一个 name：
-
-```python
-q_heads = q_proj.view_as(
-    q_proj.name,
-    spec=TensorSpec(
-        dtype="float32",
-        shape=(batch, steps, spec.num_attention_heads, spec.head_dim),
+audio_head_logits = activation_tensor(
+    "stage0.audio_head.logits",
+    dtype="float32",
+    shape=(batch, codebooks, target_steps, codebook_vocab),
+    pytorch_probe=PyTorchProbe(
+        kind="trace",
+        source="stage0.audio_head.logits",
+        selector="row",
     ),
+    compare=ComparePolicy(kind="tensor", rtol=1e-4, atol=1e-4),
 )
 ```
 
-新的模型可见值必须使用新的 name：
+`selector="row"` 表示 reference capture 用当前 scope 的 `row=cond/uncond` 取对应 trace。
+
+## Compare Policy
+
+不同 artifact 需要不同策略：
 
 ```python
-qkv_packed = packed.view_as(
-    "decode.layer.03.self_attn.qkv_packed",
-    spec=TensorSpec(dtype="float32", shape=(batch, steps, qkv_width)),
+ComparePolicy(kind="tensor", rtol=1e-4, atol=1e-4)
+ComparePolicy(kind="token")
+ComparePolicy(kind="token_sequence")
+ComparePolicy(kind="waveform", rtol=1e-4, atol=1e-4, max_abs=1e-3)
+```
+
+Token 边界必须是 first-class tensor：
+
+```python
+tokens_before = activation_tensor(
+    "tokens.before",
+    dtype="int32",
+    shape=(codebooks, target_steps),
+    role=TensorRole.TOKEN,
+    pytorch_probe=trace_probe("tokens.before"),
+    compare=ComparePolicy(kind="token_sequence"),
 )
 ```
 
-`view_as()` 必须保留 `pytorch_probe`、`compare`、role、memory，除非调用方显式覆盖。
+如果只比较最终 wav，定位信息太晚；必须在每一步 token 更新前后都能对拍。
 
-## Binding
+## Execution 不拼名字
 
-LogicalTensor declaration 和 bound tensor 是同一个 identity 的两个阶段。
-
-```text
-declaration:
-  name, spec, role, layout, probe, compare
-
-bound tensor:
-  declaration + BufferSlice
-```
-
-绑定 storage 不能改变 `name`、`spec`、`pytorch_probe`、`compare`。
+Execution source 只拿 tree 对象，不构造名字：
 
 ```python
-unbound = qwen3_collect_logical_tensors(tensors)
-plan = plan_storage(unbound, allocation_id="qwen3-prefill")
-bound = bind_storage(unbound, plan)
+with ctx.scope("generate", step=step):
+    step_tensors = tensors.steps[step]
+    run_stage0_audio_embedding(ctx, tensors=step_tensors.stage0, weights=weights.stage0)
 ```
 
-允许 planner 让生命周期不重叠的 logical tensors 共享物理 slot。共享 storage 不改变
-logical identity。
+不要这样：
 
-## Weights
+```python
+name = f"generate.step_{step:03d}.stage0.audio_embedding.output"
+workspace.tensor(name)
+```
 
-权重也应该在 tree 中有结构化访问方式。
+名字属于 tree factory，scope 属于 execution context。
+
+## 多模型权重 Tree
+
+OmniVoice 权重不是单一 `weights`：
 
 ```python
 @dataclass(frozen=True, slots=True)
-class Qwen3LayerWeights:
-    input_layernorm: LogicalTensor
-    q_proj: LogicalTensor
-    k_proj: LogicalTensor
-    v_proj: LogicalTensor
-    o_proj: LogicalTensor
-    post_attention_layernorm: LogicalTensor
-    gate_proj: LogicalTensor
-    up_proj: LogicalTensor
-    down_proj: LogicalTensor
+class OmniVoiceWeights:
+    stage0: OmniVoiceStage0Weights
+    llm: Qwen3Weights
+    stage1: OmniVoiceStage1Weights
 ```
 
-权重 `LogicalTensor` 必须声明 checkpoint source：
-
-```python
-W(
-    "weights.layer.03.self_attn.q_proj",
-    safetensor_key="model.layers.3.self_attn.q_proj.weight",
-    dtype="bfloat16",
-    shape=(spec.q_proj_out_features, spec.hidden_size),
-)
-```
-
-execution 不应该知道 safetensors key。
-
-## Diagnostics
-
-错误报告必须先给 logical identity：
+checkpoint source key 可以不同，但 logical key 必须稳定：
 
 ```text
-first mismatch: decode.layer.03.attention.output
-writer shader: flash_attn_f32_f16
-writer dispatch: 84
-matching inputs: q, key_cache, value_cache
-divergent output: output
+weights.stage0.audio_embeddings
+weights.llm.layer.03.self_attn.q_proj
+weights.stage1.decoder.block3.deconv.weight
 ```
 
-物理信息只能作为附加内容：
+Qwen3 单模型仍然可以使用：
 
 ```text
-storage: allocation=qwen3-prefill offset=1048576 nbytes=8192
-descriptor: binding=2
+weights.layer.03.self_attn.q_proj
 ```
 
-## 禁止事项
+但 OmniVoice 组合模型里应该带 `weights.llm` 前缀，避免和 stage0/stage1 混淆。
 
-不要让 `tensors/` 子目录承担执行职责。
+## 通用收集
 
-禁止：
+框架需要能递归收集 dataclass tree：
 
 ```python
-tensors.prefill.run()
-tensors.layer[3].q_proj.execute()
-tensors.schedule
+collect_logical_tensors(tensors.run)
+collect_logical_tensors(weights)
 ```
 
-允许：
+但 reference required probes 不能只看“所有带 probe 的 tensor”。端到端 run 中应该按
+boundary schema 和实际执行记录收集：
 
 ```python
-run_qwen3_prefill(ctx, pytorch_model, spec=spec, tensors=tensors, weights=weights)
-run_qwen3_decode_step(ctx, pytorch_model, spec=spec, tensors=tensors, weights=weights)
+required = debug_schema.required_reference_keys(case)
+candidate_boundaries = ctx.executed_boundaries()
 ```
 
-`LogicalTensor` tree 是模型语义和对拍映射。execution source 才是执行语义。
+第一版可以在 run 前根据 tree + case 展开全部 boundary scope；更稳的实现是在 locate mode
+记录 candidate boundary timeline，再用 boundary/tensor keys 反推 required reference。
+这仍然是一个端到端 run，不是分层测试。
+
+## 失败报告
+
+`LogicalTensor` 设计必须服务于诊断，而不是只服务于 storage planning。Mismatch report 至少包含：
+
+```text
+case fingerprint
+scope key
+base tensor name
+writer shader
+dispatch index
+submodel / phase
+step / row / layer
+compare policy
+reference artifact path
+candidate artifact path
+```
+
+如果缺少 scope，OmniVoice 第 0 步和第 7 步的同名 tensor 会互相覆盖，debug 结果不可信。
+
+## 对 Qwen3 的影响
+
+Qwen3 prefill/decode 是单模型，所以可以用空 scope 或简单 scope：
+
+```text
+qwen3.prefill + output.logits
+qwen3.decode/step=12 + output.next_token_id
+```
+
+这不会破坏现有裸调用体验，只是让同一套 DebugContext 能覆盖 OmniVoice 这种多模型端到端 run。

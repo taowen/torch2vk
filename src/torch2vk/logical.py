@@ -84,7 +84,7 @@ class ComparePolicy:
 
 @dataclass(frozen=True, slots=True)
 class PyTorchProbe:
-    kind: Literal["module_output", "module_input", "manual", "derived"]
+    kind: Literal["module_output", "module_input", "manual", "derived", "trace"]
     target: str | None = None
     index: int = 0
     source: str | None = None

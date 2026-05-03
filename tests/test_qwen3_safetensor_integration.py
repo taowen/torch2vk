@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import importlib
 import os
-import pkgutil
 import struct
-import tempfile
 import unittest
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
 import torch
 
-from torch2vk.debug_context import DebugContext
+from torch2vk.integration import (
+    DebugIntegrationCase,
+    first_tensor,
+    pytorch_model_reference_provider,
+    run_debug_integration_case,
+)
 from torch2vk.logical import LogicalTensor
 from torch2vk.models.qwen3_safetensor.debug import (
     qwen3_prefill_initial_tensors,
@@ -23,10 +27,7 @@ from torch2vk.models.qwen3_safetensor.execution import (
 )
 from torch2vk.models.qwen3_safetensor.runtime import (
     qwen3_close_resource_buffers,
-    qwen3_collect_logical_tensors,
-    qwen3_first_tensor,
     qwen3_resource_buffers,
-    qwen3_tensor_lookup,
 )
 from torch2vk.models.qwen3_safetensor.spec import load_qwen3_spec
 from torch2vk.models.qwen3_safetensor.tensors.prefill import qwen3_prefill_tensors
@@ -36,16 +37,11 @@ from torch2vk.models.qwen3_safetensor.weights import (
     qwen3_safetensor_weight_payloads,
     verify_qwen3_safetensor_weights,
 )
-from torch2vk.pytorch import ArtifactCache
-from torch2vk.shader import ShaderVariant
-from torch2vk.storage import bind_storage, plan_storage, tensor_nbytes
-from torch2vk.validation import validate_dispatch_read_write_chain
-from torch2vk.vulkan_backend import VulkanBuffer, create_compute_context
+from torch2vk.storage import tensor_nbytes
+from torch2vk.vulkan_backend import VulkanBuffer
 from torch2vk.vulkan_runner import (
     LogicalTensorLookup,
-    allocate_storage_buffers,
     write_bound_tensor_bytes,
-    write_bound_tensor_payloads,
 )
 
 DEFAULT_MODEL_DIR = Path("models/weights/qwen3-0.6b-safetensor")
@@ -73,80 +69,47 @@ class Qwen3SafetensorIntegrationTest(unittest.TestCase):
             max_seq_len=len(PROMPT_IDS),
         )
         weights = qwen3_weights(spec)
-        unbound = (
-            *qwen3_collect_logical_tensors(execution_tensors),
-            *qwen3_collect_logical_tensors(weights),
-        )
-        plan = plan_storage(unbound, allocation_id="qwen3-integration-prefill")
-        bound = bind_storage(unbound, plan)
-        tensors = qwen3_tensor_lookup(bound)
         pytorch_model = _pytorch_qwen3_model(model_dir)
 
-        context = create_compute_context()
-        try:
-            allocations = allocate_storage_buffers(context, plan)
-            resources = qwen3_resource_buffers(context)
-            try:
-                _write_initial_tensors(
-                    tensors=tensors,
-                    allocations=allocations,
-                    initial=qwen3_prefill_initial_tensors(
-                        tensors=execution_tensors,
-                        weights=weights,
-                    ),
-                )
-                write_bound_tensor_payloads(
-                    tensors,
-                    allocations,
-                    qwen3_safetensor_weight_payloads(model_dir, spec=spec),
-                )
-                with tempfile.TemporaryDirectory() as cache_dir:
-                    debug_context = DebugContext(
-                        shader_dir=SHADER_DIR,
-                        variants=_shader_variants(),
-                        context=context,
-                        tensors=tensors,
-                        tensor_sequence=bound,
-                        allocations=allocations,
-                        inputs={
-                            "input_ids": torch.tensor([PROMPT_IDS], dtype=torch.long),
-                            "use_cache": False,
-                        },
-                        cache=ArtifactCache(Path(cache_dir)),
-                        resource_buffers=resources,
-                        transforms=QWEN3_PROBE_TRANSFORMS,
-                        extra_fingerprint={"model_dir": str(model_dir.resolve())},
-                    )
-                    run_qwen3_prefill(
-                        debug_context,
-                        pytorch_model,
-                        spec=spec,
-                        tensors=execution_tensors,
-                        weights=weights,
-                    )
-                    validate_dispatch_read_write_chain(
-                        debug_context.records,
-                        initial_tensors=qwen3_prefill_initial_tensors(
-                            tensors=execution_tensors,
-                            weights=weights,
-                        ),
-                    ).raise_for_issues()
-            finally:
-                qwen3_close_resource_buffers(resources)
-                for allocation in allocations.values():
-                    allocation.close()
-        finally:
-            context.close()
+        run_debug_integration_case(
+            DebugIntegrationCase(
+                shader_dir=SHADER_DIR,
+                shader_package=PACKAGE,
+                allocation_id="qwen3-integration-prefill",
+                tensors=execution_tensors,
+                weights=weights,
+                initial_tensors=qwen3_prefill_initial_tensors(
+                    tensors=execution_tensors,
+                    weights=weights,
+                ),
+                inputs={
+                    "input_ids": torch.tensor([PROMPT_IDS], dtype=torch.long),
+                    "use_cache": False,
+                },
+                reference_provider=pytorch_model_reference_provider(pytorch_model),
+                run=lambda debug_context: run_qwen3_prefill(
+                    debug_context,
+                    spec=spec,
+                    tensors=execution_tensors,
+                    weights=weights,
+                ),
+                write_initial_tensors=_write_initial_tensors,
+                weight_payloads=qwen3_safetensor_weight_payloads(model_dir, spec=spec),
+                resource_factory=qwen3_resource_buffers,
+                resource_closer=qwen3_close_resource_buffers,
+                transforms=QWEN3_PROBE_TRANSFORMS,
+                extra_fingerprint={"model_dir": str(model_dir.resolve())},
+            )
+        )
 
 
 def _write_initial_tensors(
-    *,
     tensors: LogicalTensorLookup,
-    allocations: dict[str, VulkanBuffer],
+    allocations: Mapping[str, VulkanBuffer],
     initial: tuple[LogicalTensor, ...],
 ) -> None:
     for tensor in initial:
-        bound_tensor = qwen3_first_tensor(tensors[tensor.name])
+        bound_tensor = first_tensor(tensors[tensor.name])
         if tensor.name in {"input.input_ids", "input.position_ids"}:
             values = (
                 PROMPT_IDS
@@ -178,16 +141,3 @@ def _pytorch_qwen3_model(model_dir: Path) -> Any:
     )
     model.eval()
     return model
-
-
-def _shader_variants() -> dict[str, ShaderVariant]:
-    package = importlib.import_module(PACKAGE)
-    variants: dict[str, ShaderVariant] = {}
-    for module_info in pkgutil.iter_modules(package.__path__):
-        if module_info.name.startswith("_"):
-            continue
-        module = importlib.import_module(f"{PACKAGE}.{module_info.name}")
-        for value in vars(module).values():
-            if isinstance(value, ShaderVariant):
-                variants[value.name] = value
-    return variants

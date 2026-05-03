@@ -26,6 +26,11 @@ uv run python scripts/verify_qwen3_safetensor_weights.py
 echo "==> qwen3 shaders"
 uv run python scripts/compile_qwen3_shaders.py
 
+echo "==> omnivoice shaders"
+uv run python scripts/verify_omnivoice_shader_sources.py
+uv run python scripts/verify_omnivoice_safetensor_weights.py
+uv run python scripts/compile_omnivoice_shaders.py
+
 echo "==> pytest"
 set +e
 uv run pytest

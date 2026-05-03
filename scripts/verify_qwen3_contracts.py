@@ -51,7 +51,6 @@ def main() -> int:
     prefill_target = DispatchTarget()
     run_qwen3_prefill(
         prefill_target,
-        None,
         spec=spec,
         tensors=prefill_tensors,
         weights=weights,
@@ -68,7 +67,6 @@ def main() -> int:
     decode_target = DispatchTarget()
     run_qwen3_decode_step(
         decode_target,
-        None,
         spec=spec,
         tensors=decode_tensors,
         weights=weights,

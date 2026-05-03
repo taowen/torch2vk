@@ -7,13 +7,48 @@ import json
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 import torch
 
 from .logical import LogicalTensor, PyTorchProbe
 
 type TransformFn = Callable[[Mapping[str, torch.Tensor]], torch.Tensor]
+
+
+class ReferenceProvider(Protocol):
+    def ensure(
+        self,
+        *,
+        tensors: tuple[LogicalTensor, ...],
+        inputs: Mapping[str, Any],
+        cache: ArtifactCache,
+        transforms: Mapping[str, TransformFn] | None = None,
+        extra_fingerprint: Mapping[str, Any] | None = None,
+    ) -> dict[str, torch.Tensor]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class PyTorchModelReferenceProvider:
+    model: Any
+
+    def ensure(
+        self,
+        *,
+        tensors: tuple[LogicalTensor, ...],
+        inputs: Mapping[str, Any],
+        cache: ArtifactCache,
+        transforms: Mapping[str, TransformFn] | None = None,
+        extra_fingerprint: Mapping[str, Any] | None = None,
+    ) -> dict[str, torch.Tensor]:
+        return ensure_pytorch_reference(
+            model=self.model,
+            tensors=tensors,
+            inputs=inputs,
+            cache=cache,
+            transforms=transforms,
+            extra_fingerprint=extra_fingerprint,
+        )
 
 
 @dataclass(frozen=True, slots=True)

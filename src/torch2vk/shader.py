@@ -156,10 +156,9 @@ class ShaderVariant:
     def __call__(
         self,
         ctx: Any,
-        pytorch_model: object,
         **tensors: LogicalTensor,
     ) -> None:
-        ctx.dispatch(self, pytorch_model, tensors)
+        ctx.dispatch(self, tensors)
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,6 +172,12 @@ class DispatchRecord:
     uniforms: Mapping[str, tuple[int, ...]]
     push_constant_size: int | None
     push_constants: bytes | None
+    scope: str = ""
+
+    def artifact_key(self, tensor_name: str) -> str:
+        if not self.scope:
+            return tensor_name
+        return f"{self.scope}.{tensor_name}"
 
 
 def _new_dispatch_records() -> list[DispatchRecord]:
@@ -185,12 +190,11 @@ class DispatchTarget:
     validate: bool = True
 
     def run(self, variant: ShaderVariant, **tensors: LogicalTensor) -> None:
-        self.dispatch(variant, None, tensors)
+        self.dispatch(variant, tensors)
 
     def dispatch(
         self,
         variant: ShaderVariant,
-        _pytorch_model: object,
         tensors: Mapping[str, LogicalTensor],
     ) -> None:
         symbols = variant.contract.validate(tensors) if self.validate else {}
@@ -215,6 +219,7 @@ class DispatchTarget:
                 if variant.contract.push_constants is None
                 else variant.contract.push_constants.size,
                 push_constants=pack_push_constants(variant.contract, tensors, symbols),
+                scope="",
             )
         )
 
@@ -406,7 +411,11 @@ def _eval_int_expression(
 
 
 def _eval_binary_int(contract_name: str, op: ast.operator, lhs: int, rhs: int) -> int:
-    if isinstance(op, ast.Div | ast.FloorDiv):
+    if isinstance(op, ast.FloorDiv):
+        if rhs == 0:
+            raise ValueError(f"{contract_name} expression divides by zero")
+        return lhs // rhs
+    if isinstance(op, ast.Div):
         if rhs == 0:
             raise ValueError(f"{contract_name} expression divides by zero")
         if lhs % rhs != 0:
