@@ -32,12 +32,20 @@ class Binding:
 
 
 @dataclass(frozen=True, slots=True)
+class ResourceBinding:
+    name: str
+    binding: int
+    descriptor_type: str
+
+
+@dataclass(frozen=True, slots=True)
 class ShaderContract:
     name: str
     inputs: Mapping[str, TensorContract]
     outputs: Mapping[str, TensorContract]
     bindings: tuple[Binding, ...]
     dispatch: tuple[int | str, int | str, int | str]
+    resources: tuple[ResourceBinding, ...] = ()
 
     def validate(self, tensors: Mapping[str, LogicalTensor]) -> dict[str, int]:
         expected = set(self.inputs) | set(self.outputs)
@@ -154,6 +162,12 @@ def validate_shader_source_bindings(variant: ShaderVariant) -> None:
                 f"{variant.name}.{binding.field} contract binding {binding.binding} "
                 "is missing from GLSL source"
             )
+    for binding in variant.contract.resources:
+        if binding.binding not in source_bindings:
+            raise ValueError(
+                f"{variant.name}.{binding.name} resource binding {binding.binding} "
+                "is missing from GLSL source"
+            )
 
 
 def _shader_source_bindings(source: str) -> set[int]:
@@ -221,6 +235,12 @@ def _validate_bindings(contract: ShaderContract) -> None:
             raise ValueError(f"{contract.name} binding references unknown field {binding.field!r}")
         if binding.access is BindingAccess.WRITE and binding.field not in contract.outputs:
             raise ValueError(f"{contract.name}.{binding.field} write binding must be an output")
+    for resource in contract.resources:
+        if resource.binding in seen_bindings:
+            raise ValueError(f"{contract.name} duplicate descriptor binding {resource.binding}")
+        seen_bindings.add(resource.binding)
+        if not resource.name:
+            raise ValueError(f"{contract.name} resource binding must have a name")
 
 
 def _validate_dispatch(

@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from torch2vk.copied_shader_source import copied_shader_variant_source
-from torch2vk.shader import Binding, BindingAccess, ShaderContract, ShaderVariant, TensorContract
+from torch2vk.shader import (
+    Binding,
+    BindingAccess,
+    ResourceBinding,
+    ShaderContract,
+    ShaderVariant,
+    TensorContract,
+)
 
 ADD_F32 = ShaderVariant(
     name="add_f32_f32_f32_norepeat",
@@ -21,6 +28,7 @@ ADD_F32 = ShaderVariant(
             Binding("output", 2, BindingAccess.WRITE),
         ),
         dispatch=("H", "S", "B"),
+        resources=(ResourceBinding("partial_buffer", 3, "storage_buffer"),),
     ),
     source=copied_shader_variant_source(
         "add_f32_f32_f32_norepeat.py",

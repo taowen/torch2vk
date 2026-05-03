@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from torch2vk.copied_shader_source import copied_shader_variant_source
-from torch2vk.shader import Binding, BindingAccess, ShaderContract, ShaderVariant, TensorContract
+from torch2vk.shader import (
+    Binding,
+    BindingAccess,
+    ResourceBinding,
+    ShaderContract,
+    ShaderVariant,
+    TensorContract,
+)
 
 ARGMAX_LAST_LOGITS_STAGE2 = ShaderVariant(
     name="argmax_last_logits_f32_stage2",
@@ -21,6 +28,7 @@ ARGMAX_LAST_LOGITS_STAGE2 = ShaderVariant(
             Binding("output", 2, BindingAccess.WRITE),
         ),
         dispatch=("B", 1, 1),
+        resources=(ResourceBinding("sizes", 3, "uniform_buffer"),),
     ),
     source=copied_shader_variant_source(
         "argmax_last_logits_f32_parallel.py",
