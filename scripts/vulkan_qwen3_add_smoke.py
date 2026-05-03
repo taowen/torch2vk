@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the copied Qwen3 F32 add shader through Vulkan."""
+"""Run the Qwen3 F32 add shader through Vulkan."""
 
 from __future__ import annotations
 

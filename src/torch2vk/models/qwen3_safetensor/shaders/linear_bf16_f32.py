@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from torch2vk.copied_shader_source import copied_assignment_string
 from torch2vk.shader import (
     Binding,
     BindingAccess,
@@ -13,6 +12,71 @@ from torch2vk.shader import (
     ShaderVariant,
     TensorContract,
 )
+
+_SOURCE = """
+#version 450
+
+#extension GL_EXT_control_flow_attributes : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int32 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_16bit_storage : require
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout(binding = 0) readonly buffer A { uint16_t data_a[]; };
+layout(binding = 1) readonly buffer B { float data_b[]; };
+layout(binding = 2) buffer D { float data_d[]; };
+layout(binding = 3) readonly buffer F0 { float data_f0[]; };
+layout(binding = 4) readonly buffer F1 { float data_f1[]; };
+
+layout(push_constant) uniform PushConstants {
+    uint ncols;
+    uint stride_a;
+    uint stride_b;
+    uint stride_d;
+    uint batch_stride_a;
+    uint batch_stride_b;
+    uint batch_stride_d;
+    uint fusion_flags;
+    uint base_work_group_y;
+    uint ne02;
+    uint ne12;
+    uint broadcast2;
+    uint broadcast3;
+} p;
+
+float bf16_to_fp32(uint16_t bits) {
+    return uintBitsToFloat(uint(bits) << 16);
+}
+
+void main() {
+    uint row = gl_WorkGroupID.x;
+    uint batch = gl_WorkGroupID.y;
+    uint step = gl_WorkGroupID.z;
+
+    uint nrows = p.stride_d;
+    if (row >= nrows) {
+        return;
+    }
+
+    uint a_base = row * p.stride_a;
+    uint x_base = batch * p.batch_stride_b + step * p.stride_b;
+    uint out_idx = batch * p.batch_stride_d + step * p.stride_d + row;
+
+    float acc = 0.0;
+    for (uint k = 0; k < p.ncols; ++k) {
+        float w = bf16_to_fp32(data_a[a_base + k]);
+        float x = data_b[x_base + k];
+        acc += w * x;
+    }
+
+    if ((p.fusion_flags & 1u) != 0u) {
+        acc += data_f0[out_idx];
+    }
+    data_d[out_idx] = acc;
+}
+"""
 
 LINEAR_BF16_F32 = ShaderVariant(
     name="linear_bf16_f32",
@@ -53,8 +117,5 @@ LINEAR_BF16_F32 = ShaderVariant(
             ),
         ),
     ),
-    source=copied_assignment_string(
-        "mul_mat_vec_f16_f32_f32.py",
-        "_MUL_MAT_VEC_BF16_TORCH_PARITY_SOURCE",
-    ),
+    source=_SOURCE,
 )

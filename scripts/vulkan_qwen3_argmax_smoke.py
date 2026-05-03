@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the copied Qwen3 two-stage argmax shaders through Vulkan."""
+"""Run the Qwen3 two-stage argmax shaders through Vulkan."""
 
 from __future__ import annotations
 

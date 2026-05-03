@@ -1,2 +1,0 @@
-"""Copied upstream source artifacts."""
-

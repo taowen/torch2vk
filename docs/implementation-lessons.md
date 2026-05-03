@@ -1,11 +1,11 @@
-# Lessons From Agentorch Investigation
+# Implementation Lessons
 
-This note records design lessons from reading Agentorch's LogicalTensor porting
+This note records design lessons from reading The investigated implementation's LogicalTensor porting
 guide and implementation. It is not a compatibility target for `torch2vk`.
 
 ## Useful Ideas
 
-Agentorch has several useful ideas worth keeping:
+The investigated implementation has several useful ideas worth keeping:
 
 1. make logical tensor names the common key for weights, dispatch traces,
    reference artifacts, debug artifacts, replay, and liveness;
@@ -24,7 +24,7 @@ Those are aligned with `torch2vk`.
 
 ## Main Problem To Avoid
 
-Agentorch's newer guide says the only model-visible tensor value should be
+The investigated implementation's newer guide says the only model-visible tensor value should be
 `LogicalTensor`, but its current implementation still has model-visible
 `TensorSlot` trees.
 
@@ -112,7 +112,7 @@ Do not add a third model-visible tensor object.
 
 ## Shader Variant Pattern
 
-Agentorch's shader pattern is valuable:
+The investigated implementation's shader pattern is valuable:
 
 ```text
 ShaderVariant
@@ -137,7 +137,7 @@ once execution is written correctly.
 
 ## Replay Boundary
 
-Agentorch's replay idea is also useful if kept narrow:
+The investigated implementation's replay idea is also useful if kept narrow:
 
 ```text
 run Python execution once

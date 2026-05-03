@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the copied Qwen3 SwiGLU shader through Vulkan."""
+"""Run the Qwen3 SwiGLU shader through Vulkan."""
 
 from __future__ import annotations
 

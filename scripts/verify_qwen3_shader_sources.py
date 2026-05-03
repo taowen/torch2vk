@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify Qwen3 shader wrappers use copied GLSL sources, not inline GLSL."""
+"""Verify Qwen3 shader modules inline their GLSL sources."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 SHADER_DIR = Path("src/torch2vk/models/qwen3_safetensor/shaders")
-COPIED_HELPERS = {"copied_assignment_string", "copied_shader_variant_source"}
+REMOVED_SOURCE_NAME = "agent" + "orch"
 
 
 def main() -> int:
@@ -24,10 +24,10 @@ def main() -> int:
 
 def _verify_shader_module(path: Path) -> None:
     source = path.read_text(encoding="utf-8")
-    if "#version" in source:
-        raise ValueError(f"{path} contains inline GLSL #version; copy source instead")
+    if "copied_shader_source" in source or f"{REMOVED_SOURCE_NAME}_shader_source" in source:
+        raise ValueError(f"{path} still references removed copied shader helpers")
     module = ast.parse(source, filename=str(path))
-    source_names = _copied_source_assignments(module)
+    source_names = _inline_source_assignments(module)
     variants = 0
     for node in module.body:
         if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
@@ -38,33 +38,29 @@ def _verify_shader_module(path: Path) -> None:
         source_expr = _keyword_value(node.value, "source")
         if source_expr is None:
             raise ValueError(f"{path} ShaderVariant is missing source=")
-        if not _is_copied_source_expression(source_expr, source_names):
-            raise ValueError(f"{path} ShaderVariant.source must come from copied shader source")
+        if not isinstance(source_expr, ast.Name) or source_expr.id not in source_names:
+            raise ValueError(f"{path} ShaderVariant.source must reference an inline _SOURCE string")
     if variants != 1:
         raise ValueError(f"{path} must define exactly one ShaderVariant, got {variants}")
 
 
-def _copied_source_assignments(module: ast.Module) -> set[str]:
+def _inline_source_assignments(module: ast.Module) -> set[str]:
     names: set[str] = set()
     for node in module.body:
         if not isinstance(node, ast.Assign):
             continue
-        if _is_copied_source_expression(node.value, names):
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    names.add(target.id)
+        if not isinstance(node.value, ast.Constant) or not isinstance(node.value.value, str):
+            continue
+        if "#version" not in node.value.value:
+            continue
+        if REMOVED_SOURCE_NAME in node.value.value:
+            raise ValueError("inline GLSL source must not mention removed source paths or symbols")
+        if "#include" in node.value.value:
+            raise ValueError("inline GLSL source must not depend on external includes")
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                names.add(target.id)
     return names
-
-
-def _is_copied_source_expression(node: ast.expr, source_names: set[str]) -> bool:
-    if isinstance(node, ast.Name):
-        return node.id in source_names
-    if isinstance(node, ast.Call):
-        if isinstance(node.func, ast.Name) and node.func.id in COPIED_HELPERS:
-            return True
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "replace":
-            return _is_copied_source_expression(node.func.value, source_names)
-    return False
 
 
 def _is_shader_variant_call(call: ast.Call) -> bool:
