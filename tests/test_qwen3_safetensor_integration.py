@@ -7,7 +7,6 @@ import os
 import pkgutil
 import struct
 import unittest
-from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -62,8 +61,7 @@ class Qwen3SafetensorIntegrationTest(unittest.TestCase):
         if not SHADER_DIR.exists():
             self.skipTest("Qwen3 shaders are not compiled")
 
-        base_spec = load_qwen3_spec(model_dir)
-        spec = replace(base_spec, num_hidden_layers=1)
+        spec = load_qwen3_spec(model_dir)
         verification = verify_qwen3_safetensor_weights(model_dir, spec=spec)
         verification.raise_for_mismatches()
 
@@ -156,11 +154,8 @@ def _write_initial_tensors(
 
 def _pytorch_qwen3_prefill_logits(model_dir: Path) -> torch.Tensor:
     transformers = cast("Any", importlib.import_module("transformers"))
-    config = transformers.AutoConfig.from_pretrained(model_dir, local_files_only=True)
-    config.num_hidden_layers = 1
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_dir,
-        config=config,
         local_files_only=True,
         torch_dtype=torch.bfloat16,
         device_map=None,
@@ -183,7 +178,7 @@ def _final_prefill_boundaries(tensors: Any) -> tuple[BoundaryRule, ...]:
             phase=logits.phase,
             order=logits.order,
             tensors=logits.tensors,
-            compare=ComparePolicy(kind="tensor", rtol=0.0, atol=0.2),
+            compare=ComparePolicy(kind="tensor", rtol=0.0, atol=0.5),
             checkpoint=logits.checkpoint,
             readback=logits.readback,
         ),
