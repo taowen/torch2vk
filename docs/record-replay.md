@@ -543,13 +543,12 @@ Replay capture 初期可以不做 aliasing，只记录 `LogicalTensor` 当时实
 ```text
 eager dispatch records
   -> liveness analysis
-  -> StoragePlan
-  -> stable offset assignment
-  -> capture replay with planned storage
+  -> stable arena offset assignment
+  -> capture replay with those recorded offsets
 ```
 
-liveness planner 消费的是 dispatch read/write edges，不是模型目录里的额外 graph IR。模型 adapter
-仍然只写 eager execution。
+liveness/aliasing 消费的是 dispatch read/write edges，不是模型目录里的额外 graph IR，也不需要模型侧额外准备
+一份存储描述。模型 adapter 仍然只写 eager execution。
 
 ## 失败和失效条件
 

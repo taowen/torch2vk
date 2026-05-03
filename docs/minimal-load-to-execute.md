@@ -43,21 +43,21 @@ Frame
 6. `RuntimeSession` 拥有所有 allocation，并按 Frame/request/model 生命周期释放；
 7. dispatch records 是后续 compare、replay、liveness/aliasing 的事实来源。
 
-所有 tensor 引用都传 `LogicalTensor` 对象本身。`LogicalTensor.name` 只用于报告、artifact 路径和重复声明
-检查，不用于在 runtime 中反查 tensor 对象。
+所有 tensor 引用都传 `LogicalTensor` 对象本身。`LogicalTensor.name` 用于报告、artifact 路径和重复声明
+检查；当 `role == WEIGHT` 时，它同时作为 checkpoint tensor key。
 
 `LogicalTensor` metadata 只为四个目标服务：
 
-1. 权重加载托管给框架，模型目录只声明 `WeightSource`；
+1. 权重加载托管给框架，权重 tensor 只用 `LogicalTensor.name/spec/layout` 表达 checkpoint key、dtype、shape、layout；
 2. 显存分配和释放由 runtime 根据 storage/lifetime 决定；
 3. candidate 和 PyTorch/CPU 对拍时能定位 artifact、校验数值；
 4. shader 调用时能校验传入 tensor 和 `ShaderContract` 匹配。
 
 传给 `ShaderVariant` 的 `LogicalTensor` 应精确对应 GLSL input/output。缺少 layout、view range、
-packed shape、state/source 等信息时，把这些补成 `LogicalTensor` metadata，而不是在 shader contract
+packed shape、state 等信息时，把这些补成 `LogicalTensor` metadata，而不是在 shader contract
 里加默认 tensor 绑定。
 
-注意：这里的 materialize 不是每个 shader 现场创建 Vulkan buffer 或 `vkAllocateMemory`。底层 allocation 必须按 model/request/frame pool 管理；dispatch 只从已有 pool/arena 取得 slice 并写回 `LogicalTensor` 当前 buffer 状态。
+注意：record/eager 阶段的 materialize 发生在 shader dispatch 准备阶段。它可以为了验证闭环而按需打开 checkpoint、上传权重、分配或扩容 buffer；这一阶段不追求高性能。Replay/capture 后才能基于真实 dispatch records 在 Frame enter 做权重预加载、liveness/aliasing 和 arena 准备。
 
 ## 为什么必须有 Frame
 
@@ -99,17 +99,11 @@ with RuntimeSession.open(device_index=0, model_dir=model_dir) as rt:
         lifetime=TensorLifetime.FRAME,
     )
     w = LogicalTensor(
-        name="toy.weight.scale",
+        name="scale",
         spec=TensorSpec(dtype="float32", shape=(1024,)),
         role=TensorRole.WEIGHT,
         memory=MemoryClass.MODEL_WEIGHT,
         lifetime=TensorLifetime.MODEL,
-        source=WeightSource(
-            checkpoint="toy.safetensors",
-            key="scale",
-            dtype="float32",
-            shape=(1024,),
-        ),
     )
     y = LogicalTensor(
         name="toy.y",
@@ -125,7 +119,6 @@ with RuntimeSession.open(device_index=0, model_dir=model_dir) as rt:
     with rt.frame(
         "toy.elementwise_mul",
         scope={"case": "mvp"},
-        dependencies=(w,),
         reference_model=toy_reference_model,
     ):
         ELEMENTWISE_MUL_F32(rt, x=x, weight=w, output=y)
@@ -150,7 +143,7 @@ src/torch2vk/
   __init__.py
   runtime/
     __init__.py
-    logical.py             # LogicalTensor、TensorRole、TensorSemantic、MemoryClass、TensorLifetime、WeightSource、ComparePolicy
+    logical.py             # LogicalTensor、TensorRole、TensorSemantic、MemoryClass、TensorLifetime、ComparePolicy
     frame.py               # FrameScope、frame context state
     materialize.py         # read/write materialization，更新 LogicalTensor 当前 buffer 状态
     session.py             # RuntimeSession：frame/register/dispatch/readback/compare/close
@@ -208,7 +201,6 @@ class LogicalTensor:
     memory: MemoryClass
     lifetime: TensorLifetime
     layout: TensorLayout = ROW_MAJOR
-    source: WeightSource | None = None
     semantic: TensorSemantic | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
@@ -226,8 +218,8 @@ class LogicalTensor:
 4. shape rank 固定；
 5. execution 前 symbolic shape 必须 resolve；
 6. `role/memory/lifetime` 组合必须合法；
-7. `source != None` 必须能托管加载权重，且 `memory=MODEL_WEIGHT`、`lifetime=MODEL`；
-8. `role == WEIGHT` 必须有 `source`，除非它是 runtime 已注册的外部 weight；
+7. `role == WEIGHT` 必须 `memory=MODEL_WEIGHT`、`lifetime=MODEL`；
+8. `role == WEIGHT` 时 `name` 必须能作为 checkpoint tensor key；
 9. `role == INPUT` 必须能通过 `register_inputs()` 绑定到运行时输入。
 
 ### TensorRole
@@ -339,7 +331,6 @@ class RuntimeSession:
         name: str,
         *,
         scope: Mapping[str, str | int] | None = None,
-        dependencies: Iterable[LogicalTensor] = (),
         pytorch_model: PyTorchFrameModel | None = None,
         reference_model: FrameReferenceProvider | None = None,
     ) -> Iterator[FrameContext]: ...
@@ -354,17 +345,19 @@ class RuntimeSession:
 ```
 
 `RuntimeSession.open(...)` 返回的 session 必须支持 context manager；`__exit__` 调用幂等 `close()`。
-`model_dir` 只作为相对 `WeightSource.checkpoint` 的解析根目录。
+`model_dir` 作为权重 checkpoint 的解析根目录。MVP 约定优先使用 `model.safetensors` 或
+`model.safetensors.index.json`；否则目录里必须只有一个 safetensors checkpoint。
 
-`LogicalTensor` declaration 在实际使用点校验：`register_inputs()` 校验输入 tensor，`frame(...,
-dependencies=...)` 校验 frame 入口依赖并预加载权重，`dispatch()` 根据 shader fields 校验本次调用传入的
-tensor，并把本 Frame 实际读写的 `LogicalTensor` 收集进 dispatch records。后续 dispatch、input binding、
-readback 和 compare 都直接使用调用方持有的 `LogicalTensor` 对象。
+`LogicalTensor` declaration 在实际使用点校验：`register_inputs()` 校验输入 tensor，`dispatch()` 根据
+shader fields 校验本次调用传入的 tensor，并把本 Frame 实际读写的 `LogicalTensor` 收集进 dispatch
+records。后续 dispatch、input binding、readback 和 compare 都直接使用调用方持有的 `LogicalTensor`
+对象。
 
-Frame 入口可以接收 `dependencies`，表示本次 forward 边界可能读取的 `LogicalTensor`。Runtime 在进入
-Frame 时校验这些 declarations，并预先 materialize 其中带 `WeightSource` 的权重 tensor。这个列表不是
-graph IR；dispatch records 仍以实际执行的 shader 调用为准。activation/output 的
-write materialization 仍在对应 `dispatch()` 发生。
+Frame 入口不接收一份额外的 logical tensor 列表。Record/eager 阶段不知道也不要求提前声明本次
+forward 可能读取哪些权重；权重 read、input read、activation/output write 都由对应 `dispatch()` 按需
+resolve/materialize。Replay 阶段可以消费已经录制的 dispatch records，在 Frame enter 提前做权重加载、
+workspace sizing、liveness/aliasing 和 arena offset 分配。这些都是 runtime 直接基于 dispatch records
+推导出的执行策略，不额外引入一份模型侧存储描述。
 
 `RuntimeSession` 负责：
 
@@ -384,37 +377,29 @@ write materialization 仍在对应 `dispatch()` 发生。
 
 ## 权重加载
 
-权重声明放在 `WeightSource`：
+权重不再有单独的来源对象。`RuntimeSession` 从 `LogicalTensor` 自身推断 checkpoint view：
 
-```python
-@dataclass(frozen=True, slots=True)
-class WeightSource:
-    checkpoint: str
-    key: str
-    dtype: str
-    shape: tuple[int, ...]
-    layout: TensorLayout = ROW_MAJOR
+```text
+checkpoint key = LogicalTensor.name
+dtype          = LogicalTensor.spec.dtype
+shape          = LogicalTensor.spec.shape
+layout         = LogicalTensor.layout
+checkpoint     = RuntimeSession.model_dir 下的 canonical safetensors
 ```
 
 声明示例：
 
 ```python
 w = LogicalTensor(
-    name="toy.weight.scale",
+    name="scale",
     spec=TensorSpec(dtype="float32", shape=(1024,)),
     role=TensorRole.WEIGHT,
     memory=MemoryClass.MODEL_WEIGHT,
     lifetime=TensorLifetime.MODEL,
-    source=WeightSource(
-        checkpoint="toy.safetensors",
-        key="scale",
-        dtype="float32",
-        shape=(1024,),
-    ),
 )
 ```
 
-`RuntimeSession` 在进入 Frame 时根据 `dependencies` 加载权重：
+`RuntimeSession.dispatch()` 在 shader 第一次读到 weight 时按需加载权重：
 
 1. 打开 checkpoint；
 2. 检查 key 存在；
@@ -423,11 +408,11 @@ w = LogicalTensor(
 5. 禁止 silent cast；
 6. 上传到 device-local allocation；
 7. 注册 model-lifetime materialization；
-8. 后续 frame 复用同一 weight。
+8. 后续 dispatch/frame 复用同一 weight。
 
-`RuntimeSession.dispatch()` 不打开 checkpoint。shader read 到 weight 时只接受已经在 Frame enter 阶段
-materialize 好的 `MODEL_WEIGHT` buffer；如果 frame function 漏把该 weight 放进
-`rt.frame(..., dependencies=...)`，dispatch 必须报错，而不是临场加载。
+Record/eager 阶段允许 dispatch 打开 checkpoint 并上传权重，因为这一阶段的目标是得到真实执行事实和正确性
+对拍，不是热路径性能。Replay/capture 后，runtime 可以根据录制结果知道 frame 内会读哪些权重，并在 replay
+Frame enter 预加载或校验这些 model-lifetime materialization。
 
 MVP 先支持 safetensors。GGUF 后续再加 `CheckpointReader` 抽象。
 
@@ -506,7 +491,9 @@ reserve/resolve writes from the current pool/arena
 
 然后再创建/复用 pipeline、descriptor set、command buffer。
 
-MVP 禁止在正常 dispatch 路径上对每个 tensor 调用底层 Vulkan allocation。write materialization 只能从 `FRAME_WORKSPACE` / `REQUEST_STATE` / `MODEL_WEIGHT` 等 pool 中 suballocate `BufferSlice`。Frame 结束时 whole-arena reset，而不是逐 tensor free。
+Record/eager MVP 的 dispatch 路径可以按需创建、扩容或 suballocate buffer；这是为了先把 shader 执行、
+dispatch record、readback 和 compare 跑通。热路径 replay 不应该依赖这种临场分配，而应使用 capture 后的
+dispatch records 和 arena high-water mark。
 
 ## 第一个 shader
 
@@ -630,7 +617,7 @@ first mismatch index if practical
 1. `src/torch2vk/runtime/logical.py`；
 2. 复用 `src/torch2vk/vulkan/types.py` 中已有的 `TensorSpec` / layout / dtype helpers；
 3. `TensorRole` / `TensorSemantic` / `MemoryClass` / `TensorLifetime`；
-4. `WeightSource` / `ComparePolicy` / `PyTorchProbe`；
+4. `ComparePolicy` / `PyTorchProbe`；
 5. `tests/test_logical.py`。
 
 验收：
@@ -640,7 +627,7 @@ first mismatch index if practical
 3. concrete shape nbytes 正确；
 4. symbolic shape dispatch 前必须 resolve；
 5. `role/memory/lifetime` 合法性校验；
-6. weight missing source 报错；
+6. weight role/memory/lifetime 不合法时报错；
 7. input missing binding 在 materialize 阶段报错。
 
 ### Phase 1：Frame scope、arena 和 dry-run materialization
@@ -668,7 +655,7 @@ first mismatch index if practical
 6. input read 会检查 runtime input binding；
 7. frame exit reset frame arena；
 8. model/request lifetime allocation 保留；
-9. dry-run 中不会出现 per-dispatch raw allocation。
+9. dry-run 能记录每次 dispatch 触发的 materialization 和 allocation 需求。
 
 ### Phase 2：权重加载 dry-run + safetensors
 
@@ -771,27 +758,30 @@ LogicalTensor declarations
   -> compare
 ```
 
-## 显存规划和 StoragePlan
+## 显存规划
 
-MVP 不需要手写 `StoragePlan`，但必须有 pool/arena。不能让 shader dispatch 直接驱动底层显存分配。
+MVP 不需要额外准备存储描述。Record/eager 阶段可以让 shader dispatch 按需驱动 materialization 和
+底层显存分配；replay 热路径直接用录制出来的 dispatch records 和 high-water mark 消除这部分开销。
 
 第一版显存策略：
 
 ```text
 MODEL_WEIGHT
-  按需加载或 register 阶段加载，grow-only，session close 释放。
+  record/eager 阶段由 shader read 按需加载，grow-only，session close 释放。
+  replay 阶段可根据 dispatch records 在 Frame enter 预加载或校验。
 
 REQUEST_STATE
   request/pipeline lifetime，grow-only 或预分配，request end reset。
 
 FRAME_WORKSPACE
-  Frame 进入时取得 arena，dispatch 前从 arena reserve slice，Frame exit 整体 reset。
+  record/eager 阶段首次 dispatch 需要时创建或扩容，Frame exit 整体 reset。
+  replay 阶段可在 Frame enter 根据 dispatch records/high-water mark 预分配。
 
 OP_SCRATCH
   MVP 可以并入 FRAME_WORKSPACE。
 ```
 
-只有出现这些需求时再引入 runtime-internal plan：
+只有出现这些需求时才让 runtime 在内部直接消费 dispatch records 做优化：
 
 1. 显存峰值太高，需要 aliasing；
 2. 一次性批量规划大量 activation；
@@ -799,13 +789,7 @@ OP_SCRATCH
 4. 要在运行前估算 memory footprint；
 5. 要跨 shader sequence 做 liveness 分析。
 
-引入时也只作为 runtime 优化：
-
-```text
-StoragePlan = dispatch records + LogicalTensor declarations + FrameScope -> allocation decisions
-```
-
-它不应该替代 `LogicalTensor`，也不应该成为模型目录手写的执行期查询表。
+这些优化不应该替代 `LogicalTensor`，也不应该成为模型目录手写的执行期查询表。
 
 ## Vulkan 风险和约束
 

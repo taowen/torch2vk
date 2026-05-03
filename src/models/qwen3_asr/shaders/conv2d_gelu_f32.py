@@ -1,4 +1,4 @@
-"""Qwen3-ASR first audio tower shader: conv2d1 + bias + GELU."""
+"""Qwen3-ASR audio tower shader: conv2d + bias + GELU."""
 
 from __future__ import annotations
 
@@ -8,21 +8,21 @@ from torch2vk.runtime.shader import (
     PushConstantSpec,
     PushConstantType,
     ShaderContract,
+    ShaderExecutionRequirements,
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
     ceil_div,
     mul,
-    ShaderExecutionRequirements,
 )
 
 
-QWEN3_ASR_AUDIO_TOWER_CONV2D1_GELU_F32 = ShaderVariant(
-    name="qwen3_asr_audio_tower_conv2d1_gelu_f32",
+QWEN3_ASR_CONV2D_GELU_F32 = ShaderVariant(
+    name="qwen3_asr_audio_tower_conv2d_gelu_f32",
     family="qwen3_asr.audio_tower",
     contract=ShaderContract(
-        class_name="Qwen3AsrAudioTowerConv2d1GeluF32Program",
-        shader_name="qwen3_asr_audio_tower_conv2d1_gelu_f32",
+        class_name="Qwen3AsrAudioTowerConv2dGeluF32Program",
+        shader_name="qwen3_asr_audio_tower_conv2d_gelu_f32",
         fields=(
             TensorFieldSpec(
                 name="x",
@@ -63,12 +63,13 @@ QWEN3_ASR_AUDIO_TOWER_CONV2D1_GELU_F32 = ShaderVariant(
                 PushConstantFieldSpec("KW", PushConstantType.UINT32, 32, "KW"),
             ),
         ),
-        dispatch=(ceil_div(mul(mul(mul("N", "OC"), "OH"), "OW"), 256), 1, 1),
+        dispatch=(ceil_div(mul(mul("N", "OH"), "OW"), 256), "OC", 1),
     ),
     execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""
 #version 450
 
+#extension GL_EXT_control_flow_attributes : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_16bit_storage : require
 
@@ -126,25 +127,25 @@ float gelu_erf(float value) {
 }
 
 void main() {
-    const uint index = gl_GlobalInvocationID.x;
-    const uint total = pc.N * pc.OC * pc.OH * pc.OW;
-    if (index >= total) {
+    const uint spatial_index = gl_GlobalInvocationID.x;
+    const uint oc = gl_GlobalInvocationID.y;
+    const uint spatial_total = pc.N * pc.OH * pc.OW;
+    if (spatial_index >= spatial_total || oc >= pc.OC) {
         return;
     }
 
-    const uint ow = index % pc.OW;
-    const uint oh = (index / pc.OW) % pc.OH;
-    const uint oc = (index / (pc.OW * pc.OH)) % pc.OC;
-    const uint n = index / (pc.OW * pc.OH * pc.OC);
+    const uint ow = spatial_index % pc.OW;
+    const uint oh = (spatial_index / pc.OW) % pc.OH;
+    const uint n = spatial_index / (pc.OW * pc.OH);
 
     float acc = bf16_to_f32(bias[oc]);
     for (uint ic = 0; ic < pc.IC; ++ic) {
-        for (uint kh = 0; kh < pc.KH; ++kh) {
+        [[unroll]] for (uint kh = 0; kh < pc.KH; ++kh) {
             const int ih = int(oh * 2u + kh) - 1;
             if (ih < 0 || ih >= int(pc.IH)) {
                 continue;
             }
-            for (uint kw = 0; kw < pc.KW; ++kw) {
+            [[unroll]] for (uint kw = 0; kw < pc.KW; ++kw) {
                 const int iw = int(ow * 2u + kw) - 1;
                 if (iw < 0 || iw >= int(pc.IW)) {
                     continue;
@@ -155,6 +156,8 @@ void main() {
             }
         }
     }
+
+    const uint index = ((n * pc.OC + oc) * pc.OH + oh) * pc.OW + ow;
     output_values[index] = gelu_erf(acc);
 }
 """.lstrip(),

@@ -7,7 +7,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field
 from enum import StrEnum
-from pathlib import Path
 from typing import Literal
 
 from torch2vk.vulkan.allocation import BufferSlice
@@ -49,15 +48,6 @@ class TensorLifetime(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
-class WeightSource:
-    checkpoint: str | Path
-    key: str
-    dtype: str
-    shape: tuple[int, ...]
-    layout: TensorLayout = CONTIGUOUS_LAYOUT
-
-
-@dataclass(frozen=True, slots=True)
 class ComparePolicy:
     kind: Literal["tensor", "token", "waveform"] = "tensor"
     rtol: float = 1e-4
@@ -89,7 +79,6 @@ class LogicalTensor:
     memory: MemoryClass
     lifetime: TensorLifetime
     layout: TensorLayout = CONTIGUOUS_LAYOUT
-    source: WeightSource | None = None
     semantic: TensorSemantic | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
@@ -157,21 +146,6 @@ class LogicalTensor:
         if not self.spec.shape:
             raise ValueError(f"{self.name} shape must have fixed rank")
         validate_tensor_layout(self.layout, self.spec.shape)
-        if self.source is not None:
-            if self.memory is not MemoryClass.MODEL_WEIGHT:
-                raise ValueError(f"{self.name} has WeightSource but memory={self.memory}")
-            if self.lifetime is not TensorLifetime.MODEL:
-                raise ValueError(f"{self.name} has WeightSource but lifetime={self.lifetime}")
-            if self.source.dtype != self.spec.dtype:
-                raise ValueError(
-                    f"{self.name} source dtype {self.source.dtype} does not match spec dtype {self.spec.dtype}"
-                )
-            if tuple(self.source.shape) != tuple(self.spec.shape):
-                raise ValueError(
-                    f"{self.name} source shape {self.source.shape} does not match spec shape {self.spec.shape}"
-                )
-        if self.role is TensorRole.WEIGHT and self.source is None:
-            raise ValueError(f"{self.name} is a WEIGHT tensor but has no WeightSource")
         _validate_role_memory_lifetime(self)
 
     @property
@@ -207,6 +181,10 @@ def _validate_role_memory_lifetime(tensor: LogicalTensor) -> None:
         memory is not MemoryClass.REQUEST_STATE or lifetime is not TensorLifetime.REQUEST
     ):
         raise ValueError(f"{tensor.name} state must use REQUEST_STATE/REQUEST")
+    if role is TensorRole.WEIGHT and (
+        memory is not MemoryClass.MODEL_WEIGHT or lifetime is not TensorLifetime.MODEL
+    ):
+        raise ValueError(f"{tensor.name} weight must use MODEL_WEIGHT/MODEL")
     if role is TensorRole.OUTPUT:
         if memory not in {MemoryClass.FRAME_WORKSPACE, MemoryClass.HOST_OUTPUT, MemoryClass.REQUEST_STATE}:
             raise ValueError(f"{tensor.name} output cannot use memory={memory}")

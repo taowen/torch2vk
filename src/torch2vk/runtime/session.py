@@ -125,7 +125,6 @@ class RuntimeSession:
         name: str,
         *,
         scope: Mapping[str, str | int] | None = None,
-        dependencies: Iterable[LogicalTensor] = (),
         pytorch_model: object | None = None,
         pytorch_args: tuple[object, ...] = (),
         pytorch_kwargs: Mapping[str, object] | None = None,
@@ -133,11 +132,9 @@ class RuntimeSession:
     ):
         if not name:
             raise ValueError("frame name must be non-empty")
-        frame_dependencies = tuple(dependencies)
         context = FrameContext(
             scope=FrameScope(frame=name, values={} if scope is None else dict(scope)),
             start_dispatch_index=len(self._dispatch_records),
-            dependencies=frame_dependencies,
             pytorch_model=pytorch_model,
             pytorch_args=tuple(pytorch_args),
             pytorch_kwargs={} if pytorch_kwargs is None else dict(pytorch_kwargs),
@@ -146,7 +143,6 @@ class RuntimeSession:
         self._frame_stack.append(context)
         candidate_completed = False
         try:
-            self._materialize_frame_dependencies(frame_dependencies)
             yield context
             candidate_completed = True
         finally:
@@ -341,8 +337,9 @@ class RuntimeSession:
             else:
                 raise NotImplementedError(f"{tensor.name} unsupported PyTorchProbe kind: {probe.kind}")
 
+        args, kwargs = self._pytorch_forward_inputs(frame, model)
         try:
-            output = module_like(*frame.pytorch_args, **dict(frame.pytorch_kwargs))
+            output = module_like(*args, **kwargs)
         finally:
             for hook in hooks:
                 hook.remove()
@@ -358,6 +355,62 @@ class RuntimeSession:
                 selector=probe.selector,
             )
         return captured
+
+    def _pytorch_forward_inputs(
+        self,
+        frame: FrameContext,
+        model: object,
+    ) -> tuple[tuple[object, ...], dict[str, object]]:
+        if frame.pytorch_args or frame.pytorch_kwargs:
+            return (
+                tuple(self._resolve_pytorch_value(value) for value in frame.pytorch_args),
+                {
+                    key: self._resolve_pytorch_value(value)
+                    for key, value in frame.pytorch_kwargs.items()
+                },
+            )
+        return (), self._infer_pytorch_kwargs(frame=frame, model=model)
+
+    def _infer_pytorch_kwargs(self, *, frame: FrameContext, model: object) -> dict[str, object]:
+        forward = getattr(model, "forward", model)
+        signature = inspect.signature(forward)
+        parameter_names = {
+            name
+            for name, parameter in signature.parameters.items()
+            if name != "self"
+            and parameter.kind
+            in {
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            }
+        }
+        prefix = f"{frame.scope.frame}."
+        kwargs: dict[str, object] = {}
+        for tensor, value in self._inputs.items():
+            if tensor.role is not TensorRole.INPUT or not tensor.name.startswith(prefix):
+                continue
+            kwarg = tensor.name.removeprefix(prefix)
+            if kwarg in parameter_names:
+                kwargs[kwarg] = self._as_pytorch_input(value)
+        return kwargs
+
+    def _resolve_pytorch_value(self, value: object) -> object:
+        if isinstance(value, LogicalTensor):
+            try:
+                registered = self._inputs[value]
+            except KeyError as exc:
+                raise RuntimeError(f"{value.name} is used as a PyTorch input but was not registered") from exc
+            return self._as_pytorch_input(registered)
+        return self._as_pytorch_input(value)
+
+    def _as_pytorch_input(self, value: object) -> object:
+        if _is_torch_tensor(value):
+            return value
+        if isinstance(value, np.ndarray):
+            import torch
+
+            return torch.from_numpy(np.ascontiguousarray(value))
+        return value
 
     def close(self) -> None:
         if self._closed:
@@ -438,23 +491,13 @@ class RuntimeSession:
     def _materialize_read(self, tensor: LogicalTensor) -> None:
         if tensor.buffer is not None:
             return
-        if tensor.source is not None:
-            raise RuntimeError(
-                f"{tensor.name} is a weight tensor but was not preloaded at frame enter; "
-                "include it in rt.frame(..., dependencies=...)"
-            )
+        if tensor.role is TensorRole.WEIGHT:
+            self._materialize_weight(tensor)
+            return
         if tensor.role is TensorRole.INPUT:
             self._materialize_input(tensor)
             return
         raise RuntimeError(f"{tensor.name} cannot be read before it is materialized or written")
-
-    def _materialize_frame_dependencies(self, dependencies: Iterable[LogicalTensor]) -> None:
-        for tensor in dependencies:
-            if not isinstance(tensor, LogicalTensor):
-                raise TypeError(f"frame dependencies must be LogicalTensor, got {type(tensor).__name__}")
-            tensor.validate_declaration()
-            if tensor.source is not None and tensor.buffer is None:
-                self._materialize_weight(tensor)
 
     def _materialize_write(self, tensor: LogicalTensor, *, io_kind: IOKind) -> None:
         if io_kind is IOKind.INOUT and tensor.buffer is not None:
@@ -484,19 +527,15 @@ class RuntimeSession:
             self._frame_allocations.append((tensor, allocation))
 
     def _materialize_weight(self, tensor: LogicalTensor) -> None:
-        assert tensor.source is not None
-        checkpoint = Path(tensor.source.checkpoint)
-        if not checkpoint.is_absolute():
-            if self.model_dir is None:
-                raise RuntimeError(f"{tensor.name} uses relative checkpoint {checkpoint} without model_dir")
-            checkpoint = self.model_dir / checkpoint
+        tensor.validate_declaration()
+        checkpoint = self._resolve_weight_checkpoint(tensor)
         with open_safetensors_mmap(checkpoint) as storage:
             checkpoint_tensor = CheckpointTensor.open(
                 storage=storage,
-                tensor_key=tensor.source.key,
-                dtype=tensor.source.dtype,
-                shape=tensor.source.shape,
-                layout=tensor.source.layout,
+                tensor_key=tensor.name,
+                dtype=tensor.spec.dtype,
+                shape=tensor.concrete_shape,
+                layout=tensor.layout,
             )
             (slice_, allocation), = self.device.upload_checkpoint_tensors_with_allocations(
                 [(tensor.name, checkpoint_tensor)]
@@ -505,6 +544,29 @@ class RuntimeSession:
             tensor.buffer = slice_
             tensor.descriptor_nbytes = slice_.nbytes
         self._model_allocations.append(allocation)
+
+    def _resolve_weight_checkpoint(self, tensor: LogicalTensor) -> Path:
+        if self.model_dir is None:
+            raise RuntimeError(
+                f"{tensor.name} is a weight tensor but RuntimeSession has no model_dir to resolve checkpoint"
+            )
+        primary = self.model_dir / "model.safetensors"
+        if primary.is_file():
+            return primary
+        index = self.model_dir / "model.safetensors.index.json"
+        if index.is_file():
+            return index
+        candidates = sorted(self.model_dir.glob("*.safetensors")) + sorted(
+            self.model_dir.glob("*.safetensors.index.json")
+        )
+        if len(candidates) == 1:
+            return candidates[0]
+        if not candidates:
+            raise RuntimeError(f"{tensor.name} could not find a safetensors checkpoint in {self.model_dir}")
+        raise RuntimeError(
+            f"{tensor.name} found multiple safetensors checkpoints in {self.model_dir}; "
+            "use model.safetensors or model.safetensors.index.json as the canonical checkpoint"
+        )
 
     def _materialize_input(self, tensor: LogicalTensor) -> None:
         if tensor not in self._inputs:
@@ -675,6 +737,10 @@ def _unique_tensors(tensors: Iterable[LogicalTensor]) -> list[LogicalTensor]:
         seen.add(identity)
         unique.append(tensor)
     return unique
+
+
+def _is_torch_tensor(value: object) -> bool:
+    return hasattr(value, "detach") and hasattr(value, "cpu") and hasattr(value, "numpy")
 
 
 def _call_reference_model(

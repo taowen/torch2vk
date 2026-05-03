@@ -73,6 +73,21 @@ def run_audio_codec_decoder_frame(
 这里的 `pytorch_model` 是 reference provider。`ShaderVariant.__call__` 只调用 `rt.dispatch(...)`，不读写
 PyTorch，也不做 compare。
 
+PyTorch model.forward 的输入不由 frame function 额外传 `pytorch_input`、`pytorch_args` 或
+`pytorch_kwargs`。RuntimeSession 只使用 `rt.register_inputs({logical_tensor: value})` 中的输入，并按规则
+推断 PyTorch kwargs：
+
+```text
+当前 frame name: qwen3_asr.audio_tower
+LogicalTensor.name: qwen3_asr.audio_tower.input_features
+PyTorch forward 参数: input_features
+=> pytorch_model.forward(input_features=<registered value>)
+```
+
+如果某个 input tensor 的 logical name 属于当前 frame，但 basename 不在 PyTorch forward 签名里，它不会传给
+PyTorch；这允许迁移阶段保留 Vulkan 暂时消费的中间态输入，例如 `padded_feature`。后续实现上游
+padding/chunk shader 后，再让 Vulkan 改读和 PyTorch 相同的 input tensor。
+
 toy MVP 可以先用 `reference_model` manual callable：
 
 ```python
@@ -290,8 +305,8 @@ final output mismatch
 
 对拍必须保证 PyTorch reference 和 Vulkan candidate 使用同一份输入与权重：
 
-1. 权重由 `WeightSource` 声明，runtime 读取 checkpoint 并校验 dtype/shape，不允许 silent cast；
-2. 输入由 `register_inputs({logical_tensor: array})` 提供，PyTorch frame forward 使用同一批输入数组；
+1. 权重由 `LogicalTensor.name/spec/layout` 推断 checkpoint key、dtype、shape 和 layout，runtime 读取 checkpoint 并校验，不允许 silent cast；
+2. 输入由 `register_inputs({logical_tensor: array})` 提供，PyTorch frame forward 使用同一批输入数组；PyTorch kwargs 由 RuntimeSession 按 logical name 和 forward 签名推断，不允许测试或 adapter 传第二份旁路输入；
 3. dropout、采样、随机噪声必须关闭或固定 seed；
 4. PyTorch model 应进入 `eval()`；
 5. 生成式模型的 token 选择如果含随机采样，先对拍 logits，再对拍 deterministic selector；

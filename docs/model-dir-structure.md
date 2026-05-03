@@ -17,7 +17,7 @@ execution.py 串联 frame/pipeline
 
 模型目录给 `LogicalTensor` 附加 metadata 只为四个目标：
 
-1. 声明权重来源，让 runtime 托管加载和校验；
+1. 声明权重 tensor 的 name/spec/layout，让 runtime 推断 checkpoint key 并托管加载和校验；
 2. 声明 storage/lifetime，让 runtime 托管显存分配和释放；
 3. 声明 compare/probe，让 runtime 和 PyTorch 对拍；
 4. 声明 spec/layout，让 runtime 校验 shader contract 匹配。
@@ -149,19 +149,34 @@ with RuntimeSession.open(device_index=0, model_dir=model_dir) as rt:
 `register_inputs()` 的 key 是声明好的 `LogicalTensor` 对象，不是 logical name 字符串。这样输入绑定和
 shader dispatch 使用的是同一批 tensor 对象，不需要额外的 input key 映射。
 
-`RuntimeSession.open(..., model_dir=...)` 只设置权重相对路径根目录。`LogicalTensor` 的 dtype/shape/layout、
-`WeightSource`、role、memory、lifetime 等声明组合在实际使用点校验：`register_inputs()` 校验输入 tensor，
-`rt.frame(..., dependencies=...)` 校验 frame 入口依赖并预加载权重，`RuntimeSession.dispatch()` 校验本次
-shader 调用传入的 tensor。
+PyTorch lockstep 对拍也使用同一批 `register_inputs()` 输入，不允许再通过 `pytorch_input`、
+`pytorch_args` 或 `pytorch_kwargs` 旁路传第二份数据。RuntimeSession 在 frame exit 执行
+`pytorch_model.forward` 前，会根据当前 frame name 和 PyTorch forward 签名自动推断 kwargs：
+
+```text
+frame = "qwen3_asr.audio_tower"
+LogicalTensor.name = "qwen3_asr.audio_tower.input_features"
+forward(..., input_features, feature_lens=None)
+=> input_features=<registered value>
+```
+
+只有 `role == INPUT`、已经通过 `register_inputs()` 注册、logical name 以当前 frame name 加 `.` 为前缀，
+且前缀后的 basename 命中 PyTorch forward 参数名的 tensor 会被传给 PyTorch。没有命中 forward 参数名的
+输入可以作为当前 Vulkan 临时入口继续存在，例如当前 qwen3_asr 的 `qwen3_asr.audio_tower.padded_feature`，
+它只被 shader 消费，不会传给 PyTorch。
+
+`RuntimeSession.open(..., model_dir=...)` 设置权重 checkpoint 根目录。`LogicalTensor` 的
+name/dtype/shape/layout、role、memory、lifetime 等声明组合在实际使用点校验：`register_inputs()` 校验输入 tensor，
+`RuntimeSession.dispatch()` 校验本次 shader 调用传入的 tensor，并在 record/eager 阶段按需 materialize
+本次实际读写的 tensors。
 
 Runtime 不维护 `name -> LogicalTensor` registry，也不把 compare/probe/debug metadata 复制到另一份表里。后续
 dispatch、readback、compare 和 replay 都必须继续拿着原始 `LogicalTensor` 对象走。Frame 中实际执行了哪些
 tensor，由 `ShaderVariant(rt, ...)` 调用在运行时收集到 dispatch records。
 
-具体 frame function 应把本次 forward 可能读取的权重和外部依赖作为 `rt.frame(..., dependencies=...)`
-传入。Runtime 在 frame enter 校验这些 `LogicalTensor`，并加载其中带 `WeightSource` 的权重。这个依赖集合
-只服务于 frame 入口的权重预加载和早期校验，不替代 dispatch records；实际读写了哪些 tensor 仍由 shader
-调用过程收集。
+具体 frame function 不需要把本次 forward 可能读取的权重和外部依赖再作为一份 tensor 列表传给
+`rt.frame(...)`。实际读写了哪些 tensor 只由 shader 调用过程收集到 dispatch records。Replay 可以消费这些
+records，在 Frame enter 提前做权重预加载、workspace sizing、liveness/aliasing 和 arena offset 分配。
 
 Runtime 不应该预先把所有 activation 都分配出来。activation/output/state 的当前 buffer 状态应由
 `RuntimeSession.dispatch()` 根据当前 FrameScope 和 shader contract 触发，并从 RuntimeSession 管理的
@@ -423,24 +438,19 @@ LogicalTensor(
     role=TensorRole.WEIGHT,
     memory=MemoryClass.MODEL_WEIGHT,
     lifetime=TensorLifetime.MODEL,
-    source=WeightSource(
-        checkpoint="model.safetensors",
-        key="audio_codec_decoder.decoder.conv1.weight",
-        dtype="float32",
-        shape=(out_channels, in_channels, kernel),
-    ),
 )
 ```
 
-`WeightSource` 是声明 metadata。实际打开 checkpoint、校验 key/dtype/shape、上传 device local memory 由
-RuntimeSession 在 Frame enter 阶段根据 `rt.frame(..., dependencies=...)` 完成。dispatch 读到 weight
-时只使用已经预加载的 model-lifetime materialization；如果 dependency 漏声明，dispatch 必须报错。
+权重 `LogicalTensor.name` 必须和 checkpoint tensor key 一致；dtype、shape、layout 从 `spec/layout`
+推断。实际打开 checkpoint、校验 key/dtype/shape、上传 device local memory 由 RuntimeSession 在
+record/eager 阶段的 dispatch read path 按需完成。dispatch 读到 weight 时，如果已有
+model-lifetime materialization 就复用；否则打开 checkpoint、校验并上传。Replay 可以根据录制过的 dispatch
+reads 在 Frame enter 预加载或校验这些权重。
 
 如果未来需要 packed weight，必须显式声明新的 layout 或 preprocessing artifact，例如：
 
 ```text
 layout = TensorLayout("blocked_vk_matmul", {"block_m": 16, "block_n": 16})
-source = WeightSource(..., layout=checkpoint_layout)
 runtime transform = WeightTransform("pack_blocked_vk_matmul", target_layout=layout)
 ```
 
@@ -461,6 +471,8 @@ audio_codec_decoder.py
 ```
 
 每个 frame function 必须显式接收对应的 PyTorch model。RuntimeSession 在 Vulkan shader sequence 执行完成后，用本 Frame 实际写出的 LogicalTensors 收集 compare targets，再根据这些 LogicalTensors 自带的 `pytorch_probe` metadata hook 传入的 PyTorch model，并 lockstep 执行这一次对应的 PyTorch `model.forward`。
+PyTorch forward 的输入来自 `register_inputs()` 中按 logical name 规则匹配到的 `LogicalTensor`，frame function
+不传 `pytorch_input`、`pytorch_args` 或 `pytorch_kwargs`。
 
 frame function 的职责：
 
@@ -486,7 +498,6 @@ def run_audio_codec_decoder_frame(
     with rt.frame(
         "audio_codec_decoder",
         scope=scope,
-        dependencies=tensors.dependencies(),
         pytorch_model=pytorch_model,
     ):
         NORMALIZE_AUDIO_TOKENS(
@@ -536,6 +547,7 @@ return {"audio_codec_decoder.decoder.conv1": torch.nn.functional.conv1d(x, w, b)
 ```
 
 PyTorch artifact 必须来自当前 frame 传入的 PyTorch model.forward 中捕获到的真实 tensor。模型目录不提供独立 PyTorch 子系统，也不维护另一套 PyTorch input 流程。
+PyTorch input 同样不维护另一套 mapping registry；输入绑定由 `register_inputs()` 和 logical name 规则决定。
 
 ## shaders/ 目录
 
@@ -633,7 +645,7 @@ pytest or script defines run inputs
         |
 tensors/ reads config.json/checkpoint metadata and builds the logical tensor tree
         |
-tensors/ declares LogicalTensors with source/probe/compare metadata
+tensors/ declares LogicalTensors with probe/compare metadata
         |
 RuntimeSession registers model declarations and runtime inputs
         |
@@ -712,7 +724,7 @@ bad: buffer17.slice3
 3. `audio_codec_decoder.py` 表达一次 PyTorch model.forward 边界，并在内部使用 `with rt.frame(..., pytorch_model=...)`；
 4. `execution.py` 只串联具体 frame function，不直接写 shader sequence；
 5. 模型代码没有调用 `RuntimeSession.empty/load_weight/free`；
-6. dispatch 时 RuntimeSession 能 resolve/materialize read/write LogicalTensors，但不做 per-shader raw Vulkan allocation；
+6. dispatch 时 RuntimeSession 能 resolve/materialize read/write LogicalTensors；record/eager 可按需 allocation，replay 用录制结果优化；
 7. candidate forward 后能从 dispatch records 收集 written LogicalTensors；
 8. 当前 frame 传入的 PyTorch model 根据 collected LogicalTensors 动态安装 hooks 并 lockstep 执行；
 9. compare 只比较 candidate 实际写出且声明了 compare/probe 的 tensors；

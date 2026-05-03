@@ -24,7 +24,6 @@ class FrameScope:
 class FrameContext:
     scope: FrameScope
     start_dispatch_index: int
-    dependencies: tuple[LogicalTensor, ...] = ()
     pytorch_model: object | None = None
     pytorch_args: tuple[object, ...] = ()
     pytorch_kwargs: Mapping[str, object] = field(default_factory=dict)

@@ -2,44 +2,54 @@
 
 from __future__ import annotations
 
-from models.qwen3_asr.audio_tower import (
-    Qwen3AsrAudioTowerConv2d1Output,
-    run_qwen3_asr_audio_tower_conv2d1_frame,
+from models.qwen3_asr.shaders.conv2d_gelu_f32 import QWEN3_ASR_CONV2D_GELU_F32
+from models.qwen3_asr.shaders.conv_out_add_position_f32 import QWEN3_ASR_CONV_OUT_ADD_POSITION_F32
+from models.qwen3_asr.tensors.audio_tower import (
+    Qwen3AsrAudioTowerTensors,
 )
-from models.qwen3_asr.position_embedding import (
-    Qwen3AsrPositionEmbeddingOutput,
-    run_qwen3_asr_position_embedding_frame,
-)
-from models.qwen3_asr.tensors.audio_tower import Qwen3AsrAudioTowerConv2d1Tensors
-from models.qwen3_asr.tensors.position_embedding import Qwen3AsrPositionEmbeddingTensors
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
 
-def run_qwen3_asr_audio_tower_conv2d1(
+def run_qwen3_asr_audio_tower(
     rt: RuntimeSession,
-    tensors: Qwen3AsrAudioTowerConv2d1Tensors,
+    tensors: Qwen3AsrAudioTowerTensors,
     *,
     pytorch_model: object,
-    pytorch_input: object,
-) -> Qwen3AsrAudioTowerConv2d1Output:
-    return run_qwen3_asr_audio_tower_conv2d1_frame(
-        rt,
-        tensors,
+) -> LogicalTensor:
+    with rt.frame(
+        "qwen3_asr.audio_tower",
+        scope={
+            "chunks": tensors.padded_feature.spec.shape[0],
+            "frames": tensors.padded_feature.spec.shape[3],
+        },
         pytorch_model=pytorch_model,
-        pytorch_input=pytorch_input,
-    )
-
-
-def run_qwen3_asr_audio_tower_position_embedding(
-    rt: RuntimeSession,
-    tensors: Qwen3AsrPositionEmbeddingTensors,
-    *,
-    pytorch_model: object,
-    seqlen: int,
-) -> Qwen3AsrPositionEmbeddingOutput:
-    return run_qwen3_asr_position_embedding_frame(
-        rt,
-        tensors,
-        pytorch_model=pytorch_model,
-        seqlen=seqlen,
-    )
+    ):
+        QWEN3_ASR_CONV2D_GELU_F32(
+            rt,
+            x=tensors.padded_feature,
+            weight=tensors.weights.conv2d1_weight,
+            bias=tensors.weights.conv2d1_bias,
+            output=tensors.conv2d1_gelu,
+        )
+        QWEN3_ASR_CONV2D_GELU_F32(
+            rt,
+            x=tensors.conv2d1_gelu,
+            weight=tensors.weights.conv2d2_weight,
+            bias=tensors.weights.conv2d2_bias,
+            output=tensors.conv2d2_gelu,
+        )
+        QWEN3_ASR_CONV2D_GELU_F32(
+            rt,
+            x=tensors.conv2d2_gelu,
+            weight=tensors.weights.conv2d3_weight,
+            bias=tensors.weights.conv2d3_bias,
+            output=tensors.conv2d3_gelu,
+        )
+        QWEN3_ASR_CONV_OUT_ADD_POSITION_F32(
+            rt,
+            x=tensors.conv2d3_gelu,
+            weight=tensors.weights.conv_out_weight,
+            output=tensors.conv_out_add_position,
+        )
+    return tensors.conv_out_add_position
