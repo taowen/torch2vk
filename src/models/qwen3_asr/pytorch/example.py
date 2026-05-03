@@ -16,6 +16,7 @@ import torch
 
 from models.hf_cache import resolve_cached_model
 from models.omnivoice.pytorch.example import DEFAULT_OUTPUT_WAV as OMNIVOICE_OUTPUT_WAV
+from models.quiet import configure_quiet_runtime, suppress_output
 
 REPO_ID = "Qwen/Qwen3-ASR-0.6B"
 
@@ -76,6 +77,7 @@ def run_inference(
     dtype: torch.dtype = torch.bfloat16,
 ) -> list[Qwen3AsrTranscript]:
     """Run the official Qwen3-ASR transformers backend from vendored source."""
+    configure_quiet_runtime()
     from qwen_asr import Qwen3ASRModel
 
     factory: Qwen3AsrModelFactory = Qwen3ASRModel
@@ -83,21 +85,22 @@ def run_inference(
     audio_path = default_audio_path() if audio is None else Path(audio).expanduser().resolve()
     if not audio_path.is_file():
         raise FileNotFoundError(f"Input wav does not exist: {audio_path}")
-    model = factory.from_pretrained(
-        str(resolved),
-        dtype=dtype,
-        device_map=device,
-        attn_implementation="eager",
-        max_inference_batch_size=1,
-        max_new_tokens=256,
-    )
-    return normalize_transcripts(
-        model.transcribe(
-            audio=str(audio_path),
-            language=language,
-            return_time_stamps=False,
+    with suppress_output():
+        model = factory.from_pretrained(
+            str(resolved),
+            dtype=dtype,
+            device_map=device,
+            attn_implementation="eager",
+            max_inference_batch_size=1,
+            max_new_tokens=256,
         )
-    )
+        return normalize_transcripts(
+            model.transcribe(
+                audio=str(audio_path),
+                language=language,
+                return_time_stamps=False,
+            )
+        )
 
 
 def main() -> None:

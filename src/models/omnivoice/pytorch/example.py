@@ -15,6 +15,7 @@ import soundfile as sf
 import torch
 
 from models.hf_cache import resolve_cached_model
+from models.quiet import configure_quiet_runtime, suppress_output
 
 REPO_ID = "k2-fsa/OmniVoice"
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice.wav")
@@ -46,15 +47,17 @@ def run_official_generate(
     dtype: torch.dtype = torch.float16,
 ) -> OmniVoiceAudio | Sequence[OmniVoiceAudio]:
     """Run the official OmniVoice API from vendored source."""
+    configure_quiet_runtime()
     from omnivoice import OmniVoice
 
     resolved = resolve_cached_model(REPO_ID, model_dir)
-    model = OmniVoice.from_pretrained(resolved, device_map=device, dtype=dtype)
-    audio = model.generate(
-        text=text,
-        ref_audio=None if ref_audio is None else str(ref_audio),
-        ref_text=ref_text,
-    )
+    with suppress_output():
+        model = OmniVoice.from_pretrained(resolved, device_map=device, dtype=dtype)
+        audio = model.generate(
+            text=text,
+            ref_audio=None if ref_audio is None else str(ref_audio),
+            ref_text=ref_text,
+        )
     return audio
 
 

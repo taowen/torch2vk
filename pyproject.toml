@@ -9,7 +9,7 @@ dependencies = [
   "torchvision==0.26.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
   "torchaudio==2.11.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
   "triton-rocm==3.6.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
-  "pyright>=1.1.408,<1.2",
+  "pyright>=1.1.409,<1.2",
   "ruff>=0.11,<0.12",
   "pytest>=8.3,<9",
   "huggingface-hub>=0.34,<2",
@@ -54,6 +54,21 @@ torchaudio = [
 line-length = 100
 target-version = "py312"
 
+[tool.pytest.ini_options]
+addopts = ["--assert=plain"]
+pythonpath = ["src"]
+filterwarnings = [
+  "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
+  "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
+  "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+  "ignore:'audioop' is deprecated and slated for removal in Python 3.13:DeprecationWarning",
+  "ignore:Mem Efficient attention on Current AMD GPU is still experimental:UserWarning",
+  "ignore:Deprecated in 0.9.0:DeprecationWarning",
+  "ignore:'aifc' is deprecated and slated for removal in Python 3.13:DeprecationWarning",
+  "ignore:'sunau' is deprecated and slated for removal in Python 3.13:DeprecationWarning",
+]
+
 [tool.pyright]
 include = ["src/models", "tests"]
 exclude = ["src/omnivoice", "src/qwen_asr"]
+reportPrivateImportUsage = false

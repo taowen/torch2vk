@@ -1,263 +1,67 @@
 # Frame 和 LogicalTensor
 
-目标：定义 `torch2vk` 里显存分配/释放和 PyTorch 对拍的基本边界。
+本文是 `torch2vk` 的核心架构文档。后续实现以这里的边界为准。
 
-核心结论：
-
-```text
-Frame = 一次 PyTorch model.forward 对应的 Vulkan candidate forward 边界。
-LogicalTensor = Frame 内外传递的模型语义 tensor 句柄。
-RuntimeSession = 根据 LogicalTensor metadata 和当前 Frame 自动管理显存。
-```
-
-这里的 `Frame` 不是旧实现里的 `frame.workspace.*` 物理 slot tree。新的 `Frame` 是执行、对拍、显存生命周期的边界。
-
-## 基本术语
-
-### Pipeline
-
-Pipeline 是多个 Frame 的组合，可以串联，也可以在 generation loop 中重复执行。
-
-OmniVoice 示例：
+核心目标：
 
 ```text
-Pipeline: omnivoice audio generation
-
-Audio token index 0:
-  Frame: audio_token_predictor.forward
-  Frame: text_llm_cond.decode
-  Frame: text_llm_uncond.decode
-  Frame: audio_token_selector.forward
-
-Audio token index 1:
-  Frame: audio_token_predictor.forward
-  Frame: text_llm_cond.decode
-  Frame: text_llm_uncond.decode
-  Frame: audio_token_selector.forward
-
-After audio tokens are generated:
-  Frame: audio_codec_decoder.forward
+tensors/ 声明点：LogicalTensor metadata
+shaders/ 声明线：ShaderContract + shader wrapper
+eager execution 连接点和线：with rt.frame(...): shader_a(...); shader_b(...)
+RuntimeSession 接管执行态：materialize / dispatch / record / compare / release
 ```
 
-### Frame
+模型目录只表达模型计算。显存分配、释放、Vulkan descriptor、dispatch record、PyTorch 对拍、replay 和后续 liveness/aliasing 优化都属于通用 runtime。
 
-Frame 是一次 PyTorch `model.forward` 对应的边界。
-
-一个 Frame 同时负责：
-
-1. Vulkan candidate forward 的执行范围；
-2. candidate dispatch records 的收集范围；
-3. PyTorch hook/probe 的安装范围；
-4. compare artifacts 的对齐范围；
-5. frame workspace 显存的释放/复用边界。
-
-### Domain index
-
-不要把 `Step` 作为核心 runtime 概念。循环索引用具体领域命名，例如：
+## 一句话规则
 
 ```text
-audio_token_index
-video_frame_index
-text_token_index
-chunk_index
-sample_block_index
+LogicalTensor 声明 tensor 是什么。
+ShaderContract 声明 op 读写什么。
+Frame 声明一次 PyTorch model.forward 对齐的执行边界。
+Eager execution 用普通 Python 顺序把 LogicalTensor 传给 shader wrapper。
+RuntimeSession 根据 LogicalTensor + Frame 自动分配、复用、释放显存，并记录执行事实。
 ```
 
-例如第 5 个 audio token 生成时可能有多个 Frame：
+## 基本对象
 
-```text
-audio.token_005/audio_token_predictor.forward
-audio.token_005/text_llm_cond.decode
-audio.token_005/text_llm_uncond.decode
-audio.token_005/audio_token_selector.forward
-```
+### LogicalTensor
 
-这些 index 只进入 `FrameScope` / artifact key，不进入 `LogicalTensor.name`。
+`LogicalTensor` 是模型语义 tensor 的声明对象，不是显存句柄。
 
-### Workspace
+它描述：
 
-Workspace 是 Frame 内部临时显存类别，不是模型目录的一等 API。
+1. tensor 的稳定语义名；
+2. dtype、shape、layout；
+3. role、memory、lifetime；
+4. 权重来源；
+5. 输入 feed 规则；
+6. PyTorch probe 和 compare policy；
+7. 运行时 materialize 所需的其它 metadata。
 
-不要暴露：
+它不描述：
+
+1. Vulkan buffer；
+2. descriptor set；
+3. allocation owner；
+4. 当前 frame 中的具体 BufferSlice；
+5. 当前值是否已经被某个 shader 写出。
+
+推荐定义：
 
 ```python
-frame.workspace.attention.q_proj.activation("text_llm.decode.layer.03.q_proj")
-```
+@dataclass(frozen=True, slots=True)
+class TensorSpec:
+    dtype: str
+    shape: tuple[int | str, ...]
 
-模型 forward 只能传递 `LogicalTensor`。
+
+@dataclass(frozen=True, slots=True)
+class TensorLayout:
+    name: str = "row_major"
+    params: Mapping[str, int | str] = field(default_factory=dict)
 
 
-## 点、线和 eager execute
-
-模型接入的核心抽象可以简化成：
-
-```text
-tensors/ = 点
-  声明 LogicalTensor：name/spec/role/memory/lifetime/source/probe/compare
-
-shaders/ = 线
-  声明 ShaderContract + wrapper：读哪些点，写哪些点，怎么 dispatch
-
-execution.py + submodel/forward.py = 连接方式
-  用 eager Python 顺序调用 shader wrapper，把点和线连成 candidate forward
-```
-
-对应关系：
-
-```text
-LogicalTensor 是 graph node。
-Shader 是 typed edge / op。
-forward.py 是 eager graph construction + execution。
-Frame 是一次 PyTorch model.forward 对齐的执行/对拍/lifetime 边界。
-RuntimeSession 是 runtime：自动 bind/load/allocate/free、记录 dispatch、驱动 PyTorch probe、执行 compare。
-```
-
-模型目录只表达计算语义和执行顺序，不表达资源管理：
-
-```text
-写什么：有哪些 tensor 点、有哪些 shader 线、线怎么连接点、点怎么 probe 到 PyTorch。
-不写什么：怎么分配显存、怎么释放显存、怎么 materialize、怎么手写 compare。
-```
-
-## Eager execute 里的 Frame
-
-在 eager execute 中，`Frame` 表达成 `RuntimeSession` 上的 scope。
-
-推荐写法：
-
-```python
-with rt.frame(
-    "audio_codec_decoder.forward",
-    scope={"domain": "audio"},
-    pytorch=audio_codec_decoder_pytorch,
-    probes=audio_codec_decoder_probes,
-):
-    waveform = run_audio_codec_decoder_forward(rt, tensors.audio_codec_decoder)
-```
-
-`forward.py` 仍然只负责 eager 调 shader：
-
-```python
-def run_audio_codec_decoder_forward(
-    rt: RuntimeSession,
-    tensors: AudioCodecDecoderTensors,
-) -> AudioCodecDecoderOutput:
-    embedding_sum_f32(
-        rt,
-        tokens=tensors.audio_tokens,
-        weight=tensors.weights.quantizer_embed,
-        output=tensors.quantizer_embed_sum,
-    )
-    conv1d_f32(
-        rt,
-        x=tensors.quantizer_embed_sum,
-        weight=tensors.weights.decoder_conv1,
-        bias=tensors.weights.decoder_conv1_bias,
-        output=tensors.decoder.conv1,
-    )
-    return AudioCodecDecoderOutput(waveform=tensors.decoder.waveform)
-```
-
-`with rt.frame(...)` 负责：
-
-```text
-进入 Frame:
-  设置当前 allocation lifetime context
-  设置当前 artifact scope
-  开始收集 dispatch records
-
-Frame 内:
-  shader dispatch lazy bind/allocate LogicalTensor
-  记录 reads/writes
-
-退出 candidate forward:
-  收集本 Frame written tensors with compare/probe
-  根据 collected LogicalTensors 安装 PyTorch hooks
-  跑一次 PyTorch model.forward
-  readback candidate tensors
-  compare candidate/reference
-  释放或复用 Frame workspace
-```
-
-OmniVoice pipeline 的 eager 写法示例：
-
-```python
-def run_omnivoice_pipeline(
-    rt: RuntimeSession,
-    tensors: OmniVoiceTensors,
-    *,
-    max_audio_tokens: int,
-) -> LogicalTensor:
-    selected = None
-    for audio_token_index in range(max_audio_tokens):
-        with rt.frame(
-            "audio_token_predictor.forward",
-            scope={"audio_token_index": audio_token_index},
-            pytorch=tensors.audio_token_predictor.pytorch,
-            probes=tensors.audio_token_predictor.probes,
-        ):
-            predictor_out = run_audio_token_predictor_forward(
-                rt,
-                tensors.audio_token_predictor,
-                audio_token_index=audio_token_index,
-            )
-
-        with rt.frame(
-            "text_llm_cond.decode",
-            scope={"audio_token_index": audio_token_index, "row": "cond"},
-            pytorch=tensors.text_llm.cond_pytorch,
-            probes=tensors.text_llm.probes,
-        ):
-            cond = run_text_llm_decode_forward(rt, tensors.text_llm_cond, predictor_out)
-
-        with rt.frame(
-            "text_llm_uncond.decode",
-            scope={"audio_token_index": audio_token_index, "row": "uncond"},
-            pytorch=tensors.text_llm.uncond_pytorch,
-            probes=tensors.text_llm.probes,
-        ):
-            uncond = run_text_llm_decode_forward(rt, tensors.text_llm_uncond, predictor_out)
-
-        with rt.frame(
-            "audio_token_selector.forward",
-            scope={"audio_token_index": audio_token_index},
-            pytorch=tensors.audio_token_selector.pytorch,
-            probes=tensors.audio_token_selector.probes,
-        ):
-            selected = run_audio_token_selector_forward(
-                rt,
-                tensors.audio_token_selector,
-                cond,
-                uncond,
-            )
-
-        if selected.done:
-            break
-
-    with rt.frame(
-        "audio_codec_decoder.forward",
-        scope={"domain": "audio"},
-        pytorch=tensors.audio_codec_decoder.pytorch,
-        probes=tensors.audio_codec_decoder.probes,
-    ):
-        waveform = run_audio_codec_decoder_forward(
-            rt,
-            tensors.audio_codec_decoder,
-            selected.tokens,
-        )
-
-    return waveform
-```
-
-`Frame` 不是 tensor 容器，不是 workspace tree，也不是模型目录文件。它只是 eager execute 里的 runtime boundary 标记。
-
-## LogicalTensor
-
-`LogicalTensor` 描述 tensor 的模型语义身份和 runtime materialization metadata。
-
-建议字段：
-
-```python
 @dataclass(frozen=True, slots=True)
 class LogicalTensor:
     name: str
@@ -265,22 +69,160 @@ class LogicalTensor:
     role: TensorRole
     memory: MemoryClass
     lifetime: TensorLifetime
-    storage: BufferSlice | None = None
+    layout: TensorLayout = ROW_MAJOR
     source: WeightSource | None = None
+    feed: InputFeed | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
 ```
 
-### name
+不要把 `storage` 放进模型层依赖的 `LogicalTensor` API。`storage` 是执行态事实，应该存在于 `RuntimeSession` 的 materialization table 里。
 
-`name` 是模型语义名，不包含 audio/video/text index、row 或 scope。
+如果调试时需要查看某个 tensor 当前绑定到哪个 buffer，提供 runtime 查询接口：
+
+```python
+rt.debug_materialization(tensor, scope=...)
+```
+
+而不是让模型代码读写 `tensor.storage`。
+
+### Frame
+
+`Frame` 是一次 PyTorch `model.forward` 对齐的 eager execution 边界。
+
+它同时定义：
+
+1. Vulkan candidate forward 的执行范围；
+2. dispatch records 的收集范围；
+3. PyTorch hook/probe 的安装范围；
+4. compare artifacts 的命名范围；
+5. frame workspace 的释放或复用边界。
+
+`Frame` 不是 tensor 容器，不是 workspace tree，也不是模型目录文件。它只是 `RuntimeSession` 上的 scope。
+
+推荐写法是由具体 frame 文件进入 scope，并显式接收对应 PyTorch model：
+
+```python
+def run_audio_codec_decoder_frame(
+    rt: RuntimeSession,
+    tensors: AudioCodecDecoderTensors,
+    *,
+    pytorch_model: torch.nn.Module,
+) -> AudioCodecDecoderOutput:
+    with rt.frame(
+        "audio_codec_decoder",
+        scope={"domain": "audio"},
+        pytorch_model=pytorch_model,
+    ):
+        return run_audio_codec_decoder_shader_sequence(rt, tensors)
+```
+
+`with rt.frame(...)` 负责：
+
+```text
+进入 Frame:
+  设置当前 FrameScope
+  设置当前 allocation lifetime context
+  开始收集 dispatch records
+
+Frame 内:
+  shader wrapper 调 RuntimeSession.dispatch
+  RuntimeSession resolve reads/writes 到 materialized tensor instance
+  RuntimeSession 绑定 descriptor 并提交 Vulkan dispatch
+  RuntimeSession 记录每次 dispatch 的 reads/writes/writer/scope
+
+退出 candidate forward:
+  收集本 Frame 实际写出的 LogicalTensors
+  过滤 compare != None 且 pytorch_probe != None 的 tensor
+  根据 probe metadata 安装 PyTorch hooks
+  lockstep 执行当前 Frame 传入的 PyTorch model.forward
+  readback candidate tensors
+  compare candidate/PyTorch artifact
+  释放或复用 FRAME/OP 生命周期资源
+```
+
+### RuntimeSession
+
+`RuntimeSession` 是唯一拥有执行态资源的对象。
+
+职责：
+
+1. 创建和销毁 Vulkan instance/device/queue；
+2. 管理 buffer allocation、memory mapping、staging、readback；
+3. 维护 materialization table；
+4. 根据 `LogicalTensor` metadata 自动加载权重、上传输入、从对应 arena/pool 取得 activation/output/state slice；
+5. 根据 `ShaderContract` 校验 shader 参数；
+6. 绑定 descriptor，提交 compute dispatch；
+7. 记录 dispatch records；
+8. 在 Frame 结束时执行 PyTorch 对拍；
+9. 在 Frame/request/session 生命周期结束时释放资源；
+10. 后续基于 dispatch records 生成 replay plan 和 liveness/aliasing plan。
+
+模型代码不调用 `RuntimeSession.empty()`、`RuntimeSession.load_weight()`、`RuntimeSession.free()` 去手工管理 tensor 显存。
+
+## 点、线和连接方式
+
+模型接入只写三类东西：
+
+```text
+tensors/ = 点
+  声明 LogicalTensor：name/spec/role/memory/lifetime/source/feed/probe/compare
+
+shaders/ = 线
+  声明 ShaderContract + wrapper：读哪些点、写哪些点、参数和 dispatch 规则是什么
+
+execution.py + 具体 frame 文件 = 连接方式
+  例如 text_prefill.py、text_decode.py、audio_codec_decoder.py。
+  每个文件表达一次 PyTorch model.forward 边界，并用 eager Python 顺序调用 shader wrapper，把点和线连起来
+```
+
+对应关系：
+
+```text
+LogicalTensor 是稳定 graph node declaration。
+ShaderContract 是 typed op/edge declaration。
+frame 文件是 eager graph construction + immediate execution。
+Frame 是一次 PyTorch model.forward 对齐的 runtime boundary。
+RuntimeSession 是执行态框架。
+```
+
+模型目录只表达：
+
+```text
+有哪些 tensor 点
+有哪些 shader 线
+线怎么连接点
+点如何映射到 PyTorch probe
+```
+
+模型目录不表达：
+
+```text
+怎么分配显存
+怎么释放显存
+怎么绑定 descriptor
+怎么 materialize activation
+怎么手写 compare
+怎么做 replay
+怎么做 liveness/aliasing
+```
+
+## 命名和 Scope
+
+### LogicalTensor.name
+
+`LogicalTensor.name` 是稳定模型语义名，不包含动态执行上下文。
 
 好：
 
 ```text
+audio_token_predictor.audio_head.logits
 text_llm.decode.layer.03.output
-audio_codec.decoder.block2.res_unit1.output
-audio_codec.decoder.waveform
+text_llm.state.layer.03.key_cache
+audio_token_selector.guided_logits
+audio_codec_decoder.decoder.block2.res_unit1.output
+audio_codec_decoder.decoder.waveform
+output.wav_pcm16
 ```
 
 坏：
@@ -288,59 +230,106 @@ audio_codec.decoder.waveform
 ```text
 audio.token_005.text_llm.cond.layer.03.output
 workspace.core.hidden_states
+frame.attention.q_proj
 buffer17.slice3
 ```
 
-audio/video/text index、row、frame 信息放在 `FrameScope` 或 artifact key 中。
+audio token index、text token index、chunk index、cond/uncond row、request id 等动态上下文放进 `FrameScope`，不写进 logical tensor base name。
 
-### role
+### FrameScope
 
-`role` 描述 tensor 的语义角色：
+`FrameScope` 表达一次 frame 的动态上下文。
 
-```text
-INPUT
-WEIGHT
-ACTIVATION
-SCRATCH
-OUTPUT
-STATE
-KV_CACHE
-LOGITS
-TOKEN
-```
-
-RuntimeSession 用 `role` 决定默认 materialization 行为。
-
-### memory
-
-`memory` 描述显存类别：
+示例：
 
 ```text
-MODEL_WEIGHT       model lifetime，通常 device local，只读
-REQUEST_STATE      request lifetime，跨 Frame 存活
-FRAME_WORKSPACE    frame lifetime，Frame 结束可释放/复用
-FRAME_OUTPUT       Frame 输出，给后续 Frame 使用
-HOST_INPUT         host input/upload
-HOST_READBACK      readback/debug/最终输出
+frame: text_llm.decode
+scope: audio.token_005/row=cond
+logical tensor: text_llm.decode.layer.03.output
+artifact key: audio.token_005/row=cond/text_llm.decode/text_llm.decode.layer.03.output
 ```
 
-### lifetime
+推荐结构：
 
-`lifetime` 描述显存生命周期：
+```python
+@dataclass(frozen=True, slots=True)
+class FrameScope:
+    frame: str
+    values: Mapping[str, str | int]
+
+    def artifact_prefix(self) -> str: ...
+```
+
+不要引入泛泛的 `Step` 概念。循环索引用领域名：
+
+```text
+audio_token_index
+text_token_index
+video_frame_index
+chunk_index
+sample_block_index
+```
+
+## Role、Memory、Lifetime
+
+三者分别回答不同问题。
+
+```text
+TensorRole: 这个 tensor 在模型语义上是什么？
+MemoryClass: 这个 tensor 默认放在哪类 runtime pool？
+TensorLifetime: 这个 tensor 至少需要活多久？
+```
+
+### TensorRole
+
+推荐枚举：
+
+```text
+INPUT       外部输入
+WEIGHT      模型权重
+ACTIVATION  中间激活
+SCRATCH     op 内临时空间
+OUTPUT      frame 或 pipeline 输出
+STATE       request/pipeline 状态
+KV_CACHE    LLM KV cache
+LOGITS      logits 边界
+TOKEN       token/index 边界
+```
+
+`role` 主要用于默认 materialization 行为、错误信息和调试报告。不要把生命周期只藏在 `role` 里。
+
+### MemoryClass
+
+推荐枚举：
+
+```text
+MODEL_WEIGHT      model lifetime，只读，通常 device local
+REQUEST_STATE     request/pipeline lifetime，跨 Frame 存活
+FRAME_WORKSPACE   Frame lifetime，Frame 结束可释放/复用
+OP_SCRATCH        单个 shader/op 临时空间
+HOST_INPUT        host input/upload
+HOST_READBACK     readback/debug/最终输出
+```
+
+`MemoryClass` 描述 runtime 默认从哪个 pool 分配，或者使用哪类 transfer/readback 路径。
+
+### TensorLifetime
+
+推荐枚举：
 
 ```text
 MODEL      模型加载到卸载，例如 weights
-REQUEST    一次 pipeline/request 内存活，例如 KV cache、generated tokens
-FRAME      一次 model.forward 内存活，例如 activation/workspace
-OUTPUT     Frame 结束后仍要给下游 Frame 使用
-OP         单个 shader/op 临时 scratch
+REQUEST    一次 pipeline/request 内存活，例如 generated tokens、KV cache
+FRAME      一次 model.forward 内存活，例如 activation
+OP         单个 shader/op 内存活，例如 reduction partials
+EXTERNAL   runtime 不拥有，例如外部导入 buffer，MVP 可不实现
 ```
 
-`memory` 是放哪类池，`lifetime` 是何时可释放/复用。
+`TensorLifetime` 描述何时可以释放或复用。
 
-### source
+### Source 和 Feed metadata
 
-权重 tensor 必须带 `WeightSource`：
+权重 tensor 用 `WeightSource` 声明 checkpoint 来源：
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -349,163 +338,329 @@ class WeightSource:
     key: str
     dtype: str
     shape: tuple[int, ...]
+    layout: TensorLayout = ROW_MAJOR
 ```
 
-RuntimeSession 根据它自动加载权重。
-
-### compare / pytorch_probe
-
-需要对拍的 tensor 必须声明：
+输入 tensor 用 `InputFeed` 声明运行时 feed key：
 
 ```python
-compare=ComparePolicy(...)
-pytorch_probe=PyTorchProbe(...)
+@dataclass(frozen=True, slots=True)
+class InputFeed:
+    name: str
+    required: bool = True
 ```
 
-candidate forward 实际写出这个 tensor 后，RuntimeSession 才会在 reference forward 时安装对应 hook/probe。
+`WeightSource` 和 `InputFeed` 都只是 metadata。实际打开 checkpoint、上传权重、查找输入 feed、分配 buffer 都由 RuntimeSession 完成。
 
-## 显存分配规则
+### 合法性规则
 
-模型代码不应该手写显存分配和释放。它只声明 `LogicalTensor`，并在 forward 里把这些 tensor 传给 shader wrapper。
+Runtime 必须校验 `role/memory/lifetime` 的组合。
 
-RuntimeSession 在 Frame 内 lazy materialize：
-
-```text
-shader dispatch sees LogicalTensor without storage
-  -> RuntimeSession checks role/memory/lifetime/source
-  -> allocate/load/upload according to metadata
-  -> bind BufferSlice into LogicalTensor or runtime-owned bound copy
-  -> dispatch shader
-```
-
-推荐规则：
+推荐默认规则：
 
 ```text
 role == WEIGHT or source != None
-  -> load checkpoint once
-  -> upload to MODEL_WEIGHT pool
-  -> lifetime MODEL
+  memory = MODEL_WEIGHT
+  lifetime = MODEL
 
 role == INPUT
-  -> lookup feed by logical name
-  -> validate dtype/shape
-  -> upload or bind host-visible memory
-  -> lifetime REQUEST or FRAME, depending declaration
+  memory = HOST_INPUT 或 REQUEST_STATE
+  lifetime = FRAME 或 REQUEST
 
-role == ACTIVATION or SCRATCH
-  -> allocate from current Frame workspace arena
-  -> lifetime FRAME or OP
+role == ACTIVATION
+  memory = FRAME_WORKSPACE
+  lifetime = FRAME
+
+role == SCRATCH
+  memory = OP_SCRATCH
+  lifetime = OP
 
 role == OUTPUT
-  -> allocate as Frame output
-  -> retain after Frame exit if downstream needs it
+  memory = FRAME_WORKSPACE 或 HOST_READBACK
+  lifetime = FRAME 或 REQUEST
 
 role == STATE or KV_CACHE
-  -> allocate/reuse request persistent arena
-  -> lifetime REQUEST
+  memory = REQUEST_STATE
+  lifetime = REQUEST
 ```
 
-如果 metadata 不足，RuntimeSession 必须报错，不允许模型代码临时补显存逻辑：
+如果声明显式覆盖默认值，RuntimeSession 必须检查是否合理。典型非法组合：
 
 ```text
-WEIGHT missing source -> error
-INPUT missing feed -> error
-symbolic shape unresolved -> error
-dtype mismatch -> error
-shape mismatch -> error
-duplicate logical name with incompatible spec -> error
+WEIGHT + lifetime FRAME
+ACTIVATION + memory MODEL_WEIGHT
+KV_CACHE + lifetime FRAME
+source != None 但 role 不是 WEIGHT
+role == WEIGHT 但 source == None
+role == INPUT 但没有 feed 或 runtime feed
+symbolic shape 在 dispatch 前仍未 resolve
 ```
 
-## 显存释放规则
+## Materialization Table
 
-RuntimeSession 拥有所有 allocation。`LogicalTensor.storage` 是 view，不拥有 allocation。
+`RuntimeSession` 维护 execution state。
 
-释放边界：
-
-```text
-OP exit
-  recycle OP scratch
-
-Frame exit
-  release/reuse FRAME_WORKSPACE
-  keep FRAME_OUTPUT if exported to downstream
-  keep REQUEST_STATE / KV_CACHE
-  keep MODEL_WEIGHT
-
-Request/Pipeline exit
-  release REQUEST_STATE
-  release generated token buffers
-  release final host readback buffers if not returned
-  keep MODEL_WEIGHT
-
-Model unload / RuntimeSession close
-  release MODEL_WEIGHT
-  release pipelines/shader modules/device resources
-```
-
-Frame 结束时，RuntimeSession 需要知道哪些 tensor 是 Frame 输出。
-
-Frame 输出可以通过两种方式表达：
-
-1. `role=OUTPUT` 或 `lifetime=OUTPUT`；
-2. pipeline 显式声明下游 Frame inputs 引用该 tensor。
-
-MVP 可以先用第一种，后续再做跨 Frame liveness 分析。
-
-## Frame scope 职责
-
-`with rt.frame(...)` 是唯一推荐的 eager execute Frame 表达方式。它不替代 Python forward，也不隐藏 shader 调用顺序；它只给 RuntimeSession 标记一次 PyTorch `model.forward` 对齐的边界。
-
-Frame scope 负责：
-
-1. 设置当前 allocation lifetime context；
-2. 设置当前 domain scope，例如 `audio_token_index`、`row`、`domain`；
-3. 收集 dispatch records；
-4. 收集 used/written LogicalTensors；
-5. 在 candidate forward 结束后驱动 PyTorch probes；
-6. readback 并按 `LogicalTensor.compare` 对拍；
-7. 在 Frame exit 时释放/reuse workspace。
-
-## Candidate forward
-
-每个 submodel 的 `forward.py` 只跑 Vulkan candidate。
-
-示例：
+核心结构可以理解为：
 
 ```python
-def run_audio_codec_decoder_forward(
-    rt: RuntimeSession,
-    tensors: AudioCodecDecoderTensors,
-) -> AudioCodecDecoderOutput:
-    embedding_sum_f32(
-        rt,
-        tokens=tensors.audio_tokens,
-        weight=tensors.weights.quantizer_embed,
-        output=tensors.quantizer_embed_sum,
-    )
-    conv1d_f32(
-        rt,
-        x=tensors.quantizer_embed_sum,
-        weight=tensors.weights.decoder_conv1,
-        bias=tensors.weights.decoder_conv1_bias,
-        output=tensors.decoder.conv1,
-    )
-    return AudioCodecDecoderOutput(waveform=tensors.decoder.waveform)
+@dataclass(frozen=True, slots=True)
+class TensorInstanceKey:
+    logical_name: str
+    scope_key: str
+    version: int
+
+
+@dataclass(slots=True)
+class MaterializedTensor:
+    tensor: LogicalTensor
+    key: TensorInstanceKey
+    storage: BufferSlice
+    dtype: str
+    shape: tuple[int, ...]
+    layout: TensorLayout
+    writer: DispatchWriter | None
+    lifetime: TensorLifetime
 ```
 
-`forward.py` 禁止：
+`BufferSlice` 是 runtime 内部 view，不拥有 allocation：
+
+```python
+@dataclass(frozen=True, slots=True)
+class BufferSlice:
+    allocation_id: int
+    offset: int
+    nbytes: int
+```
+
+allocation owner 只在 `RuntimeSession` 内部 registry 中。
+
+## Allocation 和 Materialization 的边界
+
+不要把 materialization 理解成每个 shader dispatch 都调用底层 Vulkan allocation。
+
+本架构分三层：
 
 ```text
-不调用 PyTorch model
-不做 compare
-不读 checkpoint
-不直接分配/free 显存
-不从物理 workspace slot 生成 LogicalTensor
+Raw allocation
+  Vulkan buffer + device memory 的真实 owner。
+  只在 session/model/request/frame 边界创建或扩容，不跟单个 shader 绑定。
+
+Arena / pool suballocation
+  从 MODEL_WEIGHT、REQUEST_STATE、FRAME_WORKSPACE、OP_SCRATCH 等 pool 中切 BufferSlice。
+  可以是 bump allocator、free list、buddy allocator，或后续 StoragePlan 计算出的固定 offset。
+
+Logical materialization
+  把某个 LogicalTensor 在当前 FrameScope/version 下映射到一个 BufferSlice。
+  dispatch 需要的是这个映射结果，用来绑定 descriptor 和记录 DispatchRecord。
 ```
 
-## Dispatch record
+`RuntimeSession.dispatch()` 可以触发 logical materialization，也可以从 arena 切一个 slice，但不应该在正常路径上频繁 `vkCreateBuffer` / `vkAllocateMemory`。
 
-每次 shader dispatch 必须记录：
+### Pool 策略
+
+按 lifetime 分池，避免不同生命周期的 tensor 互相造成碎片：
+
+```text
+MODEL_WEIGHT
+  model load/register 阶段加载或按需加载。
+  常驻，通常 grow-only，模型卸载或 RuntimeSession close 时释放。
+
+REQUEST_STATE
+  request/pipeline 开始时创建或扩容。
+  KV cache、generated tokens、跨 Frame state 放这里。
+  request 结束整体释放或复用。
+
+FRAME_WORKSPACE
+  Frame 进入时创建或取得一个 workspace arena。
+  activation/output 的 frame-lifetime slice 从这里切。
+  Frame exit 后 whole-arena reset，不逐 tensor free。
+
+OP_SCRATCH
+  可以并入 FRAME_WORKSPACE 的一段 scratch 区，也可以单独小 arena。
+  op 结束后 bump pointer 回退或由 dispatch sequence 复用。
+
+HOST_INPUT / HOST_READBACK
+  staging/readback pool，按 transfer/readback 需求复用。
+```
+
+MVP 的 allocator 可以很简单：
+
+```text
+MODEL_WEIGHT      grow-only pool
+REQUEST_STATE     grow-only pool per request
+FRAME_WORKSPACE   one bump arena per frame，frame exit 整体 reset
+OP_SCRATCH        先并入 FRAME_WORKSPACE
+HOST_*            staging/readback buffers 复用或按需扩容
+```
+
+这样即使 write materialization 发生在 dispatch 前，也只是从当前 Frame arena 切 slice，不会造成 Vulkan allocation 级别的碎片化。
+
+### Frame workspace 容量
+
+Frame workspace 的容量不应该由单个 shader 随机决定。推荐顺序：
+
+1. MVP：Frame arena 首次需要时按较大 chunk 创建，不够时扩容；Frame exit 整体 reset；
+2. dry-run：先跑 contract/materialization dry-run，统计每个 Frame 的 workspace high-water mark；
+3. replay：用历史 dispatch records 和 high-water mark 预分配 frame arena；
+4. liveness/aliasing：用 StoragePlan 给 frame 内 tensors 分配固定 offset，减少峰值。
+
+模型代码不关心这些策略。它只声明 `LogicalTensor` 并调用 shader wrapper。
+
+### 为什么不把 storage 放进 LogicalTensor
+
+如果 `LogicalTensor` 是 frozen declaration，dispatch 时 resolve 出来的 `BufferSlice` 无法自然回写给后续 op。
+
+可选方案有三个：
+
+1. mutate `LogicalTensor.storage`；
+2. 每个 shader wrapper 返回新的 bound tensor；
+3. runtime 用 materialization table 记录当前 frame/scope 下的 tensor instance。
+
+本架构选择第三个。原因：
+
+1. 模型表达保持纯声明；
+2. 同一个 logical name 可以在不同 frame/scope/version 下有不同值；
+3. replay、readback、compare、liveness 都能基于统一 runtime state；
+4. 不需要模型代码携带 bound/unbound 两套对象。
+
+## Dispatch 规则
+
+shader wrapper 只做薄封装：
+
+```python
+def conv1d_f32(
+    rt: RuntimeSession,
+    *,
+    x: LogicalTensor,
+    weight: LogicalTensor,
+    bias: LogicalTensor | None,
+    output: LogicalTensor,
+) -> None:
+    rt.dispatch(CONV1D_F32, x=x, weight=weight, bias=bias, output=output)
+```
+
+`RuntimeSession.dispatch()` 必须执行：
+
+```text
+1. 检查当前处于 rt.frame(...) 中
+2. contract.validate(fields)
+3. resolve symbolic shape
+4. resolve/materialize read tensor instances
+5. reserve/resolve write tensor instances from the current pool/arena
+6. 检查 dtype/shape/layout/storage alignment
+7. 绑定 descriptor
+8. 插入必要 Vulkan barrier
+9. 提交 dispatch
+10. 记录 DispatchRecord
+```
+
+### Read materialization
+
+读取 tensor 时：
+
+```text
+WEIGHT/source
+  如果已加载，复用 MODEL materialization
+  否则读取 checkpoint，校验 dtype/shape/layout，上传到 MODEL_WEIGHT pool
+  MODEL_WEIGHT pool 可按 checkpoint/model 分块扩容，但不按 shader 临时分配
+
+INPUT/feed
+  从 runtime feed 查数据
+  校验 dtype/shape
+  上传或绑定 HOST_INPUT/REQUEST_STATE
+
+STATE/KV_CACHE
+  从 request materialization table 查当前 instance
+  不存在则根据声明初始化，或报错
+
+ACTIVATION/OUTPUT/LOGITS/TOKEN
+  必须已经在当前 FrameScope 或可见上游 scope 中被写出
+  未写先读时报错
+```
+
+### Write materialization
+
+写入 tensor 时：
+
+```text
+根据 tensor.memory/tensor.lifetime 选择 pool
+根据 resolved shape/layout 计算 nbytes/alignment
+从对应 arena/pool reserve 一个 BufferSlice
+创建新的 TensorInstanceKey version
+记录 writer shader/dispatch index
+注册到 materialization table
+```
+
+这里的 reserve 是 pool/arena suballocation，不是底层 Vulkan allocation。FRAME/OP 生命周期的 slice 不逐个 free，Frame exit 统一 reset。MODEL/REQUEST 生命周期的 slice 通常 grow-only，生命周期结束整体释放。
+
+写同一个 logical tensor 时默认创建新 version。是否允许 in-place 由 shader contract 显式声明。
+
+### 跨 Frame 可见性
+
+Frame 内写出的 tensor 默认只在本 Frame 可见。
+
+跨 Frame 使用必须满足至少一个条件：
+
+1. `lifetime == REQUEST`；
+2. `role in {STATE, KV_CACHE}`；
+3. `role == OUTPUT` 且声明为 pipeline output 或 downstream input；
+4. pipeline declaration 显式声明下游 Frame 引用该 tensor。
+
+MVP 可以先只支持前两类，再逐步支持 pipeline liveness。
+
+## ShaderContract
+
+推荐结构：
+
+```python
+class BindingAccess(StrEnum):
+    READ = "read"
+    WRITE = "write"
+    READ_WRITE = "read_write"
+
+
+@dataclass(frozen=True, slots=True)
+class TensorContract:
+    dtype: str
+    shape: tuple[int | str, ...]
+    layout: TensorLayout = ROW_MAJOR
+
+
+@dataclass(frozen=True, slots=True)
+class Binding:
+    field: str
+    binding: int
+    access: BindingAccess
+    descriptor_type: str = "storage_buffer"
+
+
+@dataclass(frozen=True, slots=True)
+class ShaderContract:
+    name: str
+    inputs: Mapping[str, TensorContract]
+    outputs: Mapping[str, TensorContract]
+    bindings: tuple[Binding, ...]
+    dispatch: tuple[int | str, int | str, int | str]
+    push_constants: Mapping[str, str] = field(default_factory=dict)
+    specialization_constants: Mapping[int, int] = field(default_factory=dict)
+```
+
+contract 校验至少包括：
+
+1. required field 必须传入；
+2. 不允许 unknown field；
+3. dtype/rank/shape/layout 必须匹配；
+4. symbolic shape 必须能在 dispatch 前 resolve；
+5. binding 编号不重复；
+6. WRITE binding 必须对应 output；
+7. READ binding 未 materialized 时必须能按 read rules materialize；
+8. WRITE tensor 的 role/memory/lifetime 合法；
+9. shader source 里的 descriptor binding 和 contract 一致；
+10. dispatch size 必须是 concrete int。
+
+## DispatchRecord
+
+每次 shader dispatch 都必须记录执行事实：
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -514,13 +669,17 @@ class DispatchRecord:
     frame: str
     scope: FrameScope
     shader: str
-    reads: Mapping[str, LogicalTensor]
-    writes: Mapping[str, LogicalTensor]
+    reads: Mapping[str, TensorInstanceKey]
+    writes: Mapping[str, TensorInstanceKey]
+    logical_reads: Mapping[str, str]
+    logical_writes: Mapping[str, str]
     symbols: Mapping[str, int]
     dispatch_size: tuple[int, int, int]
 ```
 
-Frame 结束后收集：
+记录 `TensorInstanceKey` 是为了准确 readback、compare、replay 和 liveness。记录 logical name 是为了 debug 报告可读。
+
+Frame 结束后：
 
 ```text
 used tensors = all reads + all writes
@@ -529,30 +688,29 @@ candidate boundary tensors = writes where compare != None and pytorch_probe != N
 
 默认只比较 write tensors，因为它们是 candidate 本次 forward 实际产生的值。
 
-## PyTorch 对拍流程
+## PyTorch 对拍
 
-对拍流程必须由 candidate 驱动：
+对拍由 candidate frame 驱动：
 
 ```text
-1. 进入 Frame scope
-2. 跑 Vulkan candidate forward
-3. RuntimeSession 收集 dispatch records 和 written LogicalTensors
-4. 退出 candidate forward，但保留 Frame outputs / compare tensors
-5. 根据 collected LogicalTensors 安装 PyTorch hooks/probes
-6. 跑一次 PyTorch model.forward
-7. hook 收集 reference artifacts
-8. RuntimeSession readback candidate tensors
-9. compare candidate vs reference
-10. 释放/reuse Frame workspace
+1. 进入 rt.frame(...)
+2. 跑 Vulkan candidate eager forward
+3. RuntimeSession 收集 dispatch records 和 written TensorInstanceKey
+4. candidate forward 结束后，筛选 compare/probe tensors
+5. 根据每个 LogicalTensor.pytorch_probe 安装 PyTorch hooks
+6. lockstep 跑一次传入 Frame 的 PyTorch model.forward
+7. hooks 收集 PyTorch artifacts
+8. RuntimeSession readback 对应 candidate TensorInstanceKey
+9. 按 LogicalTensor.compare 比较
+10. 报告 mismatch
+11. 释放或复用 Frame workspace
 ```
 
-注意：PyTorch reference 不决定比较哪些 tensors。它只根据 candidate 收集到的 `LogicalTensor.pytorch_probe` 安装 hook。
+PyTorch model 不决定比较哪些 tensors。RuntimeSession 只根据 candidate 实际写出的 tensors 以及这些 `LogicalTensor` 自带的 `pytorch_probe` metadata 安装 hook/probe，然后 lockstep 执行当前 Frame 传入的 PyTorch model。
 
-## Probe 规则
+### PyTorchProbe
 
-`PyTorchProbe` 描述如何从 PyTorch forward 中抓 reference artifact。
-
-示例：
+推荐结构：
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -564,27 +722,27 @@ class PyTorchProbe:
     transform: str | None = None
 ```
 
-`probes.py` 负责把 probe metadata 映射到具体 PyTorch module/hook。
+`PyTorchProbe` 是 `LogicalTensor` 的一部分，不是独立的平行系统。RuntimeSession 根据 candidate 写出的 LogicalTensor 读取其中的 `pytorch_probe`，再在当前 Frame 传入的 PyTorch model 上安装 hook。
 
-它不应该手写 candidate 公式：
+禁止在任何独立 registry 或 helper 里手写 candidate 公式：
 
 ```python
 # bad
-return {"audio_codec.decoder.conv1": conv1d(x, w, b)}
+return {"audio_codec_decoder.decoder.conv1": conv1d(x, w, b)}
 ```
 
-reference 必须来自 PyTorch/official model.forward 过程中的真实 tensor。
+PyTorch artifact 必须来自当前 Frame 传入的 PyTorch model.forward 过程中的真实 tensor。`derived` 只允许表达 dtype/layout/shape 变换等边界变换，不能重新实现模型 op。
 
-## Compare 规则
+### ComparePolicy
 
-Compare 使用 `LogicalTensor.compare`。
+推荐结构：
 
 ```python
 @dataclass(frozen=True, slots=True)
 class ComparePolicy:
     kind: Literal["tensor", "token", "waveform"]
-    rtol: float
-    atol: float
+    rtol: float = 1e-4
+    atol: float = 1e-4
     max_abs: float | None = None
 ```
 
@@ -592,106 +750,79 @@ class ComparePolicy:
 
 ```text
 frame name
+scope
 artifact key
 logical tensor name
+candidate TensorInstanceKey
 writer shader / dispatch index
 candidate shape/dtype
-reference shape/dtype
+PyTorch artifact shape/dtype
 max_abs / max_rel
 first mismatch index if practical
 ```
 
-## Artifact key 和 Scope
+## 显存释放规则
 
-`LogicalTensor.name` 不编码动态 audio/video/text index 或 row。动态上下文属于 `FrameScope`。
+RuntimeSession 拥有所有 allocation。LogicalTensor 不拥有 allocation。
 
-示例：
-
-```text
-logical name: text_llm.decode.layer.03.output
-frame: text_llm_cond.decode
-scope: audio.token_005/row=cond
-artifact key: audio.token_005/row=cond/text_llm_cond.decode/text_llm.decode.layer.03.output
-```
-
-Audio codec decoder 没有 cond/uncond row，可以是：
+释放边界：
 
 ```text
-logical name: audio_codec.decoder.waveform
-frame: audio_codec_decoder.forward
-scope: audio.codec_decoder
-artifact key: audio.codec_decoder/audio_codec_decoder.forward/audio_codec.decoder.waveform
+OP exit
+  recycle OP_SCRATCH
+
+Frame exit
+  compare/readback 完成后 release/reuse FRAME_WORKSPACE
+  keep REQUEST_STATE / KV_CACHE
+  keep MODEL_WEIGHT
+  keep explicitly exported pipeline outputs
+
+Request/Pipeline exit
+  release REQUEST_STATE
+  release generated token buffers
+  release final host readback buffers if not returned
+  keep MODEL_WEIGHT
+
+RuntimeSession close
+  vkDeviceWaitIdle
+  release all buffers and memory
+  release pipelines/shader modules
+  release command pools
+  release device/instance
 ```
 
-## OmniVoice 生命周期示例
+MVP 可以先不做 tensor-level aliasing，但必须用 pool/arena 避免 per-shader raw allocation。后续 liveness/aliasing 只能优化 runtime 的 offset 分配策略，不能改变模型目录的表达方式。
 
-### Model lifetime
+## Replay 和优化边界
+
+初期 eager execution 每次都由 Python 调 shader wrapper。
+
+后续 replay 优化由 RuntimeSession 从 dispatch records 生成：
 
 ```text
-audio token predictor weights
-text LLM weights
-audio codec decoder weights
-shader modules / pipelines if cached
+Frame eager execution
+  -> dispatch records
+  -> replay plan
+  -> cached pipelines/descriptors/command buffers
+  -> liveness/aliasing storage plan
 ```
 
-### Request/Pipeline lifetime
-
-```text
-text prompt ids
-generated audio tokens
-text LLM KV cache
-final waveform / output handles
-```
-
-### Frame lifetime
-
-Audio token predictor frame：
-
-```text
-audio predictor hidden
-audio predictor logits
-candidate audio token scratch
-```
-
-Text LLM decode frame：
-
-```text
-current hidden
-q/k/v projections
-attention context
-mlp intermediates
-logits
-sampling scratch
-```
-
-Audio codec decoder frame：
-
-```text
-quantizer embed_sum
-project_out intermediates
-decoder conv/deconv/resblock activations
-waveform output
-```
-
-### OP lifetime
-
-```text
-split-k scratch
-reduction partials
-temporary argmax buffers
-```
+Replay 只能是 runtime 优化，不允许模型目录为了 replay 改写成另一套 graph IR。模型表达仍然是点、线、eager 连接。
 
 ## MVP 规则
 
-MVP 可以先简单实现：
+第一版必须坚持：
 
-1. weights model-lifetime 常驻；
-2. inputs/request state pipeline-lifetime 常驻；
-3. Frame workspace 全量分配，Frame 结束统一释放；
-4. 暂不做 aliasing；
-5. 后续根据 dispatch records 做 liveness/aliasing 优化。
-
-即使 MVP 不做 aliasing，也必须通过 Frame scope 建立释放边界。否则无法从全量常驻平滑演进到显存复用。
+1. `LogicalTensor` 是声明对象，不携带模型代码可依赖的 `storage`；
+2. 模型 forward 必须在 `with rt.frame(...)` 内执行；
+3. 模型 forward 只调用 shader wrapper，不手工分配/free 显存；
+4. `RuntimeSession.dispatch()` resolve/materialize reads/writes，但不做 per-shader raw Vulkan allocation；
+5. weights model-lifetime 常驻；
+6. inputs/request state request-lifetime 或 frame-lifetime；
+7. frame workspace 在 frame exit 后释放或复用；
+8. 不做 aliasing；
+9. 不做复杂 replay；
+10. dispatch record 必须足够支持 readback、compare 和后续 replay。
 
 ## 禁止事项
 
@@ -699,16 +830,9 @@ MVP 可以先简单实现：
 不要让模型 forward 调用 RuntimeSession.empty/load_weight/free
 不要让模型目录写 materialize.py 管显存
 不要暴露 frame.workspace.* 物理 slot tree
-不要由 PyTorch reference 决定 compare tensors
+不要把 BufferSlice 放进模型语义命名
 不要把 audio/video/text index 或 row 写进 LogicalTensor.name
+不要由 PyTorch model 决定 compare tensors
 不要 silent dtype cast
-```
-
-## 一句话规则
-
-```text
-LogicalTensor 声明 tensor 是什么。
-Frame 声明一次 model.forward 活多久。
-RuntimeSession 根据 LogicalTensor + Frame 自动分配和释放显存。
-PyTorch 对拍由 candidate Frame 实际写出的 LogicalTensors 驱动。
+不要把 replay plan 当成模型表达源头
 ```
