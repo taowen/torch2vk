@@ -32,6 +32,7 @@ uv run python scripts/vulkan_qwen3_rms_norm_smoke.py
 uv run python scripts/vulkan_qwen3_rms_norm_rope_smoke.py
 uv run python scripts/vulkan_qwen3_set_rows_smoke.py
 uv run python scripts/vulkan_qwen3_fa_split_reduce_smoke.py
+uv run python scripts/vulkan_qwen3_flash_attn_smoke.py
 
 echo "==> pytest"
 set +e
