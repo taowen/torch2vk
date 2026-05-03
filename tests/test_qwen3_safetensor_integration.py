@@ -2,142 +2,211 @@
 
 from __future__ import annotations
 
+import importlib
 import os
+import pkgutil
 import struct
 import unittest
+from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
-from safetensors import safe_open
+import torch
 
 from torch2vk.artifacts import read_bound_tensor_artifacts
-from torch2vk.logical import ComparePolicy, input_tensor, output_tensor, weight_tensor
-from torch2vk.models.qwen3_safetensor.shaders.embedding_lookup_bf16_f32_sequence import (
-    EMBEDDING_LOOKUP_BF16_F32,
+from torch2vk.logical import ComparePolicy, LogicalTensor
+from torch2vk.models.qwen3_safetensor.debug import (
+    qwen3_prefill_debug_boundaries,
+    qwen3_prefill_initial_tensors,
 )
+from torch2vk.models.qwen3_safetensor.execution import (
+    qwen3_execution_tensors,
+    record_qwen3_prefill,
+)
+from torch2vk.models.qwen3_safetensor.runtime import (
+    qwen3_close_resource_buffers,
+    qwen3_collect_logical_tensors,
+    qwen3_first_tensor,
+    qwen3_resource_buffers,
+    qwen3_tensor_lookup,
+)
+from torch2vk.models.qwen3_safetensor.schema import qwen3_weight_tensors
 from torch2vk.models.qwen3_safetensor.spec import load_qwen3_spec
 from torch2vk.models.qwen3_safetensor.weights import (
-    qwen3_safetensor_weight_bytes,
+    qwen3_safetensor_weight_payloads,
     verify_qwen3_safetensor_weights,
 )
 from torch2vk.schema import BoundaryRule
-from torch2vk.shader import DispatchTarget
-from torch2vk.storage import bind_storage, plan_storage
-from torch2vk.validation import compare_declared_boundaries
-from torch2vk.vulkan_backend import create_compute_context
+from torch2vk.shader import DispatchTarget, ShaderVariant
+from torch2vk.storage import bind_storage, plan_storage, tensor_nbytes
+from torch2vk.validation import compare_declared_boundaries, validate_dispatch_read_write_chain
+from torch2vk.vulkan_backend import VulkanBuffer, create_compute_context
 from torch2vk.vulkan_runner import (
+    LogicalTensorLookup,
     VulkanSequenceRunner,
     allocate_storage_buffers,
     write_bound_tensor_bytes,
     write_bound_tensor_payloads,
 )
 
-if TYPE_CHECKING:
-    import torch
-
 DEFAULT_MODEL_DIR = Path("models/weights/qwen3-0.6b-safetensor")
+PACKAGE = "torch2vk.models.qwen3_safetensor.shaders"
 SHADER_DIR = Path("build/shaders/qwen3_safetensor")
-WEIGHT_KEY = "model.embed_tokens.weight"
 
 
 class Qwen3SafetensorIntegrationTest(unittest.TestCase):
-    def test_embedding_shader_matches_pytorch_reference(self) -> None:
+    def test_prefill_prefix_matches_pytorch_reference(self) -> None:
         model_dir = Path(os.environ.get("QWEN3_SAFETENSOR_DIR", str(DEFAULT_MODEL_DIR)))
         if not model_dir.exists():
             self.skipTest(f"missing Qwen3 safetensor model directory: {model_dir}")
-        if not (SHADER_DIR / f"{EMBEDDING_LOOKUP_BF16_F32.name}.spv").exists():
+        if not SHADER_DIR.exists():
             self.skipTest("Qwen3 shaders are not compiled")
 
-        spec = load_qwen3_spec(model_dir)
+        base_spec = load_qwen3_spec(model_dir)
+        spec = replace(base_spec, num_hidden_layers=1)
         verification = verify_qwen3_safetensor_weights(model_dir, spec=spec)
         verification.raise_for_mismatches()
-        checkpoint_tensor = verification.checkpoint_tensors[WEIGHT_KEY]
-        safetensor_handle = cast(
-            "Any",
-            safe_open(checkpoint_tensor.shard, framework="pt", device="cpu"),
-        )
-        with safetensor_handle as handle:
-            embed = cast("torch.Tensor", handle.get_tensor(WEIGHT_KEY)).contiguous()
 
-        batch = 1
-        steps = 2
-        input_ids = (0, 1)
-        expected = (
-            embed[list(input_ids)]
-            .float()
-            .reshape(batch, steps, spec.hidden_size)
-            .contiguous()
+        execution_tensors = qwen3_execution_tensors(batch=1, steps=1, spec=spec, max_seq_len=1)
+        dispatch_target = DispatchTarget()
+        record_qwen3_prefill(dispatch_target, spec=spec, tensors=execution_tensors)
+        validate_dispatch_read_write_chain(
+            dispatch_target.records,
+            initial_tensors=qwen3_prefill_initial_tensors(spec=spec, tensors=execution_tensors),
+        ).raise_for_issues()
+
+        unbound = (
+            *qwen3_collect_logical_tensors(execution_tensors),
+            *qwen3_weight_tensors(spec),
         )
-        variant = EMBEDDING_LOOKUP_BF16_F32
-        tensors = {
-            "input_ids": input_tensor("input_ids", dtype="int32", shape=(batch, steps)),
-            "weight": weight_tensor(
-                "weight",
-                dtype="bfloat16",
-                shape=(spec.vocab_size, spec.hidden_size),
-                source_key=WEIGHT_KEY,
-            ),
-            "output": output_tensor(
-                "output",
-                dtype="float32",
-                shape=(batch, steps, spec.hidden_size),
-            ),
-        }
-        target = DispatchTarget()
-        variant(target, **tensors)
-        unbound = tuple(tensors.values())
-        plan = plan_storage(unbound, allocation_id="qwen3-integration-embedding")
-        bound = {tensor.name: tensor for tensor in bind_storage(unbound, plan)}
+        plan = plan_storage(unbound, allocation_id="qwen3-integration-prefill")
+        bound = bind_storage(unbound, plan)
+        tensors = qwen3_tensor_lookup(bound)
+        reference_logits = _pytorch_qwen3_prefill_logits(model_dir)
+        reference_token = reference_logits[:, -1].argmax(dim=-1).to(torch.int32)
 
         context = create_compute_context()
         try:
             allocations = allocate_storage_buffers(context, plan)
+            resources = qwen3_resource_buffers(context)
             try:
-                write_bound_tensor_bytes(
-                    bound["input_ids"],
-                    allocations,
-                    struct.pack(f"<{len(input_ids)}i", *input_ids),
+                _write_initial_tensors(
+                    tensors=tensors,
+                    allocations=allocations,
+                    initial=qwen3_prefill_initial_tensors(
+                        spec=spec,
+                        tensors=execution_tensors,
+                    ),
                 )
                 write_bound_tensor_payloads(
-                    bound,
+                    tensors,
                     allocations,
-                    {
-                        "weight": qwen3_safetensor_weight_bytes(
-                            model_dir,
-                            tensors["weight"],
-                            spec=spec,
-                        )
-                    },
+                    qwen3_safetensor_weight_payloads(model_dir, spec=spec),
                 )
                 runner = VulkanSequenceRunner(
                     context=context,
                     shader_dir=SHADER_DIR,
-                    variants={variant.name: variant},
+                    variants=_shader_variants(),
                 )
+                records = tuple(dispatch_target.records)
                 runner.run_bound_storage(
-                    tuple(target.records),
-                    tensors=bound,
+                    records,
+                    tensors=tensors,
                     allocations=allocations,
+                    resource_buffers=resources,
                 )
                 report = compare_declared_boundaries(
-                    (
-                        BoundaryRule(
-                            name="embedding",
-                            phase="model",
-                            order=0,
-                            tensors=(bound["output"],),
-                            compare=ComparePolicy(kind="tensor", rtol=0.0, atol=0.0),
-                            checkpoint=bound["input_ids"],
-                            readback="writer-io",
-                        ),
+                    _final_prefill_boundaries(execution_tensors),
+                    dispatch_records=records,
+                    reference={
+                        "output.logits": reference_logits,
+                        "output.next_token_id": reference_token,
+                    },
+                    candidate=read_bound_tensor_artifacts(
+                        tensors,
+                        allocations,
+                        names=("output.logits", "output.next_token_id"),
                     ),
-                    dispatch_records=tuple(target.records),
-                    reference={"output": expected},
-                    candidate=read_bound_tensor_artifacts(bound, allocations, names=("output",)),
                 )
                 report.raise_for_mismatch()
             finally:
+                qwen3_close_resource_buffers(resources)
                 for allocation in allocations.values():
                     allocation.close()
         finally:
             context.close()
+
+
+def _write_initial_tensors(
+    *,
+    tensors: LogicalTensorLookup,
+    allocations: dict[str, VulkanBuffer],
+    initial: tuple[LogicalTensor, ...],
+) -> None:
+    for tensor in initial:
+        bound_tensor = qwen3_first_tensor(tensors[tensor.name])
+        if tensor.name in {"input.input_ids", "input.position_ids"}:
+            payload = struct.pack("<i", 0)
+        elif tensor.name == "input.row_indices":
+            payload = struct.pack("<q", 0)
+        else:
+            payload = bytes(tensor_nbytes(bound_tensor))
+        write_bound_tensor_bytes(bound_tensor, allocations, payload)
+
+
+def _pytorch_qwen3_prefill_logits(model_dir: Path) -> torch.Tensor:
+    transformers = cast("Any", importlib.import_module("transformers"))
+    config = transformers.AutoConfig.from_pretrained(model_dir, local_files_only=True)
+    config.num_hidden_layers = 1
+    model = transformers.AutoModelForCausalLM.from_pretrained(
+        model_dir,
+        config=config,
+        local_files_only=True,
+        torch_dtype=torch.bfloat16,
+        device_map=None,
+    )
+    model.eval()
+    with torch.no_grad():
+        output = model(input_ids=torch.tensor([[0]], dtype=torch.long), use_cache=False)
+    return cast("torch.Tensor", output.logits).float().contiguous()
+
+
+def _final_prefill_boundaries(tensors: Any) -> tuple[BoundaryRule, ...]:
+    debug_boundaries = qwen3_prefill_debug_boundaries(tensors)
+    logits = next(boundary for boundary in debug_boundaries if boundary.name == "prefill.logits")
+    next_token = next(
+        boundary for boundary in debug_boundaries if boundary.name == "prefill.next_token"
+    )
+    return (
+        BoundaryRule(
+            name=logits.name,
+            phase=logits.phase,
+            order=logits.order,
+            tensors=logits.tensors,
+            compare=ComparePolicy(kind="tensor", rtol=0.0, atol=0.2),
+            checkpoint=logits.checkpoint,
+            readback=logits.readback,
+        ),
+        BoundaryRule(
+            name=next_token.name,
+            phase=next_token.phase,
+            order=next_token.order,
+            tensors=next_token.tensors,
+            compare=ComparePolicy(kind="token"),
+            checkpoint=next_token.checkpoint,
+            readback=next_token.readback,
+        ),
+    )
+
+
+def _shader_variants() -> dict[str, ShaderVariant]:
+    package = importlib.import_module(PACKAGE)
+    variants: dict[str, ShaderVariant] = {}
+    for module_info in pkgutil.iter_modules(package.__path__):
+        if module_info.name.startswith("_"):
+            continue
+        module = importlib.import_module(f"{PACKAGE}.{module_info.name}")
+        for value in vars(module).values():
+            if isinstance(value, ShaderVariant):
+                variants[value.name] = value
+    return variants

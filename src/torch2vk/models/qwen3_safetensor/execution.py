@@ -55,6 +55,7 @@ class Qwen3LayerTensors:
     mlp_gate: LogicalTensor
     mlp_up: LogicalTensor
     mlp_gated: LogicalTensor
+    mlp_down: LogicalTensor
     output: LogicalTensor
 
 
@@ -317,6 +318,12 @@ def _record_qwen3_layer(
         target,
         x=layer.mlp_gated,
         weight=weights[f"{prefix}.mlp.down_proj"],
+        output=layer.mlp_down,
+    )
+    ADD_F32(
+        target,
+        lhs=layer.attention_residual,
+        rhs=layer.mlp_down,
         output=layer.output,
     )
     if spec.hidden_act != "silu":
@@ -437,6 +444,7 @@ def _qwen3_layer_tensors(
         mlp_gate=_activation(prefix, "mlp.gate", batch, steps, spec.intermediate_size),
         mlp_up=_activation(prefix, "mlp.up", batch, steps, spec.intermediate_size),
         mlp_gated=_activation(prefix, "mlp.gated", batch, steps, spec.intermediate_size),
+        mlp_down=_activation(prefix, "mlp.down", batch, steps, spec.hidden_size),
         output=_activation(prefix, "output", batch, steps, spec.hidden_size),
     )
 

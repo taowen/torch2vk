@@ -73,6 +73,7 @@ def qwen3_prefill_debug_boundaries(
                         layer.mlp_gate,
                         layer.mlp_up,
                         layer.mlp_gated,
+                        layer.mlp_down,
                         layer.output,
                     ),
                     compare=tensor_compare,
