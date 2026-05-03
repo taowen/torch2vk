@@ -247,6 +247,20 @@ class VulkanContext:
         )[0]
         return VulkanComputePipeline(context=self, pipeline=pipeline)
 
+    def create_command_pool(self) -> VulkanCommandPool:
+        create_info = self.vk.VkCommandPoolCreateInfo(
+            sType=self.vk.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            queueFamilyIndex=self.compute_queue_family,
+            flags=self.vk.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        )
+        pool = self.vk.vkCreateCommandPool(self.device, create_info, None)
+        return VulkanCommandPool(context=self, pool=pool)
+
+    def create_fence(self) -> VulkanFence:
+        create_info = self.vk.VkFenceCreateInfo(sType=self.vk.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO)
+        fence = self.vk.vkCreateFence(self.device, create_info, None)
+        return VulkanFence(context=self, fence=fence)
+
 
 @dataclass(slots=True)
 class VulkanBuffer:
@@ -332,6 +346,66 @@ class VulkanComputePipeline:
 
     def close(self) -> None:
         self.context.vk.vkDestroyPipeline(self.context.device, self.pipeline, None)
+
+
+@dataclass(slots=True)
+class VulkanCommandPool:
+    context: VulkanContext
+    pool: Any
+
+    def close(self) -> None:
+        self.context.vk.vkDestroyCommandPool(self.context.device, self.pool, None)
+
+    def allocate_command_buffer(self) -> VulkanCommandBuffer:
+        vk = self.context.vk
+        allocate_info = vk.VkCommandBufferAllocateInfo(
+            sType=vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            commandPool=self.pool,
+            level=vk.VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            commandBufferCount=1,
+        )
+        command_buffer = vk.vkAllocateCommandBuffers(self.context.device, allocate_info)[0]
+        return VulkanCommandBuffer(context=self.context, command_buffer=command_buffer)
+
+
+@dataclass(slots=True)
+class VulkanCommandBuffer:
+    context: VulkanContext
+    command_buffer: Any
+
+    def begin(self) -> None:
+        begin_info = self.context.vk.VkCommandBufferBeginInfo(
+            sType=self.context.vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            flags=self.context.vk.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        )
+        self.context.vk.vkBeginCommandBuffer(self.command_buffer, begin_info)
+
+    def end(self) -> None:
+        self.context.vk.vkEndCommandBuffer(self.command_buffer)
+
+    def submit_and_wait(self, fence: VulkanFence) -> None:
+        submit_info = self.context.vk.VkSubmitInfo(
+            sType=self.context.vk.VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            commandBufferCount=1,
+            pCommandBuffers=[self.command_buffer],
+        )
+        self.context.vk.vkQueueSubmit(self.context.compute_queue, 1, [submit_info], fence.fence)
+        self.context.vk.vkWaitForFences(
+            self.context.device,
+            1,
+            [fence.fence],
+            self.context.vk.VK_TRUE,
+            10_000_000_000,
+        )
+
+
+@dataclass(slots=True)
+class VulkanFence:
+    context: VulkanContext
+    fence: Any
+
+    def close(self) -> None:
+        self.context.vk.vkDestroyFence(self.context.device, self.fence, None)
 
 
 def enumerate_physical_devices() -> tuple[VulkanPhysicalDevice, ...]:
