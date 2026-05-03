@@ -12,6 +12,8 @@ dist/
 build/
 .cache/
 models/weights/
+*.gguf
+*.GGUF
 .DS_Store
 .idea/
 .vscode/

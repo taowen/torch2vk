@@ -1,12 +1,24 @@
 from __future__ import annotations
 
 import unittest
+from importlib import resources
 
+from torch2vk.copied_shader_source import (
+    copied_assignment_string,
+    copied_module_shader_sources,
+    copied_shader_variant_source,
+)
+from torch2vk.models.qwen3_safetensor.copied_shader_manifest import QWEN3_COPIED_SHADER_MODULES
 from torch2vk.models.qwen3_safetensor.execution import (
     qwen3_execution_tensors,
     record_qwen3_minimal_prefill,
 )
 from torch2vk.models.qwen3_safetensor.schema import qwen3_model_schema, qwen3_weight_tensors
+from torch2vk.models.qwen3_safetensor.shaders import (
+    EMBEDDING_LOOKUP_BF16_F32,
+    LINEAR_BF16_F32,
+    RMS_NORM_F32,
+)
 from torch2vk.models.qwen3_safetensor.spec import Qwen3Spec
 from torch2vk.shader import DispatchTarget
 
@@ -71,7 +83,7 @@ class Qwen3SafetensorTests(unittest.TestCase):
         self.assertEqual(
             [record.shader for record in target.records],
             [
-                "embedding_lookup_bf16_f32",
+                "embedding_lookup_bf16_f32_sequence",
                 "rms_norm_f32",
                 "linear_bf16_f32",
             ],
@@ -103,6 +115,52 @@ class Qwen3SafetensorTests(unittest.TestCase):
                     logits=tensors.logits,
                 ),
             )
+
+    def test_qwen3_copied_shader_manifest_files_exist(self) -> None:
+        copied_dir = resources.files("torch2vk.copied.agentorch_shader_source")
+        missing = [
+            module_file
+            for module_file in QWEN3_COPIED_SHADER_MODULES
+            if not copied_dir.joinpath(module_file).is_file()
+        ]
+        self.assertEqual(missing, [])
+
+    def test_initial_shader_sources_are_copied_not_placeholders(self) -> None:
+        self.assertEqual(
+            EMBEDDING_LOOKUP_BF16_F32.source,
+            copied_shader_variant_source(
+                "embedding_lookup_bf16_f32_sequence.py",
+                "EMBEDDING_LOOKUP_BF16_F32_SEQUENCE",
+            ),
+        )
+        self.assertEqual(
+            RMS_NORM_F32.source,
+            copied_assignment_string(
+                "rms_norm_f32_f32_weight_llama_wg512.py",
+                "_RMS_NORM_COMP_SOURCE",
+            ),
+        )
+        self.assertEqual(
+            LINEAR_BF16_F32.source,
+            copied_assignment_string(
+                "matmul_bf16_f32_f16acc_aligned_l.py",
+                "_MATMUL_BF16_F32_F16ACC_ALIGNED_CM1_SOURCE",
+            ),
+        )
+        for shader in (EMBEDDING_LOOKUP_BF16_F32, RMS_NORM_F32, LINEAR_BF16_F32):
+            self.assertNotIn("TODO: implement Vulkan GLSL", shader.source)
+
+    def test_qwen3_copied_shader_modules_expose_sources(self) -> None:
+        missing_sources: list[str] = []
+        for module_file in QWEN3_COPIED_SHADER_MODULES:
+            sources = copied_module_shader_sources(module_file)
+            if not sources:
+                missing_sources.append(module_file)
+                continue
+            for source in sources.values():
+                self.assertIn("#version", source)
+                self.assertNotIn("TODO: implement Vulkan GLSL", source)
+        self.assertEqual(missing_sources, [])
 
 
 if __name__ == "__main__":
