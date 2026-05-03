@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import ast
+import operator
 import re
 import struct
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -304,17 +306,9 @@ def _resolve_symbolic_int(
 ) -> int:
     if isinstance(value, int):
         return value
-    if "*" in value:
-        product = 1
-        for part in value.split("*"):
-            product *= _resolve_symbolic_int(contract_name, part.strip(), symbols)
-        return product
     if value.isdecimal():
         return int(value)
-    resolved = symbols.get(value)
-    if resolved is None:
-        raise ValueError(f"{contract_name} uniform references unresolved symbol {value!r}")
-    return resolved
+    return _resolve_int_expression(contract_name, value, symbols)
 
 
 def _resolve_push_constant_value(
@@ -327,25 +321,98 @@ def _resolve_push_constant_value(
         return value
     if value.isdecimal():
         return int(value)
-    if "*" in value:
-        product = 1
-        for part in value.split("*"):
-            resolved = _resolve_push_constant_value(
-                contract_name,
-                part.strip(),
-                tensors,
-                symbols,
-            )
-            product *= int(resolved)
-        return product
     if value in symbols:
         return symbols[value]
+    tensor_reference = _resolve_tensor_reference_expression(contract_name, value, tensors, symbols)
+    if tensor_reference is not None:
+        return tensor_reference
+    if _looks_like_int_expression(value):
+        return _resolve_int_expression(contract_name, value, symbols)
+    raise ValueError(f"{contract_name} push constant references unresolved value {value!r}")
+
+
+def _resolve_tensor_reference_expression(
+    contract_name: str,
+    value: str,
+    tensors: Mapping[str, LogicalTensor],
+    symbols: Mapping[str, int],
+) -> int | None:
     if value.endswith(".numel"):
         return _tensor_numel(contract_name, tensors, value.removesuffix(".numel"))
+    if "*" in value and ".dim" in value:
+        product = 1
+        for part in value.split("*"):
+            product *= int(
+                _resolve_push_constant_value(contract_name, part.strip(), tensors, symbols)
+            )
+        return product
     if ".dim" in value:
         field, _, dim_text = value.partition(".dim")
         return _tensor_dim(contract_name, tensors, field, int(dim_text))
-    raise ValueError(f"{contract_name} push constant references unresolved value {value!r}")
+    return None
+
+
+def _looks_like_int_expression(value: str) -> bool:
+    return any(operator in value for operator in ("+", "-", "*", "/", "%", "<", ">", "|", "&"))
+
+
+def _resolve_int_expression(
+    contract_name: str,
+    value: str,
+    symbols: Mapping[str, int],
+) -> int:
+    try:
+        expression = ast.parse(value, mode="eval")
+    except SyntaxError as exc:
+        raise ValueError(f"{contract_name} references invalid expression {value!r}") from exc
+    return _eval_int_expression(contract_name, expression.body, symbols)
+
+
+def _eval_int_expression(
+    contract_name: str,
+    node: ast.AST,
+    symbols: Mapping[str, int],
+) -> int:
+    if isinstance(node, ast.Constant) and isinstance(node.value, int):
+        return node.value
+    if isinstance(node, ast.Name):
+        try:
+            return symbols[node.id]
+        except KeyError as exc:
+            raise ValueError(
+                f"{contract_name} expression references unresolved symbol {node.id!r}"
+            ) from exc
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        return -_eval_int_expression(contract_name, node.operand, symbols)
+    if isinstance(node, ast.BinOp):
+        lhs = _eval_int_expression(contract_name, node.left, symbols)
+        rhs = _eval_int_expression(contract_name, node.right, symbols)
+        return _eval_binary_int(contract_name, node.op, lhs, rhs)
+    raise ValueError(f"{contract_name} expression contains unsupported syntax {ast.dump(node)}")
+
+
+def _eval_binary_int(contract_name: str, op: ast.operator, lhs: int, rhs: int) -> int:
+    if isinstance(op, ast.Div | ast.FloorDiv):
+        if rhs == 0:
+            raise ValueError(f"{contract_name} expression divides by zero")
+        if lhs % rhs != 0:
+            raise ValueError(f"{contract_name} expression has non-integral division {lhs}/{rhs}")
+        return lhs // rhs
+    operations: Mapping[type[ast.operator], Callable[[int, int], int]] = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Mod: operator.mod,
+        ast.LShift: operator.lshift,
+        ast.BitOr: operator.or_,
+        ast.BitAnd: operator.and_,
+    }
+    for operator_type, function in operations.items():
+        if isinstance(op, operator_type):
+            if rhs == 0 and operator_type is ast.Mod:
+                raise ValueError(f"{contract_name} expression modulo by zero")
+            return int(function(lhs, rhs))
+    raise ValueError(f"{contract_name} expression contains unsupported operator {op!r}")
 
 
 def _pack_push_constant_value(

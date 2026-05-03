@@ -1210,7 +1210,7 @@ FLASH_ATTN_F32_F16 = ShaderVariant(
             Binding("split_k_output", 5, BindingAccess.WRITE),
             Binding("mask_opt_placeholder", 6, BindingAccess.READ),
         ),
-        dispatch=("S*4", "KH", "B"),
+        dispatch=("S*4*(QH/KH)", "KH", "B"),
         push_constants=PushConstantBlock(
             size=128,
             fields=(
@@ -1243,7 +1243,7 @@ FLASH_ATTN_F32_F16 = ShaderVariant(
                 PushConstantField("mask_n_head_log2", 104, "uint32", 1),
                 PushConstantField("m0", 108, "float32", 0.0),
                 PushConstantField("m1", 112, "float32", 0.0),
-                PushConstantField("gqa_ratio", 116, "uint32", 1),
+                PushConstantField("gqa_ratio", 116, "uint32", "QH / KH"),
                 PushConstantField("split_kv", 120, "uint32", 4),
                 PushConstantField("k_num", 124, "uint32", 4),
             ),
