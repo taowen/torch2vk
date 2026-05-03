@@ -82,7 +82,6 @@ class TensorContract:
 class TensorFieldSpec:
     name: str
     io_kind: IOKind
-    binding: int
     role: str
     contract: TensorContract
     descriptor_type: DescriptorType = DescriptorType.STORAGE_BUFFER
@@ -139,18 +138,12 @@ class ShaderContract:
         if len(self.dispatch) != 3:
             raise ValueError(f"{self.shader_name} dispatch must be rank 3")
         names: set[str] = set()
-        bindings: set[int] = set()
         for field_spec in self.fields:
             if not field_spec.name:
                 raise ValueError(f"{self.shader_name} has an empty field name")
             if field_spec.name in names:
                 raise ValueError(f"{self.shader_name} duplicate field name {field_spec.name}")
             names.add(field_spec.name)
-            if field_spec.binding in bindings:
-                raise ValueError(f"{self.shader_name} duplicate descriptor binding {field_spec.binding}")
-            bindings.add(field_spec.binding)
-            if field_spec.binding < 0:
-                raise ValueError(f"{self.shader_name}.{field_spec.name} binding must be non-negative")
             if field_spec.descriptor_type is not DescriptorType.STORAGE_BUFFER:
                 raise ValueError(f"{self.shader_name}.{field_spec.name} must be a storage buffer")
         if self.push_constants is not None:
@@ -193,7 +186,7 @@ class DispatchRecord:
     writes: tuple[tuple[str, str], ...]
     symbols: tuple[tuple[str, int], ...]
     dispatch_size: tuple[int, int, int]
-    descriptor_bindings: tuple[tuple[str, int, int, int], ...]
+    descriptor_views: tuple[tuple[str, int, int, int], ...]
     push_constant_values: tuple[tuple[str, int | float], ...] = dataclass_field(default_factory=tuple)
 
 

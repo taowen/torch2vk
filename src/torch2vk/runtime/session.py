@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import shutil
 import struct
 import subprocess
@@ -10,13 +11,14 @@ from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from types import TracebackType
-from typing import Any
+from typing import Any, Protocol, cast
 
 import numpy as np
 from vulkan import VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT
 
 from torch2vk.checkpoints.checkpoint_tensor import CheckpointTensor
 from torch2vk.checkpoints.safetensors import open_safetensors_mmap
+from torch2vk.runtime.compare import TensorCompareResult, compare_arrays, normalize_reference_outputs, select_probe_value
 from torch2vk.runtime.frame import FrameContext, FrameScope
 from torch2vk.runtime.logical import (
     DispatchWriter,
@@ -32,6 +34,7 @@ from torch2vk.runtime.shader import (
     PushConstantSpec,
     PushConstantType,
     ShaderVariant,
+    IOKind,
     TensorFieldSpec,
     eval_expr,
 )
@@ -39,6 +42,20 @@ from torch2vk.vulkan.allocation import BufferAllocation, BufferSlice
 from torch2vk.vulkan.compute_pipeline import ComputePipeline, DescriptorBufferBinding
 from torch2vk.vulkan.device import VulkanDevice
 from torch2vk.vulkan.types import TensorSpec, concrete_nbytes
+
+
+class _PyTorchModuleLike(Protocol):
+    def named_modules(self) -> Iterable[tuple[str, object]]: ...
+
+    def __call__(self, *args: object, **kwargs: object) -> object: ...
+
+
+class _HookHandleLike(Protocol):
+    def remove(self) -> None: ...
+
+
+class _ForwardHookModuleLike(Protocol):
+    def register_forward_hook(self, hook: object) -> _HookHandleLike: ...
 
 
 class RuntimeSession:
@@ -51,6 +68,7 @@ class RuntimeSession:
         self._inputs: dict[LogicalTensor, object] = {}
         self._frame_stack: list[FrameContext] = []
         self._dispatch_records: list[DispatchRecord] = []
+        self._compare_results: list[TensorCompareResult] = []
         self._pipeline_cache: dict[tuple[Any, ...], ComputePipeline] = {}
         self._model_allocations: list[BufferAllocation] = []
         self._request_allocations: list[BufferAllocation] = []
@@ -75,6 +93,10 @@ class RuntimeSession:
     @property
     def dispatch_records(self) -> tuple[DispatchRecord, ...]:
         return tuple(self._dispatch_records)
+
+    @property
+    def compare_results(self) -> tuple[TensorCompareResult, ...]:
+        return tuple(self._compare_results)
 
     def register_model(self, tensors: Iterable[LogicalTensor], *, model_dir: str | Path | None = None) -> None:
         if model_dir is not None:
@@ -101,6 +123,8 @@ class RuntimeSession:
         *,
         scope: Mapping[str, str | int] | None = None,
         pytorch_model: object | None = None,
+        pytorch_args: tuple[object, ...] = (),
+        pytorch_kwargs: Mapping[str, object] | None = None,
         reference_model: object | None = None,
     ):
         if not name:
@@ -109,16 +133,24 @@ class RuntimeSession:
             scope=FrameScope(frame=name, values={} if scope is None else dict(scope)),
             start_dispatch_index=len(self._dispatch_records),
             pytorch_model=pytorch_model,
+            pytorch_args=tuple(pytorch_args),
+            pytorch_kwargs={} if pytorch_kwargs is None else dict(pytorch_kwargs),
             reference_model=reference_model,
         )
         self._frame_stack.append(context)
+        candidate_completed = False
         try:
             yield context
+            candidate_completed = True
         finally:
-            popped = self._frame_stack.pop()
-            if popped is not context:
-                raise RuntimeError("RuntimeSession frame stack corrupted")
-            self._release_frame_allocations()
+            try:
+                if candidate_completed:
+                    self._compare_frame(context)
+            finally:
+                popped = self._frame_stack.pop()
+                if popped is not context:
+                    raise RuntimeError("RuntimeSession frame stack corrupted")
+                self._release_frame_allocations()
 
     def dispatch(self, variant: ShaderVariant, **arguments: object) -> None:
         self._require_open()
@@ -141,10 +173,10 @@ class RuntimeSession:
         for field in contract.input_fields:
             self._materialize_read(tensors[field.name])
         for field in contract.output_fields:
-            self._materialize_write(tensors[field.name])
+            self._materialize_write(tensors[field.name], io_kind=field.io_kind)
 
-        descriptor_bindings = tuple(
-            _descriptor_binding_for_field(field, tensors[field.name]) for field in contract.fields
+        descriptor_views = tuple(
+            _descriptor_view_for_field(field, tensors[field.name]) for field in contract.fields
         )
         push_constants, push_values = self._pack_push_constants(
             contract.push_constants,
@@ -161,7 +193,7 @@ class RuntimeSession:
 
         pipeline = self._pipeline_for_variant(variant)
         pipeline.dispatch(
-            buffers=[binding for _, binding in descriptor_bindings],
+            buffers=[view for _, view in descriptor_views],
             group_count_x=dispatch_size[0],
             group_count_y=dispatch_size[1],
             group_count_z=dispatch_size[2],
@@ -178,7 +210,10 @@ class RuntimeSession:
             writes=tuple((field.name, tensors[field.name].name) for field in contract.output_fields),
             symbols=tuple(sorted(symbols.items())),
             dispatch_size=dispatch_size,
-            descriptor_bindings=tuple(_record_descriptor_binding(field, tensors[field.name]) for field in contract.fields),
+            descriptor_views=tuple(
+                _record_descriptor_view(index, field, tensors[field.name])
+                for index, field in enumerate(contract.fields)
+            ),
             push_constant_values=tuple(sorted(push_values.items())),
         )
         self._dispatch_records.append(record)
@@ -190,6 +225,7 @@ class RuntimeSession:
                 shader=variant.name,
                 dispatch_index=index,
             )
+            frame.written_tensors.append(tensor)
 
     def readback(self, tensor: LogicalTensor) -> np.ndarray:
         self._require_open()
@@ -199,6 +235,117 @@ class RuntimeSession:
 
     def debug_materialization(self, tensor: LogicalTensor) -> BufferSlice | None:
         return tensor.buffer
+
+    def _compare_frame(self, frame: FrameContext) -> None:
+        written = _unique_tensors(frame.written_tensors)
+        reference_targets = [tensor for tensor in written if tensor.compare is not None]
+        if frame.reference_model is not None and reference_targets:
+            reference_outputs = normalize_reference_outputs(
+                _call_reference_model(
+                    frame.reference_model,
+                    inputs=self._inputs,
+                    scope=frame.scope,
+                )
+            )
+            for tensor in reference_targets:
+                try:
+                    expected = reference_outputs[tensor.name]
+                except KeyError as exc:
+                    raise KeyError(f"Reference model did not return artifact for {tensor.name}") from exc
+                self._compare_results.append(
+                    compare_arrays(
+                        tensor=tensor,
+                        scope=frame.scope,
+                        candidate=self.readback(tensor),
+                        expected=expected,
+                    )
+                )
+            return
+
+        if frame.pytorch_model is None:
+            return
+
+        probe_targets = [
+            tensor for tensor in reference_targets if tensor.pytorch_probe is not None
+        ]
+        if not probe_targets:
+            return
+        expected_by_tensor = self._run_pytorch_probes(frame, probe_targets)
+        for tensor in probe_targets:
+            try:
+                expected = expected_by_tensor[tensor.name]
+            except KeyError as exc:
+                raise KeyError(f"PyTorch probe did not capture artifact for {tensor.name}") from exc
+            self._compare_results.append(
+                compare_arrays(
+                    tensor=tensor,
+                    scope=frame.scope,
+                    candidate=self.readback(tensor),
+                    expected=expected,
+                )
+            )
+
+    def _run_pytorch_probes(
+        self,
+        frame: FrameContext,
+        tensors: list[LogicalTensor],
+    ) -> dict[str, object]:
+        model = frame.pytorch_model
+        if model is None:
+            raise RuntimeError("PyTorch probe requested without pytorch_model")
+        module_like = cast(_PyTorchModuleLike, model)
+        modules = dict(module_like.named_modules()) if hasattr(model, "named_modules") else {}
+        captured: dict[str, object] = {}
+        hooks: list[_HookHandleLike] = []
+        root_output_tensors: list[LogicalTensor] = []
+
+        for tensor in tensors:
+            probe = tensor.pytorch_probe
+            if probe is None:
+                continue
+            if probe.transform is not None:
+                raise NotImplementedError(f"{tensor.name} probe transform is not implemented: {probe.transform}")
+            if probe.kind == "derived":
+                raise NotImplementedError(f"{tensor.name} derived PyTorchProbe is not implemented")
+            if probe.target == "":
+                root_output_tensors.append(tensor)
+                continue
+            try:
+                module = cast(_ForwardHookModuleLike, modules[probe.target])
+            except KeyError as exc:
+                raise KeyError(f"PyTorch module probe target not found: {probe.target}") from exc
+            if probe.kind == "module_output":
+                hooks.append(
+                    module.register_forward_hook(
+                        _make_output_hook(tensor=tensor, captured=captured)
+                    )
+                )
+            elif probe.kind == "module_input":
+                hooks.append(
+                    module.register_forward_hook(
+                        _make_input_hook(tensor=tensor, captured=captured)
+                    )
+                )
+            else:
+                raise NotImplementedError(f"{tensor.name} unsupported PyTorchProbe kind: {probe.kind}")
+
+        try:
+            output = module_like(*frame.pytorch_args, **dict(frame.pytorch_kwargs))
+        finally:
+            for hook in hooks:
+                hook.remove()
+
+        for tensor in root_output_tensors:
+            probe = tensor.pytorch_probe
+            assert probe is not None
+            if probe.kind != "module_output":
+                raise NotImplementedError(f"{tensor.name} root probe only supports module_output")
+            captured[tensor.name] = select_probe_value(
+                output,
+                index=probe.index,
+                selector=probe.selector,
+            )
+        return captured
 
     def close(self) -> None:
         if self._closed:
@@ -286,8 +433,8 @@ class RuntimeSession:
             return
         raise RuntimeError(f"{tensor.name} cannot be read before it is materialized or written")
 
-    def _materialize_write(self, tensor: LogicalTensor) -> None:
-        if tensor.buffer is not None and tensor.lifetime is not TensorLifetime.OP:
+    def _materialize_write(self, tensor: LogicalTensor, *, io_kind: IOKind) -> None:
+        if io_kind is IOKind.INOUT and tensor.buffer is not None:
             return
         size = _tensor_nbytes(tensor.spec)
         if tensor.memory is MemoryClass.HOST_OUTPUT:
@@ -386,10 +533,10 @@ class RuntimeSession:
 
     def _pipeline_for_variant(self, variant: ShaderVariant) -> ComputePipeline:
         spv_path = self._spv_path_for_variant(variant)
-        descriptor_bindings = tuple(field.binding for field in variant.contract.fields)
+        descriptor_count = len(variant.contract.fields)
         key = (
             str(spv_path),
-            descriptor_bindings,
+            descriptor_count,
             variant.specialization_constants,
             0 if variant.contract.push_constants is None else variant.contract.push_constants.size,
             variant.execution_requirements,
@@ -400,8 +547,7 @@ class RuntimeSession:
         pipeline = ComputePipeline(
             self.device,
             shader_spv_path=spv_path,
-            descriptor_bindings=descriptor_bindings,
-            storage_buffer_count=len(descriptor_bindings),
+            storage_buffer_count=descriptor_count,
             specialization_constants=None
             if variant.specialization_constants is None
             else dict(variant.specialization_constants),
@@ -447,7 +593,7 @@ def _tensor_nbytes(spec: TensorSpec) -> int:
     return concrete_nbytes(dtype=spec.dtype, shape=tuple(concrete_shape))
 
 
-def _descriptor_binding_for_field(
+def _descriptor_view_for_field(
     field: TensorFieldSpec,
     tensor: LogicalTensor,
 ) -> tuple[TensorFieldSpec, DescriptorBufferBinding]:
@@ -459,12 +605,12 @@ def _descriptor_binding_for_field(
     )
 
 
-def _record_descriptor_binding(field: TensorFieldSpec, tensor: LogicalTensor) -> tuple[str, int, int, int]:
+def _record_descriptor_view(index: int, field: TensorFieldSpec, tensor: LogicalTensor) -> tuple[str, int, int, int]:
     if tensor.buffer is None:
         raise RuntimeError(f"{tensor.name} is not materialized")
     return (
         field.name,
-        field.binding,
+        index,
         tensor.buffer.offset,
         tensor.descriptor_nbytes or 0,
     )
@@ -489,3 +635,80 @@ def _pack_push_constant_value(dtype: PushConstantType, value: int | float) -> by
     if dtype is PushConstantType.FLOAT32:
         return struct.pack("<f", float(value))
     raise TypeError(f"Unsupported push constant dtype {dtype}")
+
+
+def _unique_tensors(tensors: Iterable[LogicalTensor]) -> list[LogicalTensor]:
+    seen: set[int] = set()
+    unique: list[LogicalTensor] = []
+    for tensor in tensors:
+        identity = id(tensor)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        unique.append(tensor)
+    return unique
+
+
+def _call_reference_model(
+    reference_model: object,
+    *,
+    inputs: Mapping[LogicalTensor, object],
+    scope: FrameScope,
+) -> Mapping[object, object]:
+    if not callable(reference_model):
+        raise TypeError(f"reference_model must be callable, got {type(reference_model).__name__}")
+    signature = inspect.signature(reference_model)
+    parameters = [
+        parameter
+        for parameter in signature.parameters.values()
+        if parameter.kind
+        in {
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        }
+        and parameter.default is inspect.Parameter.empty
+    ]
+    if not parameters:
+        result = reference_model()
+    elif len(parameters) == 1:
+        result = reference_model(dict(inputs))
+    else:
+        result = reference_model(dict(inputs), scope)
+    if not isinstance(result, Mapping):
+        raise TypeError(f"reference_model must return a Mapping, got {type(result).__name__}")
+    return result
+
+
+def _make_output_hook(
+    *,
+    tensor: LogicalTensor,
+    captured: dict[str, object],
+):
+    def _hook(_module: object, _inputs: object, output: object) -> None:
+        probe = tensor.pytorch_probe
+        assert probe is not None
+        captured[tensor.name] = select_probe_value(
+            output,
+            index=probe.index,
+            selector=probe.selector,
+        )
+
+    return _hook
+
+
+def _make_input_hook(
+    *,
+    tensor: LogicalTensor,
+    captured: dict[str, object],
+):
+    def _hook(_module: object, inputs: object, _output: object) -> None:
+        probe = tensor.pytorch_probe
+        assert probe is not None
+        captured[tensor.name] = select_probe_value(
+            inputs,
+            index=probe.index,
+            selector=probe.selector,
+        )
+
+    return _hook

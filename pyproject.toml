@@ -56,7 +56,7 @@ line-length = 100
 target-version = "py312"
 
 [tool.importlinter]
-root_package = "torch2vk"
+root_packages = ["torch2vk", "models"]
 
 [[tool.importlinter.contracts]]
 name = "vulkan driver does not know logical/runtime layers"
@@ -65,6 +65,15 @@ source_modules = ["torch2vk.vulkan"]
 forbidden_modules = [
   "torch2vk.runtime",
 ]
+
+[[tool.importlinter.contracts]]
+name = "model adapters only depend on runtime, not vulkan"
+type = "forbidden"
+source_modules = ["models"]
+forbidden_modules = [
+  "torch2vk.vulkan",
+]
+allow_indirect_imports = true
 
 [tool.pytest.ini_options]
 addopts = ["--assert=plain"]

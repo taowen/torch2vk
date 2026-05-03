@@ -563,7 +563,7 @@ dispatch 数量或顺序变了
 dispatch group count 变了
 specialization constants 变了
 push constant byte layout 变了
-descriptor binding index/type/range 变了
+descriptor parameter index/type/range 变了
 buffer allocation identity 变了
 shape regime 变了
 控制流走了不同分支

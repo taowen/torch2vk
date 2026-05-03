@@ -442,7 +442,6 @@ class TensorContract:
 class TensorFieldSpec:
     name: str
     io_kind: IOKind
-    binding: int
     role: str
     contract: TensorContract
     descriptor_type: str = "storage_buffer"
@@ -462,10 +461,10 @@ contract 校验：
 2. 不允许 unknown field；
 3. dtype/rank/shape/layout 匹配；
 4. symbol shape 能解析；
-5. field name 和 binding 编号都不重复；
+5. field name 不重复；
 6. `OUTPUT` field 的 role/memory/lifetime 合法；
 7. read/write materialization 规则可满足；
-8. shader source binding 和 field binding 一致；
+8. shader source binding 和 field 顺序一致；
 9. dispatch size concrete。
 
 ### ShaderVariant
@@ -517,9 +516,9 @@ output[i] = x[i] * weight[i]
 contract：
 
 ```text
-x       float32 shape=(N,) read  binding=0
-weight  float32 shape=(N,) read  binding=1
-output  float32 shape=(N,) write binding=2
+x       float32 shape=(N,) read   parameter_index=0
+weight  float32 shape=(N,) read   parameter_index=1
+output  float32 shape=(N,) write  parameter_index=2
 dispatch=(ceil_div(N, 256), 1, 1)
 ```
 

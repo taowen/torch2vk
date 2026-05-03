@@ -636,7 +636,6 @@ class TensorContract:
 class TensorFieldSpec:
     name: str
     io_kind: IOKind
-    binding: int
     role: str
     contract: TensorContract
     descriptor_type: str = "storage_buffer"
@@ -657,11 +656,11 @@ contract 校验至少包括：
 2. 不允许 unknown field；
 3. dtype/rank/shape/layout 必须匹配；
 4. symbolic shape 必须能在 dispatch 前 resolve；
-5. field name 和 binding 编号都不重复；
+5. field name 不重复；
 6. `INPUT` field 未 materialized 时必须能按 read rules materialize；
 7. `OUTPUT` field 的 role/memory/lifetime 合法；
 8. `INOUT` field 必须同时记录 read 和 write；
-9. shader source 里的 descriptor binding 和 contract 一致；
+9. shader source 里的 descriptor binding 和 field 顺序一致；
 10. dispatch size 必须是 concrete int。
 
 ## DispatchRecord
