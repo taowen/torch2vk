@@ -29,6 +29,80 @@ class VulkanContext:
         self.vk.vkDestroyDevice(self.device, None)
         self.vk.vkDestroyInstance(self.instance, None)
 
+    def create_host_buffer(self, *, nbytes: int) -> VulkanBuffer:
+        if nbytes <= 0:
+            raise ValueError(f"buffer size must be positive, got {nbytes}")
+        buffer_info = self.vk.VkBufferCreateInfo(
+            sType=self.vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            size=nbytes,
+            usage=self.vk.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            sharingMode=self.vk.VK_SHARING_MODE_EXCLUSIVE,
+        )
+        buffer = self.vk.vkCreateBuffer(self.device, buffer_info, None)
+        try:
+            requirements = self.vk.vkGetBufferMemoryRequirements(self.device, buffer)
+            memory_type = _find_memory_type(
+                self.vk,
+                self.physical_device,
+                type_filter=requirements.memoryTypeBits,
+                properties=(
+                    self.vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                    | self.vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                ),
+            )
+            allocate_info = self.vk.VkMemoryAllocateInfo(
+                sType=self.vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+                allocationSize=requirements.size,
+                memoryTypeIndex=memory_type,
+            )
+            memory = self.vk.vkAllocateMemory(self.device, allocate_info, None)
+            self.vk.vkBindBufferMemory(self.device, buffer, memory, 0)
+            return VulkanBuffer(
+                context=self,
+                buffer=buffer,
+                memory=memory,
+                nbytes=nbytes,
+                allocation_nbytes=int(requirements.size),
+            )
+        except Exception:
+            self.vk.vkDestroyBuffer(self.device, buffer, None)
+            raise
+
+
+@dataclass(slots=True)
+class VulkanBuffer:
+    context: VulkanContext
+    buffer: Any
+    memory: Any
+    nbytes: int
+    allocation_nbytes: int
+
+    def close(self) -> None:
+        vk = self.context.vk
+        vk.vkDestroyBuffer(self.context.device, self.buffer, None)
+        vk.vkFreeMemory(self.context.device, self.memory, None)
+
+    def write(self, data: bytes, *, offset: int = 0) -> None:
+        if offset < 0 or offset + len(data) > self.nbytes:
+            raise ValueError(f"write range [{offset}, {offset + len(data)}) exceeds {self.nbytes}")
+        vk = self.context.vk
+        mapped = vk.vkMapMemory(self.context.device, self.memory, offset, len(data), 0)
+        try:
+            mapped[: len(data)] = data
+        finally:
+            vk.vkUnmapMemory(self.context.device, self.memory)
+
+    def read(self, *, offset: int = 0, nbytes: int | None = None) -> bytes:
+        size = self.nbytes - offset if nbytes is None else nbytes
+        if offset < 0 or size < 0 or offset + size > self.nbytes:
+            raise ValueError(f"read range [{offset}, {offset + size}) exceeds {self.nbytes}")
+        vk = self.context.vk
+        mapped = vk.vkMapMemory(self.context.device, self.memory, offset, size, 0)
+        try:
+            return bytes(mapped[:size])
+        finally:
+            vk.vkUnmapMemory(self.context.device, self.memory)
+
 
 def enumerate_physical_devices() -> tuple[VulkanPhysicalDevice, ...]:
     vk = importlib.import_module("vulkan")
@@ -134,3 +208,19 @@ def _compute_queue_family(vk: Any, physical_device: Any) -> int | None:
         if queue.queueCount > 0 and queue.queueFlags & vk.VK_QUEUE_COMPUTE_BIT:
             return int(index)
     return None
+
+
+def _find_memory_type(
+    vk: Any,
+    physical_device: Any,
+    *,
+    type_filter: int,
+    properties: int,
+) -> int:
+    memory_properties = vk.vkGetPhysicalDeviceMemoryProperties(physical_device)
+    for index in range(memory_properties.memoryTypeCount):
+        supported = type_filter & (1 << index)
+        memory_type = memory_properties.memoryTypes[index]
+        if supported and memory_type.propertyFlags & properties == properties:
+            return int(index)
+    raise RuntimeError("No compatible Vulkan memory type found")
