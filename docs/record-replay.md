@@ -1,7 +1,10 @@
 # Record / Replay 机制
 
-本文说明 `torch2vk` 的 replay 为什么不需要在 `models/<model_name>/` 下再写一套 graph、IR 或 replay
-execution。核心规则：
+本文是 `torch2vk` 的 runtime replay 设计文档。核心边界延续
+`docs/frame-and-logical-tensor.md`：模型目录只写 eager execution，replay 只能由 `RuntimeSession`
+从真实 dispatch facts 生成，不能成为另一套模型 graph、IR 或 replay-only execution。
+
+核心规则：
 
 ```text
 模型目录只写 eager execution。
@@ -25,8 +28,8 @@ Replay 提交捕获后的 Vulkan command sequence。
 ```python
 def run_audio_codec_decoder_frame(rt, tensors, *, pytorch_model):
     with rt.frame("audio_codec_decoder", scope={"domain": "audio"}, pytorch_model=pytorch_model):
-        shader_a(rt, x=tensors.x, weight=tensors.w0, output=tensors.h0)
-        shader_b(rt, x=tensors.h0, weight=tensors.w1, output=tensors.waveform)
+        SHADER_A(rt, x=tensors.x, weight=tensors.w0, output=tensors.h0)
+        SHADER_B(rt, x=tensors.h0, weight=tensors.w1, output=tensors.waveform)
         return AudioCodecDecoderOutput(waveform=tensors.waveform)
 ```
 
@@ -34,10 +37,10 @@ def run_audio_codec_decoder_frame(rt, tensors, *, pytorch_model):
 
 ```text
 普通 eager
-  shader wrapper -> RuntimeSession.dispatch -> 立即提交 Vulkan dispatch
+  ShaderVariant.__call__ -> RuntimeSession.dispatch -> 立即提交 Vulkan dispatch
 
 record capture
-  shader wrapper -> RuntimeSession.dispatch -> materialize/prepare -> 追加 ReplayCapture
+  ShaderVariant.__call__ -> RuntimeSession.dispatch -> materialize/prepare -> 追加 PreparedDispatch 到 ReplayCapture
 
 replay
   不再运行 Python model code；直接提交已录制 command buffer
@@ -75,7 +78,7 @@ write buffer ranges
 frame/scope/logical read-write metadata
 ```
 
-这些内容足够重放 Vulkan command。模型目录里的 `execution.py`、frame 函数和 shader wrapper 在 replay
+这些内容足够重放 Vulkan command。模型目录里的 `execution.py`、frame 函数和 `ShaderVariant.__call__` 在 replay
 热路径中不再执行。
 
 ## PreparedDispatch
@@ -583,7 +586,7 @@ request state buffer 内容变了
 
 1. `RuntimeSession.capture_replay(name, regime)` scope；
 2. dispatch 时在 eager 执行之外追加 `PreparedDispatch`；
-3. `ReplaySession.finalize()` 录制 command buffer；
+3. `ReplayCapture.finalize()` 录制 command buffer 并生成 `ReplaySession`；
 4. 每个 dispatch 之间先插 conservative compute barrier；
 5. 记录 shader/resource fingerprint；
 6. 支持 `replay()` 和 `unsafe_replay()`；

@@ -33,7 +33,7 @@ src/torch2vk/
   通用框架：LogicalTensor、Frame、RuntimeSession、shader contract、compare、checkpoint、Vulkan backend
 
 src/models/<model_name>/
-  模型 adapter：tensor declarations、shader wrappers、frame functions
+  模型 adapter：tensor declarations、shader variants、frame functions
 ```
 
 当前仓库已有 `src/models/omnivoice`、`src/models/qwen3_asr` 这类模型 adapter 目录。`src/omnivoice`、`src/qwen_asr` 是上游/official 代码，不应该和 adapter 目录混在一起演进。
@@ -98,7 +98,7 @@ src/models/omnivoice/
 
 1. 通过 `tensors/` 构造完整 logical tensor tree；
 2. 声明 `LogicalTensor`；
-3. 声明 shader contract 和 wrapper；
+3. 声明 shader contract 和 `ShaderVariant`；
 4. 写每个 PyTorch model.forward 对应的 frame function；
 5. 在 `LogicalTensor.pytorch_probe` 中声明 probe metadata；
 6. 写 pipeline/frame 的调用顺序。
@@ -450,8 +450,8 @@ audio_codec_decoder.py
 frame function 的职责：
 
 1. 进入 `with rt.frame(..., pytorch_model=...)`；
-2. 在 frame 内调用 shader wrapper；
-3. 把输入、权重、中间 activation、输出 `LogicalTensor` 传给 wrapper；
+2. 在 frame 内调用 `ShaderVariant`；
+3. 把输入、权重、中间 activation、输出 `LogicalTensor` 传给 `ShaderVariant`；
 4. 返回 output dataclass；
 5. 不手动安装 hooks；
 6. 不维护独立 probe 列表；
@@ -473,18 +473,18 @@ def run_audio_codec_decoder_frame(
         scope=scope,
         pytorch_model=pytorch_model,
     ):
-        normalize_audio_tokens(
+        NORMALIZE_AUDIO_TOKENS(
             rt,
             tokens=tokens,
             output=tensors.quantizer.normalized_tokens,
         )
-        embedding_sum_f32(
+        EMBEDDING_SUM_F32(
             rt,
             tokens=tensors.quantizer.normalized_tokens,
             weight=tensors.weights.quantizer_embed,
             output=tensors.quantizer.embed_sum,
         )
-        conv1d_f32(
+        CONV1D_F32(
             rt,
             x=tensors.quantizer.embed_sum,
             weight=tensors.weights.decoder_conv1,
@@ -523,7 +523,7 @@ PyTorch artifact 必须来自当前 frame 传入的 PyTorch model.forward 中捕
 
 ## shaders/ 目录
 
-`shaders/` 放可复用的 shader contract、variant 和 wrapper。
+`shaders/` 放可复用的 shader contract 和 `ShaderVariant`。
 
 第一批建议：
 
@@ -547,11 +547,11 @@ attention_prefill_f32.py
 swiglu_f32.py
 ```
 
-每个 shader wrapper 只做：
+每个 shader 文件只做：
 
-1. 暴露清晰 Python 函数；
-2. 选择 `ShaderVariant`；
-3. 调用 `RuntimeSession.dispatch()`。
+1. 定义 `ShaderContract`；
+2. 定义可调用的 `ShaderVariant`；
+3. 不再为 variant 额外包一层同名 Python 函数。
 
 禁止：
 
@@ -565,14 +565,25 @@ swiglu_f32.py
 
 ### GLSL source 组织
 
-短期允许两种来源：
+`ShaderVariant` 的 Python 定义是 shader source of truth。GLSL 应内置在对应 `shaders/*.py` 文件的
+`source="""..."""` 字段里，contract、variant metadata 和 GLSL 放在同一个 source-layer 定义点。
+
+推荐组织：
 
 ```text
-1. imported_glsl/：从外部项目导入、尚未整理的 GLSL
-2. shaders/*.py 或 shaders/glsl/：已经纳入 torch2vk contract 管理的 shader
+shaders/
+  embedding_sum_f32.py     # ShaderContract + ShaderVariant(source="...")
+  conv1d_f32.py            # ShaderContract + ShaderVariant(source="...")
+
+.cache/torch2vk/generated/
+  embedding_sum_f32.glsl   # generated artifact
+  embedding_sum_f32.spv    # generated artifact
 ```
 
-长期目标是每个 `ShaderVariant` 明确记录 source path、compiled spirv path、contract 和 specialization constants。是否内联 GLSL 不是架构核心，核心是不要让 shader source 和 contract 脱节。
+`imported_glsl/` 可以保留外部项目导入、尚未整理的 GLSL baseline，但纳入 torch2vk 管理的 shader 必须迁移成
+inline GLSL variant。构建工具负责从 `ShaderVariant.source` 生成 `.cache/torch2vk/generated/*.glsl`
+和 `.spv`，并把 source hash、contract manifest、compile defines、include dirs 和 specialization
+constants 记录进 artifact manifest。不要让 `*.comp` 或 generated `.glsl` 成为 source of truth。
 
 ## Candidate 收集 LogicalTensors
 
@@ -612,7 +623,7 @@ RuntimeSession registers model declarations and runtime feeds
         |
 execution.py calls concrete frame files, such as audio_codec_decoder.py
         |
-concrete frame file enters rt.frame(..., pytorch_model=...) and calls shader wrappers
+concrete frame file enters rt.frame(..., pytorch_model=...) and calls ShaderVariant objects
         |
 RuntimeSession.dispatch validates contract and resolves/materializes reads/writes from pools/arenas
         |
@@ -666,7 +677,7 @@ bad: buffer17.slice3
 1. 建通用 `src/torch2vk` core：`LogicalTensor`、`FrameScope`、`ShaderContract`、dry-run `RuntimeSession`。
 2. 建 `src/models/omnivoice/tensors/spec.py` 和 `tensors/audio_codec_decoder.py`，只生成 declarations。
 3. 建 `audio_codec_decoder.py`，表达一次 audio codec decoder PyTorch model.forward 边界，并接收 `pytorch_model`。
-4. 建 `shaders/embedding_sum_f32.py`、`conv1d_f32.py`、`snake_f32.py` 的 contract 和 wrapper。
+4. 建 `shaders/embedding_sum_f32.py`、`conv1d_f32.py`、`snake_f32.py` 的 contract 和 `ShaderVariant`。
 5. `execution.py` 先只调用 `run_audio_codec_decoder_frame(...)`。
 6. dry-run dispatch 先只校验 contract、materialization rules、dispatch record。
 7. 接入 Vulkan 后执行最短 audio codec decoder 子链路。

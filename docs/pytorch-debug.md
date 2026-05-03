@@ -54,13 +54,13 @@ def run_audio_codec_decoder_frame(
         scope={"domain": "audio"},
         pytorch_model=pytorch_model,
     ):
-        audio_codec_decoder_quantizer_embed_sum_f32(
+        AUDIO_CODEC_DECODER_QUANTIZER_EMBED_SUM_F32(
             rt,
             codes=tensors.codes,
             embed=tensors.quantizer_embed,
             output=tensors.quantizer_sum,
         )
-        audio_codec_decoder_conv1d_k7_f32(
+        AUDIO_CODEC_DECODER_CONV1D_K7_F32(
             rt,
             x=tensors.quantizer_sum,
             weight=tensors.decoder.conv_in.weight,
@@ -70,7 +70,7 @@ def run_audio_codec_decoder_frame(
         return AudioCodecDecoderOutput(waveform=tensors.waveform)
 ```
 
-这里的 `pytorch_model` 是 reference provider。shader wrapper 只调用 `rt.dispatch(...)`，不读写
+这里的 `pytorch_model` 是 reference provider。`ShaderVariant.__call__` 只调用 `rt.dispatch(...)`，不读写
 PyTorch，也不做 compare。
 
 toy MVP 可以先用 `reference_model` manual callable：
@@ -81,7 +81,7 @@ with rt.frame(
     scope={"case": "mvp"},
     reference_model=toy_reference_model,
 ):
-    elementwise_mul_f32(rt, x=x, weight=w, output=y)
+    ELEMENTWISE_MUL_F32(rt, x=x, weight=w, output=y)
 ```
 
 manual callable 只适合最小链路验证。真实模型迁移必须使用 `pytorch_model` + `PyTorchProbe`。
@@ -297,7 +297,7 @@ final output mismatch
 5. 生成式模型的 token 选择如果含随机采样，先对拍 logits，再对拍 deterministic selector；
 6. 对拍 kernel 时使用小 shape 固定样例，扩大范围前先保证 op-level 误差可解释。
 
-当前仓库已有 official PyTorch wrapper：
+当前仓库已有 official PyTorch 入口：
 
 ```text
 src/models/omnivoice/pytorch/example.py
@@ -314,7 +314,7 @@ shader 对拍仍然要落到 frame 内的 `LogicalTensor.compare` / `PyTorchProb
 
 1. 在 `tensors/` 中给需要调试的 LogicalTensor 增加 `compare` 和 `pytorch_probe`；
 2. 在具体 frame 文件里传入正确的 `pytorch_model`；
-3. 保持 shader wrapper 是薄封装，只调用 `RuntimeSession.dispatch()`；
+3. 在 frame 内直接调用 `ShaderVariant`，不要再包一层 shader 函数；
 4. 对 PyTorch/Vulkan layout 差异声明明确 transform；
 5. 用 frame scope 表达动态上下文，例如 `audio_token_index`、`row`、`chunk_index`。
 

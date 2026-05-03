@@ -5,7 +5,7 @@
 ```text
 声明 LogicalTensor 点
   -> with rt.frame(...) 建立 eager execution 边界
-  -> shader wrapper 连接点和线
+  -> ShaderVariant 连接点和线
   -> RuntimeSession 从对应 pool/arena resolve tensor instance
   -> 调用第一个 Vulkan compute shader
   -> readback
@@ -36,8 +36,8 @@ Frame
 第一版规则：
 
 1. 模型代码只声明 `LogicalTensor`，不手动分配显存；
-2. 模型 forward 必须在 `with rt.frame(...)` 内调用 shader wrapper；
-3. shader wrapper 只调用 `RuntimeSession.dispatch()`；
+2. 模型 forward 必须在 `with rt.frame(...)` 内调用 `ShaderVariant`；
+3. `ShaderVariant.__call__` 只调用 `RuntimeSession.dispatch()`；
 4. `RuntimeSession.dispatch()` 根据 `LogicalTensor` metadata resolve/materialize reads/writes；
 5. `LogicalTensor` 不拥有 allocation，不负责释放；
 6. `RuntimeSession` 拥有所有 allocation，并按 Frame/request/model 生命周期释放；
@@ -49,6 +49,10 @@ Frame
 2. 显存分配和释放由 runtime 根据 storage/lifetime 决定；
 3. candidate 和 PyTorch/CPU 对拍时能定位 artifact、校验数值；
 4. shader 调用时能校验传入 tensor 和 `ShaderContract` 匹配。
+
+传给 `ShaderVariant` 的 `LogicalTensor` 应精确对应 GLSL input/output。缺少 layout、view range、
+packed shape、state/source 等信息时，把这些补成 `LogicalTensor` metadata，而不是在 shader contract
+里加默认 tensor 绑定。
 
 注意：这里的 materialize 不是每个 shader 现场创建 Vulkan buffer 或 `vkAllocateMemory`。底层 allocation 必须按 model/request/frame pool 管理；dispatch 只从已有 pool/arena 取得 slice 或登记 tensor instance。
 
@@ -66,7 +70,7 @@ Frame
 
 ```python
 with rt.frame("toy.elementwise_mul", scope={"case": "mvp"}):
-    elementwise_mul_f32(rt, x=x, weight=w, output=y)
+    ELEMENTWISE_MUL_F32(rt, x=x, weight=w, output=y)
 ```
 
 禁止回到旧模式：
@@ -122,7 +126,7 @@ with RuntimeSession.open(device_index=0) as rt:
         scope={"case": "mvp"},
         reference_model=toy_reference_model,
     ):
-        elementwise_mul_f32(rt, x=x, weight=w, output=y)
+        ELEMENTWISE_MUL_F32(rt, x=x, weight=w, output=y)
 ```
 
 这里没有 binding table 暴露给模型，也没有 bound tensor tree。`x/w/y` 都是声明对象。执行态 storage 存在于 `RuntimeSession` 的 materialization table。
@@ -154,8 +158,6 @@ src/torch2vk/
   shaders/
     __init__.py
     elementwise_mul_f32.py
-    glsl/
-      elementwise_mul_f32.comp
 scripts/
   compile_shaders.py
   run_toy_mvp.py
@@ -344,7 +346,7 @@ class RuntimeSession:
         reference_model: FrameReferenceProvider | None = None,
     ) -> Iterator[FrameContext]: ...
 
-    def dispatch(self, variant: ShaderVariant, **tensors: LogicalTensor) -> None: ...
+    def dispatch(self, variant: ShaderVariant, **arguments: object) -> None: ...
 
     def readback(self, key: TensorInstanceKey) -> object: ...
 
@@ -421,10 +423,10 @@ MVP 先支持 safetensors。GGUF 后续再加 `CheckpointReader` 抽象。
 ### ShaderContract
 
 ```python
-class BindingAccess(StrEnum):
-    READ = "read"
-    WRITE = "write"
-    READ_WRITE = "read_write"
+class IOKind(StrEnum):
+    INPUT = "input"
+    OUTPUT = "output"
+    INOUT = "inout"
 
 
 @dataclass(frozen=True, slots=True)
@@ -435,19 +437,19 @@ class TensorContract:
 
 
 @dataclass(frozen=True, slots=True)
-class Binding:
-    field: str
+class TensorFieldSpec:
+    name: str
+    io_kind: IOKind
     binding: int
-    access: BindingAccess
+    role: str
+    contract: TensorContract
     descriptor_type: str = "storage_buffer"
 
 
 @dataclass(frozen=True, slots=True)
 class ShaderContract:
     name: str
-    inputs: Mapping[str, TensorContract]
-    outputs: Mapping[str, TensorContract]
-    bindings: tuple[Binding, ...]
+    fields: tuple[TensorFieldSpec, ...]
     dispatch: tuple[int | str, int | str, int | str]
     push_constants: Mapping[str, str] = field(default_factory=dict)
 ```
@@ -458,10 +460,10 @@ contract 校验：
 2. 不允许 unknown field；
 3. dtype/rank/shape/layout 匹配；
 4. symbol shape 能解析；
-5. binding 编号不重复；
-6. write binding 必须对应 output；
+5. field name 和 binding 编号都不重复；
+6. `OUTPUT` field 的 role/memory/lifetime 合法；
 7. read/write materialization 规则可满足；
-8. shader source binding 和 contract binding 一致；
+8. shader source binding 和 field binding 一致；
 9. dispatch size concrete。
 
 ### ShaderVariant
@@ -472,25 +474,12 @@ class ShaderVariant:
     name: str
     family: str
     contract: ShaderContract
-    spirv_path: Path
-    source_path: Path | None = None
+    source: str
+    precompiled_spv_path: Path | None = None
     specialization_constants: Mapping[int, int] = field(default_factory=dict)
 
-    def __call__(self, ctx: RuntimeSession, **tensors: LogicalTensor) -> None:
-        ctx.dispatch(self, **tensors)
-```
-
-wrapper 保持普通 Python：
-
-```python
-def elementwise_mul_f32(
-    ctx: RuntimeSession,
-    *,
-    x: LogicalTensor,
-    weight: LogicalTensor,
-    output: LogicalTensor,
-) -> None:
-    ELEMENTWISE_MUL_F32(ctx, x=x, weight=weight, output=output)
+    def __call__(self, rt: RuntimeSession, **arguments: object) -> None:
+        rt.dispatch(self, **arguments)
 ```
 
 `RuntimeSession.dispatch()` 必须先执行：
@@ -714,8 +703,8 @@ first mismatch index if practical
 3. shader module/pipeline/descriptor/command buffer/submit；
 4. transfer/upload/readback barriers；
 5. host-visible memory flush/invalidate；
-6. `elementwise_mul_f32.comp`；
-7. `scripts/compile_shaders.py`；
+6. `elementwise_mul_f32.py` 内置 GLSL source；
+7. `scripts/compile_shaders.py` 从内置 source 生成 `.cache/torch2vk/generated/*.glsl` 和 `.spv`；
 8. `scripts/run_toy_mvp.py`。
 
 验收：
