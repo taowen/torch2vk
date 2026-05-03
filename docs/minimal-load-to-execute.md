@@ -43,6 +43,9 @@ Frame
 6. `RuntimeSession` 拥有所有 allocation，并按 Frame/request/model 生命周期释放；
 7. dispatch records 是后续 compare、replay、liveness/aliasing 的事实来源。
 
+所有 tensor 引用都传 `LogicalTensor` 对象本身。`LogicalTensor.name` 只用于报告、artifact 路径和重复声明
+检查，不用于在 runtime 中反查 tensor 对象。
+
 `LogicalTensor` metadata 只为四个目标服务：
 
 1. 权重加载托管给框架，模型目录只声明 `WeightSource`；
@@ -94,7 +97,6 @@ with RuntimeSession.open(device_index=0) as rt:
         role=TensorRole.INPUT,
         memory=MemoryClass.HOST_INPUT,
         lifetime=TensorLifetime.FRAME,
-        feed=InputFeed(name="toy.x"),
     )
     w = LogicalTensor(
         name="toy.weight.scale",
@@ -119,7 +121,7 @@ with RuntimeSession.open(device_index=0) as rt:
     )
 
     rt.register_model([x, w, y])
-    rt.register_inputs({"toy.x": x_cpu})
+    rt.register_inputs({x: x_cpu})
 
     with rt.frame(
         "toy.elementwise_mul",
@@ -135,8 +137,8 @@ with RuntimeSession.open(device_index=0) as rt:
 MVP 可以先让 toy frame 传入一个最小 manual reference callable，作为当前 Frame 的 lockstep reference：
 
 ```python
-def toy_reference_model(feeds: Mapping[str, object]) -> Mapping[str, object]:
-    return {"toy.y": feeds["toy.x"] * load_cpu_weight("toy.safetensors", "scale")}
+def toy_reference_model(inputs: Mapping[LogicalTensor, object]) -> Mapping[str, object]:
+    return {"toy.y": inputs[x] * load_cpu_weight("toy.safetensors", "scale")}
 ```
 
 manual callable 只是 toy MVP 的 reference provider。真实模型路径必须使用当前 Frame 传入的 PyTorch model.forward + `LogicalTensor.pytorch_probe` 捕获 artifact。无论哪种 provider，compare targets 都由 candidate frame 实际写出的 tensors 驱动。
@@ -198,7 +200,7 @@ MVP 执行期只允许 concrete shape。声明和 contract 里可以出现 symbo
 ### LogicalTensor
 
 ```python
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class LogicalTensor:
     name: str
     spec: TensorSpec
@@ -207,7 +209,6 @@ class LogicalTensor:
     lifetime: TensorLifetime
     layout: TensorLayout = ROW_MAJOR
     source: WeightSource | None = None
-    feed: InputFeed | None = None
     semantic: TensorSemantic | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
@@ -227,7 +228,7 @@ class LogicalTensor:
 6. `role/memory/lifetime` 组合必须合法；
 7. `source != None` 必须能托管加载权重，且 `memory=MODEL_WEIGHT`、`lifetime=MODEL`；
 8. `role == WEIGHT` 必须有 `source`，除非它是 runtime 已注册的外部 weight；
-9. `role == INPUT` 必须能通过 `feed` 或 runtime feed 找到输入。
+9. `role == INPUT` 必须能通过 `register_inputs()` 绑定到运行时输入。
 
 ### TensorRole
 
@@ -279,16 +280,15 @@ class TensorLifetime(StrEnum):
 
 MVP 可以不实现 `EXTERNAL`。
 
-### InputFeed
+### 运行时输入
+
+`role == INPUT` 的 `LogicalTensor` 直接作为 `RuntimeSession.register_inputs()` 的 key：
 
 ```python
-@dataclass(frozen=True, slots=True)
-class InputFeed:
-    name: str
-    required: bool = True
+rt.register_inputs({x: x_cpu})
 ```
 
-`InputFeed.name` 是 RuntimeSession 在 `register_inputs()` 中查找输入数据的 key。MVP 可以要求所有 input 都必须显式 feed。
+Runtime 在 materialize 输入时用同一个 `LogicalTensor` 对象查找数据；不存在额外的 input key 或输入 metadata。
 
 ### BufferSlice
 
@@ -333,7 +333,7 @@ class RuntimeSession:
         model_dir: Path | None = None,
     ) -> None: ...
 
-    def register_inputs(self, feeds: Mapping[str, object]) -> None: ...
+    def register_inputs(self, inputs: Mapping[LogicalTensor, object]) -> None: ...
 
     @contextmanager
     def frame(
@@ -356,6 +356,9 @@ class RuntimeSession:
 
 `RuntimeSession.open(...)` 返回的 session 必须支持 context manager；`__exit__` 调用幂等 `close()`。
 
+`register_model()` 校验传入 declarations，但不建立 `name -> LogicalTensor` registry。后续 dispatch、
+input binding、readback 和 compare 都直接使用调用方持有的 `LogicalTensor` 对象。
+
 `RuntimeSession` 负责：
 
 1. 创建和销毁 Vulkan device/context；
@@ -363,7 +366,7 @@ class RuntimeSession:
 3. 管理 frame stack；
 4. 按 model/request/frame/host pool 分配或扩容 device-local、host-visible、staging、readback buffer；
 5. 读取 checkpoint 并上传 weight；
-6. 上传 input feed；
+6. 上传 input；
 7. 根据 dispatch read/write resolve/materialize `LogicalTensor`；
 8. 根据 `LogicalTensor` 当前 buffer 状态绑定 descriptor；
 9. 插入必要 Vulkan barrier；
@@ -559,8 +562,8 @@ class DispatchRecord:
 MVP toy 可以先使用 manual reference callable，不急着接 module hook：
 
 ```python
-def toy_reference_model(feeds: Mapping[str, object]) -> Mapping[str, object]:
-    x_cpu = feeds["toy.x"]
+def toy_reference_model(inputs: Mapping[LogicalTensor, object]) -> Mapping[str, object]:
+    x_cpu = inputs[x]
     w_cpu = read_safetensors_tensor("toy.safetensors", "scale")
     return {"toy.y": x_cpu * w_cpu}
 ```
@@ -617,7 +620,7 @@ first mismatch index if practical
 1. `src/torch2vk/runtime/logical.py`；
 2. 复用 `src/torch2vk/vulkan/types.py` 中已有的 `TensorSpec` / layout / dtype helpers；
 3. `TensorRole` / `TensorSemantic` / `MemoryClass` / `TensorLifetime`；
-4. `WeightSource` / `InputFeed` / `ComparePolicy` / `PyTorchProbe`；
+4. `WeightSource` / `ComparePolicy` / `PyTorchProbe`；
 5. `tests/test_logical.py`。
 
 验收：
@@ -628,7 +631,7 @@ first mismatch index if practical
 4. symbolic shape dispatch 前必须 resolve；
 5. `role/memory/lifetime` 合法性校验；
 6. weight missing source 报错；
-7. input missing feed 在 materialize 阶段报错。
+7. input missing binding 在 materialize 阶段报错。
 
 ### Phase 1：Frame scope、arena 和 dry-run materialization
 
@@ -652,7 +655,7 @@ first mismatch index if practical
 3. write tensor 会从当前 arena reserve slice 并更新 LogicalTensor 当前 buffer 状态；
 4. read-before-write 能报错；
 5. weight read 会创建 model-lifetime materialization；
-6. input read 会检查 runtime feed；
+6. input read 会检查 runtime input binding；
 7. frame exit reset frame arena；
 8. model/request lifetime allocation 保留；
 9. dry-run 中不会出现 per-dispatch raw allocation。

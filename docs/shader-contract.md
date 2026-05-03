@@ -265,7 +265,7 @@ layout(set = 0, binding = 2) buffer restrict writeonly O { float output[]; };
 ```
 
 如果某个 shader 需要的 view 无法精确对应现有 `LogicalTensor`，优先给 `LogicalTensor` 增加 metadata，
-例如 layout params、view range、semantic、source/feed、state/lifetime、binding span 或 packed layout
+例如 layout params、view range、semantic、source、state/lifetime、binding span 或 packed layout
 信息。不要在 shader contract 里制造第二套 tensor 语义来补洞。
 
 校验规则：
@@ -672,7 +672,7 @@ RuntimeSession.dispatch:
   LogicalTensor.current buffer state -> DescriptorBufferBinding
 ```
 
-所以 `ShaderContract` 中不应该出现 checkpoint、feed、lifetime、arena、PyTorch probe，也不应该用
+所以 `ShaderContract` 中不应该出现 checkpoint、runtime input、lifetime、arena、PyTorch probe，也不应该用
 默认绑定或间接名字去补模型语义。它只校验 `LogicalTensor` 当前 buffer 状态是否符合
 shader ABI。LogicalTensor 的 role/memory/lifetime 和 metadata 决定怎么 materialize，ShaderContract
 的 field/io/binding index 决定怎么 dispatch。

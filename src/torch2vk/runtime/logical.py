@@ -55,12 +55,6 @@ class WeightSource:
 
 
 @dataclass(frozen=True, slots=True)
-class InputFeed:
-    name: str
-    required: bool = True
-
-
-@dataclass(frozen=True, slots=True)
 class ComparePolicy:
     kind: Literal["tensor", "token", "waveform"] = "tensor"
     rtol: float = 1e-4
@@ -84,7 +78,7 @@ class DispatchWriter:
     dispatch_index: int
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class LogicalTensor:
     name: str
     spec: TensorSpec
@@ -93,7 +87,6 @@ class LogicalTensor:
     lifetime: TensorLifetime
     layout: TensorLayout = CONTIGUOUS_LAYOUT
     source: WeightSource | None = None
-    feed: InputFeed | None = None
     semantic: TensorSemantic | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
@@ -125,8 +118,6 @@ class LogicalTensor:
                 )
         if self.role is TensorRole.WEIGHT and self.source is None:
             raise ValueError(f"{self.name} is a WEIGHT tensor but has no WeightSource")
-        if self.feed is not None and not self.feed.name:
-            raise ValueError(f"{self.name} feed name must be non-empty")
         _validate_role_memory_lifetime(self)
 
     @property
@@ -160,8 +151,8 @@ def _validate_role_memory_lifetime(tensor: LogicalTensor) -> None:
             raise ValueError(f"{tensor.name} output cannot use memory={memory}")
         if lifetime not in {TensorLifetime.FRAME, TensorLifetime.REQUEST}:
             raise ValueError(f"{tensor.name} output cannot use lifetime={lifetime}")
-    if role is TensorRole.INPUT and tensor.feed is not None:
+    if role is TensorRole.INPUT:
         if memory not in {MemoryClass.HOST_INPUT, MemoryClass.REQUEST_STATE}:
-            raise ValueError(f"{tensor.name} input feed cannot use memory={memory}")
+            raise ValueError(f"{tensor.name} input cannot use memory={memory}")
         if lifetime not in {TensorLifetime.FRAME, TensorLifetime.REQUEST}:
-            raise ValueError(f"{tensor.name} input feed cannot use lifetime={lifetime}")
+            raise ValueError(f"{tensor.name} input cannot use lifetime={lifetime}")

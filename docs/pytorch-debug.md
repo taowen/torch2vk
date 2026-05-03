@@ -229,7 +229,7 @@ case=mvp/toy.elementwise_mul/toy.y
 2. 从 records 中收集本 frame written LogicalTensors
 3. 过滤 compare != None 且 pytorch_probe != None 的 LogicalTensor
 4. 根据 pytorch_probe 在 pytorch_model 上安装临时 hook
-5. 用当前 frame 的 feed/state/scope lockstep 执行 pytorch_model.forward
+5. 用当前 frame 的 inputs/state/scope lockstep 执行 pytorch_model.forward
 6. hook 捕获 PyTorch artifact，并应用 selector/transform
 7. readback candidate LogicalTensor 当前 buffer，并应用 readback transform
 8. 检查 shape、dtype、layout
@@ -291,7 +291,7 @@ final output mismatch
 对拍必须保证 PyTorch reference 和 Vulkan candidate 使用同一份输入与权重：
 
 1. 权重由 `WeightSource` 声明，runtime 读取 checkpoint 并校验 dtype/shape，不允许 silent cast；
-2. 输入由 `InputFeed` / `register_inputs()` 提供，PyTorch frame forward 使用同一份 feed；
+2. 输入由 `register_inputs({logical_tensor: array})` 提供，PyTorch frame forward 使用同一批输入数组；
 3. dropout、采样、随机噪声必须关闭或固定 seed；
 4. PyTorch model 应进入 `eval()`；
 5. 生成式模型的 token 选择如果含随机采样，先对拍 logits，再对拍 deterministic selector；

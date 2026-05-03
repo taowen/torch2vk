@@ -116,7 +116,11 @@ dispatch 参数。
 ```python
 with RuntimeSession.open(device_index=0) as rt:
     rt.register_model(tensors, model_dir=model_dir)
-    rt.register_inputs(feeds)
+    inputs = {
+        tensors.pipeline.prompt_token_ids: prompt_token_ids,
+        tensors.pipeline.language_id: language_id,
+    }
+    rt.register_inputs(inputs)
 
     with rt.capture_replay(
         name="omnivoice.tts.full_pipeline",
@@ -371,7 +375,7 @@ audio_token_selector.selected_tokens
 
 audio_codec_decoder.codes
   role=INPUT
-  feed/downstream source 指向 selected_tokens
+  runtime input 或 downstream source 指向 selected_tokens
 ```
 
 eager execution 中，selector frame 写出 request-lifetime tensor；decoder frame 读取同一个
@@ -445,6 +449,9 @@ multi-regime replay cache
 ## 输入更新
 
 Replay command buffer 绑定的是稳定 buffer，不是稳定输入值。
+
+外部输入仍然通过 `rt.register_inputs({logical_tensor: array})` 绑定。Replay 复用的是这些
+`LogicalTensor` 在 capture 时 materialize 出来的稳定 buffer，而不是字符串 input name。
 
 如果下一次 request 的输入 shape 相同，可以复用 replay session，但必须在 replay 前把新输入写入相同的
 HOST_INPUT / REQUEST_STATE buffer：

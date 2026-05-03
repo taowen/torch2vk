@@ -135,8 +135,8 @@ with RuntimeSession.open(device_index=0) as rt:
     rt.register_model(tensors, model_dir=model_dir)
     rt.register_inputs(
         {
-            "pipeline.prompt_token_ids": prompt_token_ids,
-            "pipeline.language_id": language_id,
+            tensors.pipeline.prompt_token_ids: prompt_token_ids,
+            tensors.pipeline.language_id: language_id,
         }
     )
 
@@ -147,14 +147,18 @@ with RuntimeSession.open(device_index=0) as rt:
     )
 ```
 
-`rt.register_model(...)` 可以做：
+`register_inputs()` 的 key 是声明好的 `LogicalTensor` 对象，不是 logical name 字符串。这样输入绑定和
+shader dispatch 使用的是同一批 tensor 对象，不需要额外的 input key 映射。
+
+`rt.register_model(...)` 只做声明边界上的校验和 session 级 `model_dir` 设置：
 
 1. 遍历 declarations；
 2. 检查 logical name 是否重复；
 3. 检查 dtype/shape/layout metadata 是否完整；
-4. 记录 `WeightSource` 的 checkpoint root；
-5. 从 `LogicalTensor.compare` / `LogicalTensor.pytorch_probe` / semantic metadata 记录 compare/probe/debug 信息；
-6. 可选预加载 model-lifetime weights。
+4. 校验 `WeightSource`、role、memory、lifetime 等声明组合。
+
+它不维护 `name -> LogicalTensor` registry，也不把 compare/probe/debug metadata 复制到另一份表里。后续
+dispatch、readback、compare 和 replay 都必须继续拿着原始 `LogicalTensor` 对象走。
 
 但它不应该预先把所有 activation 都分配出来。activation/output/state 的当前 buffer 状态应由
 `RuntimeSession.dispatch()` 根据当前 FrameScope 和 shader contract 触发，并从 RuntimeSession 管理的
@@ -291,7 +295,8 @@ forward 只看 LogicalTensor.spec。
 
 ### tensors/pipeline.py
 
-声明 pipeline 级输入、状态、中间连接和最终输出。
+声明 pipeline 级输入、状态、中间连接和最终输出。pipeline 级输入的 `LogicalTensor` 会作为
+`RuntimeSession.register_inputs()` 的 key。
 
 示例：
 
@@ -622,9 +627,9 @@ pytest or script defines run inputs
         |
 tensors/ reads config.json/checkpoint metadata and builds the logical tensor tree
         |
-tensors/ declares LogicalTensors with source/feed/probe/compare metadata
+tensors/ declares LogicalTensors with source/probe/compare metadata
         |
-RuntimeSession registers model declarations and runtime feeds
+RuntimeSession registers model declarations and runtime inputs
         |
 execution.py calls concrete frame files, such as audio_codec_decoder.py
         |

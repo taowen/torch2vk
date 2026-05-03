@@ -20,10 +20,10 @@ from torch2vk.checkpoints.safetensors import open_safetensors_mmap
 from torch2vk.runtime.frame import FrameContext, FrameScope
 from torch2vk.runtime.logical import (
     DispatchWriter,
-    InputFeed,
     LogicalTensor,
     MemoryClass,
     TensorLifetime,
+    TensorRole,
 )
 from torch2vk.runtime.shader import (
     DTypeReference,
@@ -48,8 +48,7 @@ class RuntimeSession:
         self.device = VulkanDevice(physical_device_index=device_index)
         self.artifact_dir = Path(".cache/torch2vk/generated" if artifact_dir is None else artifact_dir)
         self.model_dir: Path | None = None
-        self._tensors: dict[str, LogicalTensor] = {}
-        self._feeds: dict[str, object] = {}
+        self._inputs: dict[LogicalTensor, object] = {}
         self._frame_stack: list[FrameContext] = []
         self._dispatch_records: list[DispatchRecord] = []
         self._pipeline_cache: dict[tuple[Any, ...], ComputePipeline] = {}
@@ -80,14 +79,20 @@ class RuntimeSession:
     def register_model(self, tensors: Iterable[LogicalTensor], *, model_dir: str | Path | None = None) -> None:
         if model_dir is not None:
             self.model_dir = Path(model_dir).expanduser().resolve()
+        names: set[str] = set()
         for tensor in tensors:
             tensor.validate_declaration()
-            if tensor.name in self._tensors:
+            if tensor.name in names:
                 raise ValueError(f"Duplicate LogicalTensor name {tensor.name}")
-            self._tensors[tensor.name] = tensor
+            names.add(tensor.name)
 
-    def register_inputs(self, feeds: Mapping[str, object]) -> None:
-        self._feeds.update(feeds)
+    def register_inputs(self, inputs: Mapping[LogicalTensor, object]) -> None:
+        for tensor, value in inputs.items():
+            if not isinstance(tensor, LogicalTensor):
+                raise TypeError(f"register_inputs key must be LogicalTensor, got {type(tensor).__name__}")
+            if tensor.role is not TensorRole.INPUT:
+                raise ValueError(f"{tensor.name} is not an input tensor")
+            self._inputs[tensor] = value
 
     @contextmanager
     def frame(
@@ -276,8 +281,8 @@ class RuntimeSession:
         if tensor.source is not None:
             self._materialize_weight(tensor)
             return
-        if tensor.feed is not None:
-            self._materialize_input(tensor, tensor.feed)
+        if tensor.role is TensorRole.INPUT:
+            self._materialize_input(tensor)
             return
         raise RuntimeError(f"{tensor.name} cannot be read before it is materialized or written")
 
@@ -329,16 +334,14 @@ class RuntimeSession:
         tensor.descriptor_nbytes = slice_.nbytes
         self._model_allocations.append(allocation)
 
-    def _materialize_input(self, tensor: LogicalTensor, feed: InputFeed) -> None:
-        if feed.name not in self._feeds:
-            if feed.required:
-                raise RuntimeError(f"{tensor.name} requires missing input feed {feed.name!r}")
-            return
-        value = self._feeds[feed.name]
+    def _materialize_input(self, tensor: LogicalTensor) -> None:
+        if tensor not in self._inputs:
+            raise RuntimeError(f"{tensor.name} requires missing input")
+        value = self._inputs[tensor]
         array = np.ascontiguousarray(value)
         expected = _tensor_nbytes(tensor.spec)
         if array.nbytes != expected:
-            raise ValueError(f"{tensor.name} input feed has {array.nbytes} bytes, expected {expected}")
+            raise ValueError(f"{tensor.name} input has {array.nbytes} bytes, expected {expected}")
         if tensor.memory is MemoryClass.HOST_INPUT:
             allocation = self.device.allocate_host_visible_allocation(expected)
             allocation.buffer.write_bytes_at(allocation.offset, memoryview(array))
