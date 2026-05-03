@@ -46,4 +46,14 @@ RMS_NORM_MUL_ROPE_Q_F32 = ShaderVariant(
         dispatch=("D", "S", "B"),
     ),
     source=_SOURCE,
+    include_dirs=("copied/agentorch_shader_source/llama_cpp_glsl",),
+    compile_defines=(
+        "A_TYPE=float",
+        "B_TYPE=float",
+        "D_TYPE=float",
+        "FLOAT_TYPE=float",
+        "FLOAT_TYPEV2=vec2",
+        "RMS_NORM_ROPE_FUSION=1",
+        "ROPE_D_TYPE=float",
+    ),
 )

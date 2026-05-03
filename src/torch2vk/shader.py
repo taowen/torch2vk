@@ -84,6 +84,8 @@ class ShaderVariant:
     family: str
     contract: ShaderContract
     source: str = ""
+    compile_defines: tuple[str, ...] = ()
+    include_dirs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.name:

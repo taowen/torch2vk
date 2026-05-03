@@ -26,4 +26,13 @@ SET_ROWS_F16_I64_TOKEN_MAJOR = ShaderVariant(
         "set_rows_f16_i64_token_major.py",
         "SET_ROWS_F16_I64_TOKEN_MAJOR",
     ),
+    include_dirs=("copied/agentorch_shader_source/llama_cpp_glsl",),
+    compile_defines=(
+        "SET_ROWS=1",
+        "DATA_A_F16=1",
+        "B_TYPE=uvec2",
+        "B_SIZE=64",
+        "D_TYPE=float",
+        "FLOAT_TYPE=float",
+    ),
 )
