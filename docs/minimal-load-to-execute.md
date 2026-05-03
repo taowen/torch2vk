@@ -9,7 +9,7 @@
   -> RuntimeSession 从对应 pool/arena resolve tensor instance
   -> 调用第一个 Vulkan compute shader
   -> readback
-  -> 和 PyTorch/CPU reference 对拍
+  -> 和 lockstep PyTorch/CPU artifact 对拍
   -> Frame exit 释放 workspace
 ```
 
@@ -143,7 +143,7 @@ src/torch2vk/
   runtime.py               # RuntimeSession：frame/register/dispatch/readback/compare/close
   checkpoint.py            # safetensors reader，后续可扩展 gguf
   shader.py                # ShaderContract、ShaderVariant、DispatchRecord、contract validation
-  compare.py               # candidate vs PyTorch/reference compare
+  compare.py               # candidate vs lockstep PyTorch/CPU artifact compare
   pytorch_ref.py           # PyTorch probe/hook/manual provider/cache
   shaders/
     __init__.py
@@ -495,7 +495,7 @@ output[i] = x[i] * weight[i]
 2. 覆盖 read materialization 和 write materialization；
 3. 覆盖 weight checkpoint load；
 4. 覆盖 Vulkan descriptor、pipeline、dispatch、readback；
-5. PyTorch/CPU reference 简单。
+5. PyTorch/CPU expected artifact 简单。
 
 contract：
 
@@ -557,7 +557,7 @@ Frame exit 时 RuntimeSession：
 过滤 compare != None 的 tensor
 readback candidate TensorInstanceKey
 读取当前 frame pytorch_model.forward/callable 产生的 artifact
-compare_tensor(policy, candidate, reference)
+compare_tensor(policy, candidate, expected)
 ```
 
 `compare_tensor()` 使用 `LogicalTensor.compare`：
@@ -696,7 +696,7 @@ first mismatch index if practical
 2. 能上传 input 和 weight；
 3. 能执行 `elementwise_mul_f32`；
 4. 能 readback output；
-5. output 和 CPU reference 一致；
+5. output 和 CPU expected artifact 一致；
 6. frame exit 后 frame workspace 释放；
 7. session close 后 allocation 全释放。
 
@@ -705,7 +705,7 @@ first mismatch index if practical
 交付：
 
 1. `compare.py`；
-2. toy manual reference provider；
+2. toy lockstep PyTorch/CPU model provider；
 3. frame exit compare runner；
 4. mismatch 报告；
 5. `test_toy_mvp_vulkan.py`。
@@ -713,7 +713,7 @@ first mismatch index if practical
 验收：
 
 1. candidate 必须来自 Vulkan readback；
-2. reference 可由 PyTorch/CPU 计算；
+2. expected artifact 可由当前 frame 的 PyTorch/CPU model 计算；
 3. allclose policy 来自 `LogicalTensor.compare`；
 4. compare targets 来自 candidate written tensors；
 5. mismatch 报告包含 frame、scope、tensor name、writer shader、max_abs。

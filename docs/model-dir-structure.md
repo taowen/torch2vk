@@ -510,7 +510,7 @@ candidate frame 结束后得到 written LogicalTensors
 return {"audio_codec_decoder.decoder.conv1": torch.nn.functional.conv1d(x, w, b)}
 ```
 
-PyTorch artifact 必须来自当前 frame 传入的 PyTorch model.forward 中捕获到的真实 tensor。模型目录不提供独立 `pytorch/` reference 子系统，也不维护另一套 PyTorch input 流程。
+PyTorch artifact 必须来自当前 frame 传入的 PyTorch model.forward 中捕获到的真实 tensor。模型目录不提供独立 PyTorch 子系统，也不维护另一套 PyTorch input 流程。
 
 ## shaders/ 目录
 
