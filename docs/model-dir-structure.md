@@ -119,9 +119,12 @@ src/models/omnivoice/
 
 模型目录不提供 `materialize.py`。
 
-模型目录输出 unbound `LogicalTensor` declarations。`RuntimeSession` 在 `rt.frame(...)` 内根据 dispatch 的 read/write 需求 resolve/materialize tensor instance。
+模型目录输出稳定的 `LogicalTensor` tree。`RuntimeSession` 在 `rt.frame(...)` 内根据 dispatch 的 read/write
+需求 resolve/materialize，并直接更新对应 `LogicalTensor` 当前 buffer 状态。
 
-这里的 materialize 不是每个 shader 现场创建 Vulkan allocation。显存必须由 RuntimeSession 按 model/request/frame lifetime 管理 pool/arena；dispatch 只从对应 pool/arena 取得 `BufferSlice` 并记录 tensor instance。
+这里的 materialize 不是每个 shader 现场创建 Vulkan allocation。显存必须由 RuntimeSession 按
+model/request/frame lifetime 管理 pool/arena；dispatch 只从对应 pool/arena 取得 `BufferSlice` 并写回
+`LogicalTensor` 当前状态。
 
 推荐启动形态：
 
@@ -153,7 +156,9 @@ with RuntimeSession.open(device_index=0) as rt:
 5. 从 `LogicalTensor.compare` / `LogicalTensor.pytorch_probe` / semantic metadata 记录 compare/probe/debug 信息；
 6. 可选预加载 model-lifetime weights。
 
-但它不应该把所有 activation 都分配成 bound tensor tree。activation/output/state 的具体 tensor instance 应由 `RuntimeSession.dispatch()` 根据当前 FrameScope 和 shader contract 触发，并从 RuntimeSession 管理的 pool/arena 中取得 slice。
+但它不应该预先把所有 activation 都分配出来。activation/output/state 的当前 buffer 状态应由
+`RuntimeSession.dispatch()` 根据当前 FrameScope 和 shader contract 触发，并从 RuntimeSession 管理的
+pool/arena 中取得 slice 后写回对应 `LogicalTensor`。
 
 ## execution.py
 
@@ -594,8 +599,8 @@ dispatch index
 frame name
 FrameScope
 shader name
-reads: field -> TensorInstanceKey
-writes: field -> TensorInstanceKey
+reads: field -> LogicalTensor
+writes: field -> LogicalTensor
 logical_reads: field -> LogicalTensor.name
 logical_writes: field -> LogicalTensor.name
 symbols / dispatch dims
@@ -635,7 +640,7 @@ RuntimeSession installs hooks from LogicalTensor.pytorch_probe on the frame pyto
         |
 RuntimeSession lockstep-runs the frame pytorch_model.forward
         |
-RuntimeSession readbacks candidate TensorInstanceKeys and compares artifacts
+RuntimeSession readbacks candidate LogicalTensors and compares artifacts
         |
 RuntimeSession releases/reuses frame workspace
 ```
@@ -696,7 +701,7 @@ bad: buffer17.slice3
 3. `audio_codec_decoder.py` 表达一次 PyTorch model.forward 边界，并在内部使用 `with rt.frame(..., pytorch_model=...)`；
 4. `execution.py` 只串联具体 frame function，不直接写 shader sequence；
 5. 模型代码没有调用 `RuntimeSession.empty/load_weight/free`；
-6. dispatch 时 RuntimeSession 能 resolve/materialize read/write tensor instances，但不做 per-shader raw Vulkan allocation；
+6. dispatch 时 RuntimeSession 能 resolve/materialize read/write LogicalTensors，但不做 per-shader raw Vulkan allocation；
 7. candidate forward 后能从 dispatch records 收集 written LogicalTensors；
 8. 当前 frame 传入的 PyTorch model 根据 collected LogicalTensors 动态安装 hooks 并 lockstep 执行；
 9. compare 只比较 candidate 实际写出且声明了 compare/probe 的 tensors；

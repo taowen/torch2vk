@@ -226,12 +226,12 @@ case=mvp/toy.elementwise_mul/toy.y
 
 ```text
 1. 停止收集 candidate dispatch records
-2. 从 records 中收集本 frame written TensorInstanceKey
+2. 从 records 中收集本 frame written LogicalTensors
 3. 过滤 compare != None 且 pytorch_probe != None 的 LogicalTensor
 4. 根据 pytorch_probe 在 pytorch_model 上安装临时 hook
 5. 用当前 frame 的 feed/state/scope lockstep 执行 pytorch_model.forward
 6. hook 捕获 PyTorch artifact，并应用 selector/transform
-7. readback candidate TensorInstanceKey，并应用 readback transform
+7. readback candidate LogicalTensor 当前 buffer，并应用 readback transform
 8. 检查 shape、dtype、layout
 9. 按 ComparePolicy 计算 max_abs、max_rel、first mismatch
 10. 输出 compare summary 或 mismatch report
@@ -250,7 +250,7 @@ frame name
 scope
 artifact key
 logical tensor name
-candidate TensorInstanceKey
+candidate LogicalTensor / current buffer
 writer shader
 dispatch index
 candidate shape/dtype/layout

@@ -90,7 +90,7 @@ frame/scope/logical read-write metadata
 class PreparedDispatch:
     variant: ShaderVariant
     contract: ShaderContract
-    tensors: Mapping[str, MaterializedTensor]
+    tensors: Mapping[str, LogicalTensor]
     descriptor_buffers: tuple[DescriptorBufferBinding, ...]
     pipeline: ComputePipeline
     binding: BoundComputeBinding
@@ -103,8 +103,9 @@ class PreparedDispatch:
     dispatch_record: DispatchRecord
 ```
 
-`PreparedDispatch` 是 runtime 内部对象，不是模型 DSL。它已经把 `LogicalTensor` 解析成了具体
-`MaterializedTensor` 和 descriptor buffer range。
+`PreparedDispatch` 是 runtime 内部对象，不是模型 DSL。它保存 shader field 到 `LogicalTensor` 的映射，
+并记录这些 `LogicalTensor` 在 capture 时的当前 allocation/buffer 状态、descriptor buffer range 和
+dispatch 参数。
 
 模型目录永远不应该构造 `PreparedDispatch`。
 
@@ -236,7 +237,7 @@ resource_fingerprint
   device identity
   descriptor buffer allocation identity
   descriptor offset/range
-  materialized tensor slice allocation/offset/nbytes
+  LogicalTensor 当前 buffer allocation/offset/nbytes
   model/request/state buffer identity
 ```
 
@@ -300,44 +301,46 @@ text/token preparation
   -> waveform postprocess
 ```
 
-模型目录中会写成多个 frame 和多个模型 adapter 的 eager 调用：
+模型目录中会写成多个 frame 和多个模型 adapter 的 eager 调用。下面只展示 `execution.py`
+如何串联 frame；request lifetime 仍然由 `LogicalTensor.lifetime=REQUEST`、`MemoryClass.REQUEST_STATE`
+和 `RuntimeSession` 的 materialization 规则表达。除非后续 runtime API 文档正式定义 request scope，不要把
+`rt.request(...)` 当成模型 adapter 可依赖的入口。
 
 ```python
 def run_omnivoice_pipeline(rt, tensors, pytorch_models, *, max_audio_tokens):
     selected = None
 
-    with rt.request("omnivoice.tts", scope={"request_id": request_id}):
-        run_text_prefill_frame(rt, tensors.text, pytorch_model=pytorch_models.text)
+    run_text_prefill_frame(rt, tensors.text, pytorch_model=pytorch_models.text)
 
-        for audio_token_index in range(max_audio_tokens):
-            predictor = run_audio_token_predictor_frame(
-                rt,
-                tensors.predictor,
-                pytorch_model=pytorch_models.predictor,
-                scope={"audio_token_index": audio_token_index},
-            )
-            cond = run_text_decode_frame(
-                rt,
-                tensors.text_cond,
-                predictor,
-                pytorch_model=pytorch_models.text_cond,
-                scope={"audio_token_index": audio_token_index, "row": "cond"},
-            )
-            uncond = run_text_decode_frame(
-                rt,
-                tensors.text_uncond,
-                predictor,
-                pytorch_model=pytorch_models.text_uncond,
-                scope={"audio_token_index": audio_token_index, "row": "uncond"},
-            )
-            selected = run_audio_token_selector_frame(rt, tensors.selector, cond, uncond)
-
-        return run_audio_codec_decoder_frame(
+    for audio_token_index in range(max_audio_tokens):
+        predictor = run_audio_token_predictor_frame(
             rt,
-            tensors.codec,
-            selected.tokens,
-            pytorch_model=pytorch_models.codec,
+            tensors.predictor,
+            pytorch_model=pytorch_models.predictor,
+            scope={"audio_token_index": audio_token_index},
         )
+        cond = run_text_decode_frame(
+            rt,
+            tensors.text_cond,
+            predictor,
+            pytorch_model=pytorch_models.text_cond,
+            scope={"audio_token_index": audio_token_index, "row": "cond"},
+        )
+        uncond = run_text_decode_frame(
+            rt,
+            tensors.text_uncond,
+            predictor,
+            pytorch_model=pytorch_models.text_uncond,
+            scope={"audio_token_index": audio_token_index, "row": "uncond"},
+        )
+        selected = run_audio_token_selector_frame(rt, tensors.selector, cond, uncond)
+
+    return run_audio_codec_decoder_frame(
+        rt,
+        tensors.codec,
+        selected.tokens,
+        pytorch_model=pytorch_models.codec,
+    )
 ```
 
 Capture 不关心这是一个模型还是多个模型。它只看到：
@@ -371,8 +374,8 @@ audio_codec_decoder.codes
   feed/downstream source 指向 selected_tokens
 ```
 
-eager execution 中，selector frame 写出 request-lifetime tensor；decoder frame 读取同一个 materialized
-state。Capture 记录的是这两个 dispatch range：
+eager execution 中，selector frame 写出 request-lifetime tensor；decoder frame 读取同一个
+`LogicalTensor` 当前 buffer 状态。Capture 记录的是这两个 dispatch range：
 
 ```text
 selector dispatch writes selected_tokens buffer range
@@ -455,7 +458,8 @@ read final output
 ```
 
 如果输入 buffer 重新分配了，resource fingerprint 会变，必须重新 capture。为了复用 replay，runtime 应
-优先在 request/pipeline materialization 阶段复用同一批 stable slots。
+优先在 request/pipeline materialization 阶段复用同一批稳定 `LogicalTensor` 当前记录的 buffer
+allocation identity、offset、range 和 descriptor binding。
 
 ## State 更新
 
@@ -490,12 +494,13 @@ Replay 能稳定工作的前提是 capture 后不再发生资源漂移：
 1. replay session 持有或引用的 buffers 不能在 session 关闭前释放；
 2. frame workspace 如果参与 replay，不能在 frame exit 后 reset 掉；
 3. request/pipeline state 适合 replay，因为 lifetime 足够长；
-4. stage-owned frame slots 适合 replay，因为它们为某个 regime 预分配并长期复用；
+4. stage/request lifetime 的 `LogicalTensor` 当前 buffer 状态适合 replay，因为它们可以在某个 regime
+   下长期保持同一批 allocation identity、offset、range 和 descriptor range；
 5. replay 热路径不能触发 allocation growth。
 
 这意味着普通 debug frame 的 `FRAME_WORKSPACE` 不一定能直接被长生命周期 replay 引用。要 replay 一个
-stage，需要 runtime 把该 stage 的 workspace 提升为 stage/request lifetime 的 stable slots，或者在 capture
-结束后保证 replay session owns those allocations。
+stage，需要 runtime 保证该 stage 中参与 replay 的 `LogicalTensor` 在 capture 后仍记录同一批稳定的
+allocation identity、offset 和 range，或者在 capture 结束后保证 replay session owns those allocations。
 
 ## 和 PyTorch 对拍的关系
 
@@ -525,7 +530,7 @@ artifact cache
 
 ## Replay 和 liveness/aliasing
 
-Replay capture 初期可以不做 aliasing，只记录实际 materialized buffer ranges。
+Replay capture 初期可以不做 aliasing，只记录 `LogicalTensor` 当时实际使用的 buffer ranges。
 
 后续优化顺序：
 

@@ -6,7 +6,7 @@
 声明 LogicalTensor 点
   -> with rt.frame(...) 建立 eager execution 边界
   -> ShaderVariant 连接点和线
-  -> RuntimeSession 从对应 pool/arena resolve tensor instance
+  -> RuntimeSession 从对应 pool/arena resolve/update LogicalTensor 当前 buffer 状态
   -> 调用第一个 Vulkan compute shader
   -> readback
   -> 和 lockstep PyTorch/CPU artifact 对拍
@@ -21,13 +21,13 @@ MVP 保留四个核心概念：
 
 ```text
 LogicalTensor
-  模型可见 tensor 声明。只包含语义和 materialization metadata，不携带模型代码依赖的 storage。
+  模型可见 tensor 对象。包含语义、materialization metadata，以及由 RuntimeSession 维护的当前 buffer 状态。
 
 ShaderContract / ShaderVariant
   shader 的 typed contract。描述读写哪些 LogicalTensor、binding、shape、dtype、layout 和 dispatch。
 
 RuntimeSession
-  拥有 Vulkan device、allocation registry、materialization table、dispatch、readback、compare、close 生命周期。
+  拥有 Vulkan device、allocation registry、dispatch、readback、compare、close 生命周期，并维护 LogicalTensor 当前 buffer 状态。
 
 Frame
   一次 PyTorch model.forward 对齐的 eager execution scope。RuntimeSession 在 Frame 内自动分配和释放显存。
@@ -39,7 +39,7 @@ Frame
 2. 模型 forward 必须在 `with rt.frame(...)` 内调用 `ShaderVariant`；
 3. `ShaderVariant.__call__` 只调用 `RuntimeSession.dispatch()`；
 4. `RuntimeSession.dispatch()` 根据 `LogicalTensor` metadata resolve/materialize reads/writes；
-5. `LogicalTensor` 不拥有 allocation，不负责释放；
+5. `LogicalTensor` 记录当前 buffer 状态，但不拥有 allocation、不负责释放；
 6. `RuntimeSession` 拥有所有 allocation，并按 Frame/request/model 生命周期释放；
 7. dispatch records 是后续 compare、replay、liveness/aliasing 的事实来源。
 
@@ -54,7 +54,7 @@ Frame
 packed shape、state/source 等信息时，把这些补成 `LogicalTensor` metadata，而不是在 shader contract
 里加默认 tensor 绑定。
 
-注意：这里的 materialize 不是每个 shader 现场创建 Vulkan buffer 或 `vkAllocateMemory`。底层 allocation 必须按 model/request/frame pool 管理；dispatch 只从已有 pool/arena 取得 slice 或登记 tensor instance。
+注意：这里的 materialize 不是每个 shader 现场创建 Vulkan buffer 或 `vkAllocateMemory`。底层 allocation 必须按 model/request/frame pool 管理；dispatch 只从已有 pool/arena 取得 slice 并写回 `LogicalTensor` 当前 buffer 状态。
 
 ## 为什么必须有 Frame
 
@@ -129,7 +129,8 @@ with RuntimeSession.open(device_index=0) as rt:
         ELEMENTWISE_MUL_F32(rt, x=x, weight=w, output=y)
 ```
 
-这里没有 binding table 暴露给模型，也没有 bound tensor tree。`x/w/y` 都是声明对象。执行态 storage 存在于 `RuntimeSession` 的 materialization table。
+这里没有 binding table 暴露给模型，也没有 bound tensor tree。`x/w/y` 都是稳定 `LogicalTensor` 对象。
+执行态 buffer 状态由 `RuntimeSession` 直接维护在这些 `LogicalTensor` 上。
 
 MVP 可以先让 toy frame 传入一个最小 manual reference callable，作为当前 Frame 的 lockstep reference：
 
@@ -149,7 +150,7 @@ src/torch2vk/
   logical.py               # LogicalTensor、TensorRole、TensorSemantic、MemoryClass、TensorLifetime、WeightSource、ComparePolicy
   frame.py                 # FrameScope、frame context state
   memory.py                # BufferAllocation、BufferSlice、allocation registry
-  materialize.py           # materialization table、TensorInstanceKey、read/write materialization
+  materialize.py           # read/write materialization，更新 LogicalTensor 当前 buffer 状态
   runtime.py               # RuntimeSession：frame/register/dispatch/readback/compare/close
   checkpoint.py            # safetensors reader，后续可扩展 gguf
   shader.py                # ShaderContract、ShaderVariant、DispatchRecord、contract validation
@@ -194,7 +195,7 @@ MVP 执行期只允许 concrete shape。声明和 contract 里可以出现 symbo
 ### LogicalTensor
 
 ```python
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class LogicalTensor:
     name: str
     spec: TensorSpec
@@ -207,6 +208,10 @@ class LogicalTensor:
     semantic: TensorSemantic | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
+    buffer: BufferSlice | None = None
+    descriptor_nbytes: int | None = None
+    version: int = 0
+    writer: DispatchWriter | None = None
 ```
 
 验收规则：
@@ -294,29 +299,20 @@ class BufferSlice:
 
 `BufferSlice` 只是 runtime 内部 view，不拥有 Vulkan buffer。真实 buffer 和 memory owner 归 `RuntimeSession` 内部 allocation registry。
 
-### MaterializedTensor
+### LogicalTensor runtime state
 
-```python
-@dataclass(frozen=True, slots=True)
-class TensorInstanceKey:
-    logical_name: str
-    scope_key: str
-    version: int
+`RuntimeSession` 不维护一份平行的 binding table。read/write materialization 会直接更新对应
+`LogicalTensor` 的当前 buffer 状态：
 
-
-@dataclass(slots=True)
-class MaterializedTensor:
-    key: TensorInstanceKey
-    tensor: LogicalTensor
-    storage: BufferSlice
-    dtype: str
-    shape: tuple[int, ...]
-    layout: TensorLayout
-    lifetime: TensorLifetime
-    writer: DispatchWriter | None = None
+```text
+buffer: BufferSlice | None
+descriptor_nbytes: int | None
+version: int
+writer: DispatchWriter | None
 ```
 
-模型代码不直接持有 `MaterializedTensor`。它用于 runtime dispatch、readback、compare、debug 和 replay。
+模型代码只传递 `LogicalTensor`，不手动分配、释放或改写这些 runtime 字段。它们用于 runtime dispatch、
+readback、compare、debug 和 replay。
 
 ## RuntimeSession API
 
@@ -348,9 +344,9 @@ class RuntimeSession:
 
     def dispatch(self, variant: ShaderVariant, **arguments: object) -> None: ...
 
-    def readback(self, key: TensorInstanceKey) -> object: ...
+    def readback(self, tensor: LogicalTensor) -> object: ...
 
-    def debug_materialization(self, tensor: LogicalTensor) -> MaterializedTensor | None: ...
+    def debug_materialization(self, tensor: LogicalTensor) -> BufferSlice | None: ...
 
     def close(self) -> None: ...
 ```
@@ -365,8 +361,8 @@ class RuntimeSession:
 4. 按 model/request/frame/host pool 分配或扩容 device-local、host-visible、staging、readback buffer；
 5. 读取 checkpoint 并上传 weight；
 6. 上传 input feed；
-7. 根据 dispatch read/write resolve/materialize tensor instance；
-8. 根据 materialized storage 绑定 descriptor；
+7. 根据 dispatch read/write resolve/materialize `LogicalTensor`；
+8. 根据 `LogicalTensor` 当前 buffer 状态绑定 descriptor；
 9. 插入必要 Vulkan barrier；
 10. 记录 dispatch reads/writes；
 11. Frame exit 时 readback + compare；
@@ -534,8 +530,8 @@ class DispatchRecord:
     frame: str
     scope: FrameScope
     shader: str
-    reads: Mapping[str, TensorInstanceKey]
-    writes: Mapping[str, TensorInstanceKey]
+    reads: Mapping[str, LogicalTensor]
+    writes: Mapping[str, LogicalTensor]
     logical_reads: Mapping[str, str]
     logical_writes: Mapping[str, str]
     symbols: Mapping[str, int]
@@ -552,7 +548,8 @@ class DispatchRecord:
 6. 后续 replay；
 7. mismatch drilldown。
 
-`logical_reads/logical_writes` 记录 logical tensor name，`reads/writes` 记录具体 tensor instance。
+`logical_reads/logical_writes` 记录 logical tensor name，`reads/writes` 记录参与本次 dispatch 的
+`LogicalTensor`。
 
 ## PyTorch/CPU lockstep 对拍
 
@@ -570,7 +567,7 @@ Frame exit 时 RuntimeSession：
 ```text
 收集本 Frame written tensors
 过滤 compare != None 的 tensor
-readback candidate TensorInstanceKey
+readback candidate LogicalTensor 当前 buffer
 从当前 frame 的 reference provider 取得 artifact；真实模型 provider 必须来自 PyTorch model.forward hook
 compare_tensor(policy, candidate, expected)
 ```
@@ -638,7 +635,7 @@ first mismatch index if practical
 
 1. `FrameScope`；
 2. `RuntimeSession.frame()` context manager；
-3. `TensorInstanceKey` / `MaterializedTensor`；
+3. `LogicalTensor` runtime buffer state；
 4. fake `BufferAllocation` / `BufferSlice`；
 5. `MODEL_WEIGHT` / `REQUEST_STATE` / `FRAME_WORKSPACE` arena；
 6. read/write materialization rules；
@@ -649,7 +646,7 @@ first mismatch index if practical
 
 1. dispatch 必须在 frame 内；
 2. frame scope 生成稳定 artifact prefix；
-3. write tensor 会从当前 arena reserve slice 并创建 materialized instance；
+3. write tensor 会从当前 arena reserve slice 并更新 LogicalTensor 当前 buffer 状态；
 4. read-before-write 能报错；
 5. weight read 会创建 model-lifetime materialization；
 6. input read 会检查 runtime feed；
@@ -691,7 +688,7 @@ first mismatch index if practical
 1. 漏 field、多 field、dtype 错、shape 错都失败；
 2. dispatch 不在 frame 内失败；
 3. read-before-write 失败；
-4. dispatch record 包含 `TensorInstanceKey` reads/writes；
+4. dispatch record 包含 `LogicalTensor` reads/writes；
 5. frame exit 能收集 written compare tensors。
 
 ### Phase 4：Vulkan 最小执行
@@ -751,7 +748,7 @@ Toy MVP 稳定后再引入真实 op。建议顺序：
 LogicalTensor declarations
   -> with rt.frame(...)
   -> shader contract
-  -> RuntimeSession resolves tensor instances from pools/arenas
+  -> RuntimeSession resolves LogicalTensor buffer state from pools/arenas
   -> Vulkan run
   -> dispatch record
   -> readback
