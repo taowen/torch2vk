@@ -120,6 +120,30 @@ class VulkanContext:
         layout = self.vk.vkCreateDescriptorSetLayout(self.device, create_info, None)
         return VulkanDescriptorSetLayout(context=self, layout=layout)
 
+    def create_pipeline_layout(
+        self,
+        contract: ShaderContract,
+        descriptor_set_layout: VulkanDescriptorSetLayout,
+    ) -> VulkanPipelineLayout:
+        push_ranges: list[Any] = []
+        if contract.push_constants is not None:
+            push_ranges.append(
+                self.vk.VkPushConstantRange(
+                    stageFlags=self.vk.VK_SHADER_STAGE_COMPUTE_BIT,
+                    offset=0,
+                    size=contract.push_constants.size,
+                )
+            )
+        create_info = self.vk.VkPipelineLayoutCreateInfo(
+            sType=self.vk.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            setLayoutCount=1,
+            pSetLayouts=[descriptor_set_layout.layout],
+            pushConstantRangeCount=len(push_ranges),
+            pPushConstantRanges=push_ranges,
+        )
+        layout = self.vk.vkCreatePipelineLayout(self.device, create_info, None)
+        return VulkanPipelineLayout(context=self, layout=layout)
+
 
 @dataclass(slots=True)
 class VulkanBuffer:
@@ -172,6 +196,15 @@ class VulkanDescriptorSetLayout:
 
     def close(self) -> None:
         self.context.vk.vkDestroyDescriptorSetLayout(self.context.device, self.layout, None)
+
+
+@dataclass(slots=True)
+class VulkanPipelineLayout:
+    context: VulkanContext
+    layout: Any
+
+    def close(self) -> None:
+        self.context.vk.vkDestroyPipelineLayout(self.context.device, self.layout, None)
 
 
 def enumerate_physical_devices() -> tuple[VulkanPhysicalDevice, ...]:
