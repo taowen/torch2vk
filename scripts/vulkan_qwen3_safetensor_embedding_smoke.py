@@ -3,14 +3,14 @@
 
 from __future__ import annotations
 
-import struct
 import os
+import struct
 from pathlib import Path
 
-import torch
 from safetensors import safe_open
 
-from torch2vk.logical import input_tensor, output_tensor, weight_tensor
+from torch2vk.artifacts import read_bound_tensor_artifacts
+from torch2vk.logical import ComparePolicy, input_tensor, output_tensor, weight_tensor
 from torch2vk.models.qwen3_safetensor.shaders.embedding_lookup_bf16_f32_sequence import (
     EMBEDDING_LOOKUP_BF16_F32,
 )
@@ -19,13 +19,14 @@ from torch2vk.models.qwen3_safetensor.weights import (
     qwen3_safetensor_weight_bytes,
     verify_qwen3_safetensor_weights,
 )
+from torch2vk.schema import BoundaryRule
 from torch2vk.shader import DispatchTarget
 from torch2vk.storage import bind_storage, plan_storage
+from torch2vk.validation import compare_declared_boundaries
 from torch2vk.vulkan_backend import create_compute_context
 from torch2vk.vulkan_runner import (
     VulkanSequenceRunner,
     allocate_storage_buffers,
-    read_bound_tensor_bytes,
     write_bound_tensor_bytes,
     write_bound_tensor_payloads,
 )
@@ -96,13 +97,23 @@ def main() -> int:
                 tensors=bound,
                 allocations=allocations,
             )
-            actual = torch.frombuffer(
-                bytearray(read_bound_tensor_bytes(bound["output"], allocations)),
-                dtype=torch.float32,
-            ).reshape_as(expected)
-            if not actual.allclose(expected, rtol=0.0, atol=0.0):
-                max_abs = (actual - expected).abs().max().item()
-                raise AssertionError(f"embedding mismatch max_abs={max_abs}")
+            report = compare_declared_boundaries(
+                (
+                    BoundaryRule(
+                        name="embedding",
+                        phase="model",
+                        order=0,
+                        tensors=(bound["output"],),
+                        compare=ComparePolicy(kind="tensor", rtol=0.0, atol=0.0),
+                        checkpoint=bound["input_ids"],
+                        readback="writer-io",
+                    ),
+                ),
+                dispatch_records=tuple(target.records),
+                reference={"output": expected},
+                candidate=read_bound_tensor_artifacts(bound, allocations, names=("output",)),
+            )
+            report.raise_for_mismatch()
             print(
                 "qwen3_safetensor_embedding_dispatch=ok "
                 f"tokens={input_ids} hidden={spec.hidden_size}"
