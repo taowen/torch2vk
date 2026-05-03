@@ -8,7 +8,6 @@ from torch2vk.copied_shader_source import (
     copied_module_shader_sources,
     copied_shader_variant_source,
 )
-from torch2vk.models.qwen3_safetensor.copied_shader_manifest import QWEN3_COPIED_SHADER_MODULES
 from torch2vk.models.qwen3_safetensor.execution import (
     qwen3_execution_tensors,
     record_qwen3_minimal_prefill,
@@ -21,6 +20,17 @@ from torch2vk.models.qwen3_safetensor.shaders import (
 )
 from torch2vk.models.qwen3_safetensor.spec import Qwen3Spec
 from torch2vk.shader import DispatchTarget
+
+
+def copied_shader_module_files() -> tuple[str, ...]:
+    copied_dir = resources.files("torch2vk.copied.agentorch_shader_source")
+    return tuple(
+        sorted(
+            child.name
+            for child in copied_dir.iterdir()
+            if child.name.endswith(".py") and child.name != "__init__.py"
+        )
+    )
 
 
 def tiny_spec() -> Qwen3Spec:
@@ -116,15 +126,6 @@ class Qwen3SafetensorTests(unittest.TestCase):
                 ),
             )
 
-    def test_qwen3_copied_shader_manifest_files_exist(self) -> None:
-        copied_dir = resources.files("torch2vk.copied.agentorch_shader_source")
-        missing = [
-            module_file
-            for module_file in QWEN3_COPIED_SHADER_MODULES
-            if not copied_dir.joinpath(module_file).is_file()
-        ]
-        self.assertEqual(missing, [])
-
     def test_initial_shader_sources_are_copied_not_placeholders(self) -> None:
         self.assertEqual(
             EMBEDDING_LOOKUP_BF16_F32.source,
@@ -151,16 +152,19 @@ class Qwen3SafetensorTests(unittest.TestCase):
             self.assertNotIn("TODO: implement Vulkan GLSL", shader.source)
 
     def test_qwen3_copied_shader_modules_expose_sources(self) -> None:
-        missing_sources: list[str] = []
-        for module_file in QWEN3_COPIED_SHADER_MODULES:
+        discovered_sources: dict[str, tuple[str, ...]] = {}
+        for module_file in copied_shader_module_files():
             sources = copied_module_shader_sources(module_file)
             if not sources:
-                missing_sources.append(module_file)
                 continue
+            discovered_sources[module_file] = tuple(sorted(sources))
             for source in sources.values():
                 self.assertIn("#version", source)
                 self.assertNotIn("TODO: implement Vulkan GLSL", source)
-        self.assertEqual(missing_sources, [])
+        self.assertIn("embedding_lookup_bf16_f32_sequence.py", discovered_sources)
+        self.assertIn("matmul_bf16_f32_f16acc_aligned_l.py", discovered_sources)
+        self.assertIn("rms_norm_f32_f32_weight_llama_wg512.py", discovered_sources)
+        self.assertIn("swiglu_f32.py", discovered_sources)
 
 
 if __name__ == "__main__":
