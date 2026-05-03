@@ -6,6 +6,8 @@ import importlib
 from dataclasses import dataclass
 from typing import Any, cast
 
+from .shader import ShaderContract
+
 
 @dataclass(frozen=True, slots=True)
 class VulkanPhysicalDevice:
@@ -81,6 +83,43 @@ class VulkanContext:
         module = self.vk.vkCreateShaderModule(self.device, create_info, None)
         return VulkanShaderModule(context=self, module=module)
 
+    def create_descriptor_set_layout(self, contract: ShaderContract) -> VulkanDescriptorSetLayout:
+        bindings = [
+            _descriptor_layout_binding(
+                self.vk,
+                binding=binding.binding,
+                descriptor_type=binding.descriptor_type,
+            )
+            for binding in contract.bindings
+        ]
+        bindings.extend(
+
+                _descriptor_layout_binding(
+                    self.vk,
+                    binding=resource.binding,
+                    descriptor_type=resource.descriptor_type,
+                )
+                for resource in contract.resources
+
+        )
+        bindings.extend(
+
+                _descriptor_layout_binding(
+                    self.vk,
+                    binding=uniform.binding,
+                    descriptor_type="uniform_buffer",
+                )
+                for uniform in contract.uniforms
+
+        )
+        create_info = self.vk.VkDescriptorSetLayoutCreateInfo(
+            sType=self.vk.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            bindingCount=len(bindings),
+            pBindings=bindings,
+        )
+        layout = self.vk.vkCreateDescriptorSetLayout(self.device, create_info, None)
+        return VulkanDescriptorSetLayout(context=self, layout=layout)
+
 
 @dataclass(slots=True)
 class VulkanBuffer:
@@ -124,6 +163,15 @@ class VulkanShaderModule:
 
     def close(self) -> None:
         self.context.vk.vkDestroyShaderModule(self.context.device, self.module, None)
+
+
+@dataclass(slots=True)
+class VulkanDescriptorSetLayout:
+    context: VulkanContext
+    layout: Any
+
+    def close(self) -> None:
+        self.context.vk.vkDestroyDescriptorSetLayout(self.context.device, self.layout, None)
 
 
 def enumerate_physical_devices() -> tuple[VulkanPhysicalDevice, ...]:
@@ -246,3 +294,25 @@ def _find_memory_type(
         if supported and memory_type.propertyFlags & properties == properties:
             return int(index)
     raise RuntimeError("No compatible Vulkan memory type found")
+
+
+def _descriptor_layout_binding(
+    vk: Any,
+    *,
+    binding: int,
+    descriptor_type: str,
+) -> Any:
+    return vk.VkDescriptorSetLayoutBinding(
+        binding=binding,
+        descriptorType=_descriptor_type(vk, descriptor_type),
+        descriptorCount=1,
+        stageFlags=vk.VK_SHADER_STAGE_COMPUTE_BIT,
+    )
+
+
+def _descriptor_type(vk: Any, descriptor_type: str) -> int:
+    if descriptor_type == "storage_buffer":
+        return int(vk.VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+    if descriptor_type == "uniform_buffer":
+        return int(vk.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+    raise ValueError(f"Unsupported descriptor type {descriptor_type!r}")
