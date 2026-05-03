@@ -19,7 +19,7 @@ from vulkan import VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_BUFFER_USAGE_TRANSFER_
 from torch2vk.checkpoints.checkpoint_tensor import CheckpointTensor
 from torch2vk.checkpoints.safetensors import open_safetensors_mmap
 from torch2vk.runtime.compare import TensorCompareResult, compare_arrays, normalize_reference_outputs, select_probe_value
-from torch2vk.runtime.frame import FrameContext, FrameScope
+from torch2vk.runtime.frame import FrameContext
 from torch2vk.runtime.logical import (
     DispatchWriter,
     LogicalTensor,
@@ -124,7 +124,6 @@ class RuntimeSession:
         self,
         name: str,
         *,
-        scope: Mapping[str, str | int] | None = None,
         pytorch_model: object | None = None,
         pytorch_args: tuple[object, ...] = (),
         pytorch_kwargs: Mapping[str, object] | None = None,
@@ -133,7 +132,7 @@ class RuntimeSession:
         if not name:
             raise ValueError("frame name must be non-empty")
         context = FrameContext(
-            scope=FrameScope(frame=name, values={} if scope is None else dict(scope)),
+            frame=name,
             start_dispatch_index=len(self._dispatch_records),
             pytorch_model=pytorch_model,
             pytorch_args=tuple(pytorch_args),
@@ -208,8 +207,7 @@ class RuntimeSession:
         index = len(self._dispatch_records)
         record = DispatchRecord(
             index=index,
-            frame=frame.scope.frame,
-            scope_values=tuple(sorted(frame.scope.values.items())),
+            frame=frame.frame,
             shader=variant.name,
             reads=tuple((field.name, tensors[field.name]) for field in contract.input_fields),
             writes=tuple((field.name, tensors[field.name]) for field in contract.output_fields),
@@ -229,7 +227,7 @@ class RuntimeSession:
             with tensor.runtime_write_scope():
                 tensor.version += 1
                 tensor.writer = DispatchWriter(
-                    frame=frame.scope.frame,
+                    frame=frame.frame,
                     shader=variant.name,
                     dispatch_index=index,
                 )
@@ -252,7 +250,7 @@ class RuntimeSession:
                 _call_reference_model(
                     frame.reference_model,
                     inputs=self._inputs,
-                    scope=frame.scope,
+                    frame=frame.frame,
                 )
             )
             for tensor in reference_targets:
@@ -263,7 +261,7 @@ class RuntimeSession:
                 self._compare_results.append(
                     compare_arrays(
                         tensor=tensor,
-                        scope=frame.scope,
+                        frame=frame.frame,
                         candidate=self.readback(tensor),
                         expected=expected,
                     )
@@ -287,7 +285,7 @@ class RuntimeSession:
             self._compare_results.append(
                 compare_arrays(
                     tensor=tensor,
-                    scope=frame.scope,
+                    frame=frame.frame,
                     candidate=self.readback(tensor),
                     expected=expected,
                 )
@@ -384,7 +382,7 @@ class RuntimeSession:
                 inspect.Parameter.KEYWORD_ONLY,
             }
         }
-        prefix = f"{frame.scope.frame}."
+        prefix = f"{frame.frame}."
         kwargs: dict[str, object] = {}
         for tensor, value in self._inputs.items():
             if tensor.role is not TensorRole.INPUT or not tensor.name.startswith(prefix):
@@ -747,7 +745,7 @@ def _call_reference_model(
     reference_model: object,
     *,
     inputs: Mapping[LogicalTensor, object],
-    scope: FrameScope,
+    frame: str,
 ) -> Mapping[object, object]:
     if not callable(reference_model):
         raise TypeError(f"reference_model must be callable, got {type(reference_model).__name__}")
@@ -768,7 +766,7 @@ def _call_reference_model(
     elif len(parameters) == 1:
         result = reference_model(dict(inputs))
     else:
-        result = reference_model(dict(inputs), scope)
+        result = reference_model(dict(inputs), frame)
     if not isinstance(result, Mapping):
         raise TypeError(f"reference_model must return a Mapping, got {type(result).__name__}")
     return result

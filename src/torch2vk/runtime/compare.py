@@ -8,7 +8,6 @@ from typing import Any, Protocol, TypeGuard
 
 import numpy as np
 
-from torch2vk.runtime.frame import FrameScope
 from torch2vk.runtime.logical import ComparePolicy, LogicalTensor
 
 
@@ -38,7 +37,7 @@ class TensorCompareResult:
 def compare_arrays(
     *,
     tensor: LogicalTensor,
-    scope: FrameScope,
+    frame: str,
     candidate: object,
     expected: object,
 ) -> TensorCompareResult:
@@ -49,7 +48,7 @@ def compare_arrays(
     expected_array = _as_numpy(expected)
     if candidate_array.shape != expected_array.shape:
         raise AssertionError(
-            f"{tensor.name} compare shape mismatch in {scope.artifact_prefix()}: "
+            f"{tensor.name} compare shape mismatch in {frame}: "
             f"candidate {candidate_array.shape}, expected {expected_array.shape}"
         )
     if policy.kind == "token":
@@ -69,8 +68,8 @@ def compare_arrays(
             passed = passed and max_abs <= policy.max_abs
     result = TensorCompareResult(
         tensor=tensor,
-        frame=scope.frame,
-        artifact_key=f"{scope.artifact_prefix()}/{tensor.name}",
+        frame=frame,
+        artifact_key=f"{frame}/{tensor.name}",
         max_abs=max_abs,
         max_rel=max_rel,
         passed=passed,

@@ -179,7 +179,7 @@ tensor，由 `ShaderVariant(rt, ...)` 调用在运行时收集到 dispatch recor
 records，在 Frame enter 提前做权重预加载、workspace sizing、liveness/aliasing 和 arena offset 分配。
 
 Runtime 不应该预先把所有 activation 都分配出来。activation/output/state 的当前 buffer 状态应由
-`RuntimeSession.dispatch()` 根据当前 FrameScope 和 shader contract 触发，并从 RuntimeSession 管理的
+`RuntimeSession.dispatch()` 根据当前 frame 和 shader contract 触发，并从 RuntimeSession 管理的
 pool/arena 中取得 slice 后写回对应 `LogicalTensor`。
 
 ## execution.py
@@ -216,7 +216,7 @@ def run_omnivoice_pipeline(
             rt,
             tensors.audio_token_predictor,
             pytorch_model=pytorch_models.audio_token_predictor,
-            scope={"audio_token_index": audio_token_index},
+            frame_name=f"audio_token_predictor.audio_token_{audio_token_index:03d}",
         )
 
         cond = run_text_decode_frame(
@@ -224,7 +224,7 @@ def run_omnivoice_pipeline(
             tensors.text_llm_cond,
             predictor_out,
             pytorch_model=pytorch_models.text_llm_cond,
-            scope={"audio_token_index": audio_token_index, "row": "cond"},
+            frame_name=f"text_llm.decode.audio_token_{audio_token_index:03d}.cond",
         )
 
         uncond = run_text_decode_frame(
@@ -232,7 +232,7 @@ def run_omnivoice_pipeline(
             tensors.text_llm_uncond,
             predictor_out,
             pytorch_model=pytorch_models.text_llm_uncond,
-            scope={"audio_token_index": audio_token_index, "row": "uncond"},
+            frame_name=f"text_llm.decode.audio_token_{audio_token_index:03d}.uncond",
         )
 
         selected = run_audio_token_selector_frame(
@@ -241,7 +241,7 @@ def run_omnivoice_pipeline(
             cond,
             uncond,
             pytorch_model=pytorch_models.audio_token_selector,
-            scope={"audio_token_index": audio_token_index},
+            frame_name=f"audio_token_selector.audio_token_{audio_token_index:03d}",
         )
 
         if selected.done:
@@ -252,7 +252,6 @@ def run_omnivoice_pipeline(
         tensors.audio_codec_decoder,
         selected.tokens,
         pytorch_model=pytorch_models.audio_codec_decoder,
-        scope={"domain": "audio"},
     )
 
     return OmniVoicePipelineResult(waveform=decoder_out.waveform)
@@ -365,7 +364,7 @@ text_llm.state.layer.00.key_cache
 text_llm.state.layer.00.value_cache
 ```
 
-cond/uncond、audio token index 不写进 base name。它们由 `FrameScope` 表达。
+cond/uncond、audio token index 进入本次 invocation 的 frame name，并由对应的 `LogicalTensor` tree 承载。
 
 KV cache 必须是 `role=STATE`、`semantic=KV_CACHE`、`memory=REQUEST_STATE`、`lifetime=REQUEST`。
 
@@ -493,11 +492,10 @@ def run_audio_codec_decoder_frame(
     tokens: LogicalTensor,
     *,
     pytorch_model: torch.nn.Module,
-    scope: Mapping[str, str | int],
+    frame_name: str = "audio_codec_decoder",
 ) -> AudioCodecDecoderOutput:
     with rt.frame(
-        "audio_codec_decoder",
-        scope=scope,
+        frame_name,
         pytorch_model=pytorch_model,
     ):
         NORMALIZE_AUDIO_TOKENS(
@@ -620,7 +618,6 @@ constants 记录进 artifact manifest。不要让 `*.comp` 或 generated `.glsl`
 ```text
 dispatch index
 frame name
-FrameScope
 shader name
 reads: field -> LogicalTensor
 writes: field -> LogicalTensor
@@ -682,14 +679,6 @@ audio_codec_decoder.decoder.waveform
 output.wav_pcm16
 ```
 
-不要把 dynamic scope 写进 base name：
-
-```text
-bad: audio.token_005.text_llm.cond.layer.03.output
-good base: text_llm.decode.layer.03.output
-good scope: audio_token_index=5, row=cond
-```
-
 不要用物理位置命名 logical tensor：
 
 ```text
@@ -698,11 +687,18 @@ bad: frame.attention.q_proj
 bad: buffer17.slice3
 ```
 
+动态 invocation 身份由 frame name 和本次执行创建的 tensor tree 表达：
+
+```text
+text_llm.decode.audio_token_005.cond
+text_llm.decode.audio_token_005.cond.layer.03.output
+```
+
 ## MVP 落地顺序
 
 建议按这个顺序落地：
 
-1. 建通用 `src/torch2vk` core：`LogicalTensor`、`FrameScope`、`ShaderContract`、dry-run `RuntimeSession`。
+1. 建通用 `src/torch2vk` core：`LogicalTensor`、`FrameContext`、`ShaderContract`、dry-run `RuntimeSession`。
 2. 建 `src/models/omnivoice/tensors/spec.py` 和 `tensors/audio_codec_decoder.py`，只生成 declarations。
 3. 建 `audio_codec_decoder.py`，表达一次 audio codec decoder PyTorch model.forward 边界，并接收 `pytorch_model`。
 4. 建 `shaders/embedding_sum_f32.py`、`conv1d_f32.py`、`snake_f32.py` 的 contract 和 `ShaderVariant`。

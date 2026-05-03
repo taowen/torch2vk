@@ -14,7 +14,7 @@ from qwen_asr.core.transformers_backend.modeling_qwen3_asr import Qwen3ASRAudioE
 from torch2vk.runtime.session import RuntimeSession
 
 
-def _load_qwen3_asr_audio_encoder_frontend(model_dir: Path) -> Qwen3ASRAudioEncoder:
+def _load_qwen3_asr_audio_encoder_without_layers(model_dir: Path) -> Qwen3ASRAudioEncoder:
     config_dict = dict(load_config_json(model_dir)["thinker_config"]["audio_config"])
     config_dict["encoder_layers"] = 0
     config_dict["num_hidden_layers"] = 0
@@ -56,10 +56,10 @@ def test_runtime_compares_qwen3_asr_audio_tower_frame(tmp_path) -> None:
         run_qwen3_asr_audio_tower(
             rt,
             tensors,
-            pytorch_model=_load_qwen3_asr_audio_encoder_frontend(model_dir),
+            pytorch_model=_load_qwen3_asr_audio_encoder_without_layers(model_dir),
         )
         final_result = next(
-            result for result in rt.compare_results if result.tensor is tensors.conv_out_add_position
+            result for result in rt.compare_results if result.tensor is tensors.last_hidden_state
         )
 
     assert final_result.passed

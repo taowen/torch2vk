@@ -27,7 +27,7 @@ Replay 提交捕获后的 Vulkan command sequence。
 
 ```python
 def run_audio_codec_decoder_frame(rt, tensors, *, pytorch_model):
-    with rt.frame("audio_codec_decoder", scope={"domain": "audio"}, pytorch_model=pytorch_model):
+    with rt.frame("audio_codec_decoder", pytorch_model=pytorch_model):
         SHADER_A(rt, x=tensors.x, weight=tensors.w0, output=tensors.h0)
         SHADER_B(rt, x=tensors.h0, weight=tensors.w1, output=tensors.waveform)
         return AudioCodecDecoderOutput(waveform=tensors.waveform)
@@ -75,7 +75,7 @@ specialization constants
 dispatch group count
 read buffer ranges
 write buffer ranges
-frame/scope/logical read-write metadata
+frame/logical read-write metadata
 ```
 
 这些内容足够重放 Vulkan command。模型目录里的 `execution.py`、frame 函数和 `ShaderVariant.__call__` 在 replay
@@ -320,21 +320,21 @@ def run_omnivoice_pipeline(rt, tensors, pytorch_models, *, max_audio_tokens):
             rt,
             tensors.predictor,
             pytorch_model=pytorch_models.predictor,
-            scope={"audio_token_index": audio_token_index},
+            frame_name=f"audio_token_predictor.audio_token_{audio_token_index:03d}",
         )
         cond = run_text_decode_frame(
             rt,
             tensors.text_cond,
             predictor,
             pytorch_model=pytorch_models.text_cond,
-            scope={"audio_token_index": audio_token_index, "row": "cond"},
+            frame_name=f"text_llm.decode.audio_token_{audio_token_index:03d}.cond",
         )
         uncond = run_text_decode_frame(
             rt,
             tensors.text_uncond,
             predictor,
             pytorch_model=pytorch_models.text_uncond,
-            scope={"audio_token_index": audio_token_index, "row": "uncond"},
+            frame_name=f"text_llm.decode.audio_token_{audio_token_index:03d}.uncond",
         )
         selected = run_audio_token_selector_frame(rt, tensors.selector, cond, uncond)
 

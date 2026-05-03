@@ -183,7 +183,6 @@ class ShaderVariant:
 class DispatchRecord:
     index: int
     frame: str
-    scope_values: tuple[tuple[str, str | int], ...]
     shader: str
     reads: tuple[tuple[str, "LogicalTensor"], ...]
     writes: tuple[tuple[str, "LogicalTensor"], ...]

@@ -54,12 +54,13 @@ QWEN3_ASR_CONV_OUT_ADD_POSITION_F32 = ShaderVariant(
                 PushConstantFieldSpec("K", PushConstantType.UINT32, 20, mul("C", "F")),
             ),
         ),
-        dispatch=(ceil_div(mul(mul("N", "T"), "H"), 256), 1, 1),
+        dispatch=(ceil_div(mul("N", "T"), 16), ceil_div("H", 16), 1),
     ),
     execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""
 #version 450
 
+#extension GL_EXT_control_flow_attributes : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_16bit_storage : require
 
@@ -86,7 +87,14 @@ layout(push_constant) uniform PushConstants {
     uint K;
 } pc;
 
-layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+const uint TILE_M = 16u;
+const uint TILE_N = 16u;
+const uint TILE_K = 32u;
+
+shared float tile_x[16 * 32];
+shared float tile_w[32 * 16];
 
 float bf16_to_f32(uint16_t value) {
     return uintBitsToFloat(uint(value) << 16);
@@ -103,27 +111,47 @@ float position_value(uint t, uint h) {
 }
 
 void main() {
-    const uint index = gl_GlobalInvocationID.x;
-    const uint total = pc.N * pc.T * pc.H;
-    if (index >= total) {
-        return;
-    }
-
-    const uint h = index % pc.H;
-    const uint t = (index / pc.H) % pc.T;
-    const uint n = index / (pc.H * pc.T);
+    const uint local_h = gl_LocalInvocationID.x;
+    const uint local_row = gl_LocalInvocationID.y;
+    const uint lane = local_row * TILE_N + local_h;
+    const uint row = gl_WorkGroupID.x * TILE_M + local_row;
+    const uint h = gl_WorkGroupID.y * TILE_N + local_h;
+    const uint total_rows = pc.N * pc.T;
+    const uint n = row / pc.T;
+    const uint t = row - n * pc.T;
 
     float acc = 0.0;
-    for (uint c = 0; c < pc.C; ++c) {
-        for (uint f = 0; f < pc.F; ++f) {
-            const uint k = c * pc.F + f;
-            const uint x_index = ((n * pc.C + c) * pc.F + f) * pc.T + t;
-            const uint w_index = h * pc.K + k;
-            acc += x[x_index] * bf16_to_f32(weight[w_index]);
+    for (uint k0 = 0u; k0 < pc.K; k0 += TILE_K) {
+        for (uint i = lane; i < TILE_M * TILE_K; i += TILE_M * TILE_N) {
+            const uint tile_row = i / TILE_K;
+            const uint tile_k = i - tile_row * TILE_K;
+            const uint global_row = gl_WorkGroupID.x * TILE_M + tile_row;
+            const uint global_k = k0 + tile_k;
+            const uint load_n = global_row / pc.T;
+            const uint load_t = global_row - load_n * pc.T;
+            const uint c = global_k / pc.F;
+            const uint f = global_k - c * pc.F;
+            const uint x_index = ((load_n * pc.C + c) * pc.F + f) * pc.T + load_t;
+            tile_x[i] = global_row < total_rows && global_k < pc.K ? x[x_index] : 0.0;
         }
+        for (uint i = lane; i < TILE_K * TILE_N; i += TILE_M * TILE_N) {
+            const uint tile_k = i / TILE_N;
+            const uint tile_h = i - tile_k * TILE_N;
+            const uint global_k = k0 + tile_k;
+            const uint global_h = gl_WorkGroupID.y * TILE_N + tile_h;
+            tile_w[i] = global_h < pc.H && global_k < pc.K ? bf16_to_f32(weight[global_h * pc.K + global_k]) : 0.0;
+        }
+        barrier();
+
+        [[unroll]] for (uint k = 0u; k < TILE_K; ++k) {
+            acc += tile_x[local_row * TILE_K + k] * tile_w[k * TILE_N + local_h];
+        }
+        barrier();
     }
 
-    output_values[index] = acc + position_value(t, h);
+    if (row < total_rows && h < pc.H) {
+        output_values[row * pc.H + h] = acc + position_value(t, h);
+    }
 }
 """.lstrip(),
 )
