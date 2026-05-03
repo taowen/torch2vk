@@ -29,7 +29,7 @@ Use this order for every new model family:
 6. Write the first simple shader variants, even if they are not fast.
 7. Compare outputs and selected intermediate tensors against PyTorch eager.
 8. Add optimized shader variants one at a time.
-9. Add weight conversion only when an optimized variant requires a new layout.
+9. Reject shader variants that cannot consume the declared checkpoint weight layout.
 10. Add replay or command recording only after eager execution is correct.
 
 Correctness comes before replay, packing, quantization, and fusion.
@@ -174,9 +174,11 @@ The materializer should:
 
 1. open the checkpoint;
 2. validate source shape and dtype;
-3. apply explicit conversion only when declared;
-4. allocate or upload storage;
-5. return `LogicalTensor` weights keyed by logical name.
+3. allocate or upload the raw checkpoint storage without repacking;
+4. return `LogicalTensor` weights keyed by logical name.
+
+The shader must match the safetensors weight layout. Do not add a conversion
+step to make an incompatible shader fit.
 
 No execution file should know safetensors keys.
 
@@ -215,8 +217,7 @@ Each optimized version must answer:
 1. which tensors are shared with the reference path;
 2. which tensors are new optimized-only intermediates;
 3. which weights keep checkpoint layout;
-4. which weights require conversion;
-5. which comparison boundaries prove the rewrite.
+4. which comparison boundaries prove the rewrite.
 
 ## Acceptance Criteria
 
@@ -230,4 +231,3 @@ A port is not done until:
 6. persistent state stays device-resident across steps;
 7. optimized variants are explicit and separately comparable;
 8. replay, if present, records already-correct shader calls and does not become a new semantic layer.
-

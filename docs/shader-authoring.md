@@ -167,30 +167,26 @@ Descriptor range can be larger than the logical view when the shader ABI needs
 access to a wider backing buffer, such as a KV cache row view. Treat this as
 physical ABI, not a new semantic tensor.
 
-## Weight Conversion
+## Weight Layout
 
-Only introduce weight conversion when the shader truly cannot consume the
-checkpoint layout.
+Shaders must consume the declared safetensors checkpoint layout directly.
 
 Good:
 
 ```text
 linear_bf16_raw consumes checkpoint weight directly.
-linear_bf16_weight_packed consumes packed_weight produced by pack_linear_bf16().
+linear_bf16_tiled still consumes the same row-major BF16 checkpoint weight.
 ```
 
 Bad:
 
 ```text
-All weights pass through conversion because the runtime always has a converter.
+linear_bf16_weight_packed requires pack_linear_bf16() before dispatch.
 ```
 
-Converted weights need their own logical names:
-
-```text
-weights.layer.03.self_attn.q_proj
-weights_packed.layer.03.self_attn.q_proj.linear_bf16_tiled
-```
+If an optimization needs a different weight layout, it is not acceptable for the
+current safetensors port. Pick or copy a shader whose ABI matches the raw
+checkpoint tensor instead.
 
 ## Reference First, Optimize Second
 
@@ -202,7 +198,7 @@ Each optimized variant should have a comparison plan:
 1. compare its output against the reference variant;
 2. compare the same boundary against PyTorch eager;
 3. document any intentional precision difference;
-4. record whether it changes weight or state layout.
+4. record whether it changes state layout.
 
 ## Review Checklist
 
@@ -216,4 +212,3 @@ Before accepting a shader:
 6. output tensor is fully written or intentionally partially updated;
 7. reference comparison exists for at least one realistic shape;
 8. optimized variant does not silently change weight or state semantics.
-

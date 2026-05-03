@@ -203,9 +203,8 @@ When comparing a Vulkan `LogicalTensor` to PyTorch:
 1. read back the Vulkan tensor using its logical shape and dtype;
 2. obtain the PyTorch value from the reference rule;
 3. normalize dtype only if declared;
-4. apply declared layout conversion only if declared;
-5. compare with the tensor's `ComparePolicy`;
-6. report mismatch under `LogicalTensor.name`.
+4. compare with the tensor's `ComparePolicy`;
+5. report mismatch under `LogicalTensor.name`.
 
 Do not compare an implicit flattened byte buffer to a PyTorch tensor and call it
 done. Shape, dtype, and layout are part of the contract.
@@ -219,8 +218,7 @@ A checkpoint weight declaration should state:
 3. source dtype and shape if known;
 4. runtime dtype and shape;
 5. runtime layout;
-6. conversion function if needed;
-7. shader variants allowed to consume it.
+6. shader variants allowed to consume it.
 
 Raw checkpoint weight:
 
@@ -231,18 +229,14 @@ weights.layer.03.self_attn.q_proj
   consumed by: linear_bf16_raw
 ```
 
-Converted weight:
+Do not introduce a second converted weight:
 
 ```text
-weights_packed.layer.03.self_attn.q_proj.linear_bf16_tiled
-  source: weights.layer.03.self_attn.q_proj
-  conversion: pack_linear_bf16_tile16x16
-  runtime layout: linear_tile16x16
-  consumed by: linear_bf16_tiled
+weights_packed.layer.03.self_attn.q_proj.linear_bf16_tiled  # forbidden
 ```
 
-If a shader consumes the converted weight, its contract should reject the raw
-layout.
+If a shader cannot consume the raw declared layout, do not use that shader in
+the safetensors port.
 
 ## State Contract
 
@@ -315,7 +309,6 @@ A model family should not be considered ported until:
 2. every shader contract can emit logical reads and writes;
 3. every comparable tensor has a PyTorch reference rule;
 4. every compare boundary has a tolerance policy;
-5. raw and converted weights are distinguished by logical name and layout;
+5. every weight-consuming shader matches the raw safetensors dtype, shape, and layout;
 6. replay validates regime and storage fingerprint before hot use;
 7. contract failures and numeric mismatches report `LogicalTensor.name`.
-

@@ -164,18 +164,18 @@ reference 执行源码的价值在于：
 
 这意味着优化逻辑本身也是系统对外可见的一部分，而不是内部黑盒。
 
-### 4. weight conversion 只在需要时才出现
+### 4. shader 必须匹配 checkpoint 权重
 
-当某个 shader variant 真的改变了权重布局、打包形式、量化形式或状态布局时，这种变化不应该被 runtime 悄悄吞掉。
+`torch2vk` 的 safetensors port 不通过权重转换来适配 shader。
 
-在 `torch2vk` 里，只有在 variant 确实不再直接消费原始 checkpoint 权重时，weight conversion 才应该作为显式对象出现。  
-系统应该承认：
+权重来自 checkpoint 之后，应保持声明的 dtype、shape 和 layout。  
+如果某个 shader variant 需要另一种权重布局、打包形式或量化形式，那么这个 variant 不适合当前 port。
 
-1. reference shader 和 optimized shader 可能共享同一份原始权重表达。
-2. 只有当权重格式真的变化时，weight conversion 才是优化的一部分。
-3. 一旦发生这种变化，它需要被清楚命名和清楚理解。
+系统应该始终能回答：
 
-换句话说，权重转换不是默认步骤，而是在确有需要的 shader variant 关系中显式出现的对象。
+1. shader 消费的是否就是原始 safetensors 权重表达。
+2. shader 的 binding、dtype、shape、layout 是否和权重声明一致。
+3. 如果不一致，应该换 shader，而不是在 runtime 中悄悄转换权重。
 
 ### 5. agent 是执行优化者
 
