@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from importlib import import_module
 from typing import Any, cast
 
+import numpy as np
 import torch
 
 from torch2vk.reference_trace import ReferenceTrace, TraceReferenceProvider
@@ -14,7 +15,7 @@ from torch2vk.reference_trace import ReferenceTrace, TraceReferenceProvider
 def omnivoice_official_reference_provider() -> TraceReferenceProvider:
     return TraceReferenceProvider(
         capture=capture_official_omnivoice_trace,
-        provider_id="omnivoice_safetensor.official_generate.v1",
+        provider_id="omnivoice_safetensor.official_generate.v2",
     )
 
 
@@ -36,6 +37,10 @@ def capture_official_omnivoice_trace(inputs: Mapping[str, Any]) -> ReferenceTrac
     num_steps = int(inputs.get("num_steps", target_steps))
     seed = int(inputs.get("seed", 20260501))
     position_temperature = float(inputs.get("position_temperature", 0.0))
+    guidance_scale = float(inputs.get("guidance_scale", 2.0))
+    layer_penalty_factor = float(inputs.get("layer_penalty_factor", 5.0))
+    t_shift = float(inputs.get("t_shift", 0.1))
+    class_temperature = float(inputs.get("class_temperature", 0.0))
     denoise = bool(inputs.get("denoise", False))
 
     _set_torch_seed(seed)
@@ -50,20 +55,41 @@ def capture_official_omnivoice_trace(inputs: Mapping[str, Any]) -> ReferenceTrac
     ).eval()
     gen_config = generation_config_cls(
         num_step=num_steps,
+        guidance_scale=guidance_scale,
+        t_shift=t_shift,
+        layer_penalty_factor=layer_penalty_factor,
         position_temperature=position_temperature,
+        class_temperature=class_temperature,
         denoise=denoise,
         preprocess_prompt=True,
         postprocess_output=True,
     )
     audio_tokenizer = model.audio_tokenizer
     duration = target_steps / float(audio_tokenizer.config.frame_rate)
-    output: object = model.generate(
-        text=text,
-        language=language,
-        duration=duration,
-        generation_config=gen_config,
-    )
-    tokens: dict[str, torch.Tensor] = {}
+    with torch.inference_mode():
+        task: Any = model._preprocess_all(  # noqa: SLF001
+            text=text,
+            language=language,
+            duration=duration,
+            preprocess_prompt=gen_config.preprocess_prompt,
+        )
+        if int(task.batch_size) != 1:
+            raise RuntimeError(f"OmniVoice debug expects batch_size=1, got {task.batch_size}")
+        actual_target_steps = int(task.target_lens[0])
+        if actual_target_steps != target_steps:
+            raise RuntimeError(
+                "Official target length mismatch: "
+                f"expected {target_steps}, got {actual_target_steps}"
+            )
+        generated_tokens = model._generate_iterative(task, gen_config)[0]  # noqa: SLF001
+        output: object = model._decode_and_post_process(  # noqa: SLF001
+            generated_tokens,
+            task.ref_rms[0],
+            gen_config,
+        )
+    tokens = {
+        "generate.final.audio_tokens": generated_tokens.detach().cpu().to(torch.int32).contiguous(),
+    }
     wav = _official_output_to_tensor(output)
     tensors = {
         "output.wav": wav,
@@ -78,6 +104,12 @@ def capture_official_omnivoice_trace(inputs: Mapping[str, Any]) -> ReferenceTrac
                 "kind": "tensor",
                 "scope": "",
                 "source": "official_omnivoice.generate",
+            },
+            {
+                "boundary": "generate.final.audio_tokens",
+                "kind": "token",
+                "scope": "",
+                "source": "official_omnivoice.generate_iterative",
             },
         ),
         metadata={
@@ -101,6 +133,8 @@ def _official_output_to_tensor(output: object) -> torch.Tensor:
         if not output:
             raise TypeError("Official OmniVoice output list is empty")
         return torch.as_tensor(output[0]).detach().cpu()
+    if isinstance(output, np.ndarray):
+        return torch.as_tensor(output).detach().cpu()
     wav = getattr(output, "wav", None)
     if wav is not None:
         return torch.as_tensor(wav).detach().cpu()
