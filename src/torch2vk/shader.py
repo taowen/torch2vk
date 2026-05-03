@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -46,9 +47,17 @@ class UniformBlock:
 
 
 @dataclass(frozen=True, slots=True)
+class PushConstantField:
+    name: str
+    offset: int
+    dtype: str
+    value: float | str
+
+
+@dataclass(frozen=True, slots=True)
 class PushConstantBlock:
     size: int
-    fields: tuple[str, ...] = ()
+    fields: tuple[PushConstantField, ...] = ()
 
     def __post_init__(self) -> None:
         if self.size <= 0:
@@ -144,6 +153,7 @@ class DispatchRecord:
     symbols: Mapping[str, int]
     uniforms: Mapping[str, tuple[int, ...]]
     push_constant_size: int | None
+    push_constants: bytes | None
 
 
 def _new_dispatch_records() -> list[DispatchRecord]:
@@ -177,6 +187,7 @@ class DispatchTarget:
                 push_constant_size=None
                 if variant.contract.push_constants is None
                 else variant.contract.push_constants.size,
+                push_constants=pack_push_constants(variant.contract, tensors, symbols),
             )
         )
 
@@ -222,6 +233,28 @@ def resolve_uniform_blocks(
     }
 
 
+def pack_push_constants(
+    contract: ShaderContract,
+    tensors: Mapping[str, LogicalTensor],
+    symbols: Mapping[str, int],
+) -> bytes | None:
+    block = contract.push_constants
+    if block is None:
+        return None
+    data = bytearray(block.size)
+    for constant in block.fields:
+        value = _resolve_push_constant_value(contract.name, constant.value, tensors, symbols)
+        payload = _pack_push_constant_value(contract.name, constant, value)
+        end = constant.offset + len(payload)
+        if constant.offset < 0 or end > block.size:
+            raise ValueError(
+                f"{contract.name}.{constant.name} push constant range "
+                f"[{constant.offset}, {end}) exceeds {block.size}"
+            )
+        data[constant.offset:end] = payload
+    return bytes(data)
+
+
 def _shader_source_bindings(source: str) -> set[int]:
     return {
         int(match)
@@ -243,6 +276,88 @@ def _resolve_symbolic_int(
     if resolved is None:
         raise ValueError(f"{contract_name} uniform references unresolved symbol {value!r}")
     return resolved
+
+
+def _resolve_push_constant_value(
+    contract_name: str,
+    value: float | str,
+    tensors: Mapping[str, LogicalTensor],
+    symbols: Mapping[str, int],
+) -> int | float:
+    if isinstance(value, int | float):
+        return value
+    if "*" in value:
+        product = 1
+        for part in value.split("*"):
+            resolved = _resolve_push_constant_value(
+                contract_name,
+                part.strip(),
+                tensors,
+                symbols,
+            )
+            product *= int(resolved)
+        return product
+    if value in symbols:
+        return symbols[value]
+    if value.endswith(".numel"):
+        return _tensor_numel(contract_name, tensors, value.removesuffix(".numel"))
+    if ".dim" in value:
+        field, _, dim_text = value.partition(".dim")
+        return _tensor_dim(contract_name, tensors, field, int(dim_text))
+    raise ValueError(f"{contract_name} push constant references unresolved value {value!r}")
+
+
+def _pack_push_constant_value(
+    contract_name: str,
+    field: PushConstantField,
+    value: float,
+) -> bytes:
+    if field.dtype == "uint32":
+        return struct.pack("<I", int(value))
+    if field.dtype == "float32":
+        return struct.pack("<f", float(value))
+    raise ValueError(
+        f"{contract_name}.{field.name} unsupported push constant dtype {field.dtype!r}"
+    )
+
+
+def _tensor_numel(
+    contract_name: str,
+    tensors: Mapping[str, LogicalTensor],
+    field: str,
+) -> int:
+    elements = 1
+    for dim in _tensor_shape(contract_name, tensors, field):
+        elements *= dim
+    return elements
+
+
+def _tensor_dim(
+    contract_name: str,
+    tensors: Mapping[str, LogicalTensor],
+    field: str,
+    dim: int,
+) -> int:
+    shape = _tensor_shape(contract_name, tensors, field)
+    if dim < 0 or dim >= len(shape):
+        raise ValueError(f"{contract_name}.{field} has no dimension {dim}")
+    return shape[dim]
+
+
+def _tensor_shape(
+    contract_name: str,
+    tensors: Mapping[str, LogicalTensor],
+    field: str,
+) -> tuple[int, ...]:
+    tensor = tensors.get(field)
+    if tensor is None:
+        raise ValueError(f"{contract_name} push constant references unknown field {field!r}")
+    shape: list[int] = []
+    for dim in tensor.shape:
+        if not isinstance(dim, int):
+            raise TypeError(f"{contract_name}.{field} has symbolic shape {tensor.shape}")
+        shape.append(dim)
+    return tuple(shape)
 
 
 def _validate_tensor_contract(

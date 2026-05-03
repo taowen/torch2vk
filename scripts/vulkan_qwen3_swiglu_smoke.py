@@ -7,7 +7,9 @@ import math
 import struct
 from pathlib import Path
 
+from torch2vk.logical import activation_tensor
 from torch2vk.models.qwen3_safetensor.shaders.swiglu_f32 import SWIGLU_F32
+from torch2vk.shader import pack_push_constants
 from torch2vk.vulkan_backend import create_compute_context
 
 
@@ -19,6 +21,12 @@ def main() -> int:
     gate = (0.0, 1.0, -1.0, 2.0)
     up = (1.0, 2.0, 3.0, 4.0)
     expected = tuple(_silu(a) * b for a, b in zip(gate, up, strict=True))
+    tensors = {
+        "gate": activation_tensor("gate", dtype="float32", shape=(batch, steps, width)),
+        "up": activation_tensor("up", dtype="float32", shape=(batch, steps, width)),
+        "output": activation_tensor("output", dtype="float32", shape=(batch, steps, width)),
+    }
+    symbols = variant.contract.validate(tensors)
 
     context = create_compute_context()
     try:
@@ -67,7 +75,7 @@ def main() -> int:
             )
             command_buffer.push_constants(
                 pipeline_layout=pipeline_layout,
-                data=_swiglu_push_constants(batch=batch, steps=steps, width=width),
+                data=pack_push_constants(variant.contract, tensors, symbols) or b"",
             )
             command_buffer.dispatch(1, 1, 1)
             command_buffer.end()
@@ -93,28 +101,6 @@ def main() -> int:
     finally:
         context.close()
     return 0
-
-
-def _swiglu_push_constants(*, batch: int, steps: int, width: int) -> bytes:
-    return struct.pack(
-        "<IIIIffIIIIIIIIII",
-        batch * steps * width,
-        width,
-        width,
-        2,
-        0.0,
-        0.0,
-        width,
-        steps * width,
-        batch * steps * width,
-        steps,
-        batch,
-        width,
-        steps * width,
-        batch * steps * width,
-        steps,
-        batch,
-    )
 
 
 def _silu(value: float) -> float:
