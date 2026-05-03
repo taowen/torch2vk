@@ -68,6 +68,10 @@ def _empty_specialization_constants() -> Mapping[int, int]:
     return {}
 
 
+def _empty_symbol_constraints() -> Mapping[str, int]:
+    return {}
+
+
 @dataclass(frozen=True, slots=True)
 class ShaderContract:
     name: str
@@ -78,6 +82,7 @@ class ShaderContract:
     resources: tuple[ResourceBinding, ...] = ()
     uniforms: tuple[UniformBlock, ...] = ()
     push_constants: PushConstantBlock | None = None
+    symbol_constraints: Mapping[str, int] = field(default_factory=_empty_symbol_constraints)
 
     def validate(self, tensors: Mapping[str, LogicalTensor]) -> dict[str, int]:
         expected = set(self.inputs) | set(self.outputs)
@@ -98,6 +103,12 @@ class ShaderContract:
                 tensor=tensor,
                 symbols=symbols,
             )
+        for expression, expected_value in self.symbol_constraints.items():
+            actual_value = _resolve_symbolic_int(self.name, expression, symbols)
+            if actual_value != expected_value:
+                raise ValueError(
+                    f"{self.name} requires {expression} == {expected_value}, got {actual_value}"
+                )
         _validate_bindings(self)
         _validate_dispatch(self.name, self.dispatch, symbols)
         return symbols

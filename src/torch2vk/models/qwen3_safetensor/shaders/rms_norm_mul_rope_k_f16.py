@@ -54,6 +54,7 @@ RMS_NORM_MUL_ROPE_K_F16 = ShaderVariant(
             Binding("row_indices", 6, BindingAccess.READ),
         ),
         dispatch=("N", "S", "B"),
+        symbol_constraints={"N*D": 1024},
         push_constants=PushConstantBlock(
             size=224,
             fields=(
