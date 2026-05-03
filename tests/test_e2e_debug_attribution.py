@@ -160,6 +160,20 @@ class E2EDebugAttributionTest(unittest.TestCase):
         self.assertIn("step_000.stage0.audio_head.logits.uncond", report.missing)
         self.assertIn("generate.final.audio_tokens", report.missing)
 
+    def test_omnivoice_reference_final_boundaries_are_not_coverage_gaps(self) -> None:
+        boundaries = omnivoice_debug_boundaries(llm_layers=0)
+        trace = E2EDebugTrace(
+            tensors={"output.wav_pcm16": torch.tensor([1], dtype=torch.int16)},
+            tokens={"generate.final.audio_tokens": torch.tensor([4], dtype=torch.int32)},
+        )
+
+        report = boundary_coverage(boundaries=boundaries, steps=1, trace=trace)
+
+        self.assertFalse(report.ok)
+        self.assertNotIn("output.wav_pcm16", report.missing)
+        self.assertNotIn("generate.final.audio_tokens", report.missing)
+        self.assertIn("step_000.stage0.audio_embedding.output", report.missing)
+
 
 def _trace(
     *,

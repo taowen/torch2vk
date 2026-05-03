@@ -307,11 +307,13 @@ LogicalTensor 名字，而不是 official runtime 的内部命名。当前 OmniV
 `omnivoice_official_reference_provider()` 懒加载入口；provider 构造不会加载官方模型。默认 CI
 只验证这个懒加载和缺依赖错误路径；设置
 `TORCH2VK_RUN_OMNIVOICE_OFFICIAL_REFERENCE=1` 时会额外跑最小 official text -> wav capture smoke。
-`ReferenceTrace` 已经包含 `timeline` 字段；当前 official smoke 至少记录 final wav boundary，
-并同时产出 `output.wav` 和与最终 boundary 对齐的 `output.wav_pcm16`。后续接入 layer/token probes
-时继续向同一个 trace 追加 step events。
+`ReferenceTrace` 已经包含 `timeline` 字段；当前 official smoke 至少记录 final wav boundary
+和最终 audio token boundary，并同时产出 `generate.final.audio_tokens`、`output.wav` 和与最终
+boundary 对齐的 `output.wav_pcm16`。后续接入 layer/token probes 时继续向同一个 trace 追加
+step events。
 `boundary_coverage()` 可直接对 schema 和 trace 做覆盖检查；当前能明确报告
-`output.wav_pcm16` 已覆盖，而 stage0/Qwen/token 边界仍缺 reference artifacts。
+`generate.final.audio_tokens` 和 `output.wav_pcm16` 已覆盖，而 stage0/Qwen step 边界仍缺
+reference artifacts。
 
 ## Scope
 
