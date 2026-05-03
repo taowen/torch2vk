@@ -7,14 +7,21 @@ import math
 import struct
 from pathlib import Path
 
-from torch2vk.logical import BufferSlice, activation_tensor, input_tensor, output_tensor, weight_tensor
+from torch2vk.logical import activation_tensor, input_tensor, output_tensor, weight_tensor
 from torch2vk.models.qwen3_safetensor.shaders.embedding_lookup_bf16_f32_sequence import (
     EMBEDDING_LOOKUP_BF16_F32,
 )
 from torch2vk.models.qwen3_safetensor.shaders.swiglu_f32 import SWIGLU_F32
 from torch2vk.shader import DispatchTarget
+from torch2vk.storage import bind_storage, plan_storage
 from torch2vk.vulkan_backend import VulkanContext, create_compute_context
-from torch2vk.vulkan_runner import VulkanSequenceRunner, VulkanShaderDispatch
+from torch2vk.vulkan_runner import (
+    VulkanSequenceRunner,
+    VulkanShaderDispatch,
+    allocate_storage_buffers,
+    read_bound_tensor_bytes,
+    write_bound_tensor_bytes,
+)
 
 
 SHADER_DIR = Path("build/shaders/qwen3_safetensor")
@@ -176,17 +183,14 @@ def _run_bound_storage_sequence(context: VulkanContext) -> None:
     gate = (0.25, 0.5, 0.75, 1.0)
     up = (1.0, 2.0, 3.0, 4.0)
     expected = tuple(_silu(a) * b for a, b in zip(gate, up, strict=True))
-    tensors = {
-        "shared.gate": activation_tensor("shared.gate", dtype="float32", shape=(batch, steps, width)).bind(
-            BufferSlice("shared", 0, len(gate) * 4)
-        ),
-        "shared.up": activation_tensor("shared.up", dtype="float32", shape=(batch, steps, width)).bind(
-            BufferSlice("shared", 256, len(up) * 4)
-        ),
-        "shared.out": activation_tensor("shared.out", dtype="float32", shape=(batch, steps, width)).bind(
-            BufferSlice("shared", 512, len(expected) * 4)
-        ),
-    }
+    unbound = (
+        activation_tensor("shared.gate", dtype="float32", shape=(batch, steps, width)),
+        activation_tensor("shared.up", dtype="float32", shape=(batch, steps, width)),
+        activation_tensor("shared.out", dtype="float32", shape=(batch, steps, width)),
+    )
+    plan = plan_storage(unbound, allocation_id="shared")
+    bound = bind_storage(unbound, plan)
+    tensors = {tensor.name: tensor for tensor in bound}
     target = DispatchTarget()
     SWIGLU_F32(
         target,
@@ -194,10 +198,10 @@ def _run_bound_storage_sequence(context: VulkanContext) -> None:
         up=tensors["shared.up"],
         output=tensors["shared.out"],
     )
-    shared = context.create_host_buffer(nbytes=1024)
+    allocations = allocate_storage_buffers(context, plan)
     try:
-        shared.write(struct.pack(f"<{len(gate)}f", *gate), offset=0)
-        shared.write(struct.pack(f"<{len(up)}f", *up), offset=256)
+        write_bound_tensor_bytes(tensors["shared.gate"], allocations, struct.pack(f"<{len(gate)}f", *gate))
+        write_bound_tensor_bytes(tensors["shared.up"], allocations, struct.pack(f"<{len(up)}f", *up))
         runner = VulkanSequenceRunner(
             context=context,
             shader_dir=SHADER_DIR,
@@ -206,15 +210,16 @@ def _run_bound_storage_sequence(context: VulkanContext) -> None:
         runner.run_bound_storage(
             tuple(target.records),
             tensors=tensors,
-            allocations={"shared": shared},
+            allocations=allocations,
         )
         actual = struct.unpack(
             f"<{len(expected)}f",
-            shared.read(offset=512, nbytes=len(expected) * 4),
+            read_bound_tensor_bytes(tensors["shared.out"], allocations),
         )
         _assert_close(actual, expected, tolerance=1e-5)
     finally:
-        shared.close()
+        for allocation in allocations.values():
+            allocation.close()
 
 
 def _embedding_reference(

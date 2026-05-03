@@ -14,6 +14,7 @@ from .shader import (
     pack_push_constants,
     pack_uniform_blocks,
 )
+from .storage import StoragePlan
 from .vulkan_backend import (
     VulkanBuffer,
     VulkanBufferSlice,
@@ -217,6 +218,54 @@ def storage_descriptor_buffers(
             nbytes=tensor.storage.nbytes,
         )
     return buffers
+
+
+def allocate_storage_buffers(
+    context: VulkanContext,
+    plan: StoragePlan,
+) -> dict[str, VulkanBuffer]:
+    nbytes_by_allocation: dict[str, int] = {}
+    for storage in plan.slices.values():
+        end = storage.offset + storage.nbytes
+        nbytes_by_allocation[storage.allocation_id] = max(
+            nbytes_by_allocation.get(storage.allocation_id, 0),
+            end,
+        )
+    return {
+        allocation_id: context.create_host_buffer(nbytes=nbytes)
+        for allocation_id, nbytes in sorted(nbytes_by_allocation.items())
+    }
+
+
+def write_bound_tensor_bytes(
+    tensor: LogicalTensor,
+    allocations: Mapping[str, VulkanBuffer],
+    data: bytes,
+) -> None:
+    if tensor.storage is None:
+        raise ValueError(f"{tensor.name} has no bound storage")
+    if len(data) != tensor.storage.nbytes:
+        raise ValueError(
+            f"{tensor.name} payload has {len(data)} bytes, expected {tensor.storage.nbytes}"
+        )
+    try:
+        allocation = allocations[tensor.storage.allocation_id]
+    except KeyError as exc:
+        raise KeyError(f"Missing Vulkan allocation {tensor.storage.allocation_id}") from exc
+    allocation.write(data, offset=tensor.storage.offset)
+
+
+def read_bound_tensor_bytes(
+    tensor: LogicalTensor,
+    allocations: Mapping[str, VulkanBuffer],
+) -> bytes:
+    if tensor.storage is None:
+        raise ValueError(f"{tensor.name} has no bound storage")
+    try:
+        allocation = allocations[tensor.storage.allocation_id]
+    except KeyError as exc:
+        raise KeyError(f"Missing Vulkan allocation {tensor.storage.allocation_id}") from exc
+    return allocation.read(offset=tensor.storage.offset, nbytes=tensor.storage.nbytes)
 
 
 def _record_tensors(
