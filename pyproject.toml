@@ -1,0 +1,59 @@
+[project]
+name = "torch2vk"
+version = "0.1.0"
+description = "Workspace for the torch-to-vulkan runtime experiments."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "torch==2.11.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "torchvision==0.26.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "torchaudio==2.11.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "triton-rocm==3.6.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "pyright>=1.1.408,<1.2",
+  "ruff>=0.11,<0.12",
+  "pytest>=8.3,<9",
+  "huggingface-hub>=0.34,<2",
+  "pillow>=11,<12",
+  "vulkan @ git+https://github.com/dsvensson/vulkan.git@8002ea383a0442d107f8e515bd4010ae601cc74e",
+  "transformers>=5.3,<6",
+  "accelerate>=1.12,<2",
+  "safetensors>=0.7,<1",
+  "soundfile>=0.13,<1",
+  "librosa>=0.11,<1",
+  "numpy>=2,<3",
+  "scipy>=1.16,<2",
+  "nagisa>=0.2.11,<0.3",
+  "soynlp>=0.0.493,<0.1",
+  "qwen-omni-utils>=0.0.9",
+  "pydub>=0.25,<1",
+  "tensorboardx>=2.6,<3",
+  "webdataset>=1,<2",
+  "gradio>=6,<7",
+]
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://download-r2.pytorch.org/whl/rocm7.2"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-rocm", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+torchvision = [
+  { index = "pytorch-rocm", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+torchaudio = [
+  { index = "pytorch-rocm", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+"triton-rocm" = [
+  { index = "pytorch-rocm", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pyright]
+include = ["src/models", "tests"]
+exclude = ["src/omnivoice", "src/qwen_asr"]
