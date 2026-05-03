@@ -146,19 +146,21 @@ manual callable 只是 toy MVP 的 reference provider。真实模型路径必须
 ```text
 src/torch2vk/
   __init__.py
-  types.py                 # TensorSpec、TensorLayout、dtype_nbytes、nbytes
-  logical.py               # LogicalTensor、TensorRole、TensorSemantic、MemoryClass、TensorLifetime、WeightSource、ComparePolicy
-  frame.py                 # FrameScope、frame context state
-  memory.py                # BufferAllocation、BufferSlice、allocation registry
-  materialize.py           # read/write materialization，更新 LogicalTensor 当前 buffer 状态
-  runtime.py               # RuntimeSession：frame/register/dispatch/readback/compare/close
-  checkpoint.py            # safetensors reader，后续可扩展 gguf
-  shader.py                # ShaderContract、ShaderVariant、DispatchRecord、contract validation
-  compare.py               # candidate vs lockstep PyTorch/CPU artifact compare
-  pytorch_ref.py           # PyTorch probe/hook/manual provider/cache
-  shaders/
+  runtime/
     __init__.py
-    elementwise_mul_f32.py
+    logical.py             # LogicalTensor、TensorRole、TensorSemantic、MemoryClass、TensorLifetime、WeightSource、ComparePolicy
+    frame.py               # FrameScope、frame context state
+    materialize.py         # read/write materialization，更新 LogicalTensor 当前 buffer 状态
+    session.py             # RuntimeSession：frame/register/dispatch/readback/compare/close
+    checkpoint.py          # safetensors reader adapter，后续可扩展 gguf
+    shader.py              # ShaderContract、ShaderVariant、DispatchRecord、contract validation
+    compare.py             # candidate vs lockstep PyTorch/CPU artifact compare
+    pytorch_ref.py         # PyTorch probe/hook/manual provider/cache
+    shaders/
+      __init__.py
+      elementwise_mul_f32.py
+  vulkan/
+    ...
 scripts/
   compile_shaders.py
   run_toy_mvp.py
@@ -171,7 +173,8 @@ tests/
   test_toy_mvp_vulkan.py
 ```
 
-当前仓库已有 `src/models` 作为模型 adapter 目录。通用 runtime 建议放进 `src/torch2vk`，模型 adapter 后续继续放 `src/models/<model_name>`。
+当前仓库已有 `src/models` 作为模型 adapter 目录。通用执行层统一放进 `src/torch2vk/runtime`，
+Vulkan 后端继续放 `src/torch2vk/vulkan`。模型 adapter 后续继续放 `src/models/<model_name>`。
 
 ## 核心类型
 
@@ -611,8 +614,8 @@ first mismatch index if practical
 
 交付：
 
-1. `src/torch2vk/types.py`；
-2. `src/torch2vk/logical.py`；
+1. `src/torch2vk/runtime/logical.py`；
+2. 复用 `src/torch2vk/vulkan/types.py` 中已有的 `TensorSpec` / layout / dtype helpers；
 3. `TensorRole` / `TensorSemantic` / `MemoryClass` / `TensorLifetime`；
 4. `WeightSource` / `InputFeed` / `ComparePolicy` / `PyTorchProbe`；
 5. `tests/test_logical.py`。
@@ -676,7 +679,7 @@ first mismatch index if practical
 
 交付：
 
-1. `shader.py`；
+1. `src/torch2vk/runtime/shader.py`；
 2. `ShaderContract.validate()`；
 3. `DispatchRecord`；
 4. dry-run `RuntimeSession.dispatch()`：校验、materialize、记录，不提交 Vulkan；
@@ -718,7 +721,7 @@ first mismatch index if practical
 
 交付：
 
-1. `compare.py`；
+1. `src/torch2vk/runtime/compare.py`；
 2. toy lockstep PyTorch/CPU model provider；
 3. frame exit compare runner；
 4. mismatch 报告；

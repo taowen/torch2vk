@@ -63,17 +63,7 @@ name = "vulkan driver does not know logical/runtime layers"
 type = "forbidden"
 source_modules = ["torch2vk.vulkan"]
 forbidden_modules = [
-  "torch2vk.logical",
   "torch2vk.runtime",
-]
-
-[[tool.importlinter.contracts]]
-name = "logical declarations stay driver independent"
-type = "forbidden"
-source_modules = ["torch2vk.logical"]
-forbidden_modules = [
-  "torch2vk.runtime",
-  "torch2vk.checkpoints",
 ]
 
 [tool.pytest.ini_options]

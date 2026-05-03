@@ -34,23 +34,17 @@ def test_descriptor_binding_uses_absolute_slice_offset() -> None:
 
 
 def test_enumerate_compute_devices_smoke() -> None:
-    try:
-        devices = enumerate_compute_devices()
-    except Exception as exc:
-        pytest.skip(f"Vulkan device enumeration is unavailable: {exc}")
+    devices = enumerate_compute_devices()
     assert all(device.queue_family_index >= 0 for device in devices)
 
 
 def test_elementwise_mul_compute_smoke(tmp_path) -> None:
     compiler = shutil.which("glslangValidator")
     if compiler is None:
-        pytest.skip("glslangValidator is not installed")
-    try:
-        devices = enumerate_compute_devices()
-    except Exception as exc:
-        pytest.skip(f"Vulkan device enumeration is unavailable: {exc}")
+        raise AssertionError("glslangValidator is not installed")
+    devices = enumerate_compute_devices()
     if not devices:
-        pytest.skip("no Vulkan compute devices available")
+        raise AssertionError("no Vulkan compute devices available")
 
     glsl_path = tmp_path / "elementwise_mul.comp"
     spv_path = tmp_path / "elementwise_mul.spv"
