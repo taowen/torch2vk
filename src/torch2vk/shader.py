@@ -233,6 +233,16 @@ def resolve_uniform_blocks(
     }
 
 
+def pack_uniform_blocks(
+    contract: ShaderContract,
+    symbols: Mapping[str, int],
+) -> dict[str, bytes]:
+    return {
+        name: struct.pack(f"<{len(values)}i", *values)
+        for name, values in resolve_uniform_blocks(contract, symbols).items()
+    }
+
+
 def pack_push_constants(
     contract: ShaderContract,
     tensors: Mapping[str, LogicalTensor],

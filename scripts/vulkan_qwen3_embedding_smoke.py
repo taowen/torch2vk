@@ -7,9 +7,11 @@ import math
 import struct
 from pathlib import Path
 
+from torch2vk.logical import input_tensor, output_tensor, weight_tensor
 from torch2vk.models.qwen3_safetensor.shaders.embedding_lookup_bf16_f32_sequence import (
     EMBEDDING_LOOKUP_BF16_F32,
 )
+from torch2vk.shader import pack_uniform_blocks
 from torch2vk.vulkan_backend import create_compute_context
 
 
@@ -27,6 +29,17 @@ def main() -> int:
         steps=steps,
         hidden=hidden,
     )
+    tensors = {
+        "input_ids": input_tensor("input_ids", dtype="int32", shape=(batch, steps)),
+        "weight": weight_tensor(
+            "weight",
+            dtype="bfloat16",
+            shape=(vocab, hidden),
+            source_key="smoke.weight",
+        ),
+        "output": output_tensor("output", dtype="float32", shape=(batch, steps, hidden)),
+    }
+    symbols = variant.contract.validate(tensors)
 
     context = create_compute_context()
     try:
@@ -36,7 +49,7 @@ def main() -> int:
         sizes = context.create_host_buffer(nbytes=16)
         ids.write(struct.pack(f"<{len(input_ids)}i", *input_ids))
         weight.write(_pack_bf16(weights))
-        sizes.write(struct.pack("<4i", hidden, steps, batch, vocab))
+        sizes.write(pack_uniform_blocks(variant.contract, symbols)["sizes"])
 
         module = context.create_shader_module(
             Path(f"build/shaders/qwen3_safetensor/{variant.name}.spv").read_bytes()
