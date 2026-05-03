@@ -14,7 +14,10 @@ from torch2vk.models.qwen3_safetensor.shaders.embedding_lookup_bf16_f32_sequence
     EMBEDDING_LOOKUP_BF16_F32,
 )
 from torch2vk.models.qwen3_safetensor.spec import load_qwen3_spec
-from torch2vk.models.qwen3_safetensor.weights import verify_qwen3_safetensor_weights
+from torch2vk.models.qwen3_safetensor.weights import (
+    qwen3_safetensor_weight_bytes,
+    verify_qwen3_safetensor_weights,
+)
 from torch2vk.shader import pack_uniform_blocks
 from torch2vk.vulkan_backend import create_compute_context
 
@@ -59,7 +62,7 @@ def main() -> int:
         weight = context.create_host_buffer(nbytes=embed.numel() * 2)
         sizes = context.create_host_buffer(nbytes=16)
         ids.write(struct.pack(f"<{len(input_ids)}i", *input_ids))
-        weight.write(embed.view(torch.uint16).numpy().tobytes())
+        weight.write(qwen3_safetensor_weight_bytes(MODEL_DIR, tensors["weight"], spec=spec))
         sizes.write(pack_uniform_blocks(variant.contract, symbols)["sizes"])
 
         module = context.create_shader_module(

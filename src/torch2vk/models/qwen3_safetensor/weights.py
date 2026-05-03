@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, cast
 
+import torch
 from safetensors import safe_open
 
 from torch2vk.logical import LogicalTensor
@@ -27,6 +28,8 @@ class _SafetensorHandle(Protocol):
     def keys(self) -> list[str]: ...
 
     def get_slice(self, name: str) -> _SafetensorSlice: ...
+
+    def get_tensor(self, name: str) -> torch.Tensor: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +147,38 @@ def verify_qwen3_safetensor_weights(
     )
 
 
+def qwen3_safetensor_weight_bytes(
+    model_dir: str | Path,
+    weight: LogicalTensor,
+    *,
+    spec: Qwen3Spec | None = None,
+) -> bytes:
+    verification = verify_qwen3_safetensor_weights(model_dir, spec=spec)
+    verification.raise_for_mismatches()
+    if weight.source is None:
+        raise ValueError(f"{weight.name} has no safetensor source")
+    checkpoint_tensor = verification.checkpoint_tensors[weight.source.key]
+    handle_context = cast(
+        "AbstractContextManager[_SafetensorHandle]",
+        safe_open(checkpoint_tensor.shard, framework="pt", device="cpu"),
+    )
+    with handle_context as handle:
+        tensor = handle.get_tensor(weight.source.key).contiguous()
+    return _raw_tensor_bytes(weight, tensor)
+
+
+def qwen3_safetensor_weight_payloads(
+    model_dir: str | Path,
+    *,
+    spec: Qwen3Spec | None = None,
+) -> dict[str, bytes]:
+    manifest = qwen3_weight_manifest(model_dir, spec=spec)
+    return {
+        weight.name: qwen3_safetensor_weight_bytes(model_dir, weight, spec=spec)
+        for weight in manifest.weights
+    }
+
+
 def _checkpoint_path(model_dir: Path) -> Path:
     single_file = model_dir / "model.safetensors"
     if single_file.exists():
@@ -219,3 +254,19 @@ def _normalize_safetensor_dtype(dtype: str) -> str:
         "i64": "int64",
     }
     return aliases.get(normalized, normalized)
+
+
+def _raw_tensor_bytes(weight: LogicalTensor, tensor: torch.Tensor) -> bytes:
+    if weight.dtype == "bfloat16":
+        if tensor.dtype != torch.bfloat16:
+            raise ValueError(f"{weight.name} expected torch.bfloat16, got {tensor.dtype}")
+        return tensor.view(torch.uint16).numpy().tobytes()
+    if weight.dtype == "float16":
+        if tensor.dtype != torch.float16:
+            raise ValueError(f"{weight.name} expected torch.float16, got {tensor.dtype}")
+        return tensor.numpy().tobytes()
+    if weight.dtype == "float32":
+        if tensor.dtype != torch.float32:
+            raise ValueError(f"{weight.name} expected torch.float32, got {tensor.dtype}")
+        return tensor.numpy().tobytes()
+    raise ValueError(f"{weight.name} has unsupported raw safetensor dtype {weight.dtype!r}")
