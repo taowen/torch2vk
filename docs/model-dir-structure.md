@@ -734,3 +734,39 @@ text_llm.decode.audio_token_005.cond.layer.03.output
 10. 没有 `frame.workspace.*.activation(name)` 这种 API；
 11. 权重 dtype/shape/layout 必须和 checkpoint 声明一致，不做 silent cast；
 12. Frame exit 后 FRAME_WORKSPACE 被释放或复用，MODEL/REQUEST 生命周期资源保留。
+
+## Application Layer（补充设计）
+
+Docs 原始设计只覆盖了模型 adapter 的内部结构。实际接入 Qwen3-ASR 后发现需要一个 application layer 来处理 docs 没有规划的职责：
+
+### 输入准备
+
+模型特有的输入准备（processor 调用、音频归一化、prompt 模板构造、RoPE cos/sin 预计算）放在模型 adapter 目录内。它们不属于 `tensors/`、`shaders/`、或单个 frame 文件；Qwen3-ASR 这类没有独立 application 层的 adapter 直接放在 `execution.py`。
+
+RoPE 预计算这类可复用数学逻辑可以单独放在 `rope.py`。
+
+### PyTorch 模型加载
+
+`pytorch_model` 参数必须由某处提供。PyTorch 模型加载代码放在模型 adapter 目录内，通常在 `pytorch/` 子目录中。这些代码只用于 lockstep 对拍，不参与 Vulkan 执行路径。
+
+### execution.py 与入口分工
+
+```text
+execution.py    = adapter entry: 输入准备, frame 间输入注册, 循环控制, 状态增长
+audio_tower.py  = frame function: shader 调用序列
+text_prefill.py = frame function: shader 调用序列
+text_decode.py  = frame function: shader 调用序列
+token_select.py = frame function: shader 调用序列
+```
+
+### REQUEST_STATE 初始化
+
+KV cache 等 REQUEST_STATE tensor 需要在首次使用前初始化为零。由 frame function 在 `with rt.frame(...)` 之前调用 `rt.initialize_request_state({tensor: np.zeros(...)})` 完成。
+
+### 动态 shape 增长
+
+自回归解码中 KV cache 和 generated_tokens 每步增长。由 `execution.py` 在 decode 循环中调用 `rt.grow_request_state(tensor, new_shape)` 完成。Runtime 使用 geometric growth 策略避免频繁重分配。
+
+### 不需要 pytorch_model 的 Frame
+
+并非所有 frame 都对应一个 PyTorch model.forward。纯 runtime 操作（如 token_select、state copy）使用 `pytorch_model=None` 的 frame。RuntimeSession 在 frame exit 时跳过对拍。

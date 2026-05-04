@@ -9,7 +9,7 @@ import re
 import shutil
 import struct
 import subprocess
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -41,10 +41,12 @@ from torch2vk.runtime.logical import (
     MemoryClass,
     TensorLifetime,
     TensorRole,
+    TensorSemantic,
 )
 from torch2vk.runtime.shader import (
     DTypeReference,
     DispatchRecord,
+    DispatchTensorSnapshot,
     PushConstantInput,
     PushConstantSpec,
     PushConstantType,
@@ -117,9 +119,11 @@ class RuntimeSession:
         self.model_dir = None if model_dir is None else Path(model_dir).expanduser().resolve()
         self._inputs: dict[LogicalTensor, object] = {}
         self._frame_stack: list[FrameContext] = []
+        self._frame_history: dict[str, FrameContext] = {}
         self._dispatch_records: list[DispatchRecord] = []
         self._compare_results: list[TensorCompareResult] = []
         self._pipeline_cache: dict[tuple[Any, ...], ComputePipeline] = {}
+        self._pytorch_models: dict[type, object] = {}
         self._model_allocations: list[BufferAllocation] = []
         self._request_allocations: list[BufferAllocation] = []
         self._frame_allocations: list[tuple[LogicalTensor, BufferAllocation]] = []
@@ -165,18 +169,202 @@ class RuntimeSession:
                 raise ValueError(f"{tensor.name} is not an input tensor")
             self._inputs[tensor] = value
 
+    def initialize_request_state(self, states: Mapping[LogicalTensor, object]) -> None:
+        """Upload initial values for REQUEST_STATE tensors such as KV caches."""
+        self._require_open()
+        for tensor, value in states.items():
+            if not isinstance(tensor, LogicalTensor):
+                raise TypeError(
+                    f"initialize_request_state key must be LogicalTensor, got {type(tensor).__name__}"
+                )
+            tensor.validate_declaration()
+            if tensor.memory is not MemoryClass.REQUEST_STATE:
+                raise ValueError(f"{tensor.name} is not REQUEST_STATE memory")
+            array = np.ascontiguousarray(value)
+            expected = _tensor_nbytes(tensor.spec)
+            if array.nbytes != expected:
+                raise ValueError(
+                    f"{tensor.name} request state has {array.nbytes} bytes, expected {expected}"
+                )
+            if expected == 0:
+                with tensor.runtime_write_scope():
+                    tensor.buffer = None
+                    tensor.descriptor_nbytes = 0
+                continue
+            if tensor.buffer is None:
+                ((slice_, allocation),) = self.device.upload_numpy_arrays_with_allocations(
+                    [(tensor.name, array)]
+                )
+                with tensor.runtime_write_scope():
+                    tensor.buffer = slice_
+                    tensor.descriptor_nbytes = expected
+                self._request_allocations.append(allocation)
+                continue
+            ((source, allocation),) = self.device.upload_numpy_arrays_with_allocations(
+                [(tensor.name, array)]
+            )
+            try:
+                self.device.copy_buffer(
+                    source.allocation.buffer,
+                    tensor.buffer.allocation.buffer,
+                    expected,
+                    src_offset=source.offset,
+                    dst_offset=tensor.buffer.offset,
+                )
+            finally:
+                allocation.close()
+
+    def read_request_state(self, tensor: LogicalTensor) -> np.ndarray:
+        """Read back a materialized REQUEST_STATE tensor."""
+        self._require_open()
+        tensor.validate_declaration()
+        if tensor.memory is not MemoryClass.REQUEST_STATE:
+            raise ValueError(f"{tensor.name} is not REQUEST_STATE memory")
+        return self.readback(tensor)
+
+    def grow_request_state(
+        self,
+        tensor: LogicalTensor,
+        new_shape: Sequence[int],
+        *,
+        growth: str = "geometric",
+    ) -> None:
+        """Grow a REQUEST_STATE tensor's logical shape and backing capacity.
+
+        ``tensor.spec.shape`` is the current logical shape. ``tensor.buffer.nbytes`` is the
+        physical capacity, which may be larger after geometric growth.
+        """
+        self._require_open()
+        tensor.validate_declaration()
+        if tensor.memory is not MemoryClass.REQUEST_STATE:
+            raise ValueError(f"{tensor.name} is not REQUEST_STATE memory")
+        if tensor.semantic not in {TensorSemantic.KV_CACHE, TensorSemantic.TOKEN}:
+            raise ValueError(
+                f"{tensor.name} request-state growth is only supported for TOKEN or KV_CACHE tensors"
+            )
+        if growth != "geometric":
+            raise ValueError(f"Unsupported request-state growth strategy: {growth!r}")
+
+        old_shape = _concrete_shape(tensor.spec)
+        resolved_new_shape = tuple(int(dim) for dim in new_shape)
+        _validate_request_state_growth_shape(
+            tensor=tensor,
+            old_shape=old_shape,
+            new_shape=resolved_new_shape,
+        )
+        if resolved_new_shape == old_shape:
+            return
+
+        old_logical_nbytes = _tensor_nbytes(tensor.spec)
+        new_spec = tensor.spec.with_shape(*resolved_new_shape)
+        new_logical_nbytes = _tensor_nbytes(new_spec)
+        if new_logical_nbytes == 0:
+            with tensor.runtime_write_scope():
+                tensor.spec = new_spec
+                tensor.descriptor_nbytes = 0
+                tensor.version += 1
+            return
+        buffer = tensor.buffer
+        if buffer is not None and buffer.nbytes >= new_logical_nbytes:
+            with tensor.runtime_write_scope():
+                tensor.spec = new_spec
+                tensor.descriptor_nbytes = new_logical_nbytes
+                tensor.version += 1
+            return
+
+        new_capacity_nbytes = _grown_request_state_capacity_nbytes(
+            old_capacity_nbytes=0 if buffer is None else buffer.nbytes,
+            required_nbytes=new_logical_nbytes,
+        )
+        new_allocation = self.device.memory_manager.allocate_device_local_buffer(
+            new_capacity_nbytes,
+            usage_flags=VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+            | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+            | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        )
+        old_allocation = None if buffer is None else buffer.allocation
+        try:
+            if buffer is not None and old_logical_nbytes > 0:
+                copy_nbytes = min(
+                    old_logical_nbytes,
+                    tensor.descriptor_nbytes if tensor.descriptor_nbytes is not None else old_logical_nbytes,
+                    buffer.nbytes,
+                )
+                if copy_nbytes > 0:
+                    self.device.copy_buffer(
+                        buffer.allocation.buffer,
+                        new_allocation.buffer,
+                        copy_nbytes,
+                        src_offset=buffer.offset,
+                        dst_offset=new_allocation.offset,
+                    )
+            elif old_logical_nbytes > 0:
+                raise RuntimeError(
+                    f"{tensor.name} cannot grow from non-empty logical shape before it is materialized"
+                )
+            with tensor.runtime_write_scope():
+                tensor.buffer = BufferSlice(
+                    allocation=new_allocation,
+                    offset=new_allocation.offset,
+                    nbytes=new_capacity_nbytes,
+                )
+                tensor.spec = new_spec
+                tensor.descriptor_nbytes = new_logical_nbytes
+                tensor.version += 1
+            self._request_allocations.append(new_allocation)
+        except Exception:
+            new_allocation.close()
+            raise
+        if old_allocation is not None:
+            self._release_request_allocation(old_allocation)
+
+    def release_request_state(self, tensors: Sequence[LogicalTensor] | None = None) -> None:
+        """Release selected request-state buffers, or all request allocations when omitted."""
+        self._require_open()
+        if tensors is None:
+            for allocation in reversed(self._request_allocations):
+                allocation.close()
+            self._request_allocations.clear()
+            return
+        requested = set(tensors)
+        retained: list[BufferAllocation] = []
+        released: list[BufferAllocation] = []
+        for allocation in self._request_allocations:
+            if any(tensor.buffer is not None and tensor.buffer.allocation is allocation for tensor in requested):
+                allocation.close()
+                released.append(allocation)
+            else:
+                retained.append(allocation)
+        self._request_allocations = retained
+        for tensor in requested:
+            if tensor.buffer is not None and any(
+                tensor.buffer.allocation is allocation for allocation in released
+            ):
+                with tensor.runtime_write_scope():
+                    tensor.buffer = None
+                    tensor.descriptor_nbytes = None
+                    tensor.writer = None
+
     @contextmanager
     def frame(
         self,
         name: str,
         *,
         pytorch_model: object | None = None,
+        pytorch_model_class: type | None = None,
+        pytorch_model_submodule: str | None = None,
         pytorch_args: tuple[object, ...] = (),
         pytorch_kwargs: Mapping[str, object] | None = None,
         reference_model: object | None = None,
     ):
         if not name:
             raise ValueError("frame name must be non-empty")
+        if pytorch_model is None and pytorch_model_class is not None:
+            loaded = self._load_pytorch_model(pytorch_model_class)
+            if loaded is not None and pytorch_model_submodule:
+                for attr in pytorch_model_submodule.split("."):
+                    loaded = getattr(loaded, attr)
+            pytorch_model = loaded
         context = FrameContext(
             frame=name,
             start_dispatch_index=len(self._dispatch_records),
@@ -198,6 +386,7 @@ class RuntimeSession:
                 popped = self._frame_stack.pop()
                 if popped is not context:
                     raise RuntimeError("RuntimeSession frame stack corrupted")
+                self._frame_history[context.frame] = context
                 self._release_frame_allocations()
 
     def dispatch(self, variant: ShaderVariant, **arguments: object) -> None:
@@ -271,6 +460,10 @@ class RuntimeSession:
                 _record_descriptor_view(index, field, tensors[field.name])
                 for index, field in enumerate(contract.fields)
             ),
+            tensor_snapshots=tuple(
+                _record_tensor_snapshot(field, tensors[field.name])
+                for field in contract.fields
+            ),
             push_constant_values=tuple(sorted(push_values.items())),
         )
         self._dispatch_records.append(record)
@@ -288,6 +481,8 @@ class RuntimeSession:
     def readback(self, tensor: LogicalTensor) -> np.ndarray:
         self._require_open()
         if tensor.buffer is None:
+            if _tensor_nbytes(tensor.spec) == 0:
+                return self.device.empty_tensor(spec=tensor.spec)
             raise RuntimeError(f"{tensor.name} is not materialized")
         return self.device.readback_tensor(
             spec=tensor.spec, slice=tensor.buffer, layout=tensor.layout
@@ -566,21 +761,46 @@ class RuntimeSession:
             for tensor in read_tensors
             if tensor.compare is not None
             and tensor.pytorch_probe is not None
-            and f"{frame.frame}/{tensor.name}" not in seen
+            and (
+                f"{self._compare_frame_for_tensor(default_frame=frame, tensor=tensor).frame}"
+                f"/{tensor.name}"
+            )
+            not in seen
         ]
-        missing_reference_tensors = tuple(
-            tensor.name
+        non_probed_reads = [
+            tensor
             for tensor in read_tensors
             if tensor.role is not TensorRole.WEIGHT
             and (tensor.compare is None or tensor.pytorch_probe is None)
-        )
+        ]
+        still_missing: list[str] = []
+        for tensor in non_probed_reads:
+            ancestors = self._search_probed_ancestors(tensor, frame, seen)
+            if ancestors:
+                probe_targets.extend(ancestors)
+            else:
+                still_missing.append(tensor.name)
+        missing_reference_tensors = tuple(still_missing)
         if not probe_targets:
             return _ReadCompareOutcome(
                 failed_result=None,
                 missing_reference_tensors=missing_reference_tensors,
             )
-        expected_by_tensor = self._expected_pytorch_artifacts(frame, probe_targets)
+        expected_by_frame: dict[str, dict[str, object]] = {}
         for tensor in probe_targets:
+            probe_frame = self._compare_frame_for_tensor(default_frame=frame, tensor=tensor)
+            expected_by_tensor = expected_by_frame.get(probe_frame.frame)
+            if expected_by_tensor is None:
+                frame_targets = [
+                    candidate
+                    for candidate in probe_targets
+                    if self._compare_frame_for_tensor(
+                        default_frame=frame, tensor=candidate
+                    ).frame
+                    == probe_frame.frame
+                ]
+                expected_by_tensor = self._expected_pytorch_artifacts(probe_frame, frame_targets)
+                expected_by_frame[probe_frame.frame] = expected_by_tensor
             expected = expected_by_tensor.get(tensor.name)
             if expected is None:
                 missing_reference_tensors = (*missing_reference_tensors, tensor.name)
@@ -588,11 +808,13 @@ class RuntimeSession:
             try:
                 result = compare_arrays(
                     tensor=tensor,
-                    frame=frame.frame,
+                    frame=probe_frame.frame,
                     candidate=self.readback(tensor),
                     expected=expected,
                     artifact_dir=self.artifact_dir,
-                    nearest_upstream_artifact_key=self._nearest_passed_artifact_key(frame.frame),
+                    nearest_upstream_artifact_key=self._nearest_passed_artifact_key(
+                        probe_frame.frame
+                    ),
                 )
             except CompareAssertionError as exc:
                 write_compare_summary(exc.result)
@@ -606,6 +828,59 @@ class RuntimeSession:
             failed_result=None,
             missing_reference_tensors=missing_reference_tensors,
         )
+
+    def _search_probed_ancestors(
+        self,
+        tensor: LogicalTensor,
+        frame: FrameContext,
+        seen: set[str],
+        *,
+        max_depth: int = 100,
+    ) -> list[LogicalTensor]:
+        """BFS through writer graph to find nearest tensors with compare + probe."""
+        queue = [tensor]
+        visited: set[str] = set()
+        found: list[LogicalTensor] = []
+        depth = 0
+        while queue and depth < max_depth:
+            next_queue: list[LogicalTensor] = []
+            for t in queue:
+                if t.name in visited:
+                    continue
+                visited.add(t.name)
+                writer = t.writer
+                if writer is None:
+                    continue
+                try:
+                    record = self._dispatch_records[writer.dispatch_index]
+                except IndexError:
+                    continue
+                for _, read_tensor in record.reads:
+                    if read_tensor.role is TensorRole.WEIGHT:
+                        continue
+                    if read_tensor.name in visited:
+                        continue
+                    key = (
+                        f"{self._compare_frame_for_tensor(default_frame=frame, tensor=read_tensor).frame}"
+                        f"/{read_tensor.name}"
+                    )
+                    if key in seen:
+                        continue
+                    if read_tensor.compare is not None and read_tensor.pytorch_probe is not None:
+                        found.append(read_tensor)
+                    else:
+                        next_queue.append(read_tensor)
+            queue = next_queue
+            depth += 1
+        return found
+
+    def _compare_frame_for_tensor(
+        self, *, default_frame: FrameContext, tensor: LogicalTensor
+    ) -> FrameContext:
+        writer = tensor.writer
+        if writer is None or writer.frame == default_frame.frame:
+            return default_frame
+        return self._frame_history.get(writer.frame, default_frame)
 
     def _with_drilldown_classification(
         self,
@@ -880,13 +1155,13 @@ class RuntimeSession:
             if probe.kind == "module_output":
                 hooks.append(
                     module.register_forward_hook(
-                        _make_output_hook(tensor=tensor, root_model=model, captured=captured)
+                        _make_output_hook(tensor=tensor, captured=captured)
                     )
                 )
             elif probe.kind == "module_input":
                 hooks.append(
                     module.register_forward_hook(
-                        _make_input_hook(tensor=tensor, root_model=model, captured=captured)
+                        _make_input_hook(tensor=tensor, captured=captured)
                     )
                 )
             else:
@@ -906,14 +1181,10 @@ class RuntimeSession:
             assert probe is not None
             if probe.kind != "module_output":
                 raise NotImplementedError(f"{tensor.name} root probe only supports module_output")
-            captured[tensor.name] = _apply_probe_transform(
-                select_probe_value(
-                    output,
-                    index=probe.index,
-                    selector=probe.selector,
-                ),
-                transform=probe.transform,
-                root_model=model,
+            captured[tensor.name] = select_probe_value(
+                output,
+                index=probe.index,
+                selector=probe.selector,
             )
         return captured
 
@@ -933,6 +1204,8 @@ class RuntimeSession:
         return (), self._infer_pytorch_kwargs(frame=frame, model=model)
 
     def _infer_pytorch_kwargs(self, *, frame: FrameContext, model: object) -> dict[str, object]:
+        import torch
+
         forward = getattr(model, "forward", model)
         signature = inspect.signature(cast(Callable[..., object], forward))
         parameter_names = {
@@ -945,6 +1218,7 @@ class RuntimeSession:
                 inspect.Parameter.KEYWORD_ONLY,
             }
         }
+        device = self._pytorch_model_device(model)
         prefix = f"{frame.frame}."
         kwargs: dict[str, object] = {}
         for tensor, value in self._inputs.items():
@@ -952,7 +1226,10 @@ class RuntimeSession:
                 continue
             kwarg = tensor.name.removeprefix(prefix)
             if kwarg in parameter_names:
-                kwargs[kwarg] = self._as_pytorch_input(value)
+                pytorch_value = self._as_pytorch_input(value)
+                if isinstance(pytorch_value, torch.Tensor):
+                    pytorch_value = pytorch_value.to(device)
+                kwargs[kwarg] = pytorch_value
         return kwargs
 
     def _resolve_pytorch_value(self, value: object) -> object:
@@ -967,13 +1244,44 @@ class RuntimeSession:
         return self._as_pytorch_input(value)
 
     def _as_pytorch_input(self, value: object) -> object:
+        import torch
+
         if _is_torch_tensor(value):
             return value
         if isinstance(value, np.ndarray):
-            import torch
-
             return torch.from_numpy(np.ascontiguousarray(value))
         return value
+
+    def _load_pytorch_model(self, model_class: type) -> object | None:
+        if model_class in self._pytorch_models:
+            return self._pytorch_models[model_class]
+        if self.model_dir is None:
+            return None
+        import torch
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = cast(Any, model_class).from_pretrained(
+            str(self.model_dir),
+            dtype=torch.float32,
+            attn_implementation="eager",
+        )
+        model.to(device)
+        model.eval()
+        self._pytorch_models[model_class] = model
+        return model
+
+    def _pytorch_model_device(self, model: object) -> object:
+        import torch
+
+        try:
+            params = getattr(model, "parameters", None)
+            if params is not None:
+                first_param = next(iter(params()), None)
+                if first_param is not None:
+                    return first_param.device
+        except StopIteration:
+            pass
+        return torch.device("cpu")
 
     def close(self) -> None:
         if self._closed:
@@ -1072,6 +1380,11 @@ class RuntimeSession:
         if io_kind is IOKind.INOUT and tensor.buffer is not None:
             return
         size = _tensor_nbytes(tensor.spec)
+        if size == 0:
+            with tensor.runtime_write_scope():
+                tensor.buffer = None
+                tensor.descriptor_nbytes = 0
+            return
         if tensor.memory is MemoryClass.HOST_OUTPUT:
             allocation = self.device.allocate_host_visible_allocation(size)
         elif tensor.memory in {MemoryClass.FRAME_WORKSPACE, MemoryClass.OP_SCRATCH}:
@@ -1285,6 +1598,14 @@ class RuntimeSession:
                     tensor.descriptor_nbytes = None
             allocation.close()
 
+    def _release_request_allocation(self, allocation: BufferAllocation) -> None:
+        self._request_allocations = [
+            request_allocation
+            for request_allocation in self._request_allocations
+            if request_allocation is not allocation
+        ]
+        allocation.close()
+
 
 def _tensor_nbytes(spec: TensorSpec) -> int:
     concrete_shape: list[int] = []
@@ -1293,6 +1614,80 @@ def _tensor_nbytes(spec: TensorSpec) -> int:
             raise ValueError(f"Expected concrete tensor shape, got {spec.shape}")
         concrete_shape.append(dim)
     return concrete_nbytes(dtype=spec.dtype, shape=tuple(concrete_shape))
+
+
+def _concrete_shape(spec: TensorSpec) -> tuple[int, ...]:
+    concrete_shape: list[int] = []
+    for dim in spec.shape:
+        if not isinstance(dim, int):
+            raise ValueError(f"Expected concrete tensor shape, got {spec.shape}")
+        concrete_shape.append(dim)
+    return tuple(concrete_shape)
+
+
+def _validate_request_state_growth_shape(
+    *,
+    tensor: LogicalTensor,
+    old_shape: tuple[int, ...],
+    new_shape: tuple[int, ...],
+) -> None:
+    if len(new_shape) != len(old_shape):
+        raise ValueError(
+            f"{tensor.name} grow_request_state cannot change rank from "
+            f"{len(old_shape)} to {len(new_shape)}"
+        )
+    if any(dim < 0 for dim in new_shape):
+        raise ValueError(f"{tensor.name} grow_request_state shape must be non-negative")
+    shrinking = [
+        (index, old_dim, new_dim)
+        for index, (old_dim, new_dim) in enumerate(zip(old_shape, new_shape, strict=True))
+        if new_dim < old_dim
+    ]
+    if shrinking:
+        index, old_dim, new_dim = shrinking[0]
+        raise ValueError(
+            f"{tensor.name} grow_request_state cannot shrink dim {index} "
+            f"from {old_dim} to {new_dim}"
+        )
+    if tensor.semantic is TensorSemantic.KV_CACHE:
+        if len(old_shape) != 4:
+            raise ValueError(f"{tensor.name} KV_CACHE growth expects rank 4, got {len(old_shape)}")
+        _require_only_growth_dim(tensor=tensor, old_shape=old_shape, new_shape=new_shape, dim=2)
+        return
+    if tensor.semantic is TensorSemantic.TOKEN:
+        _require_only_growth_dim(
+            tensor=tensor,
+            old_shape=old_shape,
+            new_shape=new_shape,
+            dim=len(old_shape) - 1,
+        )
+
+
+def _require_only_growth_dim(
+    *,
+    tensor: LogicalTensor,
+    old_shape: tuple[int, ...],
+    new_shape: tuple[int, ...],
+    dim: int,
+) -> None:
+    for index, (old_dim, new_dim) in enumerate(zip(old_shape, new_shape, strict=True)):
+        if index != dim and old_dim != new_dim:
+            raise ValueError(
+                f"{tensor.name} grow_request_state can only change dim {dim}; "
+                f"dim {index} changed from {old_dim} to {new_dim}"
+            )
+
+
+def _grown_request_state_capacity_nbytes(
+    *,
+    old_capacity_nbytes: int,
+    required_nbytes: int,
+) -> int:
+    if required_nbytes <= 0:
+        return 0
+    if old_capacity_nbytes <= 0:
+        return required_nbytes
+    return max(required_nbytes, old_capacity_nbytes * 2)
 
 
 def _descriptor_view_for_field(
@@ -1317,6 +1712,20 @@ def _record_descriptor_view(
         index,
         tensor.buffer.offset,
         tensor.descriptor_nbytes or 0,
+    )
+
+
+def _record_tensor_snapshot(field: TensorFieldSpec, tensor: LogicalTensor) -> DispatchTensorSnapshot:
+    if tensor.buffer is None:
+        raise RuntimeError(f"{tensor.name} is not materialized")
+    return DispatchTensorSnapshot(
+        field=field.name,
+        tensor=tensor.name,
+        shape=_concrete_shape(tensor.spec),
+        dtype=tensor.spec.dtype,
+        descriptor_offset=tensor.buffer.offset,
+        descriptor_nbytes=tensor.descriptor_nbytes or 0,
+        version=tensor.version,
     )
 
 
@@ -1407,6 +1816,7 @@ def _serializable_dispatch_record(record: DispatchRecord) -> dict[str, object]:
         "symbols": dict(record.symbols),
         "push_constant_values": dict(record.push_constant_values),
         "descriptor_views": record.descriptor_views,
+        "tensor_snapshots": [asdict(snapshot) for snapshot in record.tensor_snapshots],
         "reads": [
             {
                 "field": field_name,
@@ -1472,20 +1882,15 @@ def _call_reference_model(
 def _make_output_hook(
     *,
     tensor: LogicalTensor,
-    root_model: object,
     captured: dict[str, object],
 ):
     def _hook(_module: object, _inputs: object, output: object) -> None:
         probe = tensor.pytorch_probe
         assert probe is not None
-        captured[tensor.name] = _apply_probe_transform(
-            select_probe_value(
-                output,
-                index=probe.index,
-                selector=probe.selector,
-            ),
-            transform=probe.transform,
-            root_model=root_model,
+        captured[tensor.name] = select_probe_value(
+            output,
+            index=probe.index,
+            selector=probe.selector,
         )
 
     return _hook
@@ -1494,39 +1899,18 @@ def _make_output_hook(
 def _make_input_hook(
     *,
     tensor: LogicalTensor,
-    root_model: object,
     captured: dict[str, object],
 ):
     def _hook(_module: object, inputs: object, _output: object) -> None:
         probe = tensor.pytorch_probe
         assert probe is not None
-        captured[tensor.name] = _apply_probe_transform(
-            select_probe_value(
-                inputs,
-                index=probe.index,
-                selector=probe.selector,
-            ),
-            transform=probe.transform,
-            root_model=root_model,
+        captured[tensor.name] = select_probe_value(
+            inputs,
+            index=probe.index,
+            selector=probe.selector,
         )
 
     return _hook
-
-
-def _apply_probe_transform(value: object, *, transform: str | None, root_model: object) -> object:
-    if transform is None:
-        return value
-    if transform == "gelu":
-        import torch.nn.functional as F
-
-        return F.gelu(cast(Any, value))
-    if transform == "qwen3_asr_conv_out_add_position":
-        pytorch_value = cast(Any, value)
-        positional_embedding_owner = getattr(root_model, "positional_embedding")
-        positional_embedding = getattr(positional_embedding_owner, "positional_embedding")
-        seqlen = int(pytorch_value.shape[1])
-        return pytorch_value + positional_embedding[:seqlen, :].unsqueeze(0).to(pytorch_value.dtype)
-    raise NotImplementedError(f"PyTorchProbe transform is not implemented: {transform}")
 
 
 def _safe_path_component(value: str) -> str:

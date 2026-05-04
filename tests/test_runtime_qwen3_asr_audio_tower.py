@@ -1,93 +1,77 @@
+"""End-to-end integration test: run qwen3_asr_asknot.wav through torch2vk compute shaders."""
+
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, Mapping, cast
 
 import numpy as np
-import pytest
-from safetensors import safe_open
-import soundfile as sf
 import torch
-import torchaudio
-from transformers import WhisperFeatureExtractor
 
-from models.hf_cache import load_config_json, resolve_cached_model
-from models.qwen3_asr.execution import run_qwen3_asr_audio_tower
-from models.qwen3_asr.pytorch.example import REPO_ID
+from models.hf_cache import resolve_cached_model, load_config_json
+from models.qwen3_asr.execution import (
+    prepare_qwen3_asr_inputs,
+    QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS,
+)
+from models.qwen3_asr.audio_tower import run_qwen3_asr_audio_tower
+from models.qwen3_asr.execution import run_qwen3_asr_greedy_decode_loop
 from models.qwen3_asr.tensors.audio_tower import declare_qwen3_asr_audio_tower_tensors
-from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRAudioEncoderConfig
-from qwen_asr.core.transformers_backend.modeling_qwen3_asr import Qwen3ASRAudioEncoder
+from models.qwen3_asr.tensors.text import declare_qwen3_asr_text_tensors
+from models.qwen3_asr.pytorch.example import REPO_ID
 from torch2vk.runtime.session import RuntimeSession
 
 _FIXTURE_WAV = Path(__file__).resolve().parent / "fixtures" / "qwen3_asr_asknot.wav"
 
 
-def _load_qwen3_asr_audio_encoder(model_dir: Path, *, encoder_layers: int) -> Qwen3ASRAudioEncoder:
-    config_dict = dict(load_config_json(model_dir)["thinker_config"]["audio_config"])
-    config_dict["encoder_layers"] = encoder_layers
-    config_dict["num_hidden_layers"] = encoder_layers
-    model = Qwen3ASRAudioEncoder(Qwen3ASRAudioEncoderConfig(**config_dict))
-    state_dict = {}
-    with safe_open(model_dir / "model.safetensors", framework="pt", device="cpu") as storage:
-        for key in storage.keys():
-            if not key.startswith("thinker.audio_tower."):
-                continue
-            local_key = key.removeprefix("thinker.audio_tower.")
-            if local_key.startswith("layers."):
-                layer = int(local_key.split(".", 2)[1])
-                if layer < encoder_layers:
-                    state_dict[local_key] = storage.get_tensor(key)
-            else:
-                state_dict[local_key] = storage.get_tensor(key)
-    unexpected = model.load_state_dict(state_dict, strict=False).unexpected_keys
-    assert not unexpected
-    return model.eval()
-
-
-@pytest.fixture
-def qwen3_asr_fixture_wav() -> Path:
-    return _FIXTURE_WAV
-
-
-def _audio_tower_inputs_from_wav(model_dir: Path, wav_path: Path) -> tuple[np.ndarray, np.ndarray]:
-    waveform, sample_rate = sf.read(wav_path, dtype="float32", always_2d=False)
-    if waveform.ndim == 2:
-        waveform = waveform.mean(axis=1)
-    feature_extractor = WhisperFeatureExtractor.from_pretrained(model_dir)
-    if sample_rate != feature_extractor.sampling_rate:
-        waveform = torchaudio.functional.resample(
-            torch.from_numpy(np.ascontiguousarray(waveform)).unsqueeze(0),
-            orig_freq=sample_rate,
-            new_freq=feature_extractor.sampling_rate,
-        ).squeeze(0).numpy()
-        sample_rate = feature_extractor.sampling_rate
-    features = feature_extractor(
-        waveform,
-        sampling_rate=sample_rate,
-        return_tensors="np",
-        padding=True,
-        truncation=False,
-        return_attention_mask=True,
+def test_qwen3_asr_e2e_with_pytorch_compare(tmp_path: Path) -> None:
+    """Run fixture wav through Vulkan shaders with pytorch probe comparison."""
+    resolved_model_dir = resolve_cached_model(REPO_ID, None)
+    _processor, prepared = prepare_qwen3_asr_inputs(
+        model_dir=resolved_model_dir,
+        wav=_FIXTURE_WAV,
+        language="English",
     )
-    feature_len = int(features["attention_mask"].sum(axis=-1)[0])
-    input_features = np.asarray(features["input_features"][0, :, :feature_len], dtype=np.float32)
-    feature_lens = np.array([feature_len], dtype=np.int64)
-    return input_features, feature_lens
-
-
-def test_runtime_compares_qwen3_asr_audio_tower_frame(tmp_path: Path, qwen3_asr_fixture_wav: Path) -> None:
-    model_dir = resolve_cached_model(REPO_ID)
-    input_features, feature_lens = _audio_tower_inputs_from_wav(model_dir, qwen3_asr_fixture_wav)
-    audio_config = load_config_json(model_dir)["thinker_config"]["audio_config"]
+    config = cast(Mapping[str, Any], load_config_json(resolved_model_dir))
+    thinker_config = cast(Mapping[str, Any], config["thinker_config"])
+    audio_config = cast(Mapping[str, Any], thinker_config["audio_config"])
+    text_config = cast(Mapping[str, Any], thinker_config["text_config"])
     encoder_layers = int(audio_config["encoder_layers"])
+
+    audio_feature_len = prepared.audio_feature_length
+    input_features = np.ascontiguousarray(
+        prepared.input_features[0, :, :audio_feature_len],
+        dtype=np.float32,
+    )
+    feature_lens = np.array([audio_feature_len], dtype=np.int64)
+
     tensors = declare_qwen3_asr_audio_tower_tensors(
         input_features_shape=input_features.shape,
         encoder_layers=encoder_layers,
     )
+    text_tensors = declare_qwen3_asr_text_tensors(
+        prompt_length=prepared.prompt_length,
+        audio_tokens=tensors.last_hidden_state.concrete_shape[0],
+        max_sequence_length=prepared.prompt_length + 1,
+        hidden_size=int(text_config["hidden_size"]),
+        intermediate_size=int(text_config["intermediate_size"]),
+        vocab_size=int(text_config["vocab_size"]),
+        decoder_layers=int(text_config["num_hidden_layers"]),
+        num_attention_heads=int(text_config["num_attention_heads"]),
+        num_key_value_heads=int(text_config["num_key_value_heads"]),
+        head_dim=int(text_config["head_dim"]),
+        audio_features=tensors.last_hidden_state,
+    )
 
+    max_new_tokens = 4
+    rope_theta = float(text_config.get("rope_theta", 5_000_000.0))
+    rope_scaling = text_config.get("rope_scaling", {}) or {}
+    mrope_section = tuple(rope_scaling.get("mrope_section", [24, 20, 20]))
+
+    artifact_dir = tmp_path / "qwen3_asr_e2e"
     with RuntimeSession.open(
         device_index=0,
-        artifact_dir=tmp_path / "generated_qwen3_asr_audio_tower",
-        model_dir=model_dir,
+        artifact_dir=artifact_dir,
+        model_dir=resolved_model_dir,
     ) as rt:
         rt.register_inputs(
             {
@@ -95,11 +79,57 @@ def test_runtime_compares_qwen3_asr_audio_tower_frame(tmp_path: Path, qwen3_asr_
                 tensors.feature_lens: feature_lens,
             }
         )
-        run_qwen3_asr_audio_tower(
-            rt,
-            tensors,
-            pytorch_model=_load_qwen3_asr_audio_encoder(
-                model_dir,
-                encoder_layers=encoder_layers,
-            ),
+        run_qwen3_asr_audio_tower(rt, tensors)
+
+        rt.register_inputs(
+            {
+                text_tensors.prefill.input_ids: prepared.input_ids,
+                text_tensors.prefill.attention_mask: prepared.attention_mask,
+                text_tensors.token_select.eos_token_ids: np.array(
+                    QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS,
+                    dtype=np.int64,
+                ),
+            }
         )
+        generated_tokens_tensor = run_qwen3_asr_greedy_decode_loop(
+            rt,
+            text_tensors,
+            max_new_tokens=max_new_tokens,
+            rope_theta=rope_theta,
+            mrope_section=mrope_section,
+        )
+        generated_array = rt.read_request_state(generated_tokens_tensor)
+        generated_ids = tuple(int(t) for t in generated_array.flatten())
+
+        failed = [r for r in rt.compare_results if not r.passed]
+        all_compares = rt.compare_results
+
+    decoded_text = cast(Any, _processor).batch_decode(
+        torch.tensor([list(generated_ids)], dtype=torch.long),
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=False,
+    )[0]
+
+    print(f"\nTranscription: {decoded_text!r}")
+    print(f"Generated tokens: {generated_ids}")
+    print(f"Total dispatches: {len(rt.dispatch_records)}")
+    print(f"Total compares: {len(all_compares)}")
+    print(f"Failed compares: {len(failed)}")
+
+    if failed:
+        print(f"\n{'=' * 60}")
+        print("FAILED SHADER COMPARISONS:")
+        print(f"{'=' * 60}")
+        for r in failed:
+            print(f"  Tensor: {r.artifact_key}")
+            if r.drilldown_classification:
+                print(f"    Classification: {r.drilldown_classification}")
+            if r.drilldown_artifact_path:
+                print(f"    Drilldown: {r.drilldown_artifact_path}")
+        print(f"\nArtifact dir: {artifact_dir}")
+
+    assert not failed, (
+        f"{len(failed)} shader comparison(s) failed.\n"
+        f"First failure: {failed[0].artifact_key}\n"
+        f"Check drilldown artifacts in {artifact_dir}"
+    )

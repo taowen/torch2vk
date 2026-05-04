@@ -165,14 +165,9 @@ def declare_qwen3_asr_audio_encoder_layer_tensors(
             hidden_shape,
             probe=PyTorchProbe(kind="module_output", target=f"layers.{layer}.final_layer_norm"),
         ),
-        fc1_gelu=comparable_activation(
+        fc1_gelu=activation(
             f"{tensor_prefix}.fc1.gelu",
             (hidden_shape[0], encoder_ffn_dim),
-            probe=PyTorchProbe(
-                kind="module_output", target=f"layers.{layer}.fc1", transform="gelu"
-            ),
-            rtol=3e-3,
-            atol=3e-2,
         ),
         fc2=comparable_activation(
             f"{tensor_prefix}.fc2",

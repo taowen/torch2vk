@@ -131,8 +131,6 @@ def declare_qwen3_asr_audio_tower_tensors(
                 dtype="float32",
                 shape=(batch, downsample_hidden_size, conv1_height, conv1_chunk_width),
             ),
-            compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="conv2d1", transform="gelu"),
             **output_common,
         ),
         conv2d2_weight=weight(
@@ -146,8 +144,6 @@ def declare_qwen3_asr_audio_tower_tensors(
                 dtype="float32",
                 shape=(batch, downsample_hidden_size, conv2_height, conv2_chunk_width),
             ),
-            compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="conv2d2", transform="gelu"),
             **output_common,
         ),
         conv2d3_weight=weight(
@@ -160,8 +156,6 @@ def declare_qwen3_asr_audio_tower_tensors(
             spec=TensorSpec(
                 dtype="float32", shape=(batch, downsample_hidden_size, conv3_height, conv3_width)
             ),
-            compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="conv2d3", transform="gelu"),
             **output_common,
         ),
         conv_out_weight=weight(
@@ -170,12 +164,6 @@ def declare_qwen3_asr_audio_tower_tensors(
         conv_out_add_position=LogicalTensor(
             name="qwen3_asr.audio_tower.conv_out.add_position",
             spec=TensorSpec(dtype="float32", shape=padded_hidden_shape),
-            compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
-            pytorch_probe=PyTorchProbe(
-                kind="module_output",
-                target="conv_out",
-                transform="qwen3_asr_conv_out_add_position",
-            ),
             **output_common,
         ),
         hidden_states=LogicalTensor(
@@ -223,8 +211,6 @@ def declare_qwen3_asr_audio_tower_tensors(
         proj1_gelu=LogicalTensor(
             name="qwen3_asr.audio_tower.proj1.gelu",
             spec=TensorSpec(dtype="float32", shape=hidden_shape),
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="proj1", transform="gelu"),
             **output_common,
         ),
         proj2_weight=weight("thinker.audio_tower.proj2.weight", (output_size, hidden_size)),
@@ -232,11 +218,13 @@ def declare_qwen3_asr_audio_tower_tensors(
         last_hidden_state=LogicalTensor(
             name="qwen3_asr.audio_tower.last_hidden_state",
             spec=TensorSpec(dtype="float32", shape=(hidden_rows, output_size)),
+            role=TensorRole.OUTPUT,
+            memory=MemoryClass.REQUEST_STATE,
+            lifetime=TensorLifetime.REQUEST,
             compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
             pytorch_probe=PyTorchProbe(
                 kind="module_output", target="", selector="last_hidden_state"
             ),
-            **output_common,
         ),
     )
 

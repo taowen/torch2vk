@@ -180,6 +180,17 @@ class ShaderVariant:
 
 
 @dataclass(frozen=True, slots=True)
+class DispatchTensorSnapshot:
+    field: str
+    tensor: str
+    shape: tuple[int, ...]
+    dtype: str
+    descriptor_offset: int
+    descriptor_nbytes: int
+    version: int
+
+
+@dataclass(frozen=True, slots=True)
 class DispatchRecord:
     index: int
     frame: str
@@ -191,6 +202,7 @@ class DispatchRecord:
     symbols: tuple[tuple[str, int], ...]
     dispatch_size: tuple[int, int, int]
     descriptor_views: tuple[tuple[str, int, int, int], ...]
+    tensor_snapshots: tuple[DispatchTensorSnapshot, ...] = dataclass_field(default_factory=tuple)
     push_constant_values: tuple[tuple[str, int | float], ...] = dataclass_field(default_factory=tuple)
 
 

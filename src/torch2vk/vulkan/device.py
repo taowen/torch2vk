@@ -323,7 +323,10 @@ class VulkanDevice:
     ) -> tuple[tuple[BufferSlice, BufferAllocation], ...]:
         uploads = tuple((label, np.ascontiguousarray(array)) for label, array in tensors)
         return self.upload_buffer_views_with_allocations(
-            tuple((label, _numpy_spec(array), memoryview(array)) for label, array in uploads)
+            tuple(
+                (label, _numpy_spec(array), memoryview(array).cast("B"))
+                for label, array in uploads
+            )
         )
 
     def upload_checkpoint_tensors_with_allocations(
@@ -404,10 +407,18 @@ class VulkanDevice:
     ) -> np.ndarray:
         del layout
         self.require_open()
-        data = self.readback_tensor_bytes(slice)
+        expected_nbytes = tensor_nbytes(spec)
+        if expected_nbytes == 0:
+            return self.empty_tensor(spec=spec)
+        data = self.readback_tensor_bytes(slice, size=expected_nbytes)
         dtype = _numpy_dtype_for_spec(spec.dtype)
         shape = tuple(int(dim) for dim in spec.shape)
         return np.frombuffer(data, dtype=dtype).copy().reshape(shape)
+
+    def empty_tensor(self, *, spec: TensorSpec) -> np.ndarray:
+        dtype = _numpy_dtype_for_spec(spec.dtype)
+        shape = tuple(int(dim) for dim in spec.shape)
+        return np.empty(shape, dtype=dtype)
 
     def readback_tensor_bytes(
         self,

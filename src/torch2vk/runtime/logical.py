@@ -61,7 +61,6 @@ class PyTorchProbe:
     target: str
     index: int = 0
     selector: str | None = None
-    transform: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +86,12 @@ class LogicalTensor:
     _descriptor_nbytes: int | None = field(default=None, init=False, repr=False)
     _version: int = field(default=0, init=False, repr=False)
     _writer: DispatchWriter | None = field(default=None, init=False, repr=False)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name == "spec" and hasattr(self, "_runtime_writable"):
+            self._require_runtime_writable("spec")
+        object.__setattr__(self, name, value)
+
 
     @property
     def runtime_writable(self) -> bool:

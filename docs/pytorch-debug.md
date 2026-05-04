@@ -144,7 +144,6 @@ class PyTorchProbe:
     target: str
     index: int = 0
     selector: str | None = None
-    transform: str | None = None
 ```
 
 字段含义：
@@ -164,13 +163,10 @@ index
 
 selector
   对复杂返回值做字段选择，例如 "hidden_states"、"logits"。selector 只做取值，不实现计算。
-
-transform
-  只允许表达 Vulkan/PyTorch 边界差异，例如 layout 转换、去 padding、cast 到 float32 后比较。
 ```
 
-`derived` 和 `transform` 不能重新实现模型 op。比如 `permute_nchw_to_nhwc`、`slice_valid_tokens` 是可以的；
-`conv1d_again`、`attention_again`、`gelu_again` 是不允许的。
+Vulkan candidate 的 shape/dtype 必须和 PyTorch module 的输出严格一致。如果不一致，说明 tensor 声明或
+shader contract 有问题，应该修正声明侧，不应该在 compare 时做隐式转换。
 
 ## ComparePolicy
 
@@ -207,9 +203,8 @@ waveform
   不只看逐点误差，也可以报告 peak、RMS、SNR；但 frame 内定位仍应优先比较 decoder 中间 tensor。
 ```
 
-如果一个 tensor 在 PyTorch 中是 `float16`/`bfloat16`，但 shader readback 是 `float32`，比较前可以按
-`transform` 统一到 `float32`。这种 cast 必须发生在 compare 边界，不能掩盖权重加载或 shader contract
-中的 dtype mismatch。
+如果一个 tensor 在 PyTorch 中是 `float16`/`bfloat16`，但 shader readback 是 `float32`，说明 shader contract
+的 dtype 与 PyTorch 不一致，应该修正声明侧。
 
 ## Artifact key
 
@@ -241,7 +236,7 @@ toy.elementwise_mul/toy.y
 
 PyTorch artifact cache 是磁盘缓存，不是 PyTorch model 决定 compare targets。RuntimeSession 仍然先根据
 本 frame 实际 written tensors 选择少量 active targets；对 active target 和 drilldown target 用 artifact key 加上
-model/checkpoint fingerprint、register_inputs 输入 fingerprint、probe target/selector/transform 和 tensor
+model/checkpoint fingerprint、register_inputs 输入 fingerprint、probe target/selector 和 tensor
 shape/dtype/layout 生成 cache key。如果 expected artifact 已存在且 metadata 完全匹配，RuntimeSession 直接
 读取缓存，不重跑 PyTorch forward；否则只对缺失 target 安装 hook，lockstep 执行一次当前 frame 的
 `pytorch_model.forward`，然后把捕获到的 expected artifact 落盘。
@@ -260,8 +255,8 @@ shape/dtype/layout 生成 cache key。如果 expected artifact 已存在且 meta
 4. 按 artifact cache key 查找 PyTorch expected artifact
 5. 对 cache miss 的 target 根据 pytorch_probe 在 pytorch_model 上安装临时 hook
 6. 用当前 frame 的 inputs/state lockstep 执行 pytorch_model.forward
-7. hook 捕获 PyTorch artifact，并应用 selector/transform，然后写入磁盘缓存
-8. readback candidate LogicalTensor 当前 buffer，并应用 readback transform
+7. hook 捕获 PyTorch artifact，并应用 selector，然后写入磁盘缓存
+8. readback candidate LogicalTensor 当前 buffer
 9. 检查 shape、dtype、layout
 10. 按 ComparePolicy 计算 max_abs、max_rel、first mismatch
 11. 如果 mismatch，沿 failed tensor.writer 的 dispatch.reads 自动选择已声明的直接输入做 drilldown compare
@@ -323,7 +318,7 @@ shader(inputs, weights, push_constants, layout) -> outputs
 ```
 
 对应的 PyTorch reference 可能是一个 module output、module input、root output，或由真实 PyTorch artifact
-做有限边界 transform 后得到的聚合函数结果。定位到某个 failed tensor 后，RuntimeSession 应沿现有对象图倒查：
+得到的结果。定位到某个 failed tensor 后，RuntimeSession 应沿现有对象图倒查：
 
 ```text
 failed LogicalTensor
@@ -380,7 +375,7 @@ shader 对拍仍然要落到 frame 内的 `LogicalTensor.compare` / `PyTorchProb
 1. 在 `tensors/` 中给需要调试的 LogicalTensor 增加 `compare` 和 `pytorch_probe`；
 2. 在具体 frame 文件里传入正确的 `pytorch_model`；
 3. 在 frame 内直接调用 `ShaderVariant`，不要再包一层 shader 函数；
-4. 对 PyTorch/Vulkan layout 差异声明明确 transform；
+4. 确保 Vulkan tensor 的 shape/dtype 与 PyTorch module 输出严格一致；
 5. 用 frame name 表达动态上下文，例如 `audio_token_index`、`row`、`chunk_index`。
 
 模型 adapter 不应该做：
@@ -446,7 +441,7 @@ MVP 阶段可以先支持：
 随后再扩展：
 
 1. `module_input`；
-2. `selector` 和有限 `transform`；
+2. `selector`；
 3. token/logit top-k 报告；
 4. waveform/SNR 报告；
 5. artifact dump/reload；
