@@ -68,6 +68,7 @@ class ReplayDescriptorBinding:
     tensor_name: str
     buffer: DescriptorBufferBinding
     rebindable: bool
+    validate_shape: bool
 
 
 @dataclass(slots=True)

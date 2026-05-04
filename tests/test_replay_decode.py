@@ -149,5 +149,22 @@ def test_replay_decode_loop_matches_eager(tmp_path: Path, *, stop_on_eos: bool) 
         replay_tokens = tuple(
             int(t) for t in rt.read_request_state(generated_tensor).flatten()
         )
+        if stop_on_eos:
+            dispatch_start = len(rt.dispatch_records)
+            generated_tensor = run_qwen3_asr_replay_decode_loop(
+                rt, text_tensors,
+                max_new_tokens=max_new_tokens,
+                rope_theta=rope_theta,
+                mrope_section=mrope_section,
+                stop_on_eos=stop_on_eos,
+            )
+            second_records = rt.dispatch_records[dispatch_start:]
+            replay_tokens = tuple(
+                int(t) for t in rt.read_request_state(generated_tensor).flatten()
+            )
+            assert not any(
+                record.frame.startswith("qwen3_asr.text_decode")
+                for record in second_records
+            )
 
     assert replay_tokens == (3036, 773, 11, 847), f"Got {replay_tokens}"

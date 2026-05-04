@@ -1705,6 +1705,7 @@ class RuntimeSession:
                         tensor_name=descriptor_tensor.name,
                         buffer=descriptor_binding,
                         rebindable=descriptor_rebindable,
+                        validate_shape=descriptor_tensor is tensor,
                     )
                 )
 
@@ -1899,7 +1900,12 @@ class RuntimeSession:
                 self._validate_replay_rebind_symbols(
                     plan=plan,
                     entry=entry,
-                    field_tensors=rebound_field_tensors,
+                    field_tensors={
+                        descriptor.field.name: rebound_field_tensors[descriptor.field.name]
+                        for descriptor in rebound_descriptors
+                        if descriptor.validate_shape
+                        and descriptor.field.name in rebound_field_tensors
+                    },
                 )
 
             buffer_views = [descriptor.buffer for descriptor in rebound_descriptors]
@@ -1960,8 +1966,14 @@ class RuntimeSession:
         entry: "ReplayDispatchEntry",
         field_tensors: Mapping[str, LogicalTensor],
     ) -> None:
+        if not field_tensors:
+            return
         rebound_symbols = self._bind_shape_symbols(
-            tuple(descriptor.field for descriptor in entry.descriptors if descriptor.field.name in field_tensors),
+            tuple(
+                descriptor.field
+                for descriptor in entry.descriptors
+                if descriptor.validate_shape and descriptor.field.name in field_tensors
+            ),
             field_tensors,
         )
         dynamic_symbols = set(plan.dynamic_symbol_names)
