@@ -1,4 +1,4 @@
-"""Qwen3-ASR audio tower shader: conv_out linear + sinusoidal position add."""
+"""Qwen3-ASR audio tower conv_out linear and positional add shaders."""
 
 from __future__ import annotations
 
@@ -17,12 +17,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-QWEN3_ASR_CONV_OUT_ADD_POSITION_F32 = ShaderVariant(
-    name="qwen3_asr_audio_tower_conv_out_add_position_f32",
+QWEN3_ASR_CONV_OUT_F32 = ShaderVariant(
+    name="qwen3_asr_audio_tower_conv_out_f32",
     family="qwen3_asr.audio_tower",
     contract=ShaderContract(
-        class_name="Qwen3AsrAudioTowerConvOutAddPositionF32Program",
-        shader_name="qwen3_asr_audio_tower_conv_out_add_position_f32",
+        class_name="Qwen3AsrAudioTowerConvOutF32Program",
+        shader_name="qwen3_asr_audio_tower_conv_out_f32",
         fields=(
             TensorFieldSpec(
                 name="x",
@@ -100,16 +100,6 @@ float bf16_to_f32(uint16_t value) {
     return uintBitsToFloat(uint(value) << 16);
 }
 
-float position_value(uint t, uint h) {
-    const uint half_channels = pc.H / 2u;
-    const float denom = float(max(1u, half_channels - 1u));
-    const float log_increment = log(10000.0) / denom;
-    const uint local_h = h < half_channels ? h : h - half_channels;
-    const float freq = exp(-log_increment * float(local_h));
-    const float scaled_time = float(t) * freq;
-    return h < half_channels ? sin(scaled_time) : cos(scaled_time);
-}
-
 void main() {
     const uint local_h = gl_LocalInvocationID.x;
     const uint local_row = gl_LocalInvocationID.y;
@@ -150,8 +140,88 @@ void main() {
     }
 
     if (row < total_rows && h < pc.H) {
-        output_values[row * pc.H + h] = acc + position_value(t, h);
+        output_values[row * pc.H + h] = acc;
     }
+}
+""".lstrip(),
+)
+
+
+QWEN3_ASR_ADD_POSITION_F32 = ShaderVariant(
+    name="qwen3_asr_audio_tower_add_position_f32",
+    family="qwen3_asr.audio_tower",
+    contract=ShaderContract(
+        class_name="Qwen3AsrAudioTowerAddPositionF32Program",
+        shader_name="qwen3_asr_audio_tower_add_position_f32",
+        fields=(
+            TensorFieldSpec(
+                name="x",
+                io_kind=IOKind.INPUT,
+                role="input",
+                contract=TensorContract(dtype="float32", shape=("N", "T", "H")),
+            ),
+            TensorFieldSpec(
+                name="output",
+                io_kind=IOKind.OUTPUT,
+                role="output",
+                contract=TensorContract(dtype="float32", shape=("N", "T", "H")),
+            ),
+        ),
+        push_constants=PushConstantSpec(
+            size=16,
+            fields=(
+                PushConstantFieldSpec("N", PushConstantType.UINT32, 0, "N"),
+                PushConstantFieldSpec("T", PushConstantType.UINT32, 4, "T"),
+                PushConstantFieldSpec("H", PushConstantType.UINT32, 8, "H"),
+                PushConstantFieldSpec(
+                    "TOTAL", PushConstantType.UINT32, 12, mul(mul("N", "T"), "H")
+                ),
+            ),
+        ),
+        dispatch=(ceil_div(mul(mul("N", "T"), "H"), 256), 1, 1),
+    ),
+    source="""
+#version 450
+
+layout(std430) buffer;
+
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer {
+    float x[];
+};
+
+layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer {
+    float output_values[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint N;
+    uint T;
+    uint H;
+    uint TOTAL;
+} pc;
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+float position_value(uint t, uint h) {
+    const uint half_channels = pc.H / 2u;
+    const float denom = float(max(1u, half_channels - 1u));
+    const float log_increment = log(10000.0) / denom;
+    const uint local_h = h < half_channels ? h : h - half_channels;
+    const float freq = exp(-log_increment * float(local_h));
+    const float scaled_time = float(t) * freq;
+    return h < half_channels ? sin(scaled_time) : cos(scaled_time);
+}
+
+void main() {
+    const uint index = gl_GlobalInvocationID.x;
+    if (index >= pc.TOTAL) {
+        return;
+    }
+
+    const uint h = index % pc.H;
+    const uint row = index / pc.H;
+    const uint t = row % pc.T;
+    output_values[index] = x[index] + position_value(t, h);
 }
 """.lstrip(),
 )

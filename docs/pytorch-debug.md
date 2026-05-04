@@ -336,6 +336,7 @@ failed output
   -> dump writer IO
   -> compare declared direct reads
   -> direct reads passed: input_ok_output_bad
+  -> direct read lacks probe but nearest probed ancestor passed: unprobed_input_gap
   -> direct read failed: continue from that read.writer
   -> direct read missing compare/probe: missing_reference_probe
 ```
@@ -345,6 +346,11 @@ failed output
 按需 readback 和 PyTorch cache/probe compare，并继续沿它的 writer 往上游倒查。没有声明 compare/probe
 的非权重 tensor 会在报告中列为 `missing_reference_tensors`，不能自动数值对拍。权重 tensor 不要求声明
 probe，权重正确性由 checkpoint key、dtype、shape、layout 和 binding 检查覆盖。
+
+`unprobed_input_gap` 表示当前 writer 的直接输入没有 PyTorch reference，但 runtime 找到了更上游的
+可对齐 ancestor 并完成对拍。这个分类只能把问题收敛到“上游通过的 compare 点”和“当前失败输出”之间，
+不能证明当前 writer 的直接输入正确。此时应优先增加 debug-only split 或 `manual_hook`，让 gap 内关键
+tensor 也有 reference。
 
 ## 权重、输入和随机性
 

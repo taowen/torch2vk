@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, cast
 
 import numpy as np
 import torch
@@ -31,11 +31,11 @@ def test_qwen3_asr_e2e_with_pytorch_compare(tmp_path: Path) -> None:
         wav=_FIXTURE_WAV,
         language="English",
     )
-    config = cast(Mapping[str, Any], load_config_json(resolved_model_dir))
-    thinker_config = cast(Mapping[str, Any], config["thinker_config"])
-    audio_config = cast(Mapping[str, Any], thinker_config["audio_config"])
-    text_config = cast(Mapping[str, Any], thinker_config["text_config"])
-    encoder_layers = int(audio_config["encoder_layers"])
+    config = _expect_mapping(load_config_json(resolved_model_dir), "config")
+    thinker_config = _expect_mapping(config["thinker_config"], "thinker_config")
+    audio_config = _expect_mapping(thinker_config["audio_config"], "audio_config")
+    text_config = _expect_mapping(thinker_config["text_config"], "text_config")
+    encoder_layers = _expect_int(audio_config["encoder_layers"], "audio_config.encoder_layers")
 
     audio_feature_len = prepared.audio_feature_length
     input_features = np.ascontiguousarray(
@@ -52,20 +52,28 @@ def test_qwen3_asr_e2e_with_pytorch_compare(tmp_path: Path) -> None:
         prompt_length=prepared.prompt_length,
         audio_tokens=tensors.last_hidden_state.concrete_shape[0],
         max_sequence_length=prepared.prompt_length + 1,
-        hidden_size=int(text_config["hidden_size"]),
-        intermediate_size=int(text_config["intermediate_size"]),
-        vocab_size=int(text_config["vocab_size"]),
-        decoder_layers=int(text_config["num_hidden_layers"]),
-        num_attention_heads=int(text_config["num_attention_heads"]),
-        num_key_value_heads=int(text_config["num_key_value_heads"]),
-        head_dim=int(text_config["head_dim"]),
+        hidden_size=_expect_int(text_config["hidden_size"], "text_config.hidden_size"),
+        intermediate_size=_expect_int(
+            text_config["intermediate_size"], "text_config.intermediate_size"
+        ),
+        vocab_size=_expect_int(text_config["vocab_size"], "text_config.vocab_size"),
+        decoder_layers=_expect_int(
+            text_config["num_hidden_layers"], "text_config.num_hidden_layers"
+        ),
+        num_attention_heads=_expect_int(
+            text_config["num_attention_heads"], "text_config.num_attention_heads"
+        ),
+        num_key_value_heads=_expect_int(
+            text_config["num_key_value_heads"], "text_config.num_key_value_heads"
+        ),
+        head_dim=_expect_int(text_config["head_dim"], "text_config.head_dim"),
         audio_features=tensors.last_hidden_state,
     )
 
     max_new_tokens = 4
-    rope_theta = float(text_config.get("rope_theta", 5_000_000.0))
-    rope_scaling = text_config.get("rope_scaling", {}) or {}
-    mrope_section = tuple(rope_scaling.get("mrope_section", [24, 20, 20]))
+    rope_theta = _expect_float(text_config.get("rope_theta", 5_000_000.0), "text_config.rope_theta")
+    rope_scaling = _optional_mapping(text_config.get("rope_scaling"))
+    mrope_section = _int_tuple(rope_scaling.get("mrope_section"), default=(24, 20, 20))
 
     artifact_dir = tmp_path / "qwen3_asr_e2e"
     with RuntimeSession.open(
@@ -104,7 +112,7 @@ def test_qwen3_asr_e2e_with_pytorch_compare(tmp_path: Path) -> None:
         failed = [r for r in rt.compare_results if not r.passed]
         all_compares = rt.compare_results
 
-    decoded_text = cast(Any, _processor).batch_decode(
+    decoded_text = _processor.batch_decode(
         torch.tensor([list(generated_ids)], dtype=torch.long),
         skip_special_tokens=True,
         clean_up_tokenization_spaces=False,
@@ -133,3 +141,35 @@ def test_qwen3_asr_e2e_with_pytorch_compare(tmp_path: Path) -> None:
         f"First failure: {failed[0].artifact_key}\n"
         f"Check drilldown artifacts in {artifact_dir}"
     )
+
+
+def _expect_mapping(value: object, name: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} must be a mapping, got {type(value).__name__}")
+    return value
+
+
+def _optional_mapping(value: object) -> Mapping[str, object]:
+    if value is None:
+        return {}
+    return _expect_mapping(value, "optional mapping")
+
+
+def _expect_int(value: object, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an int, got {type(value).__name__}")
+    return value
+
+
+def _expect_float(value: object, name: str) -> float:
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        raise TypeError(f"{name} must be numeric, got {type(value).__name__}")
+    return float(value)
+
+
+def _int_tuple(value: object, *, default: tuple[int, ...]) -> tuple[int, ...]:
+    if value is None:
+        return default
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes):
+        raise TypeError(f"expected integer sequence, got {type(value).__name__}")
+    return tuple(_expect_int(item, "sequence item") for item in value)

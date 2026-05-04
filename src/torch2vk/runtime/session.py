@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Callable, Protocol, TypeGuard, cast
+from typing import TYPE_CHECKING, Protocol, TypeGuard
 
 import numpy as np
 from vulkan import (
@@ -60,11 +60,16 @@ from torch2vk.vulkan.compute_pipeline import ComputePipeline, DescriptorBufferBi
 from torch2vk.vulkan.device import VulkanDevice
 from torch2vk.vulkan.types import TensorSpec, bind_tensor_layout_symbols, concrete_nbytes
 
+if TYPE_CHECKING:
+    import torch
+
 
 class _PyTorchModuleLike(Protocol):
-    def named_modules(self) -> Iterable[tuple[str, object]]: ...
-
     def __call__(self, *args: object, **kwargs: object) -> object: ...
+
+
+class _NamedModulesLike(Protocol):
+    def named_modules(self) -> Iterable[tuple[str, object]]: ...
 
 
 class _HookHandleLike(Protocol):
@@ -85,6 +90,31 @@ class _TorchTensorLike(Protocol):
     def numpy(self) -> np.ndarray: ...
 
 
+class _PyTorchModelLoader(Protocol):
+    def from_pretrained(
+        self,
+        pretrained_model_name_or_path: str,
+        *,
+        dtype: object,
+        attn_implementation: str,
+    ) -> "_LoadedPyTorchModelLike": ...
+
+
+class _LoadedPyTorchModelLike(_PyTorchModuleLike, Protocol):
+    def to(self, device: object) -> object: ...
+
+    def eval(self) -> object: ...
+
+
+class _DeviceCarrier(Protocol):
+    @property
+    def device(self) -> "torch.device": ...
+
+
+class _ParametersLike(Protocol):
+    def parameters(self) -> Iterable[object]: ...
+
+
 _PYTORCH_ARTIFACT_CACHE_VERSION = 1
 
 
@@ -100,6 +130,8 @@ class _PyTorchCachePaths:
 class _ReadCompareOutcome:
     failed_result: TensorCompareResult | None
     missing_reference_tensors: tuple[str, ...]
+    unprobed_read_tensors: tuple[str, ...]
+    ancestor_probe_tensors: tuple[str, ...]
 
 
 class RuntimeSession:
@@ -122,8 +154,8 @@ class RuntimeSession:
         self._frame_history: dict[str, FrameContext] = {}
         self._dispatch_records: list[DispatchRecord] = []
         self._compare_results: list[TensorCompareResult] = []
-        self._pipeline_cache: dict[tuple[Any, ...], ComputePipeline] = {}
-        self._pytorch_models: dict[type, object] = {}
+        self._pipeline_cache: dict[tuple[object, ...], ComputePipeline] = {}
+        self._pytorch_models: dict[object, object] = {}
         self._model_allocations: list[BufferAllocation] = []
         self._request_allocations: list[BufferAllocation] = []
         self._frame_allocations: list[tuple[LogicalTensor, BufferAllocation]] = []
@@ -287,7 +319,9 @@ class RuntimeSession:
             if buffer is not None and old_logical_nbytes > 0:
                 copy_nbytes = min(
                     old_logical_nbytes,
-                    tensor.descriptor_nbytes if tensor.descriptor_nbytes is not None else old_logical_nbytes,
+                    tensor.descriptor_nbytes
+                    if tensor.descriptor_nbytes is not None
+                    else old_logical_nbytes,
                     buffer.nbytes,
                 )
                 if copy_nbytes > 0:
@@ -330,7 +364,10 @@ class RuntimeSession:
         retained: list[BufferAllocation] = []
         released: list[BufferAllocation] = []
         for allocation in self._request_allocations:
-            if any(tensor.buffer is not None and tensor.buffer.allocation is allocation for tensor in requested):
+            if any(
+                tensor.buffer is not None and tensor.buffer.allocation is allocation
+                for tensor in requested
+            ):
                 allocation.close()
                 released.append(allocation)
             else:
@@ -351,7 +388,7 @@ class RuntimeSession:
         name: str,
         *,
         pytorch_model: object | None = None,
-        pytorch_model_class: type | None = None,
+        pytorch_model_class: object | None = None,
         pytorch_model_submodule: str | None = None,
         pytorch_args: tuple[object, ...] = (),
         pytorch_kwargs: Mapping[str, object] | None = None,
@@ -461,8 +498,7 @@ class RuntimeSession:
                 for index, field in enumerate(contract.fields)
             ),
             tensor_snapshots=tuple(
-                _record_tensor_snapshot(field, tensors[field.name])
-                for field in contract.fields
+                _record_tensor_snapshot(field, tensors[field.name]) for field in contract.fields
             ),
             push_constant_values=tuple(sorted(push_values.items())),
         )
@@ -697,6 +733,8 @@ class RuntimeSession:
                 classification = "upstream_input_bad"
             elif outcome.missing_reference_tensors:
                 classification = "missing_reference_probe"
+            elif outcome.unprobed_read_tensors:
+                classification = "unprobed_input_gap"
             else:
                 classification = "input_ok_output_bad"
 
@@ -720,6 +758,8 @@ class RuntimeSession:
                     },
                     "classification": classification,
                     "missing_reference_tensors": outcome.missing_reference_tensors,
+                    "unprobed_read_tensors": outcome.unprobed_read_tensors,
+                    "ancestor_probe_tensors": outcome.ancestor_probe_tensors,
                 }
             )
             report = {
@@ -728,6 +768,8 @@ class RuntimeSession:
                 "failed_artifact": current.artifact_key,
                 "nearest_upstream_artifact_key": current.nearest_upstream_artifact_key,
                 "missing_reference_tensors": outcome.missing_reference_tensors,
+                "unprobed_read_tensors": outcome.unprobed_read_tensors,
+                "ancestor_probe_tensors": outcome.ancestor_probe_tensors,
                 "dispatch": dispatch,
                 "dispatch_artifact_path": str(dispatch_path),
                 "reads": reads,
@@ -771,20 +813,28 @@ class RuntimeSession:
             tensor
             for tensor in read_tensors
             if tensor.role is not TensorRole.WEIGHT
+            and not (tensor.role is TensorRole.INPUT and tensor.writer is None)
             and (tensor.compare is None or tensor.pytorch_probe is None)
         ]
+        unprobed_read_tensors = tuple(tensor.name for tensor in non_probed_reads)
         still_missing: list[str] = []
+        ancestor_probe_tensors: list[str] = []
         for tensor in non_probed_reads:
             ancestors = self._search_probed_ancestors(tensor, frame, seen)
             if ancestors:
                 probe_targets.extend(ancestors)
+                ancestor_probe_tensors.extend(ancestor.name for ancestor in ancestors)
             else:
                 still_missing.append(tensor.name)
         missing_reference_tensors = tuple(still_missing)
+        probe_targets = _unique_tensors(probe_targets)
+        ancestor_probe_tensor_names = tuple(dict.fromkeys(ancestor_probe_tensors))
         if not probe_targets:
             return _ReadCompareOutcome(
                 failed_result=None,
                 missing_reference_tensors=missing_reference_tensors,
+                unprobed_read_tensors=unprobed_read_tensors,
+                ancestor_probe_tensors=ancestor_probe_tensor_names,
             )
         expected_by_frame: dict[str, dict[str, object]] = {}
         for tensor in probe_targets:
@@ -794,9 +844,7 @@ class RuntimeSession:
                 frame_targets = [
                     candidate
                     for candidate in probe_targets
-                    if self._compare_frame_for_tensor(
-                        default_frame=frame, tensor=candidate
-                    ).frame
+                    if self._compare_frame_for_tensor(default_frame=frame, tensor=candidate).frame
                     == probe_frame.frame
                 ]
                 expected_by_tensor = self._expected_pytorch_artifacts(probe_frame, frame_targets)
@@ -822,11 +870,15 @@ class RuntimeSession:
                 return _ReadCompareOutcome(
                     failed_result=exc.result,
                     missing_reference_tensors=missing_reference_tensors,
+                    unprobed_read_tensors=unprobed_read_tensors,
+                    ancestor_probe_tensors=ancestor_probe_tensor_names,
                 )
             self._compare_results.append(result)
         return _ReadCompareOutcome(
             failed_result=None,
             missing_reference_tensors=missing_reference_tensors,
+            unprobed_read_tensors=unprobed_read_tensors,
+            ancestor_probe_tensors=ancestor_probe_tensor_names,
         )
 
     def _search_probed_ancestors(
@@ -1133,8 +1185,10 @@ class RuntimeSession:
         model = frame.pytorch_model
         if model is None:
             raise RuntimeError("PyTorch probe requested without pytorch_model")
-        module_like = cast(_PyTorchModuleLike, model)
-        modules = dict(module_like.named_modules()) if hasattr(model, "named_modules") else {}
+        if not _is_pytorch_module_like(model):
+            raise TypeError(f"pytorch_model must be callable, got {type(model).__name__}")
+        module_like = model
+        modules = dict(model.named_modules()) if _has_named_modules(model) else {}
         captured: dict[str, object] = {}
         hooks: list[_HookHandleLike] = []
         root_output_tensors: list[LogicalTensor] = []
@@ -1149,9 +1203,13 @@ class RuntimeSession:
                 root_output_tensors.append(tensor)
                 continue
             try:
-                module = cast(_ForwardHookModuleLike, modules[probe.target])
+                module = modules[probe.target]
             except KeyError as exc:
                 raise KeyError(f"PyTorch module probe target not found: {probe.target}") from exc
+            if not _is_forward_hook_module(module):
+                raise TypeError(
+                    f"PyTorch probe target {probe.target!r} does not support forward hooks"
+                )
             if probe.kind == "module_output":
                 hooks.append(
                     module.register_forward_hook(
@@ -1160,9 +1218,7 @@ class RuntimeSession:
                 )
             elif probe.kind == "module_input":
                 hooks.append(
-                    module.register_forward_hook(
-                        _make_input_hook(tensor=tensor, captured=captured)
-                    )
+                    module.register_forward_hook(_make_input_hook(tensor=tensor, captured=captured))
                 )
             else:
                 raise NotImplementedError(
@@ -1207,7 +1263,9 @@ class RuntimeSession:
         import torch
 
         forward = getattr(model, "forward", model)
-        signature = inspect.signature(cast(Callable[..., object], forward))
+        if not callable(forward):
+            raise TypeError(f"PyTorch model forward is not callable: {type(model).__name__}")
+        signature = inspect.signature(forward)
         parameter_names = {
             name
             for name, parameter in signature.parameters.items()
@@ -1252,7 +1310,7 @@ class RuntimeSession:
             return torch.from_numpy(np.ascontiguousarray(value))
         return value
 
-    def _load_pytorch_model(self, model_class: type) -> object | None:
+    def _load_pytorch_model(self, model_class: object) -> object | None:
         if model_class in self._pytorch_models:
             return self._pytorch_models[model_class]
         if self.model_dir is None:
@@ -1260,7 +1318,11 @@ class RuntimeSession:
         import torch
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = cast(Any, model_class).from_pretrained(
+        if not _is_pytorch_model_loader(model_class):
+            raise TypeError(
+                f"pytorch_model_class must provide from_pretrained, got {type(model_class).__name__}"
+            )
+        model = model_class.from_pretrained(
             str(self.model_dir),
             dtype=torch.float32,
             attn_implementation="eager",
@@ -1270,17 +1332,13 @@ class RuntimeSession:
         self._pytorch_models[model_class] = model
         return model
 
-    def _pytorch_model_device(self, model: object) -> object:
+    def _pytorch_model_device(self, model: object) -> "torch.device":
         import torch
 
-        try:
-            params = getattr(model, "parameters", None)
-            if params is not None:
-                first_param = next(iter(params()), None)
-                if first_param is not None:
-                    return first_param.device
-        except StopIteration:
-            pass
+        if _has_parameters(model):
+            for parameter in model.parameters():
+                if _has_torch_device(parameter):
+                    return parameter.device
         return torch.device("cpu")
 
     def close(self) -> None:
@@ -1715,7 +1773,9 @@ def _record_descriptor_view(
     )
 
 
-def _record_tensor_snapshot(field: TensorFieldSpec, tensor: LogicalTensor) -> DispatchTensorSnapshot:
+def _record_tensor_snapshot(
+    field: TensorFieldSpec, tensor: LogicalTensor
+) -> DispatchTensorSnapshot:
     if tensor.buffer is None:
         raise RuntimeError(f"{tensor.name} is not materialized")
     return DispatchTensorSnapshot(
@@ -1771,6 +1831,34 @@ def _default_frame_compare_targets(written: Iterable[LogicalTensor]) -> list[Log
 
 def _is_torch_tensor(value: object) -> TypeGuard[_TorchTensorLike]:
     return hasattr(value, "detach") and hasattr(value, "cpu") and hasattr(value, "numpy")
+
+
+def _is_pytorch_module_like(value: object) -> TypeGuard[_PyTorchModuleLike]:
+    return callable(value)
+
+
+def _has_named_modules(value: object) -> TypeGuard[_NamedModulesLike]:
+    named_modules = getattr(value, "named_modules", None)
+    return callable(named_modules)
+
+
+def _is_forward_hook_module(value: object) -> TypeGuard[_ForwardHookModuleLike]:
+    register_forward_hook = getattr(value, "register_forward_hook", None)
+    return callable(register_forward_hook)
+
+
+def _is_pytorch_model_loader(value: object) -> TypeGuard[_PyTorchModelLoader]:
+    from_pretrained = getattr(value, "from_pretrained", None)
+    return callable(from_pretrained)
+
+
+def _has_parameters(value: object) -> TypeGuard[_ParametersLike]:
+    parameters = getattr(value, "parameters", None)
+    return callable(parameters)
+
+
+def _has_torch_device(value: object) -> TypeGuard[_DeviceCarrier]:
+    return hasattr(value, "device")
 
 
 def _value_fingerprint(value: object) -> dict[str, object]:

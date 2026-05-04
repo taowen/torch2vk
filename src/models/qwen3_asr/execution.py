@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Protocol, TypeGuard
 
 import numpy as np
+import numpy.typing as npt
 
 from models.hf_cache import resolve_cached_model
 from models.qwen3_asr.audio_tower import (
@@ -26,6 +28,45 @@ from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
 QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS = (151645, 151643)
+
+
+class Qwen3AsrProcessorLike(Protocol):
+    def __call__(
+        self,
+        *,
+        text: Sequence[str],
+        audio: Sequence[np.ndarray],
+        return_tensors: str,
+        padding: bool,
+    ) -> Mapping[str, object]: ...
+
+    def apply_chat_template(
+        self,
+        messages: object,
+        *,
+        add_generation_prompt: bool,
+        tokenize: bool,
+    ) -> str: ...
+
+    def batch_decode(
+        self,
+        sequences: object,
+        *,
+        skip_special_tokens: bool,
+        clean_up_tokenization_spaces: bool,
+    ) -> list[str]: ...
+
+
+class _TorchArrayLike(Protocol):
+    def detach(self) -> "_TorchArrayLike": ...
+
+    def cpu(self) -> "_TorchArrayLike": ...
+
+    def numpy(self) -> np.ndarray: ...
+
+
+class _KeywordCallable(Protocol):
+    def __call__(self, *args: object, **kwargs: object) -> object: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +92,7 @@ def prepare_qwen3_asr_inputs(
     wav: str | Path | np.ndarray,
     language: str | None = "English",
     context: str = "",
-) -> tuple[object, Qwen3AsrPreparedInputs]:
+) -> tuple[Qwen3AsrProcessorLike, Qwen3AsrPreparedInputs]:
     from qwen_asr.core.transformers_backend.processing_qwen3_asr import Qwen3ASRProcessor
     from qwen_asr.inference.utils import (
         normalize_audios,
@@ -60,7 +101,9 @@ def prepare_qwen3_asr_inputs(
     )
 
     resolved_model_dir = resolve_cached_model(REPO_ID, model_dir)
-    processor = Qwen3ASRProcessor.from_pretrained(str(resolved_model_dir), fix_mistral_regex=True)
+    processor = _Qwen3AsrProcessorAdapter(
+        Qwen3ASRProcessor.from_pretrained(str(resolved_model_dir), fix_mistral_regex=True)
+    )
     force_language = _normalize_optional_language(
         language,
         normalize_language_name=normalize_language_name,
@@ -76,7 +119,7 @@ def prepare_qwen3_asr_inputs(
         context=context,
         force_language=force_language,
     )
-    batch = cast(Any, processor)(text=[prompt], audio=[waveform], return_tensors="pt", padding=True)
+    batch = processor(text=[prompt], audio=[waveform], return_tensors="pt", padding=True)
     return processor, Qwen3AsrPreparedInputs(
         prompt=prompt,
         input_ids=_to_numpy(batch["input_ids"], dtype=np.int64),
@@ -88,7 +131,7 @@ def prepare_qwen3_asr_inputs(
 
 def build_qwen3_asr_text_prompt(
     *,
-    processor: object,
+    processor: Qwen3AsrProcessorLike,
     context: str = "",
     force_language: str | None = "English",
 ) -> str:
@@ -96,7 +139,7 @@ def build_qwen3_asr_text_prompt(
         {"role": "system", "content": context or ""},
         {"role": "user", "content": [{"type": "audio", "audio": ""}]},
     ]
-    prompt = getattr(processor, "apply_chat_template")(
+    prompt = processor.apply_chat_template(
         messages,
         add_generation_prompt=True,
         tokenize=False,
@@ -204,8 +247,8 @@ def _grow_generated_tokens(
 def _normalize_optional_language(
     language: str | None,
     *,
-    normalize_language_name: Any,
-    validate_language: Any,
+    normalize_language_name: Callable[[str], str],
+    validate_language: Callable[[str], object],
 ) -> str | None:
     if language is None or str(language).strip() == "":
         return None
@@ -214,11 +257,78 @@ def _normalize_optional_language(
     return str(normalized)
 
 
-def _to_numpy(value: object, *, dtype: Any) -> np.ndarray:
-    dynamic_value = cast(Any, value)
-    array = (
-        dynamic_value.detach().cpu().numpy()
-        if hasattr(dynamic_value, "detach")
-        else np.asarray(dynamic_value)
-    )
+def _to_numpy(value: object, *, dtype: npt.DTypeLike) -> np.ndarray:
+    array = value.detach().cpu().numpy() if _is_torch_array_like(value) else np.asarray(value)
     return np.asarray(array, dtype=dtype)
+
+
+@dataclass(frozen=True, slots=True)
+class _Qwen3AsrProcessorAdapter:
+    raw: object
+
+    def __call__(
+        self,
+        *,
+        text: Sequence[str],
+        audio: Sequence[np.ndarray],
+        return_tensors: str,
+        padding: bool,
+    ) -> Mapping[str, object]:
+        if not _is_keyword_callable(self.raw):
+            raise TypeError(f"processor must be callable, got {type(self.raw).__name__}")
+        batch = self.raw(
+            text=list(text),
+            audio=list(audio),
+            return_tensors=return_tensors,
+            padding=padding,
+        )
+        if not isinstance(batch, Mapping):
+            raise TypeError(f"processor returned {type(batch).__name__}, expected mapping")
+        return batch
+
+    def apply_chat_template(
+        self,
+        messages: object,
+        *,
+        add_generation_prompt: bool,
+        tokenize: bool,
+    ) -> str:
+        method = getattr(self.raw, "apply_chat_template", None)
+        if not _is_keyword_callable(method):
+            raise TypeError("processor.apply_chat_template must be callable")
+        prompt = method(
+            messages,
+            add_generation_prompt=add_generation_prompt,
+            tokenize=tokenize,
+        )
+        return str(prompt)
+
+    def batch_decode(
+        self,
+        sequences: object,
+        *,
+        skip_special_tokens: bool,
+        clean_up_tokenization_spaces: bool,
+    ) -> list[str]:
+        method = getattr(self.raw, "batch_decode", None)
+        if not _is_keyword_callable(method):
+            raise TypeError("processor.batch_decode must be callable")
+        decoded = method(
+            sequences,
+            skip_special_tokens=skip_special_tokens,
+            clean_up_tokenization_spaces=clean_up_tokenization_spaces,
+        )
+        if not isinstance(decoded, Sequence) or isinstance(decoded, str | bytes):
+            raise TypeError(f"processor.batch_decode returned {type(decoded).__name__}")
+        return [str(item) for item in decoded]
+
+
+def _is_torch_array_like(value: object) -> TypeGuard[_TorchArrayLike]:
+    detach = getattr(value, "detach", None)
+    cpu = getattr(value, "cpu", None)
+    numpy = getattr(value, "numpy", None)
+    return callable(detach) and callable(cpu) and callable(numpy)
+
+
+def _is_keyword_callable(value: object) -> TypeGuard[_KeywordCallable]:
+    return callable(value)

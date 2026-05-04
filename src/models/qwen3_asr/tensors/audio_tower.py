@@ -34,6 +34,7 @@ class Qwen3AsrAudioTowerTensors:
     conv2d3_bias: LogicalTensor
     conv2d3_gelu: LogicalTensor
     conv_out_weight: LogicalTensor
+    conv_out: LogicalTensor
     conv_out_add_position: LogicalTensor
     hidden_states: LogicalTensor
     cu_seqlens: LogicalTensor
@@ -160,6 +161,13 @@ def declare_qwen3_asr_audio_tower_tensors(
         ),
         conv_out_weight=weight(
             "thinker.audio_tower.conv_out.weight", (hidden_size, conv_out_input_features)
+        ),
+        conv_out=LogicalTensor(
+            name="qwen3_asr.audio_tower.conv_out",
+            spec=TensorSpec(dtype="float32", shape=padded_hidden_shape),
+            compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
+            pytorch_probe=PyTorchProbe(kind="module_output", target="conv_out"),
+            **output_common,
         ),
         conv_out_add_position=LogicalTensor(
             name="qwen3_asr.audio_tower.conv_out.add_position",

@@ -6,7 +6,10 @@ from models.qwen3_asr.shaders.add_f32 import QWEN3_ASR_ADD_F32
 from models.qwen3_asr.shaders.attention_f32 import QWEN3_ASR_ENCODER_ATTENTION_F32
 from models.qwen3_asr.shaders.compact_after_cnn_f32 import QWEN3_ASR_COMPACT_AFTER_CNN_F32
 from models.qwen3_asr.shaders.conv2d_gelu_f32 import QWEN3_ASR_CONV2D_GELU_F32
-from models.qwen3_asr.shaders.conv_out_add_position_f32 import QWEN3_ASR_CONV_OUT_ADD_POSITION_F32
+from models.qwen3_asr.shaders.conv_out_add_position_f32 import (
+    QWEN3_ASR_ADD_POSITION_F32,
+    QWEN3_ASR_CONV_OUT_F32,
+)
 from models.qwen3_asr.shaders.cu_seqlens_u32 import QWEN3_ASR_CU_SEQLENS_U32
 from models.qwen3_asr.shaders.layer_norm_f32 import QWEN3_ASR_LAYER_NORM_F32
 from models.qwen3_asr.shaders.linear_f32 import QWEN3_ASR_LINEAR_F32, QWEN3_ASR_LINEAR_GELU_F32
@@ -57,10 +60,15 @@ def run_qwen3_asr_audio_tower(
             bias=tensors.conv2d3_bias,
             output=tensors.conv2d3_gelu,
         )
-        QWEN3_ASR_CONV_OUT_ADD_POSITION_F32(
+        QWEN3_ASR_CONV_OUT_F32(
             rt,
             x=tensors.conv2d3_gelu,
             weight=tensors.conv_out_weight,
+            output=tensors.conv_out,
+        )
+        QWEN3_ASR_ADD_POSITION_F32(
+            rt,
+            x=tensors.conv_out,
             output=tensors.conv_out_add_position,
         )
         QWEN3_ASR_COMPACT_AFTER_CNN_F32(
