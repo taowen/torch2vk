@@ -105,6 +105,7 @@ class PushConstantFieldSpec:
     dtype: PushConstantType
     offset: int
     value: PushConstantValue
+    dynamic: bool = False
 
     @property
     def size(self) -> int:
@@ -118,12 +119,32 @@ class PushConstantSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class ParamsBufferFieldSpec:
+    name: str
+    dtype: PushConstantType
+    offset: int
+    value: PushConstantValue
+
+    @property
+    def size(self) -> int:
+        return 8 if self.dtype is PushConstantType.UINT64 else 4
+
+
+@dataclass(frozen=True, slots=True)
+class ParamsBufferSpec:
+    size: int
+    fields: tuple[ParamsBufferFieldSpec, ...]
+    binding_index: int
+
+
+@dataclass(frozen=True, slots=True)
 class ShaderContract:
     class_name: str
     shader_name: str
     fields: tuple[TensorFieldSpec, ...]
     dispatch: tuple[ExprDim, ExprDim, ExprDim]
     push_constants: PushConstantSpec | None = None
+    params_buffer: ParamsBufferSpec | None = None
 
     @property
     def input_fields(self) -> tuple[TensorFieldSpec, ...]:
@@ -235,6 +256,60 @@ def eval_expr(expr: ExprDim, symbols: Mapping[str, int]) -> int:
     if isinstance(expr, AddExpr):
         return eval_expr(expr.lhs, symbols) + eval_expr(expr.rhs, symbols)
     raise TypeError(f"Unsupported expression dim {expr!r}")
+
+
+def split_dynamic_push_constants(
+    spec: PushConstantSpec,
+    *,
+    params_binding_index: int,
+) -> tuple[PushConstantSpec, ParamsBufferSpec | None]:
+    """Split a PushConstantSpec into static push constants and a dynamic params buffer.
+
+    Fields with ``dynamic=True`` are moved into a ``ParamsBufferSpec`` at
+    contiguous offsets.  The remaining static fields are re-packed into a new
+    ``PushConstantSpec`` (offsets compacted).
+    """
+    static_fields: list[PushConstantFieldSpec] = []
+    dynamic_fields: list[PushConstantFieldSpec] = []
+    for f in spec.fields:
+        if f.dynamic:
+            dynamic_fields.append(f)
+        else:
+            static_fields.append(f)
+
+    if not dynamic_fields:
+        return spec, None
+
+    static_offset = 0
+    repacked_static: list[PushConstantFieldSpec] = []
+    for f in static_fields:
+        repacked_static.append(PushConstantFieldSpec(
+            name=f.name,
+            dtype=f.dtype,
+            offset=static_offset,
+            value=f.value,
+            dynamic=False,
+        ))
+        static_offset += f.size
+
+    params_offset = 0
+    params_fields: list[ParamsBufferFieldSpec] = []
+    for f in dynamic_fields:
+        params_fields.append(ParamsBufferFieldSpec(
+            name=f.name,
+            dtype=f.dtype,
+            offset=params_offset,
+            value=f.value,
+        ))
+        params_offset += f.size
+
+    new_push = PushConstantSpec(size=static_offset, fields=tuple(repacked_static))
+    params = ParamsBufferSpec(
+        size=params_offset,
+        fields=tuple(params_fields),
+        binding_index=params_binding_index,
+    )
+    return new_push, params
 
 
 def _validate_push_constant_definition(shader_name: str, spec: PushConstantSpec) -> None:

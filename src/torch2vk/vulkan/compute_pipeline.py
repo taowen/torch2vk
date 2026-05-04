@@ -43,6 +43,7 @@ from vulkan import (
     vkCmdBindDescriptorSets,
     vkCmdBindPipeline,
     vkCmdDispatch,
+    vkCmdDispatchIndirect,
     vkCmdPushConstants,
     vkCreateComputePipelines,
     vkCreateDescriptorPool,
@@ -384,6 +385,40 @@ class ComputePipeline:
                 ffi.from_buffer(push_constants),
             )
         vkCmdDispatch(command_buffer, group_count_x, group_count_y, group_count_z)
+
+    def record_indirect_dispatch(
+        self,
+        *,
+        command_buffer: object,
+        binding: "BoundComputeBinding",
+        indirect_buffer: object,
+        indirect_offset: int,
+        push_constants: bytes | None = None,
+    ) -> None:
+        """Record a dispatch that reads (x, y, z) group counts from *indirect_buffer*."""
+        self.device.require_open()
+        self._validate_push_constants(push_constants)
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, self.pipeline)
+        vkCmdBindDescriptorSets(
+            command_buffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE,
+            self.pipeline_layout,
+            0,
+            1,
+            [binding.descriptor_set],
+            0,
+            None,
+        )
+        if push_constants is not None:
+            vkCmdPushConstants(
+                command_buffer,
+                self.pipeline_layout,
+                VK_SHADER_STAGE_COMPUTE_BIT,
+                0,
+                len(push_constants),
+                ffi.from_buffer(push_constants),
+            )
+        vkCmdDispatchIndirect(command_buffer, indirect_buffer, indirect_offset)
 
     def _validate_push_constants(self, push_constants: bytes | None) -> None:
         if self.push_constant_size == 0 and push_constants is not None:

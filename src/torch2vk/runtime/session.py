@@ -19,9 +19,26 @@ from typing import TYPE_CHECKING, Literal, Protocol, TypeGuard
 
 import numpy as np
 from vulkan import (
+    VK_ACCESS_SHADER_WRITE_BIT,
+    VK_ACCESS_HOST_READ_BIT,
+    VK_ACCESS_TRANSFER_READ_BIT,
+    VK_ACCESS_TRANSFER_WRITE_BIT,
+    VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    VK_PIPELINE_STAGE_HOST_BIT,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
+    VkBufferCopy,
+    VkCommandBufferBeginInfo,
+    VkFenceCreateInfo,
+    VkMemoryBarrier,
+    vkBeginCommandBuffer,
+    vkCmdCopyBuffer,
+    vkCmdPipelineBarrier,
+    vkCreateFence,
+    vkEndCommandBuffer,
 )
 
 from torch2vk.checkpoints.checkpoint_tensor import CheckpointTensor
@@ -48,6 +65,7 @@ from torch2vk.runtime.shader import (
     DTypeReference,
     DispatchRecord,
     DispatchTensorSnapshot,
+    ParamsBufferSpec,
     PushConstantInput,
     PushConstantSpec,
     PushConstantType,
@@ -57,7 +75,7 @@ from torch2vk.runtime.shader import (
     eval_expr,
 )
 from torch2vk.vulkan.allocation import BufferAllocation, BufferSlice
-from torch2vk.vulkan.compute_pipeline import ComputePipeline, DescriptorBufferBinding
+from torch2vk.vulkan.compute_pipeline import BoundComputeBinding, ComputePipeline, DescriptorBufferBinding
 from torch2vk.vulkan.device import VulkanDevice
 from torch2vk.vulkan.types import (
     TensorSpec,
@@ -68,6 +86,7 @@ from torch2vk.vulkan.types import (
 
 if TYPE_CHECKING:
     import torch
+    from torch2vk.runtime.replay import ReplayPlan
 
 
 class _PyTorchModuleLike(Protocol):
@@ -518,6 +537,19 @@ class RuntimeSession:
         descriptor_views = tuple(
             _descriptor_view_for_field(field, tensors[field.name]) for field in contract.fields
         )
+        params_allocation: BufferAllocation | None = None
+        if contract.params_buffer is not None:
+            params_allocation = self._materialize_params_buffer(
+                contract.params_buffer, tensors=tensors, symbols=symbols,
+            )
+            params_slice = BufferSlice(
+                allocation=params_allocation,
+                offset=params_allocation.offset,
+                nbytes=contract.params_buffer.size,
+            )
+            descriptor_views = descriptor_views + (
+                (f"__params_{contract.params_buffer.binding_index}", DescriptorBufferBinding(slice=params_slice)),
+            )
         push_constants, push_values = self._pack_push_constants(
             contract.push_constants,
             tensors=tensors,
@@ -532,13 +564,17 @@ class RuntimeSession:
             raise ValueError(f"{variant.name} resolved non-positive dispatch {dispatch_size}")
 
         pipeline = self._pipeline_for_variant(variant)
-        pipeline.dispatch(
-            buffers=[view for _, view in descriptor_views],
-            group_count_x=dispatch_size[0],
-            group_count_y=dispatch_size[1],
-            group_count_z=dispatch_size[2],
-            push_constants=push_constants,
-        )
+        try:
+            pipeline.dispatch(
+                buffers=[view for _, view in descriptor_views],
+                group_count_x=dispatch_size[0],
+                group_count_y=dispatch_size[1],
+                group_count_z=dispatch_size[2],
+                push_constants=push_constants,
+            )
+        finally:
+            if params_allocation is not None:
+                params_allocation.close()
 
         index = len(self._dispatch_records)
         record = DispatchRecord(
@@ -1522,6 +1558,273 @@ class RuntimeSession:
                     return parameter.device
         return torch.device("cpu")
 
+    def build_replay_plan(
+        self,
+        *,
+        name: str,
+        frame_dispatch_records: Sequence[DispatchRecord],
+        variants: Sequence[ShaderVariant],
+        tensors_by_name: Mapping[str, LogicalTensor],
+        dynamic_symbol_names: tuple[str, ...] = (),
+        readback_tensors: Mapping[str, LogicalTensor] | None = None,
+        token_feedback_source: LogicalTensor | None = None,
+        token_feedback_target: LogicalTensor | None = None,
+    ) -> "ReplayPlan":
+        """Build a ReplayPlan from previously recorded dispatch information.
+
+        Static replay records concrete dispatch sizes and push constants per dispatch.
+        Dynamic replay keeps only explicitly dynamic scalar values in host-visible
+        params/indirect buffers.
+        """
+        from torch2vk.runtime.replay import (
+            ReplayDispatchEntry,
+            ReplayPlan,
+            ReplayReadbackSlot,
+        )
+
+        self._require_open()
+        num_dispatches = len(frame_dispatch_records)
+        if num_dispatches == 0:
+            raise ValueError("Cannot build replay plan with zero dispatches")
+
+        if (token_feedback_source is None) != (token_feedback_target is None):
+            raise ValueError(
+                "token_feedback_source and token_feedback_target must be provided together"
+            )
+
+        use_indirect_dispatch = len(dynamic_symbol_names) > 0
+        indirect_buffer: BufferAllocation | None = None
+        if use_indirect_dispatch:
+            indirect_buffer = self.device.allocate_host_visible_allocation(
+                num_dispatches * 12,
+                usage_flags=(
+                    VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT
+                    | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                    | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                ),
+            )
+            indirect_buffer.buffer.map_persistent()
+
+        dispatch_entries: list[ReplayDispatchEntry] = []
+        params_entries: list[ReplayDispatchEntry] = []
+        bindings: list[BoundComputeBinding] = []
+        workspace_allocations: list[BufferAllocation] = []
+        params_allocations: list[BufferAllocation] = []
+
+        for i, (record, variant) in enumerate(zip(frame_dispatch_records, variants, strict=True)):
+            if record.shader != variant.name:
+                raise ValueError(
+                    f"Replay record {record.index} shader {record.shader!r} "
+                    f"does not match variant {variant.name!r}"
+                )
+            contract = variant.contract
+            pipeline = self._pipeline_for_variant(variant)
+            record_symbols = dict(record.symbols)
+            logical_by_field = dict(record.logical_reads)
+            logical_by_field.update(record.logical_writes)
+            tensors = {
+                field.name: tensors_by_name[logical_by_field[field.name]]
+                for field in contract.fields
+            }
+
+            buffer_views: list[DescriptorBufferBinding] = []
+            for field in contract.fields:
+                tensor = tensors[field.name]
+                descriptor_tensor = tensor
+                if (
+                    token_feedback_source is not None
+                    and token_feedback_target is not None
+                    and tensor.name == token_feedback_target.name
+                ):
+                    descriptor_tensor = token_feedback_source
+                if descriptor_tensor.buffer is None:
+                    nbytes = _tensor_nbytes(descriptor_tensor.spec)
+                    if nbytes == 0:
+                        raise RuntimeError(
+                            f"Tensor {descriptor_tensor.name} has zero size, cannot build replay plan"
+                        )
+                    if descriptor_tensor.memory is MemoryClass.HOST_INPUT:
+                        if descriptor_tensor not in self._inputs:
+                            raise RuntimeError(f"{descriptor_tensor.name} requires missing replay input")
+                        alloc = self.device.allocate_host_visible_allocation(nbytes)
+                        alloc.buffer.map_persistent()
+                        array = np.ascontiguousarray(self._inputs[descriptor_tensor])
+                        if array.nbytes != nbytes:
+                            raise ValueError(
+                                f"{descriptor_tensor.name} replay input has {array.nbytes} bytes, "
+                                f"expected {nbytes}"
+                            )
+                        alloc.buffer.write_bytes_at(alloc.offset, memoryview(array).cast("B"))
+                        self.device.memory_manager.host_upload_ring.flush(
+                            allocation=alloc, size=nbytes,
+                        )
+                    elif descriptor_tensor.memory in {
+                        MemoryClass.FRAME_WORKSPACE,
+                        MemoryClass.OP_SCRATCH,
+                        MemoryClass.REQUEST_STATE,
+                        MemoryClass.HOST_OUTPUT,
+                    }:
+                        alloc = self.device.memory_manager.allocate_device_local_buffer(
+                            nbytes,
+                            usage_flags=(
+                                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                                | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+                                | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                            ),
+                        )
+                    else:
+                        raise RuntimeError(
+                            f"{descriptor_tensor.name} is not materialized and cannot be "
+                            "allocated as replay workspace"
+                        )
+                    with descriptor_tensor.runtime_write_scope():
+                        descriptor_tensor.buffer = BufferSlice(
+                            allocation=alloc, offset=alloc.offset, nbytes=nbytes
+                        )
+                        descriptor_tensor.descriptor_nbytes = nbytes
+                    workspace_allocations.append(alloc)
+                descriptor_buffer = descriptor_tensor.buffer
+                if descriptor_buffer is None:
+                    raise RuntimeError(f"{descriptor_tensor.name} is not materialized")
+                buffer_views.append(DescriptorBufferBinding(slice=descriptor_buffer))
+
+            params_alloc: BufferAllocation | None = None
+            if contract.params_buffer is not None:
+                params_alloc = self._materialize_params_buffer(
+                    contract.params_buffer,
+                    tensors=tensors,
+                    symbols=record_symbols,
+                )
+                params_alloc.buffer.map_persistent()
+                params_slice = BufferSlice(
+                    allocation=params_alloc,
+                    offset=params_alloc.offset,
+                    nbytes=contract.params_buffer.size,
+                )
+                buffer_views.append(DescriptorBufferBinding(slice=params_slice))
+                params_allocations.append(params_alloc)
+
+            binding = pipeline.bind_buffers(buffer_views)
+            bindings.append(binding)
+
+            push_constants, _ = self._pack_push_constants(
+                contract.push_constants,
+                tensors=tensors,
+                symbols=record_symbols,
+            )
+
+            entry = ReplayDispatchEntry(
+                pipeline=pipeline,
+                binding=binding,
+                push_constants=push_constants,
+                dispatch_size=record.dispatch_size,
+                dispatch_formula=contract.dispatch,
+                symbols=record_symbols,
+                indirect_offset=i * 12 if use_indirect_dispatch else None,
+                params_buffer=params_alloc,
+                params_layout=contract.params_buffer,
+            )
+            dispatch_entries.append(entry)
+            if params_alloc is not None:
+                params_entries.append(entry)
+
+        readback_slots: dict[str, ReplayReadbackSlot] = {}
+        readback_copy_sources: list[tuple[str, BufferSlice, int]] = []
+        if readback_tensors:
+            for rname, rtensor in readback_tensors.items():
+                if rtensor.buffer is None:
+                    raise RuntimeError(f"Readback tensor {rtensor.name} not materialized")
+                nbytes = rtensor.buffer.nbytes
+                slot_alloc = self.device.allocate_host_visible_allocation(
+                    nbytes,
+                    usage_flags=VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                )
+                readback_slots[rname] = ReplayReadbackSlot(
+                    name=rname, allocation=slot_alloc, nbytes=nbytes,
+                )
+                readback_copy_sources.append((rname, rtensor.buffer, nbytes))
+
+        command_buffer = self.device.allocate_command_buffer()
+        vkBeginCommandBuffer(command_buffer, VkCommandBufferBeginInfo())
+
+        for entry in dispatch_entries:
+            if indirect_buffer is None:
+                entry.pipeline.record_dispatch(
+                    command_buffer=command_buffer,
+                    binding=entry.binding,
+                    group_count_x=entry.dispatch_size[0],
+                    group_count_y=entry.dispatch_size[1],
+                    group_count_z=entry.dispatch_size[2],
+                    push_constants=entry.push_constants,
+                )
+            else:
+                if entry.indirect_offset is None:
+                    raise RuntimeError(f"Replay entry for {entry.pipeline.debug_name} has no indirect offset")
+                entry.pipeline.record_indirect_dispatch(
+                    command_buffer=command_buffer,
+                    binding=entry.binding,
+                    indirect_buffer=indirect_buffer.buffer.handle,
+                    indirect_offset=indirect_buffer.offset + entry.indirect_offset,
+                    push_constants=entry.push_constants,
+                )
+            entry.pipeline.record_eager_completion_barrier(command_buffer)
+
+        if readback_copy_sources:
+            vkCmdPipelineBarrier(
+                command_buffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0, 1,
+                [VkMemoryBarrier(
+                    srcAccessMask=VK_ACCESS_SHADER_WRITE_BIT,
+                    dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT,
+                )],
+                0, None, 0, None,
+            )
+            for rname, source_slice, nbytes in readback_copy_sources:
+                slot = readback_slots[rname]
+                vkCmdCopyBuffer(
+                    command_buffer,
+                    source_slice.allocation.buffer.handle,
+                    slot.allocation.buffer.handle,
+                    1,
+                    [VkBufferCopy(
+                        srcOffset=source_slice.offset,
+                        dstOffset=slot.allocation.offset,
+                        size=nbytes,
+                    )],
+                )
+            vkCmdPipelineBarrier(
+                command_buffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_HOST_BIT,
+                0, 1,
+                [VkMemoryBarrier(
+                    srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT,
+                    dstAccessMask=VK_ACCESS_HOST_READ_BIT,
+                )],
+                0, None, 0, None,
+            )
+
+        vkEndCommandBuffer(command_buffer)
+
+        fence = vkCreateFence(self.device.device, VkFenceCreateInfo(), None)
+
+        return ReplayPlan(
+            device=self.device,
+            name=name,
+            command_buffer=command_buffer,
+            fence=fence,
+            indirect_buffer=indirect_buffer,
+            num_dispatches=num_dispatches,
+            dispatch_entries=tuple(dispatch_entries),
+            params_entries=tuple(params_entries),
+            dynamic_symbol_names=dynamic_symbol_names,
+            readback_slots=readback_slots,
+            workspace_allocations=workspace_allocations + params_allocations,
+            bindings=bindings,
+        )
+
     def close(self) -> None:
         if self._closed:
             return
@@ -1753,9 +2056,39 @@ class RuntimeSession:
             )
         return bytes(data), values
 
+    def _materialize_params_buffer(
+        self,
+        spec: ParamsBufferSpec,
+        *,
+        tensors: Mapping[str, LogicalTensor],
+        symbols: Mapping[str, int],
+    ) -> BufferAllocation:
+        """Allocate a host-visible buffer and pack params buffer fields into it."""
+        allocation = self.device.allocate_host_visible_allocation(spec.size)
+        data = bytearray(spec.size)
+        for field in spec.fields:
+            raw = field.value
+            if isinstance(raw, PushConstantInput):
+                raise ValueError(f"PushConstantInput {raw.name!r} is not supported by params buffers")
+            if callable(raw):
+                value = raw(tensors, symbols)
+            elif isinstance(raw, str):
+                value = symbols[raw]
+            elif isinstance(raw, int | float):
+                value = raw
+            else:
+                value = eval_expr(raw, symbols)
+            data[field.offset : field.offset + field.size] = _pack_push_constant_value(
+                field.dtype, value
+            )
+        allocation.buffer.write_bytes_at(allocation.offset, bytes(data))
+        return allocation
+
     def _pipeline_for_variant(self, variant: ShaderVariant) -> ComputePipeline:
         spv_path = self._spv_path_for_variant(variant)
         descriptor_count = len(variant.contract.fields)
+        if variant.contract.params_buffer is not None:
+            descriptor_count += 1
         key = (
             str(spv_path),
             descriptor_count,
