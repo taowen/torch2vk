@@ -22,12 +22,10 @@ from torch2vk.runtime.session import RuntimeSession
 def run_qwen3_asr_text_prefill(
     rt: RuntimeSession,
     tensors: Qwen3AsrTextPrefillTensors,
+    *,
+    pytorch_compare: bool = True,
 ) -> None:
     """Frame boundary for prompt/audio merge and full-sequence text prefill."""
-    from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
-        Qwen3ASRForConditionalGeneration,
-    )
-
     initial_states = {}
     for layer in tensors.layers:
         for cache in (layer.key_cache, layer.value_cache):
@@ -36,15 +34,24 @@ def run_qwen3_asr_text_prefill(
     if initial_states:
         rt.initialize_request_state(initial_states)
 
-    with rt.frame(
-        "qwen3_asr.text_prefill",
-        pytorch_model_class=Qwen3ASRForConditionalGeneration,
-        pytorch_model_submodule="thinker",
-        pytorch_input_prefixes=("qwen3_asr.text_prefill",),
-        pytorch_cache_policy="hf_dynamic",
-        pytorch_cache_namespace="qwen3_asr.text",
-        pytorch_reset_cache=True,
-    ):
+    if pytorch_compare:
+        from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
+            Qwen3ASRForConditionalGeneration,
+        )
+
+        frame_scope = rt.frame(
+            "qwen3_asr.text_prefill",
+            pytorch_model_class=Qwen3ASRForConditionalGeneration,
+            pytorch_model_submodule="thinker",
+            pytorch_input_prefixes=("qwen3_asr.text_prefill",),
+            pytorch_cache_policy="hf_dynamic",
+            pytorch_cache_namespace="qwen3_asr.text",
+            pytorch_reset_cache=True,
+        )
+    else:
+        frame_scope = rt.frame("qwen3_asr.text_prefill")
+
+    with frame_scope:
         QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32(
             rt,
             input_ids=tensors.input_ids,

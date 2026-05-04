@@ -42,6 +42,12 @@ QWEN3_ASR_TEXT_ATTENTION_DECODE_F32 = ShaderVariant(
                 contract=TensorContract(dtype="float32", shape=(1, "NK", "S", "D")),
             ),
             TensorFieldSpec(
+                name="cache_position",
+                io_kind=IOKind.INPUT,
+                role="cache_position",
+                contract=TensorContract(dtype="int64", shape=(1,)),
+            ),
+            TensorFieldSpec(
                 name="output",
                 io_kind=IOKind.OUTPUT,
                 role="output",
@@ -49,25 +55,26 @@ QWEN3_ASR_TEXT_ATTENTION_DECODE_F32 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=24,
+            size=20,
             fields=(
                 PushConstantFieldSpec("num_q_heads", PushConstantType.UINT32, 0, ceil_div("QH", "D")),
                 PushConstantFieldSpec("num_kv_heads", PushConstantType.UINT32, 4, "NK"),
                 PushConstantFieldSpec("head_dim", PushConstantType.UINT32, 8, "D"),
                 PushConstantFieldSpec("S", PushConstantType.UINT32, 12, "S"),
-                PushConstantFieldSpec("cache_len", PushConstantType.UINT32, 16, "S"),
-                PushConstantFieldSpec("QH", PushConstantType.UINT32, 20, "QH"),
+                PushConstantFieldSpec("QH", PushConstantType.UINT32, 16, "QH"),
             ),
         ),
         dispatch=(ceil_div("QH", "D"), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(
-        subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)
+        subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
+        require_shader_int64=True,
     ),
     source="""
 #version 450
 
 #extension GL_EXT_control_flow_attributes : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
 
@@ -85,7 +92,11 @@ layout(set = 0, binding = 2) buffer restrict readonly ValueCacheBuffer {
     float value_cache[];
 };
 
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer {
+layout(set = 0, binding = 3) buffer restrict readonly CachePositionBuffer {
+    int64_t cache_position[];
+};
+
+layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer {
     float output_values[];
 };
 
@@ -94,7 +105,6 @@ layout(push_constant) uniform PushConstants {
     uint num_kv_heads;
     uint head_dim;
     uint S;
-    uint cache_len;
     uint QH;
 } pc;
 
@@ -122,7 +132,8 @@ void main() {
     float acc = 0.0;
 
     const uint cache_head_base = kv_head * pc.S * pc.head_dim;
-    for (uint key_pos = 0u; key_pos < pc.cache_len; ++key_pos) {
+    const uint cache_len = uint(cache_position[0]) + 1u;
+    for (uint key_pos = 0u; key_pos < cache_len; ++key_pos) {
         const float k_val = valid_dim ? key_cache[cache_head_base + key_pos * pc.head_dim + dim] : 0.0;
         const float v_val = valid_dim ? value_cache[cache_head_base + key_pos * pc.head_dim + dim] : 0.0;
         barrier();

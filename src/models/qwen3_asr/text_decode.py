@@ -5,7 +5,9 @@ from __future__ import annotations
 from models.qwen3_asr.shaders.text_add_3d_f32 import QWEN3_ASR_TEXT_ADD_3D_F32
 from models.qwen3_asr.shaders.text_attention_decode_f32 import QWEN3_ASR_TEXT_ATTENTION_DECODE_F32
 from models.qwen3_asr.shaders.text_embed_lookup_f32 import QWEN3_ASR_TEXT_EMBED_LOOKUP_F32
-from models.qwen3_asr.shaders.text_kv_cache_write_f32 import QWEN3_ASR_TEXT_KV_CACHE_WRITE_F32
+from models.qwen3_asr.shaders.text_kv_cache_write_f32 import (
+    QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32,
+)
 from models.qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
 from models.qwen3_asr.shaders.text_qk_norm_f32 import QWEN3_ASR_TEXT_QK_NORM_F32
 from models.qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
@@ -20,22 +22,28 @@ def run_qwen3_asr_text_decode(
     tensors: Qwen3AsrTextDecodeTensors,
     *,
     step: int,
+    pytorch_compare: bool = True,
 ) -> None:
     """Frame boundary for one cached decode step."""
-    from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
-        Qwen3ASRForConditionalGeneration,
-    )
-
     if step < 0:
         raise ValueError(f"step must be non-negative, got {step}")
-    with rt.frame(
-        f"qwen3_asr.text_decode.{step:04d}",
-        pytorch_model_class=Qwen3ASRForConditionalGeneration,
-        pytorch_model_submodule="thinker",
-        pytorch_input_prefixes=("qwen3_asr.text_decode",),
-        pytorch_cache_policy="hf_dynamic",
-        pytorch_cache_namespace="qwen3_asr.text",
-    ):
+    if pytorch_compare:
+        from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
+            Qwen3ASRForConditionalGeneration,
+        )
+
+        frame_scope = rt.frame(
+            f"qwen3_asr.text_decode.{step:04d}",
+            pytorch_model_class=Qwen3ASRForConditionalGeneration,
+            pytorch_model_submodule="thinker",
+            pytorch_input_prefixes=("qwen3_asr.text_decode",),
+            pytorch_cache_policy="hf_dynamic",
+            pytorch_cache_namespace="qwen3_asr.text",
+        )
+    else:
+        frame_scope = rt.frame(f"qwen3_asr.text_decode.{step:04d}")
+
+    with frame_scope:
         QWEN3_ASR_TEXT_EMBED_LOOKUP_F32(
             rt,
             input_ids=tensors.input_ids,
@@ -71,13 +79,15 @@ def run_qwen3_asr_text_decode(
                 rt, x=layer.k_normed, cos=tensors.rope_cos, sin=tensors.rope_sin,
                 output=layer.k_roped,
             )
-            QWEN3_ASR_TEXT_KV_CACHE_WRITE_F32(
+            QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32(
                 rt, k=layer.k_roped, v=layer.v_proj,
+                cache_position=tensors.cache_position,
                 key_cache=layer.key_cache, value_cache=layer.value_cache,
             )
             QWEN3_ASR_TEXT_ATTENTION_DECODE_F32(
                 rt, q=layer.q_roped,
                 key_cache=layer.key_cache, value_cache=layer.value_cache,
+                cache_position=tensors.cache_position,
                 output=layer.attention,
             )
             QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(

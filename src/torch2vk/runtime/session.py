@@ -1819,9 +1819,9 @@ class RuntimeSession:
                     *compile_args,
                     *include_args,
                     *define_args,
-                    str(glsl_path),
+                    glsl_path.name,
                     "-o",
-                    str(spv_path),
+                    spv_path.name,
                 ],
                 check=True,
                 cwd=str(glsl_path.parent),
@@ -1933,14 +1933,16 @@ def _copy_grown_kv_cache(
         return
     source_stride_nbytes = segment_nbytes
     destination_stride_nbytes = new_sequence * head_dim * element_nbytes
-    for segment in range(batch * heads):
-        device.copy_buffer(
-            source.allocation.buffer,
+    transfers = [
+        (
+            source.offset + segment * source_stride_nbytes,
             destination.buffer,
+            destination.offset + segment * destination_stride_nbytes,
             segment_nbytes,
-            src_offset=source.offset + segment * source_stride_nbytes,
-            dst_offset=destination.offset + segment * destination_stride_nbytes,
         )
+        for segment in range(batch * heads)
+    ]
+    device.copy_buffer_transfers(source.allocation.buffer, transfers)
 
 
 def _require_only_growth_dim(

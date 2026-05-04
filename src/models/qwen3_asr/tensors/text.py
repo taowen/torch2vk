@@ -24,6 +24,8 @@ from models.qwen3_asr.tensors.text_layer import (
 class Qwen3AsrTextPrefillTensors:
     input_ids: LogicalTensor
     attention_mask: LogicalTensor
+    input_features: LogicalTensor | None
+    feature_attention_mask: LogicalTensor | None
     position_ids: LogicalTensor
     rope_cos: LogicalTensor
     rope_sin: LogicalTensor
@@ -84,6 +86,8 @@ def declare_qwen3_asr_text_tensors(
     head_dim: int,
     eos_token_ids: tuple[int, ...] = (151645, 151643),
     audio_features: LogicalTensor | None = None,
+    pytorch_input_features_shape: tuple[int, ...] | None = None,
+    pytorch_feature_attention_mask_shape: tuple[int, ...] | None = None,
 ) -> Qwen3AsrTextTensors:
     if prompt_length <= 0:
         raise ValueError(f"prompt_length must be positive, got {prompt_length}")
@@ -111,13 +115,13 @@ def declare_qwen3_asr_text_tensors(
             _state(
                 f"qwen3_asr.text.layers.{layer:02d}.key_cache",
                 "float32",
-                (1, num_key_value_heads, prompt_length, head_dim),
+                (1, num_key_value_heads, max_sequence_length, head_dim),
                 semantic=TensorSemantic.KV_CACHE,
             ),
             _state(
                 f"qwen3_asr.text.layers.{layer:02d}.value_cache",
                 "float32",
-                (1, num_key_value_heads, prompt_length, head_dim),
+                (1, num_key_value_heads, max_sequence_length, head_dim),
                 semantic=TensorSemantic.KV_CACHE,
             ),
         )
@@ -126,6 +130,16 @@ def declare_qwen3_asr_text_tensors(
     prefill = Qwen3AsrTextPrefillTensors(
         input_ids=_input("qwen3_asr.text_prefill.input_ids", "int64", (1, prompt_length)),
         attention_mask=_input("qwen3_asr.text_prefill.attention_mask", "int64", (1, prompt_length)),
+        input_features=None if pytorch_input_features_shape is None else _input(
+            "qwen3_asr.text_prefill.input_features", "float32", pytorch_input_features_shape,
+        ),
+        feature_attention_mask=None
+        if pytorch_feature_attention_mask_shape is None
+        else _input(
+            "qwen3_asr.text_prefill.feature_attention_mask",
+            "int64",
+            pytorch_feature_attention_mask_shape,
+        ),
         position_ids=_input("qwen3_asr.text_prefill.position_ids", "int64", (3, 1, prompt_length)),
         rope_cos=_input("qwen3_asr.text_prefill.rope_cos", "float32", (1, prompt_length, head_dim)),
         rope_sin=_input("qwen3_asr.text_prefill.rope_sin", "float32", (1, prompt_length, head_dim)),

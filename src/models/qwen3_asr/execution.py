@@ -156,6 +156,8 @@ def run_qwen3_asr_greedy_decode_loop(
     max_new_tokens: int,
     rope_theta: float = 5_000_000.0,
     mrope_section: tuple[int, ...] = (24, 20, 20),
+    pytorch_compare: bool = True,
+    stop_on_eos: bool = False,
 ) -> LogicalTensor:
     if max_new_tokens <= 0:
         raise ValueError(f"max_new_tokens must be positive, got {max_new_tokens}")
@@ -164,15 +166,17 @@ def run_qwen3_asr_greedy_decode_loop(
     head_dim = prefill.rope_cos.concrete_shape[-1]
 
     _register_prefill_rope(rt, prefill, rope_theta=rope_theta, mrope_section=mrope_section)
-    run_qwen3_asr_text_prefill(rt, prefill)
+    run_qwen3_asr_text_prefill(rt, prefill, pytorch_compare=pytorch_compare)
     run_qwen3_asr_token_select(rt, tensors.token_select, logits=prefill.logits)
     _append_generated_token(rt, tensors)
+    if stop_on_eos and _token_select_done(rt, tensors):
+        return tensors.token_select.generated_tokens
 
     prompt_length = prefill.input_ids.concrete_shape[-1]
     decode = tensors.decode
     for step in range(max_new_tokens - 1):
         next_token = rt.read_request_state(tensors.token_select.next_token)
-        _grow_kv_caches_for_next_decode_step(rt, tensors)
+        _ensure_kv_cache_capacity(rt, tensors, required_length=prompt_length + step + 1)
         _register_decode_rope(
             rt,
             decode,
@@ -182,9 +186,11 @@ def run_qwen3_asr_greedy_decode_loop(
             mrope_section=mrope_section,
         )
         rt.register_inputs({decode.input_ids: next_token.reshape(1, 1)})
-        run_qwen3_asr_text_decode(rt, decode, step=step)
+        run_qwen3_asr_text_decode(rt, decode, step=step, pytorch_compare=pytorch_compare)
         run_qwen3_asr_token_select(rt, tensors.token_select, logits=decode.logits)
         _append_generated_token(rt, tensors)
+        if stop_on_eos and _token_select_done(rt, tensors):
+            break
     return tensors.token_select.generated_tokens
 
 
@@ -233,11 +239,17 @@ def _register_decode_rope(
     )
 
 
-def _grow_kv_caches_for_next_decode_step(rt: RuntimeSession, tensors: Qwen3AsrTextTensors) -> None:
+def _ensure_kv_cache_capacity(
+    rt: RuntimeSession,
+    tensors: Qwen3AsrTextTensors,
+    *,
+    required_length: int,
+) -> None:
     for layer in tensors.decode.layers:
         for cache in (layer.key_cache, layer.value_cache):
             batch, heads, cache_length, head_dim = cache.concrete_shape
-            rt.grow_request_state(cache, (batch, heads, cache_length + 1, head_dim))
+            if cache_length < required_length:
+                rt.grow_request_state(cache, (batch, heads, required_length, head_dim))
 
 
 def _append_generated_token(
@@ -255,6 +267,11 @@ def _append_generated_token(
     updated = np.ascontiguousarray(np.concatenate([previous, next_token], axis=1), dtype=np.int64)
     rt.grow_request_state(generated, updated.shape)
     rt.initialize_request_state({generated: updated})
+
+
+def _token_select_done(rt: RuntimeSession, tensors: Qwen3AsrTextTensors) -> bool:
+    done = rt.read_request_state(tensors.token_select.done)
+    return bool(np.asarray(done).reshape(-1)[0])
 
 
 def _normalize_optional_language(

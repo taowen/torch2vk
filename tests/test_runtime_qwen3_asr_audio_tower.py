@@ -6,7 +6,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import numpy as np
-import torch
 
 from models.hf_cache import resolve_cached_model, load_config_json
 from models.qwen3_asr.execution import (
@@ -44,6 +43,8 @@ def test_qwen3_asr_e2e_with_pytorch_compare(tmp_path: Path) -> None:
     )
     feature_lens = np.array([audio_feature_len], dtype=np.int64)
 
+    max_new_tokens = 4
+
     tensors = declare_qwen3_asr_audio_tower_tensors(
         input_features_shape=input_features.shape,
         encoder_layers=encoder_layers,
@@ -51,7 +52,7 @@ def test_qwen3_asr_e2e_with_pytorch_compare(tmp_path: Path) -> None:
     text_tensors = declare_qwen3_asr_text_tensors(
         prompt_length=prepared.prompt_length,
         audio_tokens=tensors.last_hidden_state.concrete_shape[0],
-        max_sequence_length=prepared.prompt_length + 1,
+        max_sequence_length=prepared.prompt_length + max_new_tokens,
         hidden_size=_expect_int(text_config["hidden_size"], "text_config.hidden_size"),
         intermediate_size=_expect_int(
             text_config["intermediate_size"], "text_config.intermediate_size"
@@ -68,9 +69,10 @@ def test_qwen3_asr_e2e_with_pytorch_compare(tmp_path: Path) -> None:
         ),
         head_dim=_expect_int(text_config["head_dim"], "text_config.head_dim"),
         audio_features=tensors.last_hidden_state,
+        pytorch_input_features_shape=prepared.input_features.shape,
+        pytorch_feature_attention_mask_shape=prepared.feature_attention_mask.shape,
     )
 
-    max_new_tokens = 4
     rope_theta = _expect_float(text_config.get("rope_theta", 5_000_000.0), "text_config.rope_theta")
     rope_scaling = _optional_mapping(text_config.get("rope_scaling"))
     mrope_section = _int_tuple(rope_scaling.get("mrope_section"), default=(24, 20, 20))
@@ -89,10 +91,16 @@ def test_qwen3_asr_e2e_with_pytorch_compare(tmp_path: Path) -> None:
         )
         run_qwen3_asr_audio_tower(rt, tensors)
 
+        prefill_input_features = text_tensors.prefill.input_features
+        prefill_feature_attention_mask = text_tensors.prefill.feature_attention_mask
+        assert prefill_input_features is not None
+        assert prefill_feature_attention_mask is not None
         rt.register_inputs(
             {
                 text_tensors.prefill.input_ids: prepared.input_ids,
                 text_tensors.prefill.attention_mask: prepared.attention_mask,
+                prefill_input_features: prepared.input_features,
+                prefill_feature_attention_mask: prepared.feature_attention_mask,
                 text_tensors.token_select.eos_token_ids: np.array(
                     QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS,
                     dtype=np.int64,
@@ -110,32 +118,8 @@ def test_qwen3_asr_e2e_with_pytorch_compare(tmp_path: Path) -> None:
         generated_ids = tuple(int(t) for t in generated_array.flatten())
 
         failed = [r for r in rt.compare_results if not r.passed]
-        all_compares = rt.compare_results
 
-    decoded_text = _processor.batch_decode(
-        torch.tensor([list(generated_ids)], dtype=torch.long),
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False,
-    )[0]
-
-    print(f"\nTranscription: {decoded_text!r}")
-    print(f"Generated tokens: {generated_ids}")
-    print(f"Total dispatches: {len(rt.dispatch_records)}")
-    print(f"Total compares: {len(all_compares)}")
-    print(f"Failed compares: {len(failed)}")
-
-    if failed:
-        print(f"\n{'=' * 60}")
-        print("FAILED SHADER COMPARISONS:")
-        print(f"{'=' * 60}")
-        for r in failed:
-            print(f"  Tensor: {r.artifact_key}")
-            if r.drilldown_classification:
-                print(f"    Classification: {r.drilldown_classification}")
-            if r.drilldown_artifact_path:
-                print(f"    Drilldown: {r.drilldown_artifact_path}")
-        print(f"\nArtifact dir: {artifact_dir}")
-
+    assert generated_ids == (3036, 773, 11, 847)
     assert not failed, (
         f"{len(failed)} shader comparison(s) failed.\n"
         f"First failure: {failed[0].artifact_key}\n"

@@ -22,17 +22,24 @@ from torch2vk.runtime.session import RuntimeSession
 def run_qwen3_asr_audio_tower(
     rt: RuntimeSession,
     tensors: Qwen3AsrAudioTowerTensors,
+    *,
+    pytorch_compare: bool = True,
 ) -> LogicalTensor:
     """Run the audio encoder as one PyTorch-comparable frame."""
-    from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
-        Qwen3ASRForConditionalGeneration,
-    )
+    if pytorch_compare:
+        from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
+            Qwen3ASRForConditionalGeneration,
+        )
 
-    with rt.frame(
-        "qwen3_asr.audio_tower",
-        pytorch_model_class=Qwen3ASRForConditionalGeneration,
-        pytorch_model_submodule="thinker.audio_tower",
-    ):
+        frame_scope = rt.frame(
+            "qwen3_asr.audio_tower",
+            pytorch_model_class=Qwen3ASRForConditionalGeneration,
+            pytorch_model_submodule="thinker.audio_tower",
+        )
+    else:
+        frame_scope = rt.frame("qwen3_asr.audio_tower")
+
+    with frame_scope:
         QWEN3_ASR_PAD_FEATURE_F32(
             rt,
             input_features=tensors.input_features,

@@ -12,8 +12,6 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
-    ceil_div,
-    mul,
 )
 
 
@@ -62,10 +60,10 @@ QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32 = ShaderVariant(
                 PushConstantFieldSpec("H", PushConstantType.UINT32, 4, "H"),
                 PushConstantFieldSpec("A", PushConstantType.UINT32, 8, "A"),
                 PushConstantFieldSpec("V", PushConstantType.UINT32, 12, "V"),
-                PushConstantFieldSpec("audio_token_id", PushConstantType.UINT32, 16, 151646),
+                PushConstantFieldSpec("audio_token_id", PushConstantType.UINT32, 16, 151676),
             ),
         ),
-        dispatch=(ceil_div(mul("T", "H"), 256), 1, 1),
+        dispatch=("T", 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(
         require_shader_int64=True,
@@ -110,6 +108,8 @@ layout(push_constant) uniform PushConstants {
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
+shared uint shared_audio_row;
+
 float bf16_to_f32(uint16_t value) {
     return uintBitsToFloat(uint(value) << 16);
 }
@@ -129,28 +129,31 @@ uint audio_row_before(uint token) {
 }
 
 void main() {
-    const uint index = gl_GlobalInvocationID.x;
-    const uint n = pc.T * pc.H;
-    if (index >= n) {
+    const uint token = gl_WorkGroupID.x;
+    const uint tid = gl_LocalInvocationID.x;
+    if (token >= pc.T) {
         return;
     }
 
-    const uint token = index / pc.H;
-    const uint hidden = index - token * pc.H;
     const int64_t token_id = input_ids[token];
     const bool audio_token = is_audio_token(token_id);
-    audio_scatter_mask[index] = audio_token ? 1u : 0u;
-
-    if (audio_token) {
-        const uint audio_row = audio_row_before(token);
-        inputs_embeds[index] = audio_row < pc.A ? audio_features[audio_row * pc.H + hidden] : 0.0;
-        return;
+    if (tid == 0u) {
+        shared_audio_row = audio_token ? audio_row_before(token) : 0u;
     }
+    barrier();
 
-    if (token_id >= int64_t(0) && token_id < int64_t(pc.V)) {
-        inputs_embeds[index] = bf16_to_f32(embed_tokens_weight[uint(token_id) * pc.H + hidden]);
-    } else {
-        inputs_embeds[index] = 0.0;
+    for (uint hidden = tid; hidden < pc.H; hidden += gl_WorkGroupSize.x) {
+        const uint index = token * pc.H + hidden;
+        audio_scatter_mask[index] = audio_token ? 1u : 0u;
+
+        if (audio_token) {
+            const uint audio_row = shared_audio_row;
+            inputs_embeds[index] = audio_row < pc.A ? audio_features[audio_row * pc.H + hidden] : 0.0;
+        } else if (token_id >= int64_t(0) && token_id < int64_t(pc.V)) {
+            inputs_embeds[index] = bf16_to_f32(embed_tokens_weight[uint(token_id) * pc.H + hidden]);
+        } else {
+            inputs_embeds[index] = 0.0;
+        }
     }
 }
 """.lstrip(),
