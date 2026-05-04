@@ -17,21 +17,22 @@ PyTorch 对拍不是单独跑一遍完整模型再人工比输出，而是服务
 1. 每个 frame 对齐一次 PyTorch `model.forward` 边界；
 2. frame 内 Vulkan shader 先按 adapter 写好的 eager 顺序执行；
 3. `RuntimeSession` 收集本 frame 的 dispatch records 和 written tensors；
-4. frame 退出时只挑 candidate 实际写出的、声明了 `compare` 和 `pytorch_probe` 的 tensor；
+4. frame 退出时先选择少量边界 tensor 作为本次 active compare target；
 5. 临时在当前 `pytorch_model` 上安装 hook/probe；
 6. lockstep 执行当前 PyTorch `model.forward`；
-7. readback candidate tensor，与 hook 捕获的 PyTorch artifact 做数值比较；
-8. mismatch 报告必须能定位到 frame、logical tensor、writer shader 和 dispatch index。
+7. readback active candidate tensor，与 hook 捕获的 PyTorch artifact 做数值比较；
+8. mismatch 后沿 writer dispatch 的 read tensors 自动 drilldown，按需 readback 已声明可对拍的直接输入；
+9. mismatch 报告必须能定位到 frame、logical tensor、writer shader 和 dispatch index。
 
 这样可以先从一个 kernel、一个 block、一个 frame 开始对拍，再逐步扩大到完整 pipeline。
 
 ## 一句话规则
 
 ```text
-candidate 写什么，RuntimeSession 才可能比什么。
+candidate 写什么，RuntimeSession 才可能把什么选为 active compare 或 drilldown target。
 PyTorch artifact 从当前 frame 的真实 PyTorch forward 捕获。
-LogicalTensor 声明怎么捕获和怎么比较。
-RuntimeSession 执行 hook、readback、compare 和报告。
+LogicalTensor 只声明怎么捕获和怎么比较，不代表每次都 readback。
+RuntimeSession 决定本次 active target、执行 hook、readback、compare 和报告。
 ```
 
 禁止反过来让 PyTorch model 决定 compare targets。也禁止在 debug helper 里重写一份 candidate
@@ -101,7 +102,7 @@ manual callable 只适合最小链路验证。真实模型迁移必须使用 `py
 
 ## LogicalTensor 需要声明什么
 
-参与对拍的 candidate tensor 必须同时声明：
+可参与对拍的 candidate tensor 必须同时声明：
 
 1. `compare`：数值如何比较；
 2. `pytorch_probe`：PyTorch forward 中到哪里捕获 reference artifact；
@@ -125,8 +126,12 @@ hidden = LogicalTensor(
 )
 ```
 
-没有 `compare` 的 tensor 不比较。没有 `pytorch_probe` 的 tensor 在真实 PyTorch model 路径下也不比较，
-因为 runtime 不知道 reference artifact 来自哪里。
+没有 `compare` 的 tensor 不能作为数值对拍点。没有 `pytorch_probe` 的 tensor 在真实 PyTorch model 路径下也不能
+自动取得 reference artifact，因为 runtime 不知道 reference artifact 来自哪里。
+
+声明 `compare/pytorch_probe` 只表示这个 tensor 可被对拍，不表示每次 frame exit 都要 readback。RuntimeSession
+会先比较默认边界 target；只有当该 target mismatch 并且 writer drilldown 走到某个已声明 tensor 时，才按需
+readback 这个 tensor。
 
 ## PyTorchProbe
 
@@ -234,6 +239,16 @@ toy.elementwise_mul/toy.y
 
 同一次 forward 需要执行多少次，就创建多少份带 invocation 身份的 frame/tensor tree。
 
+PyTorch artifact cache 是磁盘缓存，不是 PyTorch model 决定 compare targets。RuntimeSession 仍然先根据
+本 frame 实际 written tensors 选择少量 active targets；对 active target 和 drilldown target 用 artifact key 加上
+model/checkpoint fingerprint、register_inputs 输入 fingerprint、probe target/selector/transform 和 tensor
+shape/dtype/layout 生成 cache key。如果 expected artifact 已存在且 metadata 完全匹配，RuntimeSession 直接
+读取缓存，不重跑 PyTorch forward；否则只对缺失 target 安装 hook，lockstep 执行一次当前 frame 的
+`pytorch_model.forward`，然后把捕获到的 expected artifact 落盘。
+
+缓存命中不改变正确性边界：只要输入、权重、probe 或 tensor metadata 变了，就必须 cache miss。缓存文件只是
+真实 PyTorch forward 捕获结果的持久化副本，不允许由 adapter 手写 reference 公式生成。
+
 ## Frame 退出时的执行顺序
 
 `RuntimeSession` 在 frame exit 做完整对拍：
@@ -241,16 +256,18 @@ toy.elementwise_mul/toy.y
 ```text
 1. 停止收集 candidate dispatch records
 2. 从 records 中收集本 frame written LogicalTensors
-3. 过滤 compare != None 且 pytorch_probe != None 的 LogicalTensor
-4. 根据 pytorch_probe 在 pytorch_model 上安装临时 hook
-5. 用当前 frame 的 inputs/state lockstep 执行 pytorch_model.forward
-6. hook 捕获 PyTorch artifact，并应用 selector/transform
-7. readback candidate LogicalTensor 当前 buffer，并应用 readback transform
-8. 检查 shape、dtype、layout
-9. 按 ComparePolicy 计算 max_abs、max_rel、first mismatch
-10. 输出 compare summary 或 mismatch report
-11. 移除 PyTorch hooks
-12. 释放或复用 FRAME/OP 生命周期资源
+3. 从实际 written 且声明了 compare/probe 的 tensors 中选择默认 active target，通常是最后一个边界输出
+4. 按 artifact cache key 查找 PyTorch expected artifact
+5. 对 cache miss 的 target 根据 pytorch_probe 在 pytorch_model 上安装临时 hook
+6. 用当前 frame 的 inputs/state lockstep 执行 pytorch_model.forward
+7. hook 捕获 PyTorch artifact，并应用 selector/transform，然后写入磁盘缓存
+8. readback candidate LogicalTensor 当前 buffer，并应用 readback transform
+9. 检查 shape、dtype、layout
+10. 按 ComparePolicy 计算 max_abs、max_rel、first mismatch
+11. 如果 mismatch，沿 failed tensor.writer 的 dispatch.reads 自动选择已声明的直接输入做 drilldown compare
+12. 输出 compare summary 或 mismatch report
+13. 移除 PyTorch hooks
+14. 释放或复用 FRAME/OP 生命周期资源
 ```
 
 hook 必须是 frame-local 的。frame 退出后不保留 PyTorch hook，避免后续 frame 捕获到错误 artifact。
@@ -298,6 +315,41 @@ final output mismatch
   -> compare shader input
   -> inspect weight/input layout
 ```
+
+每个 `DispatchRecord` 是一次 shader 函数调用记录。即便 shader 是 fused kernel，也可以把它看作：
+
+```text
+shader(inputs, weights, push_constants, layout) -> outputs
+```
+
+对应的 PyTorch reference 可能是一个 module output、module input、root output，或由真实 PyTorch artifact
+做有限边界 transform 后得到的聚合函数结果。定位到某个 failed tensor 后，RuntimeSession 应沿现有对象图倒查：
+
+```text
+failed LogicalTensor
+  -> tensor.writer
+  -> dispatch record
+  -> dispatch.reads / dispatch.writes
+  -> 对 read tensors 查看最近 compare result 或继续沿 read.writer 倒查
+```
+
+失败时应持久化当前 writer dispatch 的 `dispatch.json`、所有已 materialized read/write tensor dump，以及
+`drilldown.json`。RuntimeSession 用迭代式 drilldown，不用层层递归异常表达路径：
+
+```text
+failed output
+  -> dump writer IO
+  -> compare declared direct reads
+  -> direct reads passed: input_ok_output_bad
+  -> direct read failed: continue from that read.writer
+  -> direct read missing compare/probe: missing_reference_probe
+```
+
+如果当前 dispatch 的直接输入都已有通过的 compare，而 output mismatch，则可以把问题收敛到这一次 shader
+调用或它的 PyTorch reference boundary；如果某个直接输入已声明 compare/probe，RuntimeSession 自动对它做
+按需 readback 和 PyTorch cache/probe compare，并继续沿它的 writer 往上游倒查。没有声明 compare/probe
+的非权重 tensor 会在报告中列为 `missing_reference_tensors`，不能自动数值对拍。权重 tensor 不要求声明
+probe，权重正确性由 checkpoint key、dtype、shape、layout 和 binding 检查覆盖。
 
 ## 权重、输入和随机性
 
@@ -348,13 +400,15 @@ shader 对拍仍然要落到 frame 内的 `LogicalTensor.compare` / `PyTorchProb
 `RuntimeSession` 应该集中实现：
 
 1. frame-local hook 安装和卸载；
-2. PyTorch artifact cache；
+2. PyTorch artifact 磁盘缓存，缓存 key 包含 frame/tensor、输入、模型和 probe metadata；
 3. candidate readback；
 4. dtype/shape/layout 校验；
 5. compare policy 执行；
 6. mismatch summary 和详细报告；
 7. dispatch record 到 artifact key 的映射；
-8. debug dump 开关，例如只 dump mismatch tensor 或 dump 某个 frame。
+8. dispatch-level writer IO dump/reload 所需 metadata；
+9. 沿 `LogicalTensor.writer` / `DispatchRecord.reads` 的倒查报告；
+10. debug dump 开关，例如只 dump mismatch tensor 或 dump 某个 frame。
 
 这样不同模型 adapter 可以复用同一套对拍能力。
 
@@ -363,17 +417,18 @@ shader 对拍仍然要落到 frame 内的 `LogicalTensor.compare` / `PyTorchProb
 迁移新 shader 或新 frame 时，按这个顺序推进：
 
 1. 先声明最小输入、权重、输出 tensor，跑通 contract/materialization dry-run；
-2. 用小 shape 和固定输入跑一个 shader，对 output 加 `compare` / `pytorch_probe`；
-3. 如果 output mismatch，先确认 weight key、dtype、shape、layout 和 binding；
-4. 给 shader 的直接输入也加 compare，确认错误来自当前 shader 还是上游；
-5. 当前 shader 通过后，再把 compare 点移到 block output；
-6. block 通过后，再把 compare 点移到 frame output；
+2. 给真实 PyTorch 边界存在的 LogicalTensor 声明 `compare` / `pytorch_probe`；
+3. 优先保证 frame 最终输出和关键中间边界有声明；
+4. 如果 output mismatch，让 RuntimeSession 自动沿 writer graph drilldown；
+5. RuntimeSession 报 `missing_reference_probe` 时，再补对应 LogicalTensor 的 probe 声明；
+6. 当前 shader 输入都通过而输出失败后，再检查 shader GLSL、push constants、layout 和 binding；
 7. frame 通过后，再进入 pipeline 级输出或生成循环。
 
-一次不要打开太多 compare 点。大量 activation 同时 readback 会让调试噪声和同步成本变高。默认策略应是：
+可以声明很多 compare/probe 点，因为声明本身不会触发 readback。RuntimeSession 默认只激活边界 target，mismatch
+后沿 writer graph 自动按需激活直接输入。调试策略应是：
 
 ```text
-少量关键边界常开
+关键边界作为默认 active target
 mismatch 后按需打开上游 probe
 定位完成后保留最有价值的 regression compare 点
 ```
@@ -386,7 +441,7 @@ MVP 阶段可以先支持：
 2. `module_output` hook；
 3. tensor compare；
 4. mismatch summary；
-5. readback candidate output。
+5. readback active candidate output，并在 mismatch 后按需 readback writer inputs。
 
 随后再扩展：
 

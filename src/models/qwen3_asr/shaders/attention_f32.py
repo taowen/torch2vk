@@ -49,6 +49,12 @@ QWEN3_ASR_ENCODER_ATTENTION_F32 = ShaderVariant(
                 contract=TensorContract(dtype="float32", shape=("M", "H")),
             ),
             TensorFieldSpec(
+                name="cu_seqlens",
+                io_kind=IOKind.INPUT,
+                role="input",
+                contract=TensorContract(dtype="uint32", shape=("S",)),
+            ),
+            TensorFieldSpec(
                 name="output",
                 io_kind=IOKind.OUTPUT,
                 role="output",
@@ -56,12 +62,13 @@ QWEN3_ASR_ENCODER_ATTENTION_F32 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=16,
+            size=20,
             fields=(
                 PushConstantFieldSpec("M", PushConstantType.UINT32, 0, "M"),
                 PushConstantFieldSpec("H", PushConstantType.UINT32, 4, "H"),
                 PushConstantFieldSpec("num_heads", PushConstantType.UINT32, 8, 14),
                 PushConstantFieldSpec("head_dim", PushConstantType.UINT32, 12, 64),
+                PushConstantFieldSpec("S", PushConstantType.UINT32, 16, "S"),
             ),
         ),
         dispatch=(ceil_div("M", 4), 14, 1),
@@ -90,7 +97,11 @@ layout(set = 0, binding = 2) buffer restrict readonly VBuffer {
     float v_values[];
 };
 
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer {
+layout(set = 0, binding = 3) buffer restrict readonly CuSeqlensBuffer {
+    uint cu_seqlens[];
+};
+
+layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer {
     float output_values[];
 };
 
@@ -99,6 +110,7 @@ layout(push_constant) uniform PushConstants {
     uint H;
     uint num_heads;
     uint head_dim;
+    uint S;
 } pc;
 
 layout(local_size_x = 64, local_size_y = 4, local_size_z = 1) in;
@@ -128,7 +140,6 @@ void main() {
     float running_max = NEG_INF;
     float running_sum = 0.0;
     float acc = 0.0;
-
     for (uint key_row = 0u; key_row < pc.M; ++key_row) {
         if (query_lane == 0u) {
             const uint base = key_row * pc.H + head_offset;

@@ -469,7 +469,7 @@ audio_token_selector.py
 audio_codec_decoder.py
 ```
 
-每个 frame function 必须显式接收对应的 PyTorch model。RuntimeSession 在 Vulkan shader sequence 执行完成后，用本 Frame 实际写出的 LogicalTensors 收集 compare targets，再根据这些 LogicalTensors 自带的 `pytorch_probe` metadata hook 传入的 PyTorch model，并 lockstep 执行这一次对应的 PyTorch `model.forward`。
+每个 frame function 必须显式接收对应的 PyTorch model。RuntimeSession 在 Vulkan shader sequence 执行完成后，用本 Frame 实际写出的 LogicalTensors 收集可对拍候选，默认只激活一个边界 target；如果 mismatch，再沿 writer graph 按需激活直接输入的 compare/probe。RuntimeSession 根据被激活 LogicalTensor 自带的 `pytorch_probe` metadata hook 传入的 PyTorch model，并 lockstep 执行这一次对应的 PyTorch `model.forward`。
 PyTorch forward 的输入来自 `register_inputs()` 中按 logical name 规则匹配到的 `LogicalTensor`，frame function
 不传 `pytorch_input`、`pytorch_args` 或 `pytorch_kwargs`。
 
@@ -630,10 +630,13 @@ Frame 结束后：
 
 ```text
 used tensors = all read tensors + all written tensors
-compare tensors = written tensors where compare != None and pytorch_probe != None
+compare candidates = written tensors where compare != None and pytorch_probe != None
+active compare target = default boundary candidate, normally the last written candidate
+drilldown targets = direct reads of the failed writer, activated on demand
 ```
 
-通常只比较 written tensors，因为它们是 Vulkan candidate 产生的边界。
+声明 compare/probe 只表示这个 tensor 可被对拍，不表示每次 frame exit 都 readback。通常只从 written tensors
+选择默认边界，因为它们是 Vulkan candidate 产生的值；writer 直接输入只在 mismatch drilldown 时按需对拍。
 
 ## 最小数据流
 
@@ -656,11 +659,15 @@ RuntimeSession records dispatch facts
         |
 Frame exit collects written compare tensors
         |
-RuntimeSession installs hooks from LogicalTensor.pytorch_probe on the frame pytorch_model
+RuntimeSession selects the default active compare target
+        |
+RuntimeSession installs hooks from active LogicalTensor.pytorch_probe on the frame pytorch_model
         |
 RuntimeSession lockstep-runs the frame pytorch_model.forward
         |
-RuntimeSession readbacks candidate LogicalTensors and compares artifacts
+RuntimeSession readbacks the active candidate LogicalTensor and compares artifacts
+        |
+On mismatch, RuntimeSession drills down through writer.reads on demand
         |
 RuntimeSession releases/reuses frame workspace
 ```
@@ -705,10 +712,10 @@ text_llm.decode.audio_token_005.cond.layer.03.output
 5. `execution.py` 先只调用 `run_audio_codec_decoder_frame(...)`。
 6. dry-run dispatch 先只校验 contract、materialization rules、dispatch record。
 7. 接入 Vulkan 后执行最短 audio codec decoder 子链路。
-8. candidate 跑完后从 dispatch records 收集 compare tensors。
-9. RuntimeSession 根据 `LogicalTensor.pytorch_probe` 在传入的 audio codec decoder PyTorch model 上安装 hooks。
+8. candidate 跑完后从 dispatch records 收集 written compare/probe candidates，并选择默认边界 target。
+9. RuntimeSession 根据 active `LogicalTensor.pytorch_probe` 在传入的 audio codec decoder PyTorch model 上安装 hooks。
 10. RuntimeSession lockstep 执行该 frame 的 PyTorch model.forward。
-11. RuntimeSession frame exit readback + compare。
+11. RuntimeSession frame exit readback + compare；mismatch 时沿 writer graph 自动 drilldown。
 12. audio codec decoder 稳定后再接 audio token selector、audio token predictor、Text LLM decode/prefill。
 
 ## MVP 验收
@@ -722,8 +729,8 @@ text_llm.decode.audio_token_005.cond.layer.03.output
 5. 模型代码没有调用 `RuntimeSession.empty/load_weight/free`；
 6. dispatch 时 RuntimeSession 能 resolve/materialize read/write LogicalTensors；record/eager 可按需 allocation，replay 用录制结果优化；
 7. candidate forward 后能从 dispatch records 收集 written LogicalTensors；
-8. 当前 frame 传入的 PyTorch model 根据 collected LogicalTensors 动态安装 hooks 并 lockstep 执行；
-9. compare 只比较 candidate 实际写出且声明了 compare/probe 的 tensors；
+8. 当前 frame 传入的 PyTorch model 根据 active LogicalTensors 动态安装 hooks 并 lockstep 执行；
+9. compare 默认只比较一个 candidate 边界；mismatch 后只对 failed writer 的直接输入按需 readback/compare；
 10. 没有 `frame.workspace.*.activation(name)` 这种 API；
 11. 权重 dtype/shape/layout 必须和 checkpoint 声明一致，不做 silent cast；
 12. Frame exit 后 FRAME_WORKSPACE 被释放或复用，MODEL/REQUEST 生命周期资源保留。

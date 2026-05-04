@@ -162,12 +162,14 @@ Replay Frame enter:
 
 退出 candidate forward:
   收集本 Frame 实际写出的 LogicalTensors
-  过滤 compare != None 且 pytorch_probe != None 的 tensor
-  根据 probe metadata 安装 PyTorch hooks
+  过滤 compare != None 且 pytorch_probe != None 的 tensor 作为可对拍候选
+  默认选择一个边界 target
+  根据 active target 的 probe metadata 安装 PyTorch hooks
   从 register_inputs() 中按 frame prefix + PyTorch forward 参数名推断 kwargs
   lockstep 执行当前 Frame 传入的 PyTorch model.forward
-  readback candidate tensors
+  readback active candidate tensor
   compare candidate/PyTorch artifact
+  mismatch 时沿 writer graph 按需 readback/compare 直接输入
   释放或复用 FRAME/OP 生命周期资源
 ```
 
@@ -690,9 +692,12 @@ Frame 结束后：
 ```text
 used tensors = all reads + all writes
 candidate boundary tensors = writes where compare != None and pytorch_probe != None
+active compare target = default boundary candidate, normally the last written candidate
 ```
 
-默认只比较 write tensors，因为它们是 candidate 本次 forward 实际产生的值。
+声明 compare/probe 只表示这个 tensor 可被对拍，不表示每次都 readback。默认只从 write tensors 里选一个边界
+target，因为它们是 candidate 本次 forward 实际产生的值；mismatch 后 RuntimeSession 再沿 failed writer 的
+direct reads 按需激活上游对拍。
 
 ## PyTorch 对拍
 
@@ -702,18 +707,19 @@ candidate boundary tensors = writes where compare != None and pytorch_probe != N
 1. 进入 rt.frame(...)
 2. 跑 Vulkan candidate eager forward
 3. RuntimeSession 收集 dispatch records 和 written LogicalTensors
-4. candidate forward 结束后，筛选 compare/probe tensors
-5. 根据每个 LogicalTensor.pytorch_probe 安装 PyTorch hooks
+4. candidate forward 结束后，筛选 compare/probe candidates 并选择默认 active target
+5. 根据 active LogicalTensor.pytorch_probe 安装 PyTorch hooks
 6. 从 `register_inputs()` 中按当前 frame name 和 PyTorch forward 签名推断 input kwargs
 7. lockstep 跑一次传入 Frame 的 PyTorch model.forward
 8. hooks 收集 PyTorch artifacts
-9. RuntimeSession readback 对应 candidate LogicalTensor 的当前 buffer
+9. RuntimeSession readback active candidate LogicalTensor 的当前 buffer
 10. 按 LogicalTensor.compare 比较
-11. 报告 mismatch
-12. 释放或复用 Frame workspace
+11. mismatch 时沿 writer graph 迭代倒查直接输入
+12. 报告 mismatch 和 drilldown classification
+13. 释放或复用 Frame workspace
 ```
 
-PyTorch model 不决定比较哪些 tensors。RuntimeSession 只根据 candidate 实际写出的 tensors 以及这些 `LogicalTensor` 自带的 `pytorch_probe` metadata 安装 hook/probe，然后 lockstep 执行当前 Frame 传入的 PyTorch model。
+PyTorch model 不决定比较哪些 tensors。RuntimeSession 只根据 candidate 实际写出的 tensors 以及这些 `LogicalTensor` 自带的 `pytorch_probe` metadata 选择 active/drilldown targets 并安装 hook/probe，然后 lockstep 执行当前 Frame 传入的 PyTorch model。
 PyTorch model 也不接收测试或 frame function 旁路传入的第二份输入。RuntimeSession 使用同一批
 `register_inputs()` 输入：`role == INPUT`、logical name 以当前 frame name 为前缀、前缀后的 basename 命中
 `forward` 参数名的 tensor，会作为 PyTorch kwargs 传入。例如

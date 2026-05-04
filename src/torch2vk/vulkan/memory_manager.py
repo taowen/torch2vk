@@ -441,6 +441,13 @@ class HostRing:
             releaser=lambda _allocation: None,
         )
 
+    def allocate_dedicated(self, *, size: int, usage_flags: int) -> BufferAllocation:
+        if self._closed:
+            raise RuntimeError(f"{self._ring_name} is closed")
+        if size <= 0:
+            raise ValueError(f"{self._ring_name} dedicated allocation size must be positive, got {size}")
+        return self._allocate_dedicated(size=size, usage_flags=usage_flags)
+
     def flush(self, *, allocation: BufferAllocation, byte_offset: int = 0, size: int | None = None) -> None:
         start = allocation.offset + int(byte_offset)
         if start < allocation.offset:
@@ -857,7 +864,7 @@ class MemoryManager:
         )
         if resolved_usage_flags <= 0:
             raise ValueError(f"Host-visible usage_flags must be positive, got {resolved_usage_flags}")
-        allocation = self.host_upload_ring.allocate(size=size, usage_flags=resolved_usage_flags)
+        allocation = self.host_upload_ring.allocate_dedicated(size=size, usage_flags=resolved_usage_flags)
         return self._note_allocation("host_visible", allocation)
 
     def allocation_stats(self) -> MemoryAllocationStats:

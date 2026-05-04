@@ -40,7 +40,7 @@ QWEN3_ASR_CONV_OUT_ADD_POSITION_F32 = ShaderVariant(
                 name="output",
                 io_kind=IOKind.OUTPUT,
                 role="output",
-                contract=TensorContract(dtype="float32", shape=(mul("N", "T"), "H")),
+                contract=TensorContract(dtype="float32", shape=("N", "T", "H")),
             ),
         ),
         push_constants=PushConstantSpec(

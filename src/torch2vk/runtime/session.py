@@ -4,21 +4,36 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import json
+import re
 import shutil
 import struct
 import subprocess
 from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Protocol, cast
+from typing import Any, Callable, Protocol, TypeGuard, cast
 
 import numpy as np
-from vulkan import VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+from vulkan import (
+    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+)
 
 from torch2vk.checkpoints.checkpoint_tensor import CheckpointTensor
 from torch2vk.checkpoints.safetensors import open_safetensors_mmap
-from torch2vk.runtime.compare import TensorCompareResult, compare_arrays, normalize_reference_outputs, select_probe_value
+from torch2vk.runtime.compare import (
+    CompareAssertionError,
+    TensorCompareResult,
+    as_numpy_array,
+    compare_arrays,
+    normalize_reference_outputs,
+    select_probe_value,
+    write_compare_summary,
+)
 from torch2vk.runtime.frame import FrameContext
 from torch2vk.runtime.logical import (
     DispatchWriter,
@@ -58,6 +73,33 @@ class _ForwardHookModuleLike(Protocol):
     def register_forward_hook(self, hook: object) -> _HookHandleLike: ...
 
 
+class _TorchTensorLike(Protocol):
+    def detach(self) -> "_TorchTensorLike": ...
+
+    def cpu(self) -> "_TorchTensorLike": ...
+
+    def float(self) -> "_TorchTensorLike": ...
+
+    def numpy(self) -> np.ndarray: ...
+
+
+_PYTORCH_ARTIFACT_CACHE_VERSION = 1
+
+
+@dataclass(frozen=True, slots=True)
+class _PyTorchCachePaths:
+    root: Path
+    array: Path
+    metadata: Path
+    metadata_payload: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class _ReadCompareOutcome:
+    failed_result: TensorCompareResult | None
+    missing_reference_tensors: tuple[str, ...]
+
+
 class RuntimeSession:
     """The single runtime owner for LogicalTensor materialization and shader dispatch."""
 
@@ -69,7 +111,9 @@ class RuntimeSession:
         model_dir: str | Path | None = None,
     ) -> None:
         self.device = VulkanDevice(physical_device_index=device_index)
-        self.artifact_dir = Path(".cache/torch2vk/generated" if artifact_dir is None else artifact_dir)
+        self.artifact_dir = Path(
+            ".cache/torch2vk/generated" if artifact_dir is None else artifact_dir
+        )
         self.model_dir = None if model_dir is None else Path(model_dir).expanduser().resolve()
         self._inputs: dict[LogicalTensor, object] = {}
         self._frame_stack: list[FrameContext] = []
@@ -113,7 +157,9 @@ class RuntimeSession:
     def register_inputs(self, inputs: Mapping[LogicalTensor, object]) -> None:
         for tensor, value in inputs.items():
             if not isinstance(tensor, LogicalTensor):
-                raise TypeError(f"register_inputs key must be LogicalTensor, got {type(tensor).__name__}")
+                raise TypeError(
+                    f"register_inputs key must be LogicalTensor, got {type(tensor).__name__}"
+                )
             tensor.validate_declaration()
             if tensor.role is not TensorRole.INPUT:
                 raise ValueError(f"{tensor.name} is not an input tensor")
@@ -168,7 +214,9 @@ class RuntimeSession:
         tensors: dict[str, LogicalTensor] = {}
         for name, argument in arguments.items():
             if not isinstance(argument, LogicalTensor):
-                raise TypeError(f"{variant.name}.{name} expects LogicalTensor, got {type(argument).__name__}")
+                raise TypeError(
+                    f"{variant.name}.{name} expects LogicalTensor, got {type(argument).__name__}"
+                )
             argument.validate_declaration()
             tensors[name] = argument
         frame.used_tensors.extend(tensors[field.name] for field in contract.fields)
@@ -211,8 +259,12 @@ class RuntimeSession:
             shader=variant.name,
             reads=tuple((field.name, tensors[field.name]) for field in contract.input_fields),
             writes=tuple((field.name, tensors[field.name]) for field in contract.output_fields),
-            logical_reads=tuple((field.name, tensors[field.name].name) for field in contract.input_fields),
-            logical_writes=tuple((field.name, tensors[field.name].name) for field in contract.output_fields),
+            logical_reads=tuple(
+                (field.name, tensors[field.name].name) for field in contract.input_fields
+            ),
+            logical_writes=tuple(
+                (field.name, tensors[field.name].name) for field in contract.output_fields
+            ),
             symbols=tuple(sorted(symbols.items())),
             dispatch_size=dispatch_size,
             descriptor_views=tuple(
@@ -237,15 +289,19 @@ class RuntimeSession:
         self._require_open()
         if tensor.buffer is None:
             raise RuntimeError(f"{tensor.name} is not materialized")
-        return self.device.readback_tensor(spec=tensor.spec, slice=tensor.buffer, layout=tensor.layout)
+        return self.device.readback_tensor(
+            spec=tensor.spec, slice=tensor.buffer, layout=tensor.layout
+        )
 
     def debug_materialization(self, tensor: LogicalTensor) -> BufferSlice | None:
         return tensor.buffer
 
     def _compare_frame(self, frame: FrameContext) -> None:
         written = _unique_tensors(frame.written_tensors)
-        reference_targets = [tensor for tensor in written if tensor.compare is not None]
-        if frame.reference_model is not None and reference_targets:
+        if frame.reference_model is not None:
+            reference_targets = _default_frame_compare_targets(written)
+            if not reference_targets:
+                return
             reference_outputs = normalize_reference_outputs(
                 _call_reference_model(
                     frame.reference_model,
@@ -257,39 +313,542 @@ class RuntimeSession:
                 try:
                     expected = reference_outputs[tensor.name]
                 except KeyError as exc:
-                    raise KeyError(f"Reference model did not return artifact for {tensor.name}") from exc
-                self._compare_results.append(
-                    compare_arrays(
-                        tensor=tensor,
-                        frame=frame.frame,
-                        candidate=self.readback(tensor),
-                        expected=expected,
-                    )
+                    raise KeyError(
+                        f"Reference model did not return artifact for {tensor.name}"
+                    ) from exc
+                self._record_compare(
+                    tensor=tensor,
+                    frame=frame,
+                    candidate=self.readback(tensor),
+                    expected=expected,
                 )
             return
 
         if frame.pytorch_model is None:
             return
 
-        probe_targets = [
-            tensor for tensor in reference_targets if tensor.pytorch_probe is not None
-        ]
+        probe_targets = _default_frame_compare_targets(
+            tensor for tensor in written if tensor.pytorch_probe is not None
+        )
         if not probe_targets:
             return
-        expected_by_tensor = self._run_pytorch_probes(frame, probe_targets)
+        expected_by_tensor, missing_probe_targets = self._load_cached_pytorch_artifacts(
+            frame,
+            probe_targets,
+            frame.pytorch_model,
+        )
+        if missing_probe_targets:
+            captured = self._run_pytorch_probes(frame, missing_probe_targets)
+            expected_by_tensor.update(captured)
+            self._store_cached_pytorch_artifacts(
+                frame,
+                missing_probe_targets,
+                frame.pytorch_model,
+                captured,
+            )
         for tensor in probe_targets:
             try:
                 expected = expected_by_tensor[tensor.name]
             except KeyError as exc:
                 raise KeyError(f"PyTorch probe did not capture artifact for {tensor.name}") from exc
-            self._compare_results.append(
-                compare_arrays(
+            self._record_compare(
+                tensor=tensor,
+                frame=frame,
+                candidate=self.readback(tensor),
+                expected=expected,
+            )
+
+    def _expected_pytorch_artifacts(
+        self,
+        frame: FrameContext,
+        tensors: list[LogicalTensor],
+    ) -> dict[str, object]:
+        if frame.pytorch_model is None:
+            return {}
+        probe_targets = [tensor for tensor in tensors if tensor.pytorch_probe is not None]
+        if not probe_targets:
+            return {}
+        expected_by_tensor, missing_probe_targets = self._load_cached_pytorch_artifacts(
+            frame,
+            probe_targets,
+            frame.pytorch_model,
+        )
+        if missing_probe_targets:
+            captured = self._run_pytorch_probes(frame, missing_probe_targets)
+            expected_by_tensor.update(captured)
+            self._store_cached_pytorch_artifacts(
+                frame,
+                missing_probe_targets,
+                frame.pytorch_model,
+                captured,
+            )
+        return expected_by_tensor
+
+    def _record_compare(
+        self,
+        *,
+        tensor: LogicalTensor,
+        frame: FrameContext,
+        candidate: object,
+        expected: object,
+    ) -> None:
+        try:
+            result = compare_arrays(
+                tensor=tensor,
+                frame=frame.frame,
+                candidate=candidate,
+                expected=expected,
+                artifact_dir=self.artifact_dir,
+                nearest_upstream_artifact_key=self._nearest_passed_artifact_key(frame.frame),
+            )
+        except CompareAssertionError as exc:
+            result = self._attach_writer_drilldown(exc.result, frame=frame, seen=set())
+            write_compare_summary(result)
+            self._compare_results.append(result)
+            raise CompareAssertionError(
+                policy=result.tensor.compare or exc.policy,
+                result=result,
+            ) from exc
+        self._compare_results.append(result)
+
+    def _nearest_passed_artifact_key(self, frame: str) -> str | None:
+        for result in reversed(self._compare_results):
+            if result.frame == frame and result.passed:
+                return result.artifact_key
+        return None
+
+    def _attach_writer_drilldown(
+        self,
+        result: TensorCompareResult,
+        *,
+        frame: FrameContext,
+        seen: set[str],
+    ) -> TensorCompareResult:
+        initial_artifact_key = result.artifact_key
+        current = result
+        path: list[dict[str, object]] = []
+
+        while True:
+            if current.artifact_key in seen:
+                return self._with_drilldown_classification(
+                    current,
+                    classification="cycle_detected",
+                    report_path=None,
+                    input_paths=(),
+                    output_paths=(),
+                )
+            seen.add(current.artifact_key)
+
+            writer = current.tensor.writer
+            if writer is None:
+                return self._with_drilldown_classification(
+                    current,
+                    classification="writer_not_recorded",
+                    report_path=None,
+                    input_paths=(),
+                    output_paths=(),
+                )
+            try:
+                record = self._dispatch_records[writer.dispatch_index]
+            except IndexError:
+                return self._with_drilldown_classification(
+                    current,
+                    classification="writer_record_missing",
+                    report_path=None,
+                    input_paths=(),
+                    output_paths=(),
+                )
+            if record.frame != current.frame:
+                return self._with_drilldown_classification(
+                    current,
+                    classification="writer_frame_mismatch",
+                    report_path=None,
+                    input_paths=(),
+                    output_paths=(),
+                )
+
+            root = (
+                self.artifact_dir
+                / "debug"
+                / _safe_path_component(current.frame)
+                / _safe_path_component(current.tensor.name)
+                / "writer_io"
+            )
+            root.mkdir(parents=True, exist_ok=True)
+            input_paths: list[str] = []
+            output_paths: list[str] = []
+            reads: list[dict[str, object]] = []
+            writes: list[dict[str, object]] = []
+
+            for field_name, tensor in record.reads:
+                entry = self._dump_debug_tensor(
+                    root=root, prefix="read", field_name=field_name, tensor=tensor
+                )
+                reads.append(entry)
+                path_value = entry.get("path")
+                if isinstance(path_value, str):
+                    input_paths.append(path_value)
+            for field_name, tensor in record.writes:
+                entry = self._dump_debug_tensor(
+                    root=root, prefix="write", field_name=field_name, tensor=tensor
+                )
+                writes.append(entry)
+                path_value = entry.get("path")
+                if isinstance(path_value, str):
+                    output_paths.append(path_value)
+
+            outcome = self._compare_declared_read_tensors(frame=frame, record=record, seen=seen)
+            if outcome.failed_result is not None:
+                classification = "upstream_input_bad"
+            elif outcome.missing_reference_tensors:
+                classification = "missing_reference_probe"
+            else:
+                classification = "input_ok_output_bad"
+
+            dispatch = _serializable_dispatch_record(record)
+            dispatch_path = root / "dispatch.json"
+            dispatch_path.write_text(
+                json.dumps(dispatch, indent=2, sort_keys=True), encoding="utf-8"
+            )
+            read_status = [
+                self._upstream_tensor_status(frame=current.frame, tensor=tensor)
+                for _, tensor in record.reads
+            ]
+            path.append(
+                {
+                    "failed_artifact": current.artifact_key,
+                    "tensor": current.tensor.name,
+                    "writer": {
+                        "frame": writer.frame,
+                        "shader": writer.shader,
+                        "dispatch_index": writer.dispatch_index,
+                    },
+                    "classification": classification,
+                    "missing_reference_tensors": outcome.missing_reference_tensors,
+                }
+            )
+            report = {
+                "classification": classification,
+                "initial_failed_artifact": initial_artifact_key,
+                "failed_artifact": current.artifact_key,
+                "nearest_upstream_artifact_key": current.nearest_upstream_artifact_key,
+                "missing_reference_tensors": outcome.missing_reference_tensors,
+                "dispatch": dispatch,
+                "dispatch_artifact_path": str(dispatch_path),
+                "reads": reads,
+                "writes": writes,
+                "read_status": read_status,
+                "drilldown_path": path,
+            }
+            report_path = root / "drilldown.json"
+            report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+            current = self._with_drilldown_classification(
+                current,
+                classification=classification,
+                report_path=report_path,
+                input_paths=tuple(input_paths),
+                output_paths=tuple(output_paths),
+            )
+            if outcome.failed_result is None:
+                return current
+            current = outcome.failed_result
+
+    def _compare_declared_read_tensors(
+        self,
+        *,
+        frame: FrameContext,
+        record: DispatchRecord,
+        seen: set[str],
+    ) -> _ReadCompareOutcome:
+        read_tensors = _unique_tensors(tensor for _, tensor in record.reads)
+        probe_targets = [
+            tensor
+            for tensor in read_tensors
+            if tensor.compare is not None
+            and tensor.pytorch_probe is not None
+            and f"{frame.frame}/{tensor.name}" not in seen
+        ]
+        missing_reference_tensors = tuple(
+            tensor.name
+            for tensor in read_tensors
+            if tensor.role is not TensorRole.WEIGHT
+            and (tensor.compare is None or tensor.pytorch_probe is None)
+        )
+        if not probe_targets:
+            return _ReadCompareOutcome(
+                failed_result=None,
+                missing_reference_tensors=missing_reference_tensors,
+            )
+        expected_by_tensor = self._expected_pytorch_artifacts(frame, probe_targets)
+        for tensor in probe_targets:
+            expected = expected_by_tensor.get(tensor.name)
+            if expected is None:
+                missing_reference_tensors = (*missing_reference_tensors, tensor.name)
+                continue
+            try:
+                result = compare_arrays(
                     tensor=tensor,
                     frame=frame.frame,
                     candidate=self.readback(tensor),
                     expected=expected,
+                    artifact_dir=self.artifact_dir,
+                    nearest_upstream_artifact_key=self._nearest_passed_artifact_key(frame.frame),
                 )
+            except CompareAssertionError as exc:
+                write_compare_summary(exc.result)
+                self._compare_results.append(exc.result)
+                return _ReadCompareOutcome(
+                    failed_result=exc.result,
+                    missing_reference_tensors=missing_reference_tensors,
+                )
+            self._compare_results.append(result)
+        return _ReadCompareOutcome(
+            failed_result=None,
+            missing_reference_tensors=missing_reference_tensors,
+        )
+
+    def _with_drilldown_classification(
+        self,
+        result: TensorCompareResult,
+        *,
+        classification: str,
+        report_path: Path | None,
+        input_paths: tuple[str, ...],
+        output_paths: tuple[str, ...],
+    ) -> TensorCompareResult:
+        return replace(
+            result,
+            drilldown_classification=classification,
+            drilldown_artifact_path=None if report_path is None else str(report_path),
+            writer_input_artifact_paths=input_paths,
+            writer_output_artifact_paths=output_paths,
+        )
+
+    def _upstream_tensor_status(self, *, frame: str, tensor: LogicalTensor) -> dict[str, object]:
+        artifact_key = f"{frame}/{tensor.name}"
+        latest_result = None
+        for result in reversed(self._compare_results):
+            if result.artifact_key == artifact_key:
+                latest_result = result
+                break
+        writer = tensor.writer
+        return {
+            "artifact_key": artifact_key,
+            "tensor": tensor.name,
+            "has_compare_policy": tensor.compare is not None,
+            "has_pytorch_probe": tensor.pytorch_probe is not None,
+            "latest_compare": None
+            if latest_result is None
+            else {
+                "passed": latest_result.passed,
+                "failure_reason": latest_result.failure_reason,
+                "max_abs": latest_result.max_abs,
+                "max_rel": latest_result.max_rel,
+            },
+            "writer": None
+            if writer is None
+            else {
+                "frame": writer.frame,
+                "shader": writer.shader,
+                "dispatch_index": writer.dispatch_index,
+            },
+        }
+
+    def _dump_debug_tensor(
+        self,
+        *,
+        root: Path,
+        prefix: str,
+        field_name: str,
+        tensor: LogicalTensor,
+    ) -> dict[str, object]:
+        entry: dict[str, object] = {
+            "field": field_name,
+            "tensor": tensor.name,
+            "shape": tensor.concrete_shape,
+            "dtype": tensor.spec.dtype,
+            "layout": repr(tensor.layout),
+        }
+        if tensor.buffer is None:
+            entry["materialized"] = False
+            return entry
+        array = self.readback(tensor)
+        path = (
+            root
+            / f"{prefix}_{_safe_path_component(field_name)}_{_safe_path_component(tensor.name)}.npy"
+        )
+        np.save(path, array)
+        entry.update(
+            {
+                "materialized": True,
+                "path": str(path),
+                "min": _finite_stat(array, "min"),
+                "max": _finite_stat(array, "max"),
+                "mean": _finite_stat(array, "mean"),
+                "nan_count": int(np.isnan(array.astype(np.float64, copy=False)).sum()),
+                "inf_count": int(np.isinf(array.astype(np.float64, copy=False)).sum()),
+            }
+        )
+        return entry
+
+    def _load_cached_pytorch_artifacts(
+        self,
+        frame: FrameContext,
+        tensors: list[LogicalTensor],
+        model: object,
+    ) -> tuple[dict[str, object], list[LogicalTensor]]:
+        cached: dict[str, object] = {}
+        missing: list[LogicalTensor] = []
+        for tensor in tensors:
+            paths = self._pytorch_cache_paths(frame=frame, tensor=tensor, model=model)
+            if not paths.array.is_file() or not paths.metadata.is_file():
+                missing.append(tensor)
+                continue
+            try:
+                metadata = json.loads(paths.metadata.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                missing.append(tensor)
+                continue
+            if metadata != _json_normalized(paths.metadata_payload):
+                missing.append(tensor)
+                continue
+            cached[tensor.name] = np.load(paths.array, allow_pickle=False)
+        return cached, missing
+
+    def _store_cached_pytorch_artifacts(
+        self,
+        frame: FrameContext,
+        tensors: list[LogicalTensor],
+        model: object,
+        captured: Mapping[str, object],
+    ) -> None:
+        for tensor in tensors:
+            if tensor.name not in captured:
+                continue
+            paths = self._pytorch_cache_paths(frame=frame, tensor=tensor, model=model)
+            paths.root.mkdir(parents=True, exist_ok=True)
+            array = as_numpy_array(captured[tensor.name])
+            np.save(paths.array, array)
+            paths.metadata.write_text(
+                json.dumps(_json_normalized(paths.metadata_payload), indent=2, sort_keys=True),
+                encoding="utf-8",
             )
+
+    def _pytorch_cache_paths(
+        self,
+        *,
+        frame: FrameContext,
+        tensor: LogicalTensor,
+        model: object,
+    ) -> _PyTorchCachePaths:
+        metadata = self._pytorch_cache_metadata(frame=frame, tensor=tensor, model=model)
+        digest = hashlib.sha256(
+            json.dumps(metadata, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        root = (
+            self.artifact_dir
+            / "pytorch_cache"
+            / _safe_path_component(frame.frame)
+            / _safe_path_component(tensor.name)
+            / digest
+        )
+        return _PyTorchCachePaths(
+            root=root,
+            array=root / "expected.npy",
+            metadata=root / "metadata.json",
+            metadata_payload=metadata,
+        )
+
+    def _pytorch_cache_metadata(
+        self,
+        *,
+        frame: FrameContext,
+        tensor: LogicalTensor,
+        model: object,
+    ) -> dict[str, object]:
+        probe = tensor.pytorch_probe
+        return {
+            "version": _PYTORCH_ARTIFACT_CACHE_VERSION,
+            "frame": frame.frame,
+            "artifact_key": f"{frame.frame}/{tensor.name}",
+            "tensor": {
+                "name": tensor.name,
+                "shape": tensor.concrete_shape,
+                "dtype": tensor.spec.dtype,
+                "layout": repr(tensor.layout),
+                "compare": None if tensor.compare is None else asdict(tensor.compare),
+            },
+            "probe": None if probe is None else asdict(probe),
+            "inputs": self._frame_input_fingerprints(frame.frame),
+            "explicit_pytorch_args": [
+                self._pytorch_value_fingerprint(value) for value in frame.pytorch_args
+            ],
+            "explicit_pytorch_kwargs": {
+                key: self._pytorch_value_fingerprint(value)
+                for key, value in sorted(frame.pytorch_kwargs.items())
+            },
+            "model": self._model_fingerprint(model),
+        }
+
+    def _frame_input_fingerprints(self, frame_name: str) -> list[dict[str, object]]:
+        prefix = f"{frame_name}."
+        entries: list[dict[str, object]] = []
+        for tensor, value in self._inputs.items():
+            if tensor.role is not TensorRole.INPUT or not tensor.name.startswith(prefix):
+                continue
+            entries.append(
+                {
+                    "tensor": tensor.name,
+                    "dtype": tensor.spec.dtype,
+                    "shape": tensor.concrete_shape,
+                    "value": _value_fingerprint(value),
+                }
+            )
+        return sorted(entries, key=lambda entry: str(entry["tensor"]))
+
+    def _model_fingerprint(self, model: object) -> dict[str, object]:
+        model_type = type(model)
+        fingerprint: dict[str, object] = {
+            "type": f"{model_type.__module__}.{model_type.__qualname__}",
+        }
+        if self.model_dir is not None:
+            files = [
+                path
+                for pattern in ("*.safetensors", "*.safetensors.index.json", "config.json")
+                for path in sorted(self.model_dir.glob(pattern))
+                if path.is_file()
+            ]
+            fingerprint.update(
+                {
+                    "kind": "model_dir",
+                    "model_dir": str(self.model_dir),
+                    "files": [
+                        {
+                            "path": str(path.relative_to(self.model_dir)),
+                            "size": path.stat().st_size,
+                            "mtime_ns": path.stat().st_mtime_ns,
+                        }
+                        for path in files
+                    ],
+                }
+            )
+            return fingerprint
+        fingerprint.update({"kind": "process_object", "object_id": id(model)})
+        return fingerprint
+
+    def _pytorch_value_fingerprint(self, value: object) -> dict[str, object]:
+        if isinstance(value, LogicalTensor):
+            try:
+                registered = self._inputs[value]
+            except KeyError:
+                return {"kind": "logical_tensor", "tensor": value.name, "registered": False}
+            return {
+                "kind": "logical_tensor",
+                "tensor": value.name,
+                "registered": True,
+                "value": _value_fingerprint(registered),
+            }
+        return _value_fingerprint(value)
 
     def _run_pytorch_probes(
         self,
@@ -309,8 +868,6 @@ class RuntimeSession:
             probe = tensor.pytorch_probe
             if probe is None:
                 continue
-            if probe.transform is not None:
-                raise NotImplementedError(f"{tensor.name} probe transform is not implemented: {probe.transform}")
             if probe.kind == "derived":
                 raise NotImplementedError(f"{tensor.name} derived PyTorchProbe is not implemented")
             if probe.target == "":
@@ -323,17 +880,19 @@ class RuntimeSession:
             if probe.kind == "module_output":
                 hooks.append(
                     module.register_forward_hook(
-                        _make_output_hook(tensor=tensor, captured=captured)
+                        _make_output_hook(tensor=tensor, root_model=model, captured=captured)
                     )
                 )
             elif probe.kind == "module_input":
                 hooks.append(
                     module.register_forward_hook(
-                        _make_input_hook(tensor=tensor, captured=captured)
+                        _make_input_hook(tensor=tensor, root_model=model, captured=captured)
                     )
                 )
             else:
-                raise NotImplementedError(f"{tensor.name} unsupported PyTorchProbe kind: {probe.kind}")
+                raise NotImplementedError(
+                    f"{tensor.name} unsupported PyTorchProbe kind: {probe.kind}"
+                )
 
         args, kwargs = self._pytorch_forward_inputs(frame, model)
         try:
@@ -347,10 +906,14 @@ class RuntimeSession:
             assert probe is not None
             if probe.kind != "module_output":
                 raise NotImplementedError(f"{tensor.name} root probe only supports module_output")
-            captured[tensor.name] = select_probe_value(
-                output,
-                index=probe.index,
-                selector=probe.selector,
+            captured[tensor.name] = _apply_probe_transform(
+                select_probe_value(
+                    output,
+                    index=probe.index,
+                    selector=probe.selector,
+                ),
+                transform=probe.transform,
+                root_model=model,
             )
         return captured
 
@@ -371,7 +934,7 @@ class RuntimeSession:
 
     def _infer_pytorch_kwargs(self, *, frame: FrameContext, model: object) -> dict[str, object]:
         forward = getattr(model, "forward", model)
-        signature = inspect.signature(forward)
+        signature = inspect.signature(cast(Callable[..., object], forward))
         parameter_names = {
             name
             for name, parameter in signature.parameters.items()
@@ -397,7 +960,9 @@ class RuntimeSession:
             try:
                 registered = self._inputs[value]
             except KeyError as exc:
-                raise RuntimeError(f"{value.name} is used as a PyTorch input but was not registered") from exc
+                raise RuntimeError(
+                    f"{value.name} is used as a PyTorch input but was not registered"
+                ) from exc
             return self._as_pytorch_input(registered)
         return self._as_pytorch_input(value)
 
@@ -448,7 +1013,9 @@ class RuntimeSession:
             dtype = contract.dtype
             if isinstance(dtype, DTypeReference):
                 if dtype.field_name not in dtype_by_field:
-                    raise ValueError(f"{field.name} references unknown dtype field {dtype.field_name}")
+                    raise ValueError(
+                        f"{field.name} references unknown dtype field {dtype.field_name}"
+                    )
                 expected_dtypes = (dtype_by_field[dtype.field_name],)
             elif isinstance(dtype, tuple):
                 expected_dtypes = dtype
@@ -470,7 +1037,9 @@ class RuntimeSession:
                     raise ValueError(f"{tensor.name} has unresolved shape {tensor.spec.shape}")
                 if isinstance(expected_dim, int):
                     if actual_dim != expected_dim:
-                        raise ValueError(f"{field.name} expects dim {expected_dim}, got {actual_dim}")
+                        raise ValueError(
+                            f"{field.name} expects dim {expected_dim}, got {actual_dim}"
+                        )
                 elif isinstance(expected_dim, str):
                     previous = symbols.get(expected_dim)
                     if previous is None:
@@ -482,7 +1051,9 @@ class RuntimeSession:
                 else:
                     expected_value = eval_expr(expected_dim, symbols)
                     if actual_dim != expected_value:
-                        raise ValueError(f"{field.name} expects dim {expected_value}, got {actual_dim}")
+                        raise ValueError(
+                            f"{field.name} expects dim {expected_value}, got {actual_dim}"
+                        )
             bind_tensor_layout_symbols(contract.layout, tensor.layout, symbols)
         return symbols
 
@@ -517,9 +1088,13 @@ class RuntimeSession:
             )
             self._request_allocations.append(allocation)
         else:
-            raise ValueError(f"{tensor.name} cannot be materialized for write with memory={tensor.memory}")
+            raise ValueError(
+                f"{tensor.name} cannot be materialized for write with memory={tensor.memory}"
+            )
         with tensor.runtime_write_scope():
-            tensor.buffer = BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=size)
+            tensor.buffer = BufferSlice(
+                allocation=allocation, offset=allocation.offset, nbytes=size
+            )
             tensor.descriptor_nbytes = size
         if tensor.lifetime in {TensorLifetime.FRAME, TensorLifetime.OP}:
             self._frame_allocations.append((tensor, allocation))
@@ -535,7 +1110,7 @@ class RuntimeSession:
                 shape=tensor.concrete_shape,
                 layout=tensor.layout,
             )
-            (slice_, allocation), = self.device.upload_checkpoint_tensors_with_allocations(
+            ((slice_, allocation),) = self.device.upload_checkpoint_tensors_with_allocations(
                 [(tensor.name, checkpoint_tensor)]
             )
         with tensor.runtime_write_scope():
@@ -560,7 +1135,9 @@ class RuntimeSession:
         if len(candidates) == 1:
             return candidates[0]
         if not candidates:
-            raise RuntimeError(f"{tensor.name} could not find a safetensors checkpoint in {self.model_dir}")
+            raise RuntimeError(
+                f"{tensor.name} could not find a safetensors checkpoint in {self.model_dir}"
+            )
         raise RuntimeError(
             f"{tensor.name} found multiple safetensors checkpoints in {self.model_dir}; "
             "use model.safetensors or model.safetensors.index.json as the canonical checkpoint"
@@ -579,14 +1156,18 @@ class RuntimeSession:
             allocation.buffer.write_bytes_at(allocation.offset, memoryview(array).cast("B"))
             self.device.memory_manager.host_upload_ring.flush(allocation=allocation)
         else:
-            (slice_, allocation), = self.device.upload_numpy_arrays_with_allocations([(tensor.name, array)])
+            ((slice_, allocation),) = self.device.upload_numpy_arrays_with_allocations(
+                [(tensor.name, array)]
+            )
             with tensor.runtime_write_scope():
                 tensor.buffer = slice_
                 tensor.descriptor_nbytes = slice_.nbytes
             self._request_allocations.append(allocation)
             return
         with tensor.runtime_write_scope():
-            tensor.buffer = BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=expected)
+            tensor.buffer = BufferSlice(
+                allocation=allocation, offset=allocation.offset, nbytes=expected
+            )
             tensor.descriptor_nbytes = expected
         if tensor.lifetime in {TensorLifetime.FRAME, TensorLifetime.OP}:
             self._frame_allocations.append((tensor, allocation))
@@ -615,7 +1196,9 @@ class RuntimeSession:
             else:
                 value = eval_expr(raw, symbols)
             values[field.name] = value
-            data[field.offset : field.offset + field.size] = _pack_push_constant_value(field.dtype, value)
+            data[field.offset : field.offset + field.size] = _pack_push_constant_value(
+                field.dtype, value
+            )
         return bytes(data), values
 
     def _pipeline_for_variant(self, variant: ShaderVariant) -> ComputePipeline:
@@ -724,7 +1307,9 @@ def _descriptor_view_for_field(
     )
 
 
-def _record_descriptor_view(index: int, field: TensorFieldSpec, tensor: LogicalTensor) -> tuple[str, int, int, int]:
+def _record_descriptor_view(
+    index: int, field: TensorFieldSpec, tensor: LogicalTensor
+) -> tuple[str, int, int, int]:
     if tensor.buffer is None:
         raise RuntimeError(f"{tensor.name} is not materialized")
     return (
@@ -768,8 +1353,89 @@ def _unique_tensors(tensors: Iterable[LogicalTensor]) -> list[LogicalTensor]:
     return unique
 
 
-def _is_torch_tensor(value: object) -> bool:
+def _default_frame_compare_targets(written: Iterable[LogicalTensor]) -> list[LogicalTensor]:
+    comparable = [tensor for tensor in written if tensor.compare is not None]
+    if not comparable:
+        return []
+    return [comparable[-1]]
+
+
+def _is_torch_tensor(value: object) -> TypeGuard[_TorchTensorLike]:
     return hasattr(value, "detach") and hasattr(value, "cpu") and hasattr(value, "numpy")
+
+
+def _value_fingerprint(value: object) -> dict[str, object]:
+    if isinstance(value, np.ndarray):
+        array = np.ascontiguousarray(value)
+        return {
+            "kind": "numpy",
+            "shape": tuple(int(dim) for dim in array.shape),
+            "dtype": str(array.dtype),
+            "sha256": hashlib.sha256(memoryview(array).cast("B")).hexdigest(),
+        }
+    if _is_torch_tensor(value):
+        tensor = value.detach().cpu()
+        dtype = str(getattr(tensor, "dtype", "<unknown>"))
+        shape = tuple(int(dim) for dim in getattr(tensor, "shape", ()))
+        try:
+            array = np.ascontiguousarray(tensor.numpy())
+        except (TypeError, RuntimeError):
+            array = np.ascontiguousarray(tensor.float().numpy())
+        return {
+            "kind": "torch",
+            "shape": shape,
+            "dtype": dtype,
+            "sha256": hashlib.sha256(memoryview(array).cast("B")).hexdigest(),
+        }
+    encoded = repr(value).encode("utf-8")
+    return {
+        "kind": type(value).__name__,
+        "repr_sha256": hashlib.sha256(encoded).hexdigest(),
+    }
+
+
+def _json_normalized(value: dict[str, object]) -> dict[str, object]:
+    return json.loads(json.dumps(value, sort_keys=True))
+
+
+def _serializable_dispatch_record(record: DispatchRecord) -> dict[str, object]:
+    return {
+        "index": record.index,
+        "frame": record.frame,
+        "shader": record.shader,
+        "dispatch_size": record.dispatch_size,
+        "symbols": dict(record.symbols),
+        "push_constant_values": dict(record.push_constant_values),
+        "descriptor_views": record.descriptor_views,
+        "reads": [
+            {
+                "field": field_name,
+                "tensor": tensor.name,
+                "writer": None
+                if tensor.writer is None
+                else {
+                    "frame": tensor.writer.frame,
+                    "shader": tensor.writer.shader,
+                    "dispatch_index": tensor.writer.dispatch_index,
+                },
+            }
+            for field_name, tensor in record.reads
+        ],
+        "writes": [
+            {
+                "field": field_name,
+                "tensor": tensor.name,
+                "writer": None
+                if tensor.writer is None
+                else {
+                    "frame": tensor.writer.frame,
+                    "shader": tensor.writer.shader,
+                    "dispatch_index": tensor.writer.dispatch_index,
+                },
+            }
+            for field_name, tensor in record.writes
+        ],
+    }
 
 
 def _call_reference_model(
@@ -806,15 +1472,20 @@ def _call_reference_model(
 def _make_output_hook(
     *,
     tensor: LogicalTensor,
+    root_model: object,
     captured: dict[str, object],
 ):
     def _hook(_module: object, _inputs: object, output: object) -> None:
         probe = tensor.pytorch_probe
         assert probe is not None
-        captured[tensor.name] = select_probe_value(
-            output,
-            index=probe.index,
-            selector=probe.selector,
+        captured[tensor.name] = _apply_probe_transform(
+            select_probe_value(
+                output,
+                index=probe.index,
+                selector=probe.selector,
+            ),
+            transform=probe.transform,
+            root_model=root_model,
         )
 
     return _hook
@@ -823,15 +1494,54 @@ def _make_output_hook(
 def _make_input_hook(
     *,
     tensor: LogicalTensor,
+    root_model: object,
     captured: dict[str, object],
 ):
     def _hook(_module: object, inputs: object, _output: object) -> None:
         probe = tensor.pytorch_probe
         assert probe is not None
-        captured[tensor.name] = select_probe_value(
-            inputs,
-            index=probe.index,
-            selector=probe.selector,
+        captured[tensor.name] = _apply_probe_transform(
+            select_probe_value(
+                inputs,
+                index=probe.index,
+                selector=probe.selector,
+            ),
+            transform=probe.transform,
+            root_model=root_model,
         )
 
     return _hook
+
+
+def _apply_probe_transform(value: object, *, transform: str | None, root_model: object) -> object:
+    if transform is None:
+        return value
+    if transform == "gelu":
+        import torch.nn.functional as F
+
+        return F.gelu(cast(Any, value))
+    if transform == "qwen3_asr_conv_out_add_position":
+        pytorch_value = cast(Any, value)
+        positional_embedding_owner = getattr(root_model, "positional_embedding")
+        positional_embedding = getattr(positional_embedding_owner, "positional_embedding")
+        seqlen = int(pytorch_value.shape[1])
+        return pytorch_value + positional_embedding[:seqlen, :].unsqueeze(0).to(pytorch_value.dtype)
+    raise NotImplementedError(f"PyTorchProbe transform is not implemented: {transform}")
+
+
+def _safe_path_component(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._") or "artifact"
+
+
+def _finite_stat(array: np.ndarray, stat: str) -> float | None:
+    numeric = array.astype(np.float64, copy=False)
+    finite = numeric[np.isfinite(numeric)]
+    if finite.size == 0:
+        return None
+    if stat == "min":
+        return float(finite.min())
+    if stat == "max":
+        return float(finite.max())
+    if stat == "mean":
+        return float(finite.mean())
+    raise ValueError(f"unknown finite stat {stat}")

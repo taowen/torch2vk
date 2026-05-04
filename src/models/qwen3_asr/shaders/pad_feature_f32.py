@@ -14,6 +14,7 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
+from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
 
 
 QWEN3_ASR_PAD_FEATURE_F32 = ShaderVariant(
@@ -27,23 +28,38 @@ QWEN3_ASR_PAD_FEATURE_F32 = ShaderVariant(
                 name="input_features",
                 io_kind=IOKind.INPUT,
                 role="input",
-                contract=TensorContract(dtype="float32", shape=("H", "W")),
+                contract=TensorContract(dtype="float32", shape=("H", "IW")),
+            ),
+            TensorFieldSpec(
+                name="feature_lens",
+                io_kind=IOKind.INPUT,
+                role="input",
+                contract=TensorContract(dtype="int64", shape=(1,)),
             ),
             TensorFieldSpec(
                 name="output",
                 io_kind=IOKind.OUTPUT,
                 role="output",
-                contract=TensorContract(dtype="float32", shape=(1, 1, "H", "W")),
+                contract=TensorContract(dtype="float32", shape=("C", 1, "H", "CW")),
             ),
         ),
         push_constants=PushConstantSpec(
-            size=4,
-            fields=(PushConstantFieldSpec("N", PushConstantType.UINT32, 0, mul("H", "W")),),
+            size=20,
+            fields=(
+                PushConstantFieldSpec("H", PushConstantType.UINT32, 0, "H"),
+                PushConstantFieldSpec("IW", PushConstantType.UINT32, 4, "IW"),
+                PushConstantFieldSpec("C", PushConstantType.UINT32, 8, "C"),
+                PushConstantFieldSpec("CW", PushConstantType.UINT32, 12, "CW"),
+                PushConstantFieldSpec("N", PushConstantType.UINT32, 16, mul(mul("C", "H"), "CW")),
+            ),
         ),
-        dispatch=(ceil_div(mul("H", "W"), 256), 1, 1),
+        dispatch=(ceil_div(mul(mul("C", "H"), "CW"), 256), 1, 1),
     ),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
     source="""
 #version 450
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 layout(std430) buffer;
 
@@ -51,11 +67,19 @@ layout(set = 0, binding = 0) buffer restrict readonly InputBuffer {
     float input_features[];
 };
 
-layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer {
+layout(set = 0, binding = 1) buffer restrict readonly FeatureLensBuffer {
+    int64_t feature_lens[];
+};
+
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer {
     float output_values[];
 };
 
 layout(push_constant) uniform PushConstants {
+    uint H;
+    uint IW;
+    uint C;
+    uint CW;
     uint N;
 } pc;
 
@@ -63,9 +87,16 @@ layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 void main() {
     const uint index = gl_GlobalInvocationID.x;
-    if (index < pc.N) {
-        output_values[index] = input_features[index];
+    if (index >= pc.N) {
+        return;
     }
+
+    const uint cw = index % pc.CW;
+    const uint h = (index / pc.CW) % pc.H;
+    const uint chunk = index / (pc.CW * pc.H);
+    const uint src_t = chunk * 100u + cw;
+    const uint feature_len = uint(feature_lens[0]);
+    output_values[index] = src_t < feature_len && src_t < pc.IW ? input_features[h * pc.IW + src_t] : 0.0;
 }
 """.lstrip(),
 )
