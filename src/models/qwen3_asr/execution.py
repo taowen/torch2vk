@@ -166,7 +166,7 @@ def run_qwen3_asr_greedy_decode_loop(
     _register_prefill_rope(rt, prefill, rope_theta=rope_theta, mrope_section=mrope_section)
     run_qwen3_asr_text_prefill(rt, prefill)
     run_qwen3_asr_token_select(rt, tensors.token_select, logits=prefill.logits)
-    _grow_generated_tokens(rt, tensors, generated_length=1)
+    _append_generated_token(rt, tensors)
 
     prompt_length = prefill.input_ids.concrete_shape[-1]
     decode = tensors.decode
@@ -184,7 +184,7 @@ def run_qwen3_asr_greedy_decode_loop(
         rt.register_inputs({decode.input_ids: next_token.reshape(1, 1)})
         run_qwen3_asr_text_decode(rt, decode, step=step)
         run_qwen3_asr_token_select(rt, tensors.token_select, logits=decode.logits)
-        _grow_generated_tokens(rt, tensors, generated_length=step + 2)
+        _append_generated_token(rt, tensors)
     return tensors.token_select.generated_tokens
 
 
@@ -224,7 +224,13 @@ def _register_decode_rope(
         rope_theta=rope_theta,
         mrope_section=mrope_section,
     )
-    rt.register_inputs({decode.rope_cos: cos, decode.rope_sin: sin})
+    rt.register_inputs(
+        {
+            decode.cache_position: np.array([cache_position], dtype=np.int64),
+            decode.rope_cos: cos,
+            decode.rope_sin: sin,
+        }
+    )
 
 
 def _grow_kv_caches_for_next_decode_step(rt: RuntimeSession, tensors: Qwen3AsrTextTensors) -> None:
@@ -234,14 +240,21 @@ def _grow_kv_caches_for_next_decode_step(rt: RuntimeSession, tensors: Qwen3AsrTe
             rt.grow_request_state(cache, (batch, heads, cache_length + 1, head_dim))
 
 
-def _grow_generated_tokens(
+def _append_generated_token(
     rt: RuntimeSession,
     tensors: Qwen3AsrTextTensors,
-    *,
-    generated_length: int,
 ) -> None:
-    batch, _length = tensors.token_select.generated_tokens.concrete_shape
-    rt.grow_request_state(tensors.token_select.generated_tokens, (batch, generated_length))
+    generated = tensors.token_select.generated_tokens
+    batch, length = generated.concrete_shape
+    next_token = rt.read_request_state(tensors.token_select.next_token).reshape(batch, 1)
+    previous = (
+        np.empty((batch, 0), dtype=np.int64)
+        if length == 0
+        else rt.read_request_state(generated)
+    )
+    updated = np.ascontiguousarray(np.concatenate([previous, next_token], axis=1), dtype=np.int64)
+    rt.grow_request_state(generated, updated.shape)
+    rt.initialize_request_state({generated: updated})
 
 
 def _normalize_optional_language(

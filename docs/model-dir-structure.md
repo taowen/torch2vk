@@ -160,9 +160,10 @@ forward(..., input_features, feature_lens=None)
 => input_features=<registered value>
 ```
 
-只有 `role == INPUT`、已经通过 `register_inputs()` 注册、logical name 以当前 frame name 加 `.` 为前缀，
-且前缀后的 basename 命中 PyTorch forward 参数名的 tensor 会被传给 PyTorch。没有命中 forward 参数名的
-输入可以作为当前 Vulkan 临时入口继续存在，例如当前 qwen3_asr 的 `qwen3_asr.audio_tower.padded_feature`，
+只有 `role == INPUT`、已经通过 `register_inputs()` 注册、logical name 以当前 frame name 加 `.` 为前缀
+或以 frame 显式声明的 `pytorch_input_prefixes` 为前缀，且前缀后的 basename 命中 PyTorch forward 参数名的
+tensor 会被传给 PyTorch。没有命中 forward 参数名的输入可以作为当前 Vulkan 临时入口继续存在，例如当前
+qwen3_asr 的 `qwen3_asr.audio_tower.padded_feature`，
 它只被 shader 消费，不会传给 PyTorch。
 
 `RuntimeSession.open(..., model_dir=...)` 设置权重 checkpoint 根目录。`LogicalTensor` 的

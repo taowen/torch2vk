@@ -59,7 +59,7 @@ QWEN3_ASR_TEXT_ATTENTION_PREFILL_F32 = ShaderVariant(
                 PushConstantFieldSpec("QH", PushConstantType.UINT32, 20, "QH"),
             ),
         ),
-        dispatch=(ceil_div("T", 4), ceil_div("QH", "D"), 1),
+        dispatch=(ceil_div("T", 2), ceil_div("QH", "D"), 1),
     ),
     execution_requirements=ShaderExecutionRequirements(
         subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)
@@ -98,28 +98,29 @@ layout(push_constant) uniform PushConstants {
     uint QH;
 } pc;
 
-layout(local_size_x = 64, local_size_y = 4, local_size_z = 1) in;
+layout(local_size_x = 128, local_size_y = 2, local_size_z = 1) in;
 
-const uint QUERY_ROWS = 4u;
+const uint QUERY_ROWS = 2u;
 const float NEG_INF = -3.4028234663852886e38;
 
-shared float subgroup_dot[4][4];
-shared float k_tile[64];
-shared float v_tile[64];
+shared float subgroup_dot[2][4];
+shared float k_tile[128];
+shared float v_tile[128];
 
 void main() {
     const uint query_lane = gl_LocalInvocationID.y;
     const uint query_row = gl_WorkGroupID.x * QUERY_ROWS + query_lane;
     const uint q_head = gl_WorkGroupID.y;
     const uint dim = gl_LocalInvocationID.x;
-    if (q_head >= pc.num_q_heads || dim >= pc.head_dim) {
+    if (q_head >= pc.num_q_heads) {
         return;
     }
+    const bool valid_dim = dim < pc.head_dim;
 
     const uint kv_head = q_head * pc.num_kv_heads / pc.num_q_heads;
     const uint q_base = query_row * pc.QH + q_head * pc.head_dim;
     const bool valid_query = query_row < pc.T;
-    const float q_value = valid_query ? q_values[q_base + dim] : 0.0;
+    const float q_value = valid_query && valid_dim ? q_values[q_base + dim] : 0.0;
     const float scale = inversesqrt(float(pc.head_dim));
 
     float running_max = NEG_INF;
@@ -130,19 +131,19 @@ void main() {
     for (uint key_pos = 0u; key_pos < pc.T; ++key_pos) {
         if (query_lane == 0u) {
             const uint cache_base = cache_head_base + key_pos * pc.head_dim;
-            k_tile[dim] = key_cache[cache_base + dim];
-            v_tile[dim] = value_cache[cache_base + dim];
+            k_tile[dim] = valid_dim ? key_cache[cache_base + dim] : 0.0;
+            v_tile[dim] = valid_dim ? value_cache[cache_base + dim] : 0.0;
         }
         barrier();
 
-        const float dot_part = q_value * k_tile[dim];
+        const float dot_part = valid_dim ? q_value * k_tile[dim] : 0.0;
         const float dot_sum = subgroupAdd(dot_part);
         if (gl_SubgroupInvocationID == 0u) {
             subgroup_dot[query_lane][dim / gl_SubgroupSize] = dot_sum;
         }
         barrier();
 
-        if (valid_query) {
+        if (valid_query && valid_dim) {
             float dot = 0.0;
             for (uint i = 0u; i < (pc.head_dim + gl_SubgroupSize - 1u) / gl_SubgroupSize; ++i) {
                 dot += subgroup_dot[query_lane][i];
@@ -159,7 +160,7 @@ void main() {
         barrier();
     }
 
-    if (valid_query && running_sum > 0.0) {
+    if (valid_query && valid_dim && running_sum > 0.0) {
         output_values[query_row * pc.QH + q_head * pc.head_dim + dim] = acc / running_sum;
     }
 }

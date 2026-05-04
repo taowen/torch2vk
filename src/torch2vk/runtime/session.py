@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import inspect
 import json
@@ -14,7 +15,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING, Protocol, TypeGuard
+from typing import TYPE_CHECKING, Literal, Protocol, TypeGuard
 
 import numpy as np
 from vulkan import (
@@ -58,7 +59,12 @@ from torch2vk.runtime.shader import (
 from torch2vk.vulkan.allocation import BufferAllocation, BufferSlice
 from torch2vk.vulkan.compute_pipeline import ComputePipeline, DescriptorBufferBinding
 from torch2vk.vulkan.device import VulkanDevice
-from torch2vk.vulkan.types import TensorSpec, bind_tensor_layout_symbols, concrete_nbytes
+from torch2vk.vulkan.types import (
+    TensorSpec,
+    bind_tensor_layout_symbols,
+    concrete_nbytes,
+    dtype_nbytes,
+)
 
 if TYPE_CHECKING:
     import torch
@@ -82,6 +88,8 @@ class _ForwardHookModuleLike(Protocol):
 
 class _TorchTensorLike(Protocol):
     def detach(self) -> "_TorchTensorLike": ...
+
+    def clone(self) -> "_TorchTensorLike": ...
 
     def cpu(self) -> "_TorchTensorLike": ...
 
@@ -115,7 +123,7 @@ class _ParametersLike(Protocol):
     def parameters(self) -> Iterable[object]: ...
 
 
-_PYTORCH_ARTIFACT_CACHE_VERSION = 1
+_PYTORCH_ARTIFACT_CACHE_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,6 +164,7 @@ class RuntimeSession:
         self._compare_results: list[TensorCompareResult] = []
         self._pipeline_cache: dict[tuple[object, ...], ComputePipeline] = {}
         self._pytorch_models: dict[object, object] = {}
+        self._pytorch_cache_states: dict[str, object] = {}
         self._model_allocations: list[BufferAllocation] = []
         self._request_allocations: list[BufferAllocation] = []
         self._frame_allocations: list[tuple[LogicalTensor, BufferAllocation]] = []
@@ -290,6 +299,11 @@ class RuntimeSession:
         old_logical_nbytes = _tensor_nbytes(tensor.spec)
         new_spec = tensor.spec.with_shape(*resolved_new_shape)
         new_logical_nbytes = _tensor_nbytes(new_spec)
+        requires_relayout = _request_state_growth_requires_relayout(
+            tensor=tensor,
+            old_shape=old_shape,
+            new_shape=resolved_new_shape,
+        )
         if new_logical_nbytes == 0:
             with tensor.runtime_write_scope():
                 tensor.spec = new_spec
@@ -297,7 +311,7 @@ class RuntimeSession:
                 tensor.version += 1
             return
         buffer = tensor.buffer
-        if buffer is not None and buffer.nbytes >= new_logical_nbytes:
+        if buffer is not None and buffer.nbytes >= new_logical_nbytes and not requires_relayout:
             with tensor.runtime_write_scope():
                 tensor.spec = new_spec
                 tensor.descriptor_nbytes = new_logical_nbytes
@@ -308,6 +322,8 @@ class RuntimeSession:
             old_capacity_nbytes=0 if buffer is None else buffer.nbytes,
             required_nbytes=new_logical_nbytes,
         )
+        if requires_relayout and buffer is not None:
+            new_capacity_nbytes = max(new_capacity_nbytes, buffer.nbytes)
         new_allocation = self.device.memory_manager.allocate_device_local_buffer(
             new_capacity_nbytes,
             usage_flags=VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
@@ -317,21 +333,14 @@ class RuntimeSession:
         old_allocation = None if buffer is None else buffer.allocation
         try:
             if buffer is not None and old_logical_nbytes > 0:
-                copy_nbytes = min(
-                    old_logical_nbytes,
-                    tensor.descriptor_nbytes
-                    if tensor.descriptor_nbytes is not None
-                    else old_logical_nbytes,
-                    buffer.nbytes,
+                self._copy_grown_request_state(
+                    tensor=tensor,
+                    source=buffer,
+                    destination=new_allocation,
+                    old_shape=old_shape,
+                    new_shape=resolved_new_shape,
+                    old_logical_nbytes=old_logical_nbytes,
                 )
-                if copy_nbytes > 0:
-                    self.device.copy_buffer(
-                        buffer.allocation.buffer,
-                        new_allocation.buffer,
-                        copy_nbytes,
-                        src_offset=buffer.offset,
-                        dst_offset=new_allocation.offset,
-                    )
             elif old_logical_nbytes > 0:
                 raise RuntimeError(
                     f"{tensor.name} cannot grow from non-empty logical shape before it is materialized"
@@ -351,6 +360,44 @@ class RuntimeSession:
             raise
         if old_allocation is not None:
             self._release_request_allocation(old_allocation)
+
+    def _copy_grown_request_state(
+        self,
+        *,
+        tensor: LogicalTensor,
+        source: BufferSlice,
+        destination: BufferAllocation,
+        old_shape: tuple[int, ...],
+        new_shape: tuple[int, ...],
+        old_logical_nbytes: int,
+    ) -> None:
+        descriptor_nbytes = (
+            old_logical_nbytes if tensor.descriptor_nbytes is None else tensor.descriptor_nbytes
+        )
+        readable_nbytes = min(old_logical_nbytes, descriptor_nbytes, source.nbytes)
+        if tensor.semantic is TensorSemantic.KV_CACHE:
+            if readable_nbytes < old_logical_nbytes:
+                raise RuntimeError(
+                    f"{tensor.name} cannot preserve partially materialized KV cache "
+                    f"({readable_nbytes} of {old_logical_nbytes} bytes)"
+                )
+            _copy_grown_kv_cache(
+                device=self.device,
+                source=source,
+                destination=destination,
+                dtype=tensor.spec.dtype,
+                old_shape=old_shape,
+                new_shape=new_shape,
+            )
+            return
+        if readable_nbytes > 0:
+            self.device.copy_buffer(
+                source.allocation.buffer,
+                destination.buffer,
+                readable_nbytes,
+                src_offset=source.offset,
+                dst_offset=destination.offset,
+            )
 
     def release_request_state(self, tensors: Sequence[LogicalTensor] | None = None) -> None:
         """Release selected request-state buffers, or all request allocations when omitted."""
@@ -392,10 +439,21 @@ class RuntimeSession:
         pytorch_model_submodule: str | None = None,
         pytorch_args: tuple[object, ...] = (),
         pytorch_kwargs: Mapping[str, object] | None = None,
+        pytorch_input_prefixes: Sequence[str] = (),
+        pytorch_cache_policy: str = "none",
+        pytorch_cache_namespace: str | None = None,
+        pytorch_reset_cache: bool = False,
         reference_model: object | None = None,
     ):
         if not name:
             raise ValueError("frame name must be non-empty")
+        cache_policy: Literal["none", "hf_dynamic"]
+        if pytorch_cache_policy == "none":
+            cache_policy = "none"
+        elif pytorch_cache_policy == "hf_dynamic":
+            cache_policy = "hf_dynamic"
+        else:
+            raise ValueError(f"Unsupported PyTorch cache policy: {pytorch_cache_policy!r}")
         if pytorch_model is None and pytorch_model_class is not None:
             loaded = self._load_pytorch_model(pytorch_model_class)
             if loaded is not None and pytorch_model_submodule:
@@ -408,6 +466,10 @@ class RuntimeSession:
             pytorch_model=pytorch_model,
             pytorch_args=tuple(pytorch_args),
             pytorch_kwargs={} if pytorch_kwargs is None else dict(pytorch_kwargs),
+            pytorch_input_prefixes=tuple(pytorch_input_prefixes),
+            pytorch_cache_policy=cache_policy,
+            pytorch_cache_namespace=pytorch_cache_namespace,
+            pytorch_reset_cache=pytorch_reset_cache,
             reference_model=reference_model,
         )
         self._frame_stack.append(context)
@@ -562,21 +624,10 @@ class RuntimeSession:
             tensor for tensor in written if tensor.pytorch_probe is not None
         )
         if not probe_targets:
+            if _is_stateful_pytorch_frame(frame):
+                self._run_pytorch_probes(frame, [])
             return
-        expected_by_tensor, missing_probe_targets = self._load_cached_pytorch_artifacts(
-            frame,
-            probe_targets,
-            frame.pytorch_model,
-        )
-        if missing_probe_targets:
-            captured = self._run_pytorch_probes(frame, missing_probe_targets)
-            expected_by_tensor.update(captured)
-            self._store_cached_pytorch_artifacts(
-                frame,
-                missing_probe_targets,
-                frame.pytorch_model,
-                captured,
-            )
+        expected_by_tensor = self._expected_pytorch_artifacts(frame, probe_targets)
         for tensor in probe_targets:
             try:
                 expected = expected_by_tensor[tensor.name]
@@ -599,11 +650,21 @@ class RuntimeSession:
         probe_targets = [tensor for tensor in tensors if tensor.pytorch_probe is not None]
         if not probe_targets:
             return {}
-        expected_by_tensor, missing_probe_targets = self._load_cached_pytorch_artifacts(
-            frame,
-            probe_targets,
-            frame.pytorch_model,
-        )
+        expected_by_tensor = {
+            tensor.name: frame.pytorch_captured_artifacts[tensor.name]
+            for tensor in probe_targets
+            if tensor.name in frame.pytorch_captured_artifacts
+        }
+        missing_probe_targets = [
+            tensor for tensor in probe_targets if tensor.name not in expected_by_tensor
+        ]
+        if missing_probe_targets and not _is_stateful_pytorch_frame(frame):
+            cached, missing_probe_targets = self._load_cached_pytorch_artifacts(
+                frame,
+                missing_probe_targets,
+                frame.pytorch_model,
+            )
+            expected_by_tensor.update(cached)
         if missing_probe_targets:
             captured = self._run_pytorch_probes(frame, missing_probe_targets)
             expected_by_tensor.update(captured)
@@ -1106,7 +1167,13 @@ class RuntimeSession:
                 "compare": None if tensor.compare is None else asdict(tensor.compare),
             },
             "probe": None if probe is None else asdict(probe),
-            "inputs": self._frame_input_fingerprints(frame.frame),
+            "inputs": self._frame_input_fingerprints(frame),
+            "pytorch_frame": {
+                "input_prefixes": _pytorch_input_prefixes(frame),
+                "cache_policy": frame.pytorch_cache_policy,
+                "cache_namespace": frame.pytorch_cache_namespace,
+                "reset_cache": frame.pytorch_reset_cache,
+            },
             "explicit_pytorch_args": [
                 self._pytorch_value_fingerprint(value) for value in frame.pytorch_args
             ],
@@ -1117,11 +1184,12 @@ class RuntimeSession:
             "model": self._model_fingerprint(model),
         }
 
-    def _frame_input_fingerprints(self, frame_name: str) -> list[dict[str, object]]:
-        prefix = f"{frame_name}."
+    def _frame_input_fingerprints(self, frame: FrameContext) -> list[dict[str, object]]:
         entries: list[dict[str, object]] = []
         for tensor, value in self._inputs.items():
-            if tensor.role is not TensorRole.INPUT or not tensor.name.startswith(prefix):
+            if tensor.role is not TensorRole.INPUT:
+                continue
+            if not any(tensor.name.startswith(prefix) for prefix in _pytorch_input_prefixes(frame)):
                 continue
             entries.append(
                 {
@@ -1182,6 +1250,8 @@ class RuntimeSession:
         frame: FrameContext,
         tensors: list[LogicalTensor],
     ) -> dict[str, object]:
+        import torch
+
         model = frame.pytorch_model
         if model is None:
             raise RuntimeError("PyTorch probe requested without pytorch_model")
@@ -1225,12 +1295,28 @@ class RuntimeSession:
                     f"{tensor.name} unsupported PyTorchProbe kind: {probe.kind}"
                 )
 
-        args, kwargs = self._pytorch_forward_inputs(frame, model)
+        cache_overrides, update_cache_state = self._prepare_pytorch_cache_probe_run(
+            frame=frame,
+            model=model,
+        )
+        args, kwargs = self._pytorch_forward_inputs(
+            frame,
+            model,
+            cache_overrides=cache_overrides,
+        )
         try:
-            output = module_like(*args, **kwargs)
+            with torch.no_grad():
+                output = module_like(*args, **kwargs)
         finally:
             for hook in hooks:
                 hook.remove()
+        frame.pytorch_forward_ran = True
+        self._capture_pytorch_cache_state(
+            frame=frame,
+            model=model,
+            output=output,
+            update_cache_state=update_cache_state,
+        )
 
         for tensor in root_output_tensors:
             probe = tensor.pytorch_probe
@@ -1242,53 +1328,148 @@ class RuntimeSession:
                 index=probe.index,
                 selector=probe.selector,
             )
+        frame.pytorch_captured_artifacts.update(captured)
         return captured
+
+    def _prepare_pytorch_cache_probe_run(
+        self,
+        *,
+        frame: FrameContext,
+        model: object,
+    ) -> tuple[dict[str, object], bool]:
+        if not _is_stateful_pytorch_frame(frame):
+            return {}, True
+        namespace = _pytorch_cache_namespace(frame=frame, model=model)
+        if not frame.pytorch_forward_ran:
+            cache = self._ensure_pytorch_cache_state(frame=frame, model=model)
+            if cache is not None:
+                frame.pytorch_cache_input_snapshots[namespace] = _clone_pytorch_cache(
+                    cache,
+                    model=model,
+                )
+            return {}, True
+        try:
+            snapshot = frame.pytorch_cache_input_snapshots[namespace]
+        except KeyError:
+            return {}, False
+        return {namespace: _clone_pytorch_cache(snapshot, model=model)}, False
+
+    def _capture_pytorch_cache_state(
+        self,
+        *,
+        frame: FrameContext,
+        model: object,
+        output: object,
+        update_cache_state: bool,
+    ) -> None:
+        if not update_cache_state or not _is_stateful_pytorch_frame(frame):
+            return
+        past_key_values = getattr(output, "past_key_values", None)
+        if past_key_values is not None:
+            namespace = _pytorch_cache_namespace(frame=frame, model=model)
+            self._pytorch_cache_states[namespace] = past_key_values
 
     def _pytorch_forward_inputs(
         self,
         frame: FrameContext,
         model: object,
+        *,
+        cache_overrides: Mapping[str, object] | None = None,
     ) -> tuple[tuple[object, ...], dict[str, object]]:
+        parameter_names = _pytorch_forward_parameter_names(model)
         if frame.pytorch_args or frame.pytorch_kwargs:
-            return (
-                tuple(self._resolve_pytorch_value(value) for value in frame.pytorch_args),
-                {
-                    key: self._resolve_pytorch_value(value)
-                    for key, value in frame.pytorch_kwargs.items()
-                },
+            kwargs = {
+                key: self._resolve_pytorch_value(value)
+                for key, value in frame.pytorch_kwargs.items()
+            }
+            self._configure_pytorch_cache_kwargs(
+                frame=frame,
+                model=model,
+                parameter_names=parameter_names,
+                kwargs=kwargs,
+                cache_overrides={} if cache_overrides is None else cache_overrides,
             )
-        return (), self._infer_pytorch_kwargs(frame=frame, model=model)
+            return tuple(self._resolve_pytorch_value(value) for value in frame.pytorch_args), kwargs
+        kwargs = self._infer_pytorch_kwargs(
+            frame=frame,
+            model=model,
+            parameter_names=parameter_names,
+            cache_overrides={} if cache_overrides is None else cache_overrides,
+        )
+        return (), kwargs
 
-    def _infer_pytorch_kwargs(self, *, frame: FrameContext, model: object) -> dict[str, object]:
+    def _infer_pytorch_kwargs(
+        self,
+        *,
+        frame: FrameContext,
+        model: object,
+        parameter_names: set[str],
+        cache_overrides: Mapping[str, object],
+    ) -> dict[str, object]:
         import torch
 
-        forward = getattr(model, "forward", model)
-        if not callable(forward):
-            raise TypeError(f"PyTorch model forward is not callable: {type(model).__name__}")
-        signature = inspect.signature(forward)
-        parameter_names = {
-            name
-            for name, parameter in signature.parameters.items()
-            if name != "self"
-            and parameter.kind
-            in {
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                inspect.Parameter.KEYWORD_ONLY,
-            }
-        }
         device = self._pytorch_model_device(model)
-        prefix = f"{frame.frame}."
         kwargs: dict[str, object] = {}
         for tensor, value in self._inputs.items():
-            if tensor.role is not TensorRole.INPUT or not tensor.name.startswith(prefix):
+            if tensor.role is not TensorRole.INPUT:
                 continue
-            kwarg = tensor.name.removeprefix(prefix)
+            kwarg = None
+            for prefix in _pytorch_input_prefixes(frame):
+                if tensor.name.startswith(prefix):
+                    kwarg = tensor.name.removeprefix(prefix)
+                    break
+            if kwarg is None:
+                continue
             if kwarg in parameter_names:
                 pytorch_value = self._as_pytorch_input(value)
                 if isinstance(pytorch_value, torch.Tensor):
                     pytorch_value = pytorch_value.to(device)
                 kwargs[kwarg] = pytorch_value
+        self._configure_pytorch_cache_kwargs(
+            frame=frame,
+            model=model,
+            parameter_names=parameter_names,
+            kwargs=kwargs,
+            cache_overrides=cache_overrides,
+        )
         return kwargs
+
+    def _configure_pytorch_cache_kwargs(
+        self,
+        *,
+        frame: FrameContext,
+        model: object,
+        parameter_names: set[str],
+        kwargs: dict[str, object],
+        cache_overrides: Mapping[str, object],
+    ) -> None:
+        if not _is_stateful_pytorch_frame(frame):
+            return
+        if "use_cache" in parameter_names:
+            kwargs.setdefault("use_cache", True)
+        if "past_key_values" not in parameter_names:
+            return
+        namespace = _pytorch_cache_namespace(frame=frame, model=model)
+        past_key_values = cache_overrides.get(namespace)
+        if past_key_values is None:
+            past_key_values = self._ensure_pytorch_cache_state(frame=frame, model=model)
+        if past_key_values is not None:
+            kwargs.setdefault("past_key_values", past_key_values)
+
+    def _ensure_pytorch_cache_state(self, *, frame: FrameContext, model: object) -> object | None:
+        namespace = _pytorch_cache_namespace(frame=frame, model=model)
+        if frame.pytorch_reset_cache and not frame.pytorch_forward_ran:
+            cache = _new_hf_dynamic_cache(model)
+            if cache is not None:
+                self._pytorch_cache_states[namespace] = cache
+            return cache
+        try:
+            return self._pytorch_cache_states[namespace]
+        except KeyError:
+            cache = _new_hf_dynamic_cache(model)
+            if cache is not None:
+                self._pytorch_cache_states[namespace] = cache
+            return cache
 
     def _resolve_pytorch_value(self, value: object) -> object:
         if isinstance(value, LogicalTensor):
@@ -1721,6 +1902,47 @@ def _validate_request_state_growth_shape(
         )
 
 
+def _request_state_growth_requires_relayout(
+    *,
+    tensor: LogicalTensor,
+    old_shape: tuple[int, ...],
+    new_shape: tuple[int, ...],
+) -> bool:
+    return tensor.semantic is TensorSemantic.KV_CACHE and old_shape != new_shape
+
+
+def _copy_grown_kv_cache(
+    *,
+    device: VulkanDevice,
+    source: BufferSlice,
+    destination: BufferAllocation,
+    dtype: str,
+    old_shape: tuple[int, ...],
+    new_shape: tuple[int, ...],
+) -> None:
+    batch, heads, old_sequence, head_dim = old_shape
+    new_batch, new_heads, new_sequence, new_head_dim = new_shape
+    if (batch, heads, head_dim) != (new_batch, new_heads, new_head_dim):
+        raise ValueError(
+            "KV cache relayout only supports growing sequence dimension; "
+            f"old_shape={old_shape}, new_shape={new_shape}"
+        )
+    element_nbytes = dtype_nbytes(dtype)
+    segment_nbytes = old_sequence * head_dim * element_nbytes
+    if segment_nbytes == 0:
+        return
+    source_stride_nbytes = segment_nbytes
+    destination_stride_nbytes = new_sequence * head_dim * element_nbytes
+    for segment in range(batch * heads):
+        device.copy_buffer(
+            source.allocation.buffer,
+            destination.buffer,
+            segment_nbytes,
+            src_offset=source.offset + segment * source_stride_nbytes,
+            dst_offset=destination.offset + segment * destination_stride_nbytes,
+        )
+
+
 def _require_only_growth_dim(
     *,
     tensor: LogicalTensor,
@@ -1746,6 +1968,23 @@ def _grown_request_state_capacity_nbytes(
     if old_capacity_nbytes <= 0:
         return required_nbytes
     return max(required_nbytes, old_capacity_nbytes * 2)
+
+
+def _pytorch_forward_parameter_names(model: object) -> set[str]:
+    forward = getattr(model, "forward", model)
+    if not callable(forward):
+        raise TypeError(f"PyTorch model forward is not callable: {type(model).__name__}")
+    signature = inspect.signature(forward)
+    return {
+        name
+        for name, parameter in signature.parameters.items()
+        if name != "self"
+        and parameter.kind
+        in {
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        }
+    }
 
 
 def _descriptor_view_for_field(
@@ -1827,6 +2066,82 @@ def _default_frame_compare_targets(written: Iterable[LogicalTensor]) -> list[Log
     if not comparable:
         return []
     return [comparable[-1]]
+
+
+def _pytorch_input_prefixes(frame: FrameContext) -> tuple[str, ...]:
+    prefixes = [_normalize_pytorch_input_prefix(frame.frame)]
+    prefixes.extend(
+        _normalize_pytorch_input_prefix(prefix) for prefix in frame.pytorch_input_prefixes
+    )
+    return tuple(dict.fromkeys(prefixes))
+
+
+def _normalize_pytorch_input_prefix(prefix: str) -> str:
+    if not prefix:
+        raise ValueError("PyTorch input prefix must be non-empty")
+    return prefix if prefix.endswith(".") else f"{prefix}."
+
+
+def _is_stateful_pytorch_frame(frame: FrameContext) -> bool:
+    return frame.pytorch_cache_policy != "none"
+
+
+def _pytorch_cache_namespace(*, frame: FrameContext, model: object) -> str:
+    if frame.pytorch_cache_namespace is not None:
+        return frame.pytorch_cache_namespace
+    model_type = type(model)
+    return f"{model_type.__module__}.{model_type.__qualname__}:{id(model)}"
+
+
+def _new_hf_dynamic_cache(model: object) -> object | None:
+    try:
+        from transformers.cache_utils import DynamicCache
+    except ImportError:
+        return None
+    text_model = getattr(model, "model", None)
+    config = getattr(text_model, "config", getattr(model, "config", None))
+    if config is None:
+        return None
+    return DynamicCache(config=config)
+
+
+def _clone_pytorch_cache(cache: object, *, model: object) -> object:
+    cloned = _clone_hf_dynamic_cache(cache=cache, model=model)
+    if cloned is not None:
+        return cloned
+    try:
+        return copy.deepcopy(cache)
+    except Exception as exc:
+        raise RuntimeError(
+            "Stateful PyTorch debug frames need a cloneable cache so drilldown can "
+            "rerun probes without advancing the live reference state"
+        ) from exc
+
+
+def _clone_hf_dynamic_cache(*, cache: object, model: object) -> object | None:
+    if type(cache).__name__ != "DynamicCache" or not hasattr(cache, "layers"):
+        return None
+    cloned = _new_hf_dynamic_cache(model)
+    if cloned is None or not hasattr(cloned, "layers"):
+        return None
+    layers = getattr(cache, "layers")
+    cloned_layers = getattr(cloned, "layers")
+    if not isinstance(layers, list) or not isinstance(cloned_layers, list):
+        return None
+    for layer_index, layer in enumerate(layers):
+        if layer_index >= len(cloned_layers):
+            return None
+        if not bool(getattr(layer, "is_initialized", False)):
+            continue
+        keys = getattr(layer, "keys", None)
+        values = getattr(layer, "values", None)
+        if not _is_torch_tensor(keys) or not _is_torch_tensor(values):
+            return None
+        cloned_layers[layer_index].update(
+            keys.detach().clone(),
+            values.detach().clone(),
+        )
+    return cloned
 
 
 def _is_torch_tensor(value: object) -> TypeGuard[_TorchTensorLike]:

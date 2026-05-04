@@ -55,7 +55,12 @@ QWEN3_ASR_TEXT_KV_CACHE_WRITE_F32 = ShaderVariant(
                 PushConstantFieldSpec("num_kv_heads", PushConstantType.UINT32, 4, "NK"),
                 PushConstantFieldSpec("head_dim", PushConstantType.UINT32, 8, "D"),
                 PushConstantFieldSpec("S", PushConstantType.UINT32, 12, "S"),
-                PushConstantFieldSpec("cache_offset", PushConstantType.UINT32, 16, 0),
+                PushConstantFieldSpec(
+                    "cache_offset",
+                    PushConstantType.UINT32,
+                    16,
+                    lambda _tensors, symbols: symbols["S"] - symbols["T"],
+                ),
             ),
         ),
         dispatch=(ceil_div(mul("T", "KH"), 256), 1, 1),

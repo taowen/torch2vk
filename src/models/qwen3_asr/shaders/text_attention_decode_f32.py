@@ -55,7 +55,7 @@ QWEN3_ASR_TEXT_ATTENTION_DECODE_F32 = ShaderVariant(
                 PushConstantFieldSpec("num_kv_heads", PushConstantType.UINT32, 4, "NK"),
                 PushConstantFieldSpec("head_dim", PushConstantType.UINT32, 8, "D"),
                 PushConstantFieldSpec("S", PushConstantType.UINT32, 12, "S"),
-                PushConstantFieldSpec("cache_len", PushConstantType.UINT32, 16, 0),
+                PushConstantFieldSpec("cache_len", PushConstantType.UINT32, 16, "S"),
                 PushConstantFieldSpec("QH", PushConstantType.UINT32, 20, "QH"),
             ),
         ),
@@ -99,27 +99,22 @@ layout(push_constant) uniform PushConstants {
 } pc;
 
 // One workgroup per Q head. Each thread handles one head dimension.
-// For head_dim > local_size_x, threads loop; for head_dim < local_size_x, some idle.
-layout(local_size_x = 64, local_size_y = 4, local_size_z = 1) in;
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
 const float NEG_INF = -3.4028234663852886e38;
 
-shared float subgroup_dot[4][4];
+shared float subgroup_dot[4];
 
 void main() {
-    // Reuse the same workgroup layout as prefill: 64x4 = 256 threads.
-    // For decode, we have only 1 query row, so query_lane 1..3 participate
-    // in the dot product reduction but don't produce independent output rows.
-    const uint query_lane = gl_LocalInvocationID.y;
     const uint q_head = gl_WorkGroupID.x;
     const uint dim = gl_LocalInvocationID.x;
-    if (q_head >= pc.num_q_heads || dim >= pc.head_dim) {
+    if (q_head >= pc.num_q_heads) {
         return;
     }
+    const bool valid_dim = dim < pc.head_dim;
 
     const uint kv_head = q_head * pc.num_kv_heads / pc.num_q_heads;
-    // Only lane 0 is the actual query; lanes 1-3 help load but produce no output
-    const float q_value = (query_lane == 0u) ? q_values[q_head * pc.head_dim + dim] : 0.0;
+    const float q_value = valid_dim ? q_values[q_head * pc.head_dim + dim] : 0.0;
     const float scale = inversesqrt(float(pc.head_dim));
 
     float running_max = NEG_INF;
@@ -128,31 +123,21 @@ void main() {
 
     const uint cache_head_base = kv_head * pc.S * pc.head_dim;
     for (uint key_pos = 0u; key_pos < pc.cache_len; ++key_pos) {
-        // All query lanes load the same K/V tile (reuse prefill structure)
-        float k_val, v_val;
-        if (query_lane == 0u) {
-            k_val = key_cache[cache_head_base + key_pos * pc.head_dim + dim];
-            v_val = value_cache[cache_head_base + key_pos * pc.head_dim + dim];
-        } else {
-            k_val = 0.0;
-            v_val = 0.0;
+        const float k_val = valid_dim ? key_cache[cache_head_base + key_pos * pc.head_dim + dim] : 0.0;
+        const float v_val = valid_dim ? value_cache[cache_head_base + key_pos * pc.head_dim + dim] : 0.0;
+        barrier();
+
+        const float dot_part = valid_dim ? q_value * k_val : 0.0;
+        const float dot_sum = subgroupAdd(dot_part);
+        if (gl_SubgroupInvocationID == 0u) {
+            subgroup_dot[dim / gl_SubgroupSize] = dot_sum;
         }
         barrier();
 
-        // Only lane 0 participates in score computation
-        if (query_lane == 0u) {
-            const float dot_part = q_value * k_val;
-            const float dot_sum = subgroupAdd(dot_part);
-            if (gl_SubgroupInvocationID == 0u) {
-                subgroup_dot[0][dim / gl_SubgroupSize] = dot_sum;
-            }
-        }
-        barrier();
-
-        if (query_lane == 0u) {
+        if (valid_dim) {
             float dot = 0.0;
             for (uint i = 0u; i < (pc.head_dim + gl_SubgroupSize - 1u) / gl_SubgroupSize; ++i) {
-                dot += subgroup_dot[0][i];
+                dot += subgroup_dot[i];
             }
             const float score = dot * scale;
             const float next_max = max(running_max, score);
@@ -165,7 +150,7 @@ void main() {
         barrier();
     }
 
-    if (query_lane == 0u && running_sum > 0.0) {
+    if (valid_dim && running_sum > 0.0) {
         output_values[q_head * pc.head_dim + dim] = acc / running_sum;
     }
 }

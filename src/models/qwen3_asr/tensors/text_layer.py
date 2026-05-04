@@ -131,7 +131,19 @@ def declare_qwen3_asr_text_layer_tensors(
             cache_shape,
             semantic=TensorSemantic.KV_CACHE,
         ),
-        attention=_activation(f"{tensor_prefix}.self_attn", (1, sequence_length, q_width)),
+        attention=LogicalTensor(
+            name=f"{tensor_prefix}.self_attn",
+            spec=TensorSpec(dtype="float32", shape=(1, sequence_length, q_width)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
+            pytorch_probe=PyTorchProbe(
+                kind="module_input",
+                target=f"model.layers.{layer}.self_attn.o_proj",
+                index=0,
+            ),
+        ),
         o_proj=_probed(
             f"{tensor_prefix}.self_attn.o_proj", hidden_shape,
             target=f"model.layers.{layer}.self_attn.o_proj",

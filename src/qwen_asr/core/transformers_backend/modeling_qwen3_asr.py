@@ -581,16 +581,56 @@ class SinusoidsPositionEmbedding(nn.Module):
         super().__init__()
         if channels % 2 != 0:
             raise ValueError("SinusoidsPositionEmbedding needs even channels input")
-        log_timescale_increment = np.log(max_timescale) / (channels // 2 - 1)
-        inv_timescales = torch.exp(-log_timescale_increment * torch.arange(channels // 2).float())
-        scaled_time = torch.arange(length)[:, np.newaxis] * inv_timescales[np.newaxis, :]
+        self.length = length
+        self.channels = channels
+        self.max_timescale = max_timescale
         self.register_buffer(
             "positional_embedding",
-            torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], dim=1),
+            self._build_embedding(
+                length=length,
+                channels=channels,
+                max_timescale=max_timescale,
+                device=None,
+                dtype=torch.float32,
+            ),
             persistent=False,
         )
 
+    def ensure_initialized(self):
+        embedding = self.positional_embedding
+        expected_shape = (self.length, self.channels)
+        if embedding.shape != expected_shape or embedding.device.type == "meta":
+            self._reset_embedding()
+            return
+        half_channels = self.channels // 2
+        first_row = embedding[0]
+        if torch.allclose(first_row[:half_channels], torch.zeros_like(first_row[:half_channels])) and torch.allclose(
+            first_row[half_channels:], torch.ones_like(first_row[half_channels:])
+        ):
+            return
+        self._reset_embedding()
+
+    def _reset_embedding(self):
+        current = self.positional_embedding
+        self.positional_embedding = self._build_embedding(
+            length=self.length,
+            channels=self.channels,
+            max_timescale=self.max_timescale,
+            device=current.device if current.device.type != "meta" else None,
+            dtype=current.dtype,
+        )
+
+    @staticmethod
+    def _build_embedding(length, channels, max_timescale, device, dtype):
+        log_timescale_increment = np.log(max_timescale) / (channels // 2 - 1)
+        inv_timescales = torch.exp(
+            -log_timescale_increment * torch.arange(channels // 2, device=device).float()
+        )
+        scaled_time = torch.arange(length, device=device)[:, np.newaxis] * inv_timescales[np.newaxis, :]
+        return torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], dim=1).to(dtype=dtype)
+
     def forward(self, seqlen: int):
+        self.ensure_initialized()
         return self.positional_embedding[:seqlen, :]
 
 
@@ -709,6 +749,7 @@ class Qwen3ASRAudioEncoder(Qwen3ASRPreTrainedModel):
         b, c, f, t = padded_embed.size()
         padded_embed = self.conv_out(padded_embed.permute(0, 3, 1, 2).contiguous().view(b, t, c * f))
 
+        self.positional_embedding.ensure_initialized()
         positional_embedding = (
             self.positional_embedding.positional_embedding[: padded_embed.shape[1], :]
             .unsqueeze(0)
@@ -1016,7 +1057,7 @@ class Qwen3ASRThinkerTextModel(Qwen3ASRPreTrainedModel):
             inputs_embeds = self.embed_tokens(input_ids)
 
         if cache_position is None:
-            past_seen_tokens = past_key_values.get_seq_length if past_key_values is not None else 0
+            past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
             cache_position = torch.arange(
                 past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
             )

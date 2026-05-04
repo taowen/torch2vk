@@ -73,7 +73,7 @@ def run_audio_codec_decoder_frame(
 这里的 `pytorch_model` 是 reference provider。`ShaderVariant.__call__` 只调用 `rt.dispatch(...)`，不读写
 PyTorch，也不做 compare。
 
-PyTorch model.forward 的输入不由 frame function 额外传 `pytorch_input`、`pytorch_args` 或
+PyTorch model.forward 的输入默认不由 frame function 额外传 `pytorch_input`、`pytorch_args` 或
 `pytorch_kwargs`。RuntimeSession 只使用 `rt.register_inputs({logical_tensor: value})` 中的输入，并按规则
 推断 PyTorch kwargs：
 
@@ -87,6 +87,37 @@ PyTorch forward 参数: input_features
 如果某个 input tensor 的 logical name 属于当前 frame，但 basename 不在 PyTorch forward 签名里，它不会传给
 PyTorch；这允许迁移阶段保留 Vulkan 暂时消费的中间态输入，例如 `padded_feature`。后续实现上游
 padding/chunk shader 后，再让 Vulkan 改读和 PyTorch 相同的 input tensor。
+
+如果执行 frame 名必须携带 step、tile 或 replay 后缀，但 input tensor 使用稳定 namespace，frame 要显式声明
+`pytorch_input_prefixes`。例如 `qwen3_asr.text_decode.0000` 可以声明
+`pytorch_input_prefixes=("qwen3_asr.text_decode",)`，RuntimeSession 会同时接受当前 frame 前缀和声明的稳定
+前缀。这个声明属于 debug frame contract，禁止在 RuntimeSession 内按模型名硬编码前缀别名。
+
+生成式模型的 PyTorch reference cache 也必须由 frame 显式声明：
+
+```python
+with rt.frame(
+    "qwen3_asr.text_prefill",
+    pytorch_model=thinker,
+    pytorch_cache_policy="hf_dynamic",
+    pytorch_cache_namespace="qwen3_asr.text",
+    pytorch_reset_cache=True,
+):
+    ...
+
+with rt.frame(
+    "qwen3_asr.text_decode.0000",
+    pytorch_model=thinker,
+    pytorch_input_prefixes=("qwen3_asr.text_decode",),
+    pytorch_cache_policy="hf_dynamic",
+    pytorch_cache_namespace="qwen3_asr.text",
+):
+    ...
+```
+
+stateful PyTorch frame 不能依赖 artifact cache 跳过 forward，因为 forward 的副作用会推进 reference cache。
+RuntimeSession 对这类 frame 总是执行 PyTorch forward，并在 frame 第一次 forward 前保存 cache snapshot；后续
+drilldown 需要补抓 probe 时，会用 snapshot 重跑，不推进 live reference cache。
 
 toy MVP 可以先用 `reference_model` manual callable：
 
