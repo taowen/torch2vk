@@ -86,7 +86,7 @@ from torch2vk.vulkan.types import (
 
 if TYPE_CHECKING:
     import torch
-    from torch2vk.runtime.replay import ReplayPlan
+    from torch2vk.runtime.replay import ReplayDispatchEntry, ReplayPlan
 
 
 class _PyTorchModuleLike(Protocol):
@@ -182,6 +182,7 @@ class RuntimeSession:
         self._dispatch_records: list[DispatchRecord] = []
         self._compare_results: list[TensorCompareResult] = []
         self._pipeline_cache: dict[tuple[object, ...], ComputePipeline] = {}
+        self._replay_plan_cache: dict[str, list[ReplayPlan]] = {}
         self._pytorch_models: dict[object, object] = {}
         self._pytorch_cache_states: dict[str, object] = {}
         self._model_allocations: list[BufferAllocation] = []
@@ -1577,6 +1578,7 @@ class RuntimeSession:
         params/indirect buffers.
         """
         from torch2vk.runtime.replay import (
+            ReplayDescriptorBinding,
             ReplayDispatchEntry,
             ReplayPlan,
             ReplayReadbackSlot,
@@ -1628,6 +1630,7 @@ class RuntimeSession:
             }
 
             buffer_views: list[DescriptorBufferBinding] = []
+            descriptor_bindings: list[ReplayDescriptorBinding] = []
             for field in contract.fields:
                 tensor = tensors[field.name]
                 descriptor_tensor = tensor
@@ -1637,6 +1640,11 @@ class RuntimeSession:
                     and tensor.name == token_feedback_target.name
                 ):
                     descriptor_tensor = token_feedback_source
+                descriptor_rebindable = descriptor_tensor.memory not in {
+                    MemoryClass.FRAME_WORKSPACE,
+                    MemoryClass.MODEL_WEIGHT,
+                    MemoryClass.OP_SCRATCH,
+                }
                 if descriptor_tensor.buffer is None:
                     nbytes = _tensor_nbytes(descriptor_tensor.spec)
                     if nbytes == 0:
@@ -1686,7 +1694,19 @@ class RuntimeSession:
                 descriptor_buffer = descriptor_tensor.buffer
                 if descriptor_buffer is None:
                     raise RuntimeError(f"{descriptor_tensor.name} is not materialized")
-                buffer_views.append(DescriptorBufferBinding(slice=descriptor_buffer))
+                descriptor_binding = DescriptorBufferBinding.from_slice(
+                    descriptor_buffer,
+                    descriptor_nbytes=descriptor_tensor.descriptor_nbytes,
+                )
+                buffer_views.append(descriptor_binding)
+                descriptor_bindings.append(
+                    ReplayDescriptorBinding(
+                        field=field,
+                        tensor_name=descriptor_tensor.name,
+                        buffer=descriptor_binding,
+                        rebindable=descriptor_rebindable,
+                    )
+                )
 
             params_alloc: BufferAllocation | None = None
             if contract.params_buffer is not None:
@@ -1716,6 +1736,7 @@ class RuntimeSession:
             entry = ReplayDispatchEntry(
                 pipeline=pipeline,
                 binding=binding,
+                descriptors=tuple(descriptor_bindings),
                 push_constants=push_constants,
                 dispatch_size=record.dispatch_size,
                 dispatch_formula=contract.dispatch,
@@ -1825,10 +1846,143 @@ class RuntimeSession:
             bindings=bindings,
         )
 
+    def rebind_replay_plan(
+        self,
+        plan: "ReplayPlan",
+        *,
+        tensors_by_name: Mapping[str, LogicalTensor],
+    ) -> None:
+        """Retarget replay descriptors to a compatible tensor set without command-buffer recording.
+
+        Vulkan records the descriptor-set handle into the command buffer, not the
+        descriptor buffer addresses. Updating the descriptor set lets the same
+        command buffer operate on another request's buffers when shapes and shader
+        contracts remain compatible.
+        """
+        from torch2vk.runtime.replay import ReplayDescriptorBinding
+
+        self._require_open()
+        if plan._closed:
+            raise RuntimeError(f"ReplayPlan {plan.name!r} is closed")
+        if plan.device is not self.device:
+            raise ValueError("ReplayPlan belongs to a different RuntimeSession device")
+        if plan.readback_slots:
+            raise RuntimeError(
+                "Replay plans with baked readback copy commands cannot be rebound"
+            )
+
+        for entry in plan.dispatch_entries:
+            rebound_descriptors: list[ReplayDescriptorBinding] = []
+            rebound_field_tensors: dict[str, LogicalTensor] = {}
+            for descriptor in entry.descriptors:
+                if not descriptor.rebindable:
+                    rebound_descriptors.append(descriptor)
+                    continue
+                try:
+                    tensor = tensors_by_name[descriptor.tensor_name]
+                except KeyError as exc:
+                    raise KeyError(
+                        f"ReplayPlan {plan.name!r} rebind is missing tensor "
+                        f"{descriptor.tensor_name!r}"
+                    ) from exc
+                self._materialize_replay_rebind_tensor(tensor, field=descriptor.field)
+                if tensor.buffer is None:
+                    raise RuntimeError(f"{tensor.name} is not materialized for replay rebind")
+                binding = DescriptorBufferBinding.from_slice(
+                    tensor.buffer,
+                    descriptor_nbytes=tensor.descriptor_nbytes,
+                )
+                rebound_descriptors.append(replace(descriptor, buffer=binding))
+                rebound_field_tensors[descriptor.field.name] = tensor
+
+            if rebound_field_tensors:
+                self._validate_replay_rebind_symbols(
+                    plan=plan,
+                    entry=entry,
+                    field_tensors=rebound_field_tensors,
+                )
+
+            buffer_views = [descriptor.buffer for descriptor in rebound_descriptors]
+            if entry.params_buffer is not None:
+                if entry.params_layout is None:
+                    raise RuntimeError("Replay params entry is missing its params layout")
+                buffer_views.append(
+                    DescriptorBufferBinding(
+                        slice=BufferSlice(
+                            allocation=entry.params_buffer,
+                            offset=entry.params_buffer.offset,
+                            nbytes=entry.params_layout.size,
+                        )
+                    )
+                )
+            entry.pipeline.update_bound_buffers(entry.binding, buffer_views)
+            entry.descriptors = tuple(rebound_descriptors)
+
+    def cached_replay_plans(self, namespace: str) -> tuple["ReplayPlan", ...]:
+        self._require_open()
+        plans = self._replay_plan_cache.get(namespace, [])
+        live_plans = [plan for plan in plans if not plan._closed]
+        if len(live_plans) != len(plans):
+            self._replay_plan_cache[namespace] = live_plans
+        return tuple(live_plans)
+
+    def cache_replay_plan(self, namespace: str, plan: "ReplayPlan") -> None:
+        self._require_open()
+        if plan._closed:
+            raise RuntimeError(f"Cannot cache closed ReplayPlan {plan.name!r}")
+        if plan.device is not self.device:
+            raise ValueError("ReplayPlan belongs to a different RuntimeSession device")
+        plans = self._replay_plan_cache.setdefault(namespace, [])
+        if plan not in plans:
+            plans.append(plan)
+
+    def _materialize_replay_rebind_tensor(
+        self,
+        tensor: LogicalTensor,
+        *,
+        field: TensorFieldSpec,
+    ) -> None:
+        tensor.validate_declaration()
+        if tensor.buffer is not None:
+            return
+        if field.io_kind is IOKind.INPUT:
+            self._materialize_read(tensor)
+            return
+        if field.io_kind is IOKind.OUTPUT:
+            self._materialize_write(tensor, io_kind=field.io_kind)
+            return
+        self._materialize_read(tensor)
+
+    def _validate_replay_rebind_symbols(
+        self,
+        *,
+        plan: "ReplayPlan",
+        entry: "ReplayDispatchEntry",
+        field_tensors: Mapping[str, LogicalTensor],
+    ) -> None:
+        rebound_symbols = self._bind_shape_symbols(
+            tuple(descriptor.field for descriptor in entry.descriptors if descriptor.field.name in field_tensors),
+            field_tensors,
+        )
+        dynamic_symbols = set(plan.dynamic_symbol_names)
+        for name, rebound_value in rebound_symbols.items():
+            if name in dynamic_symbols:
+                continue
+            original_value = entry.symbols.get(name)
+            if original_value is not None and rebound_value != original_value:
+                raise ValueError(
+                    f"ReplayPlan {plan.name!r} cannot rebind static symbol {name!r}: "
+                    f"recorded {original_value}, got {rebound_value}"
+                )
+
     def close(self) -> None:
         if self._closed:
             return
         self._closed = True
+        for plans in self._replay_plan_cache.values():
+            for plan in plans:
+                plan.close()
+        self._replay_plan_cache.clear()
         self._release_frame_allocations()
         for pipeline in self._pipeline_cache.values():
             pipeline.close()

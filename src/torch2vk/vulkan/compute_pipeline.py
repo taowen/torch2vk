@@ -326,6 +326,34 @@ class ComputePipeline:
         if len(buffers) != len(self.descriptor_types):
             raise ValueError(f"Expected {len(self.descriptor_types)} bound buffers, got {len(buffers)}")
         descriptor_set, descriptor_pool = self._allocate_descriptor_set()
+        self._update_descriptor_set(descriptor_set=descriptor_set, buffers=buffers)
+        return BoundComputeBinding(
+            pipeline=self,
+            descriptor_pool=descriptor_pool,
+            descriptor_set=descriptor_set,
+        )
+
+    def update_bound_buffers(
+        self,
+        binding: "BoundComputeBinding",
+        buffers: Sequence["DescriptorBufferBinding"],
+    ) -> None:
+        """Update an existing descriptor set without re-recording its command buffer."""
+        self.device.require_open()
+        if binding.pipeline is not self:
+            raise ValueError("BoundComputeBinding belongs to a different pipeline")
+        if binding.closed:
+            raise RuntimeError("Cannot update a closed compute binding")
+        if len(buffers) != len(self.descriptor_types):
+            raise ValueError(f"Expected {len(self.descriptor_types)} bound buffers, got {len(buffers)}")
+        self._update_descriptor_set(descriptor_set=binding.descriptor_set, buffers=buffers)
+
+    def _update_descriptor_set(
+        self,
+        *,
+        descriptor_set: object,
+        buffers: Sequence["DescriptorBufferBinding"],
+    ) -> None:
         buffer_infos = [
             VkDescriptorBufferInfo(buffer=buffer.buffer.handle, offset=buffer.offset, range=buffer.range)
             for buffer in buffers
@@ -346,11 +374,6 @@ class ComputePipeline:
             )
         ]
         vkUpdateDescriptorSets(self.device.device, len(writes), writes, 0, None)
-        return BoundComputeBinding(
-            pipeline=self,
-            descriptor_pool=descriptor_pool,
-            descriptor_set=descriptor_set,
-        )
 
     def record_dispatch(
         self,

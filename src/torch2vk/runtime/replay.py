@@ -20,12 +20,14 @@ from torch2vk.runtime.shader import (
     ParamsBufferSpec,
     PushConstantInput,
     PushConstantType,
+    TensorFieldSpec,
     eval_expr,
 )
 from torch2vk.vulkan.allocation import BufferAllocation
 from torch2vk.vulkan.compute_pipeline import (
     BoundComputeBinding,
     ComputePipeline,
+    DescriptorBufferBinding,
 )
 
 if TYPE_CHECKING:
@@ -48,6 +50,7 @@ class ReplayDispatchEntry:
     """Pre-resolved dispatch metadata for one shader in the replay sequence."""
     pipeline: ComputePipeline
     binding: BoundComputeBinding
+    descriptors: tuple["ReplayDescriptorBinding", ...]
     push_constants: bytes | None
     dispatch_size: tuple[int, int, int]
     dispatch_formula: tuple[ExprDim, ExprDim, ExprDim]
@@ -55,6 +58,16 @@ class ReplayDispatchEntry:
     indirect_offset: int | None = None
     params_buffer: BufferAllocation | None = None
     params_layout: ParamsBufferSpec | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayDescriptorBinding:
+    """One shader field descriptor recorded in a replay command buffer."""
+
+    field: TensorFieldSpec
+    tensor_name: str
+    buffer: DescriptorBufferBinding
+    rebindable: bool
 
 
 @dataclass(slots=True)

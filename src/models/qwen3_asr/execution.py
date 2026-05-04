@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, fields as dataclass_fields
 from pathlib import Path
-from typing import Protocol, TypeGuard
+from typing import TYPE_CHECKING, Protocol, TypeGuard
 
 import numpy as np
 import numpy.typing as npt
@@ -36,6 +36,9 @@ from torch2vk.runtime.logical import (
 )
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader import ShaderVariant
+
+if TYPE_CHECKING:
+    from torch2vk.runtime.replay import ReplayPlan
 
 QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS = (151645, 151643)
 
@@ -383,9 +386,7 @@ def run_qwen3_asr_replay_decode_loop(
     mrope_section: tuple[int, ...] = (24, 20, 20),
     stop_on_eos: bool = True,
 ) -> LogicalTensor:
-    """Decode loop using replay: eager warm-up then pre-recorded CB for remaining steps."""
-    from torch2vk.runtime.replay import execute_replay
-
+    """Decode loop using replay, with cached plans reused across compatible requests."""
     if max_new_tokens <= 0:
         raise ValueError(f"max_new_tokens must be positive, got {max_new_tokens}")
 
@@ -420,7 +421,7 @@ def run_qwen3_asr_replay_decode_loop(
     _initialize_replay_decode_control(rt, replay_generated_length, replay_stopped)
     replay_token_index = _replay_token_index_tensor()
 
-    # Phase 2: First decode step (eager warm-up — materializes weights, creates pipelines)
+    # Phase 2: Reuse a cached decode plan when this session has already recorded one.
     _ensure_kv_cache_capacity(rt, tensors, required_length=prompt_length + max_new_tokens)
     _register_decode_rope(
         rt, decode,
@@ -433,6 +434,38 @@ def run_qwen3_asr_replay_decode_loop(
     rt.register_inputs({decode.input_ids: next_token_array.reshape(1, 1)})
     rt.register_inputs({replay_token_index: np.array([1], dtype=np.int64)})
 
+    tensors_by_name = _replay_decode_tensors_by_name(
+        tensors=tensors,
+        replay_token_index=replay_token_index,
+        replay_generated=replay_generated,
+        replay_generated_length=replay_generated_length,
+        replay_stopped=replay_stopped,
+    )
+    cached_plan = _find_cached_qwen3_asr_decode_replay_plan(
+        rt,
+        tensors_by_name=tensors_by_name,
+        stop_on_eos=stop_on_eos,
+    )
+    if cached_plan is not None:
+        _run_qwen3_asr_decode_replay_steps(
+            rt,
+            plan=cached_plan,
+            decode=decode,
+            replay_token_index=replay_token_index,
+            prompt_length=prompt_length,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            mrope_section=mrope_section,
+            start_step=0,
+            max_new_tokens=max_new_tokens,
+        )
+        if stop_on_eos:
+            return _finalize_replay_generated_tokens(
+                rt, tensors, replay_generated, replay_generated_length,
+            )
+        return replay_generated
+
+    # Phase 3: First decode step (eager warm-up — materializes weights and creates pipelines)
     dispatch_start = len(rt.dispatch_records)
     run_qwen3_asr_text_decode(rt, decode, step=0, pytorch_compare=False)
     run_qwen3_asr_token_select(rt, tensors.token_select, logits=decode.logits)
@@ -455,7 +488,7 @@ def run_qwen3_asr_replay_decode_loop(
             )
         return replay_generated
 
-    # Phase 3: Build replay plan from the warm-up dispatches
+    # Phase 4: Build replay plan from the warm-up dispatches
     warmup_records = rt.dispatch_records[dispatch_start:dispatch_end]
 
     variant_by_shader: dict[str, ShaderVariant] = {}
@@ -464,13 +497,6 @@ def run_qwen3_asr_replay_decode_loop(
     _collect_token_store_variants(variant_by_shader, stop_on_eos=stop_on_eos)
 
     variants = [variant_by_shader[r.shader] for r in warmup_records]
-
-    tensors_by_name: dict[str, LogicalTensor] = {}
-    _collect_all_tensors(tensors, tensors_by_name)
-    tensors_by_name[replay_token_index.name] = replay_token_index
-    tensors_by_name[replay_generated.name] = replay_generated
-    tensors_by_name[replay_generated_length.name] = replay_generated_length
-    tensors_by_name[replay_stopped.name] = replay_stopped
 
     plan = rt.build_replay_plan(
         name="qwen3_asr_decode_step",
@@ -481,36 +507,26 @@ def run_qwen3_asr_replay_decode_loop(
         token_feedback_target=decode.input_ids,
     )
     if plan.indirect_buffer is not None or plan.readback_slots:
+        plan.close()
         raise RuntimeError("Replay decode must not use indirect dispatch or readback slots")
 
-    # Phase 4: Replay loop for remaining steps
     try:
-        for step in range(1, max_new_tokens - 1):
-            cache_pos = prompt_length + step
-
-            # Compute RoPE for this position
-            pos_3d = np.full((3, 1, 1), cache_pos, dtype=np.int64)
-            cos_data, sin_data = precompute_qwen3_asr_mrope(
-                position_ids=pos_3d,
-                head_dim=head_dim,
-                rope_theta=rope_theta,
-                mrope_section=mrope_section,
-            )
-            cache_pos_data = np.array([cache_pos], dtype=np.int64)
-
-            # Update the tensors' backing buffers for the replay
-            _write_to_tensor_buffer(rt, decode.cache_position, cache_pos_data)
-            _write_to_tensor_buffer(rt, decode.rope_cos, cos_data)
-            _write_to_tensor_buffer(rt, decode.rope_sin, sin_data)
-            _write_to_tensor_buffer(
-                rt,
-                replay_token_index,
-                np.array([step + 1], dtype=np.int64),
-            )
-
-            execute_replay(plan)
-    finally:
+        _run_qwen3_asr_decode_replay_steps(
+            rt,
+            plan=plan,
+            decode=decode,
+            replay_token_index=replay_token_index,
+            prompt_length=prompt_length,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            mrope_section=mrope_section,
+            start_step=1,
+            max_new_tokens=max_new_tokens,
+        )
+    except Exception:
         plan.close()
+        raise
+    rt.cache_replay_plan(_qwen3_asr_decode_replay_namespace(stop_on_eos), plan)
 
     if stop_on_eos:
         return _finalize_replay_generated_tokens(
@@ -565,6 +581,82 @@ def _initialize_replay_decode_control(
         generated_length: np.array([1], dtype=np.uint32),
         stopped: np.array([0], dtype=np.uint32),
     })
+
+
+def _replay_decode_tensors_by_name(
+    *,
+    tensors: Qwen3AsrTextTensors,
+    replay_token_index: LogicalTensor,
+    replay_generated: LogicalTensor,
+    replay_generated_length: LogicalTensor,
+    replay_stopped: LogicalTensor,
+) -> dict[str, LogicalTensor]:
+    tensors_by_name: dict[str, LogicalTensor] = {}
+    _collect_all_tensors(tensors, tensors_by_name)
+    tensors_by_name[replay_token_index.name] = replay_token_index
+    tensors_by_name[replay_generated.name] = replay_generated
+    tensors_by_name[replay_generated_length.name] = replay_generated_length
+    tensors_by_name[replay_stopped.name] = replay_stopped
+    return tensors_by_name
+
+
+def _find_cached_qwen3_asr_decode_replay_plan(
+    rt: RuntimeSession,
+    *,
+    tensors_by_name: Mapping[str, LogicalTensor],
+    stop_on_eos: bool,
+) -> "ReplayPlan | None":
+    namespace = _qwen3_asr_decode_replay_namespace(stop_on_eos)
+    for plan in rt.cached_replay_plans(namespace):
+        try:
+            rt.rebind_replay_plan(plan, tensors_by_name=tensors_by_name)
+        except (KeyError, ValueError):
+            continue
+        return plan
+    return None
+
+
+def _run_qwen3_asr_decode_replay_steps(
+    rt: RuntimeSession,
+    *,
+    plan: "ReplayPlan",
+    decode: Qwen3AsrTextDecodeTensors,
+    replay_token_index: LogicalTensor,
+    prompt_length: int,
+    head_dim: int,
+    rope_theta: float,
+    mrope_section: tuple[int, ...],
+    start_step: int,
+    max_new_tokens: int,
+) -> None:
+    from torch2vk.runtime.replay import execute_replay
+
+    for step in range(start_step, max_new_tokens - 1):
+        cache_pos = prompt_length + step
+        pos_3d = np.full((3, 1, 1), cache_pos, dtype=np.int64)
+        cos_data, sin_data = precompute_qwen3_asr_mrope(
+            position_ids=pos_3d,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            mrope_section=mrope_section,
+        )
+        _write_to_tensor_buffer(
+            rt,
+            decode.cache_position,
+            np.array([cache_pos], dtype=np.int64),
+        )
+        _write_to_tensor_buffer(rt, decode.rope_cos, cos_data)
+        _write_to_tensor_buffer(rt, decode.rope_sin, sin_data)
+        _write_to_tensor_buffer(
+            rt,
+            replay_token_index,
+            np.array([step + 1], dtype=np.int64),
+        )
+        execute_replay(plan)
+
+
+def _qwen3_asr_decode_replay_namespace(stop_on_eos: bool) -> str:
+    return f"qwen3_asr_decode_step:stop_on_eos={int(stop_on_eos)}"
 
 
 def _replay_generated_tokens_tensor(max_new_tokens: int) -> LogicalTensor:
