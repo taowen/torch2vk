@@ -14,7 +14,7 @@ from vulkan import (
 )
 from vulkan._vulkan import ffi
 
-from torch2vk.vulkan.types import TensorSpec, concrete_nbytes
+from torch2vk.vulkan.types import tensor_nbytes as tensor_nbytes
 
 from .abi import VkPhysicalDeviceMemoryProperties, memory_requirements
 from .buffer import VulkanBuffer
@@ -24,15 +24,6 @@ VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_VALUE = 0x00020000
 VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_VALUE = 0x00000002
 VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO_VALUE = 1000060000
 _ffi_null = ffi.NULL
-
-
-def tensor_nbytes(spec: TensorSpec) -> int:
-    concrete_shape: list[int] = []
-    for dim in spec.shape:
-        if not isinstance(dim, int):
-            raise ValueError(f"Expected concrete tensor shape, got {spec.shape}")
-        concrete_shape.append(dim)
-    return concrete_nbytes(dtype=spec.dtype, shape=tuple(concrete_shape))
 
 
 def create_buffer(

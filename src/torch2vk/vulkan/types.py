@@ -222,6 +222,19 @@ def concrete_nbytes(*, dtype: str, shape: tuple[int, ...]) -> int:
     return concrete_numel(shape) * dtype_nbytes(dtype)
 
 
+def concrete_shape(spec: TensorSpec) -> tuple[int, ...]:
+    shape: list[int] = []
+    for dim in spec.shape:
+        if not isinstance(dim, int):
+            raise ValueError(f"Expected concrete tensor shape, got {spec.shape}")
+        shape.append(dim)
+    return tuple(shape)
+
+
+def tensor_nbytes(spec: TensorSpec) -> int:
+    return concrete_nbytes(dtype=spec.dtype, shape=concrete_shape(spec))
+
+
 def resolve_tensor_layout(
     layout: TensorLayout,
     shape_symbols: Mapping[str, int] | None = None,

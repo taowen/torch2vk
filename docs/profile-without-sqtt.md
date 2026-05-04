@@ -1,387 +1,222 @@
-# 不依赖 SQTT 的轻量 Profiler
+# 不依赖 SQTT 的 Profiler
 
-这份文档定义 `torch2vk` 的基础 profiler。它不依赖 Mesa fork，不打开 RGP/SQTT，也不要求 AMD
-RADV。它的职责是把 `torch2vk` runtime 已经知道的语义信息，和 Vulkan timestamp query 得到的 GPU
-耗时合成一个稳定 manifest。后续依赖 SQTT 的深度 profiler 必须建立在这个 manifest 之上。
+这份文档定义 `torch2vk` 的普通 profiler。它不依赖 Mesa fork，不录 RGP，也不要求 AMD GPU。
+它的核心产物是 runtime dispatch manifest：一份由 `torch2vk` 自己写出的 dispatch 语义记录。
 
-## 目标
+这份 manifest 既能独立用于普通性能分析，也会被 SQTT profiler 复用。
 
-轻量 profiler 要回答这些问题：
+## 它回答什么
 
-1. 哪个 frame、dispatch、shader 慢。
-2. 同一个 replay plan 里每个 dispatch 的 GPU 时间占比。
-3. eager 路径和 replay 路径的时间差异。
-4. 每个 dispatch 的输入输出 tensor、shape、dtype、descriptor 范围、push constants、shape symbols 是什么。
-5. 某个 shader 在不同 shape 或不同 replay plan 下是否退化。
-6. 根据现有 shader contract 做粗粒度工作量估算，例如读写字节数、dispatch group 数、近似带宽。
+普通 profiler 要回答：
 
-它不回答这些问题：
+1. 一次运行里有哪些 frame 和 dispatch。
+2. 每个 dispatch 对应哪个 shader、pipeline、SPIR-V。
+3. 每个 dispatch 的 shape symbols、dispatch size、push constants。
+4. 每个 dispatch 读写了哪些 logical tensor，以及当时的 shape/dtype/descriptor 范围。
+5. 如果开启 timestamp，每个 dispatch 或 replay dispatch 的 GPU 时间是多少。
 
-1. 某条 ISA 指令为什么慢。
-2. wavefront stall、cache miss、VALU/SALU 利用率、等待原因。
-3. source line 到硬件事件的精确映射。
-
-这些是 SQTT profiler 的范围，见 `docs/profile-with-sqtt.md`。
+它不回答 ISA、wave stall、cache miss 等硬件原因。这些属于 SQTT profiler。
 
 ## 当前代码基础
 
-当前代码已经具备轻量 profiler 的主要锚点：
+当前 `torch2vk` 已经有足够信息写 manifest：
 
-1. `RuntimeSession.dispatch()` 是 eager dispatch 的语义入口。它解析 shape symbols，materialize read/write
-   tensor，绑定 descriptor，打包 push constants，执行 `ComputePipeline.dispatch()`，然后追加
-   `DispatchRecord`。
-2. `DispatchRecord` 已经包含 `index`、`frame`、`shader`、logical reads/writes、concrete
-   symbols、`dispatch_size`、descriptor views、tensor snapshots、push constant values。
-3. `ComputePipeline` 已经计算 `shader_spv_sha256`、`pipeline_identity_sha256` 和 `debug_name`。
-   这些字段可以作为 shader/pipeline 归因的稳定 join key。
-4. `ComputePipeline.record_dispatch()` 和 `record_indirect_dispatch()` 是 replay command buffer 的统一录制点。
-5. `ReplayPlan` 已经保存 `dispatch_entries`、`params_entries`、dynamic symbol names、readback slots 和绑定好的
-   command buffer。
-6. `VulkanDevice.timestamp_period_ns` 已经暴露物理设备 timestamp period，但还缺 query pool 封装和 queue
-   family 的 timestamp 支持检查。
+1. `RuntimeSession.dispatch()` 是 eager dispatch 的入口。
+2. `DispatchRecord` 已记录 `index`、`frame`、`shader`、logical reads/writes、symbols、
+   `dispatch_size`、descriptor views、tensor snapshots、push constants。
+3. `ComputePipeline` 已记录 `debug_name`、`shader_spv_sha256`、`pipeline_identity_sha256`。
+4. `ReplayPlan.dispatch_entries` 保存 replay 中每个 dispatch 的 pipeline、binding、dispatch size 和
+   dynamic params 信息。
+5. `VulkanDevice.timestamp_period_ns` 可用于 timestamp query 结果换算。
 
-关键判断：`DispatchRecord` 是 `torch2vk` 语义事实源，timestamp query 只补充耗时。不要反过来从 driver
-或 trace 文件推断模型语义。
-
-## 最终用户形态
-
-Python API 应该允许用户在创建 `RuntimeSession` 时显式打开 profiler：
-
-```python
-from pathlib import Path
-
-from torch2vk.runtime.profile import ProfileConfig
-from torch2vk.runtime.session import RuntimeSession
-
-
-profile = ProfileConfig(
-    enabled=True,
-    root=Path(".cache/torch2vk/profile/qwen3-asr-decode"),
-    mode="replay",
-    warmup=5,
-    repeat=50,
-    collect_tensor_values=False,
-)
-
-with RuntimeSession.open(device_index=0, model_dir=model_dir, profile=profile) as rt:
-    run_qwen3_asr_decode(rt, tensors)
-
-manifest = rt.profile_manifest()
-```
-
-也需要一个外部 CLI，保证测试、benchmark 和模型脚本不用手写环境变量：
-
-```bash
-uv run torch2vk-profile \
-  --root .cache/torch2vk/profile/qwen3-asr-decode \
-  --mode replay \
-  --warmup 5 \
-  --repeat 50 \
-  -- pytest tests/test_qwen3_asr.py -k decode
-```
-
-CLI 的职责只是设置 `TORCH2VK_PROFILE_RUN_DIR`、`TORCH2VK_PROFILE_MODE` 等环境变量并 exec 用户命令。
-真正的 runtime 记录必须在 Python 进程内完成，因为只有 runtime 知道 frame、tensor、shader variant 和
-replay plan。
-
-## 模式
-
-### eager 模式
-
-eager 模式围绕 `RuntimeSession.dispatch()` 单次 dispatch 记录 timestamp。当前 eager dispatch 本身就是：
+重要原则：
 
 ```text
-bind descriptor set
-allocate command buffer
-record one dispatch
-record completion barrier
-submit
-wait fence
+RuntimeSession.dispatch_records 是语义事实源。
+driver trace、RGP、timestamp 只能补充信息，不能反推模型语义。
 ```
 
-因此 eager profiler 能得到每个 dispatch 的 GPU 时间，并天然按 `DispatchRecord.index` 对齐。它适合做
-smoke、正确性定位、首次热点排序。
+## 最终形态
 
-限制是 eager 每个 dispatch 一个 submit，CPU submit/wait 和 GPU submit 粒度都不是最终推理形态。所以 eager
-时间不能代表最终吞吐。
+普通 profiler 只需要两个层次。
 
-### replay 模式
+第一层永远可用：写 manifest，不插入 GPU query。
 
-replay 模式是主要形态。`ReplayPlan` 是 steady-state 推理应优化的对象，因为它复用 command buffer、descriptor
-set 和 workspace，只更新 dynamic symbol/params/indirect buffers。
+第二层按需开启：在 command buffer 中写 Vulkan timestamp query，补充耗时。
 
-推荐实现一个 sidecar profile plan，而不是修改正常 `ReplayPlan.command_buffer`：
-
-```text
-ReplayPlan
-  正常执行路径，保持现在的 command buffer。
-
-ReplayProfilePlan
-  共享 ReplayPlan 的 pipeline/binding/dispatch_entries。
-  额外持有 query pool、profile command buffer、query index map。
-  command buffer 中在每个 dispatch 前后写 timestamp。
-```
-
-这样 profiler 不会污染生产 replay command buffer，也不会让普通 replay 多出 query 指令。
-
-### session 模式
-
-session 模式只记录 runtime manifest，不插入 timestamp query。它用于：
-
-1. 给 SQTT profiler 生成语义 manifest。
-2. 在没有 timestamp query 支持的设备上保留 dispatch/tensor/pipeline 归因。
-3. 低开销记录一整次模型运行的 dispatch 序列。
-
-## 数据模型
-
-推荐新增模块：
-
-```text
-src/torch2vk/runtime/profile.py
-src/torch2vk/vulkan/timestamp_query.py
-```
-
-核心对象：
-
-```python
-@dataclass(frozen=True, slots=True)
-class ProfileConfig:
-    enabled: bool = False
-    root: Path = Path(".cache/torch2vk/profile/default")
-    mode: Literal["session", "eager", "replay"] = "replay"
-    warmup: int = 3
-    repeat: int = 20
-    collect_tensor_values: bool = False
-    session_name: str | None = None
-    fail_if_timestamps_unavailable: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class RuntimeDispatchProfile:
-    run_id: str
-    profile_submit_tag: str
-    execution_kind: Literal["eager", "replay"]
-    frame: str
-    dispatch_index: int
-    replay_plan: str | None
-    replay_dispatch_index: int | None
-    shader: str
-    shader_family: str | None
-    pipeline_debug_name: str
-    pipeline_identity_sha256: str
-    shader_spv_sha256: str
-    symbols: dict[str, int]
-    dispatch_size: tuple[int, int, int]
-    push_constants: dict[str, int | float]
-    tensor_bindings: list[dict[str, object]]
-    elapsed_ns: int | None
-    elapsed_ms: float | None
-    work_estimate: dict[str, int | float]
-```
-
-run 级 manifest：
-
-```json
-{
-  "schema_version": 1,
-  "run_id": "qwen3-asr-decode",
-  "tool": "torch2vk-profile",
-  "mode": "replay",
-  "device": {
-    "name": "...",
-    "timestamp_period_ns": 1.0
-  },
-  "command": ["pytest", "tests/test_qwen3_asr.py", "-k", "decode"],
-  "environment": {
-    "TORCH2VK_PROFILE_RUN_DIR": "..."
-  },
-  "dispatch_profile_path": "dispatch-profiles.jsonl",
-  "summary_path": "summary.json"
-}
-```
-
-每个 dispatch profile 应该保留这些 join key：
-
-1. `dispatch_index`：`RuntimeSession` 全局 dispatch 顺序。
-2. `frame`：当前 `FrameContext.frame`。
-3. `shader`：`ShaderVariant.name`。
-4. `pipeline_debug_name`：当前 `ComputePipeline.debug_name`。
-5. `pipeline_identity_sha256`：pipeline 创建参数的稳定 hash。
-6. `shader_spv_sha256`：SPIR-V 内容 hash。
-7. `profile_submit_tag`：未来和 SQTT driver artifacts join 的短标签。
-
-## Artifact layout
-
-推荐布局：
+推荐 run 目录：
 
 ```text
 .cache/torch2vk/profile/<run-id>/
-  profile-run.json
-  runtime-manifest.json
-  dispatch-profiles.jsonl
-  frame-summary.json
-  shader-summary.json
-  replay-summary.json
-  environment.json
-  command.log
+  run.json
+  dispatches.jsonl
+  summary.json
 ```
 
-`runtime-manifest.json` 是语义事实源，结构应稳定，并被 SQTT profiler 复用。`dispatch-profiles.jsonl`
-可以包含重复测量样本，summary 文件只保存派生统计。
+其中 `dispatches.jsonl` 是最重要的文件。每行对应一个 runtime dispatch，推荐字段：
 
-## Timestamp query 设计
+```json
+{
+  "dispatch_index": 42,
+  "frame": "qwen3_asr.text_decode",
+  "phase": "eager",
+  "shader": "text_attention_decode_f32",
+  "pipeline_debug_name": "agp.text_attention_decode_f32.0123456789abcdef",
+  "pipeline_identity_sha256": "...",
+  "shader_spv_sha256": "...",
+  "symbols": {"B": 1, "T": 128},
+  "dispatch_size": [32, 1, 1],
+  "push_constants": {"token_pos": 17},
+  "reads": [],
+  "writes": [],
+  "elapsed_ns": null
+}
+```
 
-新增 `TimestampQueryRecorder` 封装 Vulkan query pool：
+`elapsed_ns` 可以为空。这样 manifest-only 模式和 timestamp 模式使用同一种文件结构。
+
+## eager profiling
+
+当前 eager dispatch 是一条 dispatch 一个 command buffer，一个 submit 后等待完成。因此 eager profiling 很直接：
 
 ```text
-create VkQueryPool(queryType=VK_QUERY_TYPE_TIMESTAMP, queryCount=2 * dispatch_count * repeat)
-reset query pool
-write timestamp before dispatch
-record dispatch
-write timestamp after dispatch
-get query pool results
-elapsed_ns = (end - begin) * device.timestamp_period_ns
+RuntimeSession.dispatch()
+  -> 算出 dispatch_index
+  -> 解析 tensor/symbol/push constants
+  -> 获取 ComputePipeline
+  -> 可选：在 dispatch 前后写 timestamp
+  -> 提交并等待
+  -> append DispatchRecord
+  -> 写一行 dispatches.jsonl
 ```
 
-实现要求：
+eager 时间适合找粗热点和做调试，但它不是最终吞吐，因为 eager 每个 dispatch 都 submit/wait。
 
-1. 在 device 创建时读取 compute queue family 的 `timestampValidBits`，为 0 时降级到 session 模式或按配置报错。
-2. query pool 只在 profile path 使用，不放进正常 replay command buffer。
-3. 每个 repeat 使用独立 query index，避免复用 query 造成结果混淆。
-4. warmup 的结果不写入 summary，但可以写到 raw samples，标记 `sample_kind="warmup"`。
-5. 对 timestamp wraparound 做基本处理，至少在 manifest 中记录 `timestamp_valid_bits`。
+## replay profiling
 
-## Runtime 集成点
-
-### RuntimeSession
-
-`RuntimeSession.open()` 增加可选 `profile: ProfileConfig | None` 参数。初始化顺序：
+replay 是更接近最终推理的形态。普通执行仍使用当前 `execute_replay(plan)`。需要 profiling 时，使用同一组
+`ReplayPlan.dispatch_entries` 录一条 profile command buffer：
 
 ```text
-RuntimeSession.__init__
-  -> 创建 ProfileRecorder
-  -> 创建 VulkanDevice
-  -> ProfileRecorder.attach_device(device)
+for entry in plan.dispatch_entries:
+  timestamp begin
+  record dispatch or indirect dispatch
+  timestamp end
+  barrier
+submit profile command buffer
+read query results
 ```
 
-`RuntimeSession.dispatch()` 在执行前就能确定下一条 dispatch index：
+这个 profile command buffer 可以临时生成，不应该替换 `ReplayPlan.command_buffer`。这样普通 replay 不承担
+timestamp query 成本。
+
+高性能 replay profile 的关键是保持 replay 的提交形态，而不是退回到 eager：
 
 ```text
-dispatch_index = len(self._dispatch_records)
-profile_submit_tag = recorder.tag_for_dispatch(frame, variant, dispatch_index, phase="eager")
+warmup N 次 execute/profile submit，不读结果
+repeat M 次 profile submit
+一次 submit 覆盖整条 replay plan
+一次性读取 query 结果
+按 dispatch 聚合 min / median / p95
 ```
 
-随后执行 dispatch，并把 `pipeline` 的 hash/name 写入 profile record。当前 `DispatchRecord` 在执行后才 append；
-实现时可以先计算 index/tag，执行后再写 `DispatchRecord` 和 `RuntimeDispatchProfile`，但 tag 不能依赖执行后的
-副作用。
+不要为了测每个 dispatch 而把 replay 拆成多个 submit。拆开会改变 queue 调度、barrier 成本和 cache 行为，
+测到的就不再是 replay。正确做法是在同一个 replay command buffer 内给每个 dispatch 前后写 timestamp。
 
-### ComputePipeline
+profile command buffer 应尽量复用 replay 已经解析好的对象：
 
-最小 eager 改法是在 `ComputePipeline.dispatch()` 增加可选 profile 参数：
+1. 复用 `ReplayPlan.dispatch_entries` 的 pipeline、binding、push constants、dispatch size。
+2. dynamic replay 复用 `execute_replay()` 的参数更新逻辑：submit 前更新 params buffer 和 indirect buffer。
+3. barrier 顺序和正常 replay 保持一致。
+4. readback copy 不放进 dispatch 计时区间；如果要测 output copy，单独作为 plan 级时间记录。
+5. query pool、profile command buffer、临时 fence 都按 replay plan 缓存，避免每次 profile 重建。
 
-```python
-def dispatch(..., profile_scope: DispatchProfileScope | None = None) -> None:
-    ...
-    profile_scope.record_begin(command_buffer)
-    self.record_dispatch(...)
-    profile_scope.record_end(command_buffer)
-```
-
-长期更好的形态是把 eager command buffer 录制上移到 `RuntimeSession.dispatch()`，这样 runtime 可以同时控制
-debug label、timestamp query、barrier 和 submit tag。
-
-### ReplayPlan
-
-不要修改 `execute_replay(plan)` 的默认行为。新增：
-
-```python
-def profile_replay(
-    plan: ReplayPlan,
-    *,
-    config: ProfileConfig,
-    dynamic_symbols: Mapping[str, int] | None = None,
-) -> ReplayProfileResult:
-    ...
-```
-
-`profile_replay()` 复用 `_write_indirect_dispatch_buffer()` 和 `_write_params_buffers()`，然后提交 profile command
-buffer。这样动态 replay 的 shape 更新逻辑和正常执行保持一致。
-
-## 工作量估算
-
-第一版不需要精确 FLOPs。更有价值的是稳定、可比较的粗指标：
-
-1. `dispatch_groups = x * y * z`。
-2. `logical_read_bytes` 和 `logical_write_bytes`：来自 tensor snapshots 的 shape/dtype 和 descriptor nbytes。
-3. `descriptor_read_bytes` 和 `descriptor_write_bytes`：来自 descriptor view 的 range。
-4. `bytes_per_ms`：粗略带宽指标。
-5. `groups_per_ms`：同 shader 不同 shape 的归一化指标。
-
-如果 shader contract 以后增加 `work_estimate` 字段，再补充 shader 自己声明的 FLOPs、element count、
-attention token count 等模型相关指标。
-
-## 和 SQTT profiler 的关系
-
-轻量 profiler 是 SQTT profiler 的前置层：
+query 布局保持简单：
 
 ```text
-RuntimeSession / ReplayPlan semantics
-  -> runtime-manifest.json
-  -> timestamp dispatch-profiles.jsonl
-  -> SQTT profiler join driver artifacts and RGP
+query 0: plan begin
+query 1: dispatch 0 begin
+query 2: dispatch 0 end
+query 3: dispatch 1 begin
+query 4: dispatch 1 end
+...
+last query: plan end
 ```
 
-SQTT profiler 不能替代这层，原因是 RGP/SQTT 不知道 `LogicalTensor`、`FrameContext`、shape symbols、模型阶段、
-request state 版本，也不应该从 GPU trace 里反推这些语义。
+`plan begin/end` 给出整条 replay 的 GPU 时间；每个 dispatch 的 begin/end 给出 dispatch 内部时间。
+两者都要记录，因为 dispatch 时间之和不一定等于 plan 时间，中间还有 barrier、indirect dispatch 读取、
+cache flush 等成本。
 
-## 实现阶段
+结果写回时，`dispatches.jsonl` 保留每个 replay dispatch 的静态元数据和聚合耗时，例如：
 
-### Phase 1：manifest-only
+```json
+{
+  "phase": "replay",
+  "replay_plan": "text_decode",
+  "replay_dispatch_index": 3,
+  "source_dispatch_index": 42,
+  "elapsed_ns": 11840,
+  "elapsed_ns_min": 11200,
+  "elapsed_ns_p95": 12600
+}
+```
 
-1. 新增 `ProfileConfig`、`ProfileRecorder`、manifest writer。
-2. `RuntimeSession.open(..., profile=...)` 接入 recorder。
-3. 每次 dispatch 后把 `DispatchRecord`、pipeline hash/name、shader metadata 写到 `runtime-manifest.json`。
-4. 不做 timestamp query。
+`summary.json` 记录 plan 级时间：
 
-验收：一次 smoke dispatch 能产出非空 `runtime-manifest.json`，关闭 profile 时无文件写入。
+```json
+{
+  "replay_plan": "text_decode",
+  "warmup": 5,
+  "repeat": 50,
+  "plan_elapsed_ns_median": 842000,
+  "plan_elapsed_ns_min": 821000,
+  "plan_elapsed_ns_p95": 870000
+}
+```
 
-### Phase 2：eager timestamp
+这样既能看单个 shader 的热点，也能看整条 replay 的真实收益。
 
-1. 新增 query pool wrapper。
-2. 在 eager command buffer 中围绕 dispatch 写 timestamp。
-3. 写 `dispatch-profiles.jsonl` 和 frame/shader summary。
+## 和 SQTT 的关系
 
-验收：单 dispatch 的 `elapsed_ns` 非空，重复运行不会改变 dispatch/tensor 语义。
+SQTT profiler 必须复用这份 manifest。它需要这些字段做 join：
 
-### Phase 3：replay timestamp
+1. `dispatch_index`
+2. `frame`
+3. `phase`
+4. `shader`
+5. `pipeline_debug_name`
+6. `pipeline_identity_sha256`
+7. `shader_spv_sha256`
 
-1. 新增 `ReplayProfilePlan` 或 `profile_replay()`。
-2. 每个 replay dispatch 独立 timestamp。
-3. 支持 warmup/repeat/median/min/p95 summary。
-4. 支持动态 symbols 和 indirect dispatch。
+因此普通 profiler 即使不开 timestamp，也应该能生成完整 dispatch manifest。SQTT 只消费
+`phase="record"` 的 dispatch 行；`phase="replay"` 的行只用于普通 profiler 的 replay timestamp 分析。
 
-验收：profile dispatch 数量和 `ReplayPlan.num_dispatches` 一致，顺序和 `dispatch_entries` 一致。
+SQTT debug label 不需要新的 tag 字段。它直接由 manifest 里的 `frame`、`shader` 和 `dispatch_index`
+生成：
 
-### Phase 4：CLI 和回归对比
+```text
+agentorch-profile-submit:frame=qwen3_asr.text_decode;shader=text_attention_decode_f32;dispatch=42
+```
 
-1. `torch2vk-profile` CLI。
-2. `profile-diff.json` / `profile-diff.md`。
-3. 可选性能门禁，例如某 shader median 时间回退超过阈值时报错。
+`LogicalTensor.name`、tensor version、shape、descriptor range、pipeline identity 等完整语义仍只保存在
+`dispatches.jsonl`，不要塞进 label。
+
+## 实现顺序
+
+推荐按这个顺序实现：
+
+1. 写 manifest-only recorder：不改 command buffer，只在 `RuntimeSession.dispatch()` 后写
+   `dispatches.jsonl`。
+2. 给 record dispatch 加可选 timestamp。
+3. 给 replay 增加临时 profile command buffer。
+4. 输出按 frame/shader 聚合的 `summary.json`。
+
+这四步完成后，普通 profiler 已经完整可用；SQTT profiler 也有了可靠的语义输入。
 
 ## 不变量
 
-1. profile 关闭时，普通 runtime 和 replay 行为完全不变。
-2. profiler 不保存 raw tensor value，除非用户显式 `collect_tensor_values=True`。
-3. timestamp query 失败时不能 silently 写假数据；要写 `elapsed_ns=null` 和明确原因，或按配置失败。
-4. `runtime-manifest.json` 的 dispatch 顺序必须和 `RuntimeSession.dispatch_records` 一致。
-5. `pipeline_identity_sha256` 和 `shader_spv_sha256` 是主要 pipeline join key，不依赖文件名或耗时近似匹配。
-6. replay profiler 不能修改正常 `ReplayPlan.command_buffer`。
-
-## 测试建议
-
-1. 单 shader smoke：manifest 里有一条 dispatch，frame/shader/tensor/push constants 正确。
-2. 关闭 profile：不创建 profile root。
-3. eager timestamp：`elapsed_ns > 0` 或在不支持 timestamp 的设备上记录明确 skip reason。
-4. replay timestamp：dispatch 数量、顺序、shader 名和原 `frame_dispatch_records` 一致。
-5. dynamic replay：改变 dynamic symbols 后，profile path 和正常 `execute_replay()` 结果一致。
-6. summary：median/min/p95 由 raw samples 派生，不能手写不一致的 summary。
+1. profiler 关闭时，runtime 和 replay 行为完全不变。
+2. manifest 默认不保存 tensor 原始值，只保存 shape/dtype/name/descriptor 元数据。
+3. timestamp 失败不能写假时间；应写 `elapsed_ns: null` 和失败原因。
+4. dispatch 顺序必须和 `RuntimeSession.dispatch_records` 一致。
+5. pipeline join 以 hash 为准，不以文件名或耗时猜测为准。
