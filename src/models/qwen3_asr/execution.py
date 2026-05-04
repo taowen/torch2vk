@@ -400,26 +400,34 @@ def run_qwen3_asr_replay_decode_loop(
     run_qwen3_asr_text_prefill(rt, prefill, pytorch_compare=False)
     run_qwen3_asr_token_select(rt, tensors.token_select, logits=prefill.logits)
 
-    generated_tokens: list[int] = []
-    first_token = int(rt.read_request_state(tensors.token_select.next_token).flatten()[0])
-    generated_tokens.append(first_token)
-    if stop_on_eos and _token_select_done(rt, tensors):
-        return _finalize_generated_tokens(rt, tensors, generated_tokens)
-
-    if max_new_tokens == 1:
-        return _finalize_generated_tokens(rt, tensors, generated_tokens)
-
     replay_generated = _initialize_replay_generated_tokens(
         rt,
         _replay_generated_tokens_tensor(max_new_tokens) if stop_on_eos
         else tensors.token_select.generated_tokens,
-        first_token,
         max_new_tokens,
     )
     replay_generated_length = _replay_generated_length_tensor()
     replay_stopped = _replay_stopped_tensor()
     _initialize_replay_decode_control(rt, replay_generated_length, replay_stopped)
     replay_token_index = _replay_token_index_tensor()
+    rt.register_inputs({replay_token_index: np.array([0], dtype=np.int64)})
+    _run_qwen3_asr_token_store(
+        rt,
+        next_token=tensors.token_select.next_token,
+        token_index=replay_token_index,
+        done=tensors.token_select.done,
+        generated_tokens=replay_generated,
+        generated_length=replay_generated_length,
+        stopped=replay_stopped,
+        stop_on_eos=stop_on_eos,
+    )
+
+    if max_new_tokens == 1:
+        if stop_on_eos:
+            return _finalize_replay_generated_tokens(
+                rt, tensors, replay_generated, replay_generated_length,
+            )
+        return replay_generated
 
     # Phase 2: Reuse a cached decode plan when this session has already recorded one.
     _ensure_kv_cache_capacity(rt, tensors, required_length=prompt_length + max_new_tokens)
@@ -430,9 +438,6 @@ def run_qwen3_asr_replay_decode_loop(
         rope_theta=rope_theta,
         mrope_section=mrope_section,
     )
-    next_token_array = rt.read_request_state(tensors.token_select.next_token)
-    rt.register_inputs({decode.input_ids: next_token_array.reshape(1, 1)})
-    rt.register_inputs({replay_token_index: np.array([1], dtype=np.int64)})
 
     tensors_by_name = _replay_decode_tensors_by_name(
         tensors=tensors,
@@ -466,6 +471,9 @@ def run_qwen3_asr_replay_decode_loop(
         return replay_generated
 
     # Phase 3: First decode step (eager warm-up — materializes weights and creates pipelines)
+    next_token_array = rt.read_request_state(tensors.token_select.next_token)
+    rt.register_inputs({decode.input_ids: next_token_array.reshape(1, 1)})
+    rt.register_inputs({replay_token_index: np.array([1], dtype=np.int64)})
     dispatch_start = len(rt.dispatch_records)
     run_qwen3_asr_text_decode(rt, decode, step=0, pytorch_compare=False)
     run_qwen3_asr_token_select(rt, tensors.token_select, logits=decode.logits)
@@ -551,11 +559,9 @@ def _finalize_generated_tokens(
 def _initialize_replay_generated_tokens(
     rt: RuntimeSession,
     generated: LogicalTensor,
-    first_token: int,
     max_new_tokens: int,
 ) -> LogicalTensor:
     array = np.zeros((1, max_new_tokens), dtype=np.int64)
-    array[0, 0] = first_token
     rt.grow_request_state(generated, array.shape)
     rt.initialize_request_state({generated: array})
     return generated
@@ -578,7 +584,7 @@ def _initialize_replay_decode_control(
     stopped: LogicalTensor,
 ) -> None:
     rt.initialize_request_state({
-        generated_length: np.array([1], dtype=np.uint32),
+        generated_length: np.array([0], dtype=np.uint32),
         stopped: np.array([0], dtype=np.uint32),
     })
 
