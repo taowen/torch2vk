@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from models.hf_cache import resolve_cached_model, load_config_json
 from models.qwen3_asr.execution import (
@@ -69,7 +70,8 @@ def _int_like(value: object, name: str) -> int:
     raise TypeError(f"{name} item must be int-like, got {type(value).__name__}")
 
 
-def test_replay_decode_loop_matches_eager(tmp_path: Path) -> None:
+@pytest.mark.parametrize("stop_on_eos", [False, True])
+def test_replay_decode_loop_matches_eager(tmp_path: Path, *, stop_on_eos: bool) -> None:
     """Full replay decode loop produces same tokens as eager."""
     from models.qwen3_asr.execution import run_qwen3_asr_replay_decode_loop
 
@@ -111,7 +113,7 @@ def test_replay_decode_loop_matches_eager(tmp_path: Path) -> None:
         pytorch_feature_attention_mask_shape=prepared.feature_attention_mask.shape,
     )
 
-    artifact_dir = tmp_path / "replay_loop_test"
+    artifact_dir = tmp_path / f"replay_loop_test_{stop_on_eos}"
     with RuntimeSession.open(
         device_index=0,
         artifact_dir=artifact_dir,
@@ -142,7 +144,7 @@ def test_replay_decode_loop_matches_eager(tmp_path: Path) -> None:
             max_new_tokens=max_new_tokens,
             rope_theta=rope_theta,
             mrope_section=mrope_section,
-            stop_on_eos=False,
+            stop_on_eos=stop_on_eos,
         )
         replay_tokens = tuple(
             int(t) for t in rt.read_request_state(generated_tensor).flatten()
