@@ -13,9 +13,9 @@ from torch2vk.vulkan.device import VulkanDevice
 
 
 def test_elementwise_mul_compute_smoke(tmp_path) -> None:
-    compiler = shutil.which("glslangValidator")
+    compiler = shutil.which("glslc")
     if compiler is None:
-        raise AssertionError("glslangValidator is not installed")
+        raise AssertionError("glslc is not installed")
     devices = enumerate_compute_devices()
     if not devices:
         raise AssertionError("no Vulkan compute devices available")
@@ -54,7 +54,19 @@ void main() {
 """.lstrip(),
         encoding="utf-8",
     )
-    subprocess.run([compiler, "-V", str(glsl_path), "-o", str(spv_path)], check=True)
+    subprocess.run(
+        [
+            compiler,
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.3",
+            "-O",
+            "-g",
+            str(glsl_path),
+            "-o",
+            str(spv_path),
+        ],
+        check=True,
+    )
 
     values = [1.0, 2.0, 3.0, 4.0]
     weights = [10.0, 20.0, 30.0, 40.0]

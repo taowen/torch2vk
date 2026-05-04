@@ -649,17 +649,48 @@ class RuntimeSession:
     def _spv_path_for_variant(self, variant: ShaderVariant) -> Path:
         if variant.precompiled_spv_path is not None:
             return variant.precompiled_spv_path
-        compiler = shutil.which("glslangValidator")
+        compiler = shutil.which("glslc")
         if compiler is None:
-            raise RuntimeError("glslangValidator is required to compile inline ShaderVariant source")
-        source_hash = hashlib.sha256(variant.source.encode("utf-8")).hexdigest()[:16]
+            raise RuntimeError("glslc is required to compile inline ShaderVariant source")
+        compile_args = (
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.3",
+            "-O",
+            "-g",
+        )
+        source_hash = hashlib.sha256(
+            "\n".join(
+                (
+                    variant.source,
+                    repr(compile_args),
+                    repr(variant.include_dirs),
+                    repr(variant.compile_defines),
+                )
+            ).encode("utf-8")
+        ).hexdigest()[:16]
         stem = f"{variant.name}.{source_hash}"
         glsl_path = self.artifact_dir / f"{stem}.comp"
         spv_path = self.artifact_dir / f"{stem}.spv"
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
         if not spv_path.is_file():
             glsl_path.write_text(variant.source, encoding="utf-8")
-            subprocess.run([compiler, "-V", str(glsl_path), "-o", str(spv_path)], check=True)
+            include_args: list[str | Path] = []
+            for include_dir in variant.include_dirs:
+                include_args.extend(("-I", include_dir))
+            define_args = [f"-D{define}" for define in variant.compile_defines]
+            subprocess.run(
+                [
+                    compiler,
+                    *compile_args,
+                    *include_args,
+                    *define_args,
+                    str(glsl_path),
+                    "-o",
+                    str(spv_path),
+                ],
+                check=True,
+                cwd=str(glsl_path.parent),
+            )
         return spv_path
 
     def _release_frame_allocations(self) -> None:

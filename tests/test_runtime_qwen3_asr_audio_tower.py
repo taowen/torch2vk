@@ -14,10 +14,10 @@ from qwen_asr.core.transformers_backend.modeling_qwen3_asr import Qwen3ASRAudioE
 from torch2vk.runtime.session import RuntimeSession
 
 
-def _load_qwen3_asr_audio_encoder_without_layers(model_dir: Path) -> Qwen3ASRAudioEncoder:
+def _load_qwen3_asr_audio_encoder(model_dir: Path, *, encoder_layers: int) -> Qwen3ASRAudioEncoder:
     config_dict = dict(load_config_json(model_dir)["thinker_config"]["audio_config"])
-    config_dict["encoder_layers"] = 0
-    config_dict["num_hidden_layers"] = 0
+    config_dict["encoder_layers"] = encoder_layers
+    config_dict["num_hidden_layers"] = encoder_layers
     model = Qwen3ASRAudioEncoder(Qwen3ASRAudioEncoderConfig(**config_dict))
     state_dict = {}
     with safe_open(model_dir / "model.safetensors", framework="pt", device="cpu") as storage:
@@ -25,7 +25,11 @@ def _load_qwen3_asr_audio_encoder_without_layers(model_dir: Path) -> Qwen3ASRAud
             if not key.startswith("thinker.audio_tower."):
                 continue
             local_key = key.removeprefix("thinker.audio_tower.")
-            if not local_key.startswith("layers."):
+            if local_key.startswith("layers."):
+                layer = int(local_key.split(".", 2)[1])
+                if layer < encoder_layers:
+                    state_dict[local_key] = storage.get_tensor(key)
+            else:
                 state_dict[local_key] = storage.get_tensor(key)
     unexpected = model.load_state_dict(state_dict, strict=False).unexpected_keys
     assert not unexpected
@@ -34,11 +38,11 @@ def _load_qwen3_asr_audio_encoder_without_layers(model_dir: Path) -> Qwen3ASRAud
 
 def test_runtime_compares_qwen3_asr_audio_tower_frame(tmp_path) -> None:
     model_dir = resolve_cached_model(REPO_ID)
-    input_shape = (1, 1, 128, 8)
-    tensors = declare_qwen3_asr_audio_tower_tensors(input_shape=input_shape)
+    encoder_layers = 18
+    input_shape = (1, 1, 128, 16)
+    tensors = declare_qwen3_asr_audio_tower_tensors(input_shape=input_shape, encoder_layers=encoder_layers)
     rng = np.random.default_rng(0)
-    padded_feature_np = rng.normal(0.0, 0.1, size=input_shape).astype(np.float32)
-    input_features = padded_feature_np[0, 0]
+    input_features = rng.normal(0.0, 0.1, size=input_shape[2:]).astype(np.float32)
     feature_lens = np.array([input_features.shape[1]], dtype=np.int64)
 
     with RuntimeSession.open(
@@ -50,13 +54,12 @@ def test_runtime_compares_qwen3_asr_audio_tower_frame(tmp_path) -> None:
             {
                 tensors.input_features: input_features,
                 tensors.feature_lens: feature_lens,
-                tensors.padded_feature: padded_feature_np,
             }
         )
         run_qwen3_asr_audio_tower(
             rt,
             tensors,
-            pytorch_model=_load_qwen3_asr_audio_encoder_without_layers(model_dir),
+            pytorch_model=_load_qwen3_asr_audio_encoder(model_dir, encoder_layers=encoder_layers),
         )
         final_result = next(
             result for result in rt.compare_results if result.tensor is tensors.last_hidden_state
