@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, fields as dataclass_fields
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, TypeGuard
+from typing import TYPE_CHECKING, Literal, Protocol, TypeGuard
 
 import numpy as np
 import numpy.typing as npt
@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from torch2vk.runtime.replay import ReplayPlan
 
 QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS = (151645, 151643)
+Qwen3AsrReplayMode = Literal["default", "require_cache", "force_record"]
 
 
 class Qwen3AsrProcessorLike(Protocol):
@@ -385,10 +386,16 @@ def run_qwen3_asr_replay_decode_loop(
     rope_theta: float = 5_000_000.0,
     mrope_section: tuple[int, ...] = (24, 20, 20),
     stop_on_eos: bool = True,
+    mode: Qwen3AsrReplayMode = "default",
 ) -> LogicalTensor:
     """Decode loop using replay, with cached plans reused across compatible requests."""
     if max_new_tokens <= 0:
         raise ValueError(f"max_new_tokens must be positive, got {max_new_tokens}")
+    if mode not in {"default", "require_cache", "force_record"}:
+        raise ValueError(
+            "mode must be one of 'default', 'require_cache', or 'force_record', "
+            f"got {mode!r}"
+        )
 
     prefill = tensors.prefill
     decode = tensors.decode
@@ -421,6 +428,10 @@ def run_qwen3_asr_replay_decode_loop(
         stopped=replay_stopped,
         stop_on_eos=stop_on_eos,
     )
+    if stop_on_eos and _replay_decode_stopped(rt, replay_stopped):
+        return _finalize_replay_generated_tokens(
+            rt, tensors, replay_generated, replay_generated_length,
+        )
 
     if max_new_tokens == 1:
         if stop_on_eos:
@@ -446,11 +457,13 @@ def run_qwen3_asr_replay_decode_loop(
         replay_generated_length=replay_generated_length,
         replay_stopped=replay_stopped,
     )
-    cached_plan = _find_cached_qwen3_asr_decode_replay_plan(
-        rt,
-        tensors_by_name=tensors_by_name,
-        stop_on_eos=stop_on_eos,
-    )
+    cached_plan = None
+    if mode != "force_record":
+        cached_plan = _find_cached_qwen3_asr_decode_replay_plan(
+            rt,
+            tensors_by_name=tensors_by_name,
+            stop_on_eos=stop_on_eos,
+        )
     if cached_plan is not None:
         _run_qwen3_asr_decode_replay_steps(
             rt,
@@ -463,12 +476,19 @@ def run_qwen3_asr_replay_decode_loop(
             mrope_section=mrope_section,
             start_step=0,
             max_new_tokens=max_new_tokens,
+            replay_stopped=replay_stopped,
+            stop_on_eos=stop_on_eos,
         )
         if stop_on_eos:
             return _finalize_replay_generated_tokens(
                 rt, tensors, replay_generated, replay_generated_length,
             )
         return replay_generated
+    if mode == "require_cache":
+        namespace = _qwen3_asr_decode_replay_namespace(stop_on_eos)
+        raise RuntimeError(
+            f"Qwen3-ASR decode replay cache miss for namespace {namespace!r}"
+        )
 
     # Phase 3: First decode step (eager warm-up — materializes weights and creates pipelines)
     next_token_array = rt.read_request_state(tensors.token_select.next_token)
@@ -488,6 +508,10 @@ def run_qwen3_asr_replay_decode_loop(
         stop_on_eos=stop_on_eos,
     )
     dispatch_end = len(rt.dispatch_records)
+    if stop_on_eos and _replay_decode_stopped(rt, replay_stopped):
+        return _finalize_replay_generated_tokens(
+            rt, tensors, replay_generated, replay_generated_length,
+        )
 
     if max_new_tokens == 2:
         if stop_on_eos:
@@ -511,12 +535,13 @@ def run_qwen3_asr_replay_decode_loop(
         frame_dispatch_records=list(warmup_records),
         variants=variants,
         tensors_by_name=tensors_by_name,
+        dynamic_symbol_names=("S",),
         token_feedback_source=tensors.token_select.next_token,
         token_feedback_target=decode.input_ids,
     )
-    if plan.indirect_buffer is not None or plan.readback_slots:
+    if plan.readback_slots:
         plan.close()
-        raise RuntimeError("Replay decode must not use indirect dispatch or readback slots")
+        raise RuntimeError("Replay decode must not use readback slots")
 
     try:
         _run_qwen3_asr_decode_replay_steps(
@@ -530,6 +555,8 @@ def run_qwen3_asr_replay_decode_loop(
             mrope_section=mrope_section,
             start_step=1,
             max_new_tokens=max_new_tokens,
+            replay_stopped=replay_stopped,
+            stop_on_eos=stop_on_eos,
         )
     except Exception:
         plan.close()
@@ -576,6 +603,10 @@ def _finalize_replay_generated_tokens(
     length = int(rt.read_request_state(generated_length).flatten()[0])
     tokens = [int(token) for token in rt.read_request_state(generated).flatten()[:length]]
     return _finalize_generated_tokens(rt, tensors, tokens)
+
+
+def _replay_decode_stopped(rt: RuntimeSession, stopped: LogicalTensor) -> bool:
+    return bool(np.asarray(rt.read_request_state(stopped)).reshape(-1)[0])
 
 
 def _initialize_replay_decode_control(
@@ -634,6 +665,8 @@ def _run_qwen3_asr_decode_replay_steps(
     mrope_section: tuple[int, ...],
     start_step: int,
     max_new_tokens: int,
+    replay_stopped: LogicalTensor,
+    stop_on_eos: bool,
 ) -> None:
     from torch2vk.runtime.replay import execute_replay
 
@@ -658,11 +691,21 @@ def _run_qwen3_asr_decode_replay_steps(
             replay_token_index,
             np.array([step + 1], dtype=np.int64),
         )
-        execute_replay(plan)
+        execute_replay(plan, dynamic_symbols=_qwen3_asr_decode_dynamic_symbols(decode))
+        if stop_on_eos and _replay_decode_stopped(rt, replay_stopped):
+            break
 
 
 def _qwen3_asr_decode_replay_namespace(stop_on_eos: bool) -> str:
     return f"qwen3_asr_decode_step:stop_on_eos={int(stop_on_eos)}"
+
+
+def _qwen3_asr_decode_dynamic_symbols(
+    decode: Qwen3AsrTextDecodeTensors,
+) -> dict[str, int]:
+    if not decode.layers:
+        raise ValueError("Qwen3-ASR decode replay requires at least one decoder layer")
+    return {"S": decode.layers[0].key_cache.concrete_shape[2]}
 
 
 def _replay_generated_tokens_tensor(max_new_tokens: int) -> LogicalTensor:

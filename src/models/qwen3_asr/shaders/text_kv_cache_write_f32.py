@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from torch2vk.runtime.shader import (
     IOKind,
+    ParamsBufferFieldSpec,
+    ParamsBufferSpec,
     PushConstantFieldSpec,
     PushConstantSpec,
     PushConstantType,
@@ -153,13 +155,19 @@ QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=16,
+            size=12,
             fields=(
                 PushConstantFieldSpec("T", PushConstantType.UINT32, 0, "T"),
                 PushConstantFieldSpec("num_kv_heads", PushConstantType.UINT32, 4, "NK"),
                 PushConstantFieldSpec("head_dim", PushConstantType.UINT32, 8, "D"),
-                PushConstantFieldSpec("S", PushConstantType.UINT32, 12, "S"),
             ),
+        ),
+        params_buffer=ParamsBufferSpec(
+            size=4,
+            fields=(
+                ParamsBufferFieldSpec("S", PushConstantType.UINT32, 0, "S"),
+            ),
+            binding_index=5,
         ),
         dispatch=(ceil_div(mul("T", "KH"), 256), 1, 1),
     ),
@@ -191,11 +199,14 @@ layout(set = 0, binding = 4) buffer restrict ValueCacheBuffer {
     float value_cache[];
 };
 
+layout(set = 0, binding = 5) buffer restrict readonly ParamsBuffer {
+    uint S;
+} params;
+
 layout(push_constant) uniform PushConstants {
     uint T;
     uint num_kv_heads;
     uint head_dim;
-    uint S;
 } pc;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -213,7 +224,7 @@ void main() {
     const uint head = within / pc.head_dim;
     const uint d = within - head * pc.head_dim;
     const uint cache_offset = uint(cache_position[0]);
-    const uint cache_idx = head * pc.S * pc.head_dim + (cache_offset + token) * pc.head_dim + d;
+    const uint cache_idx = head * params.S * pc.head_dim + (cache_offset + token) * pc.head_dim + d;
     key_cache[cache_idx] = k_values[index];
     value_cache[cache_idx] = v_values[index];
 }

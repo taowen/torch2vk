@@ -76,7 +76,6 @@ forbidden_modules = [
 allow_indirect_imports = true
 
 [tool.pytest.ini_options]
-addopts = ["--assert=plain"]
 pythonpath = ["src"]
 filterwarnings = [
   "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
