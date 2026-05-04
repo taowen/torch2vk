@@ -1933,7 +1933,7 @@ class RuntimeSession:
         if plan.device is not self.device:
             raise ValueError("ReplayPlan belongs to a different RuntimeSession device")
         plans = self._replay_plan_cache.setdefault(namespace, [])
-        if plan not in plans:
+        if not any(existing is plan for existing in plans):
             plans.append(plan)
 
     def _materialize_replay_rebind_tensor(
