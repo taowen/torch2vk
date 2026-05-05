@@ -370,7 +370,8 @@ set -e
 
 POSTPROCESS_STATUS=0
 if [[ "$STATUS" -eq 0 ]]; then
-  python3 "$SCRIPT_DIR/postprocess-sqtt.py" --root "$ROOT" || POSTPROCESS_STATUS=$?
+  PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 -m torch2vk.sqtt --root "$ROOT" || POSTPROCESS_STATUS=$?
 else
   copy_new_rgp_captures
 fi

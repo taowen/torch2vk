@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Join torch2vk runtime dispatches with RADV SQTT driver artifacts."""
 
 from __future__ import annotations
@@ -7,14 +6,10 @@ import argparse
 import json
 import shutil
 import sys
-from collections import Counter
 from pathlib import Path
 from typing import Any, TypedDict
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = REPO_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+from .report import build_report_payload, compact_hotspot_focus, write_reports
 
 
 class ParsedProfileTag(TypedDict):
@@ -26,17 +21,22 @@ class ParsedProfileTag(TypedDict):
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path, help="SQTT run root")
+    parser.add_argument(
+        "--debug-artifacts",
+        action="store_true",
+        help="also write full pipeline/source-ISA decoder intermediates under debug/",
+    )
     args = parser.parse_args()
 
     try:
-        postprocess(args.root.expanduser().resolve())
+        postprocess(args.root.expanduser().resolve(), debug_artifacts=args.debug_artifacts)
     except Exception as exc:
-        print(f"postprocess-sqtt: {exc}", file=sys.stderr)
+        print(f"torch2vk.sqtt: {exc}", file=sys.stderr)
         return 1
     return 0
 
 
-def postprocess(root: Path) -> None:
+def postprocess(root: Path, *, debug_artifacts: bool = False) -> None:
     driver_dir = root / "driver"
     dispatches_path = root / "dispatches.jsonl"
     driver_dispatch_path = driver_dir / "dispatch-sequence.jsonl"
@@ -125,16 +125,33 @@ def postprocess(root: Path) -> None:
     if not rows:
         raise RuntimeError("no SQTT attribution rows were produced")
 
+    _remove_stale_report_outputs(root)
     attribution_path = root / "attribution.jsonl"
     _write_jsonl(attribution_path, rows)
-    decoder_summary = _write_source_hotspot_reports(root=root, rows=rows)
-    summary = _build_summary(rows, capture_rows)
-    summary.update(decoder_summary)
-    (root / "sqtt-summary.json").write_text(
-        json.dumps(summary, indent=2, sort_keys=True),
-        encoding="utf-8",
+    source_isa_reports, focus, debug_outputs = _build_source_isa_reports(
+        root=root,
+        rows=rows,
+        debug_artifacts=debug_artifacts,
     )
-    _update_run_json(root, summary)
+    report = build_report_payload(
+        root=root,
+        attribution_rows=rows,
+        capture_rows=capture_rows,
+        source_isa_reports=source_isa_reports,
+        focus=focus,
+        debug_artifacts=debug_outputs,
+    )
+    report_paths = write_reports(root=root, report=report)
+    _update_run_json(
+        root,
+        report={
+            **report_paths,
+            "captured_submits": report["captured_submits"],
+            "captured_dispatches": report["captured_dispatches"],
+            "source_isa_reports": report["source_isa_reports"],
+            "debug_artifacts": report["debug_artifacts"],
+        },
+    )
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -272,38 +289,45 @@ def _output_op_name(raw_writes: object) -> str:
     return tensor
 
 
-def _build_summary(rows: list[dict[str, Any]], capture_rows: list[dict[str, Any]]) -> dict[str, Any]:
-    shaders = Counter(str(row["shader"]) for row in rows)
-    outputs = Counter(str(row["output_op"]) for row in rows)
-    pipelines = Counter(str(row["pipeline_debug_name"]) for row in rows)
-    return {
-        "captured_dispatches": len(rows),
-        "captured_submits": len(capture_rows),
-        "shaders": shaders.most_common(),
-        "outputs": outputs.most_common(),
-        "pipelines": pipelines.most_common(),
-    }
+def _build_source_isa_reports(
+    *,
+    root: Path,
+    rows: list[dict[str, Any]],
+    debug_artifacts: bool,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    from .pipeline_attribution import build_pipeline_attribution_from_attribution_jsonl
+    from .rgp_capture_parser import parse_rgp_capture
+    from .source_isa_hotspot_report import build_source_isa_hotspot_report
 
-
-def _write_source_hotspot_reports(*, root: Path, rows: list[dict[str, Any]]) -> dict[str, Any]:
-    from torch2vk.sqtt.pipeline_attribution import build_pipeline_attribution_from_attribution_jsonl
-    from torch2vk.sqtt.rgp_capture_parser import parse_rgp_capture
-    from torch2vk.sqtt.source_isa_hotspot_report import build_source_isa_hotspot_report
-
+    debug_outputs: dict[str, Any] = {}
+    debug_dir = root / "debug"
     try:
         pipeline_attribution = build_pipeline_attribution_from_attribution_jsonl(root=root)
-        (root / "pipeline-attribution.json").write_text(
+    except Exception as exc:
+        return (
+            [{
+                "stage": "pipeline_attribution",
+                "availability": "error",
+                "unavailable_reason": str(exc),
+            }],
+            [],
+            debug_outputs,
+        )
+
+    if debug_artifacts:
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        pipeline_attribution_path = debug_dir / "pipeline-attribution.json"
+        pipeline_attribution_path.write_text(
             json.dumps(pipeline_attribution.to_dict(), indent=2, sort_keys=True),
             encoding="utf-8",
         )
-    except Exception as exc:
-        return {
-            "pipeline_attribution_path": None,
-            "source_isa_hotspot_reports": [],
-            "source_isa_hotspot_error": f"pipeline attribution failed: {exc}",
-        }
+        debug_outputs["pipeline_attribution_path"] = _relative_or_str(
+            pipeline_attribution_path,
+            root,
+        )
 
     reports: list[dict[str, Any]] = []
+    focus: list[dict[str, Any]] = []
     seen: set[tuple[int, str]] = set()
     unique_rgps = {
         (_expect_int(item, "submit_ordinal"), _expect_str(item, "rgp_path"))
@@ -321,11 +345,6 @@ def _write_source_hotspot_reports(*, root: Path, rows: list[dict[str, Any]]) -> 
         rgp_path = Path(rgp_path_text)
         if not rgp_path.is_absolute():
             rgp_path = root / rgp_path
-        if len(unique_rgps) == 1:
-            output_name = "source-isa-sqtt-hotspots.json"
-        else:
-            output_name = f"source-isa-sqtt-hotspots-submit{submit_ordinal}.json"
-        output_path = root / output_name
         try:
             capture = parse_rgp_capture(rgp_path)
             report = build_source_isa_hotspot_report(
@@ -334,11 +353,21 @@ def _write_source_hotspot_reports(*, root: Path, rows: list[dict[str, Any]]) -> 
                 capture=capture,
             )
             payload = report.to_dict()
-            output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-            reports.append({
+            hotspot_path: str | None = None
+            if debug_artifacts:
+                if len(unique_rgps) == 1:
+                    output_name = "source-isa-sqtt-hotspots.json"
+                else:
+                    output_name = f"source-isa-sqtt-hotspots-submit{submit_ordinal}.json"
+                output_path = debug_dir / output_name
+                output_path.write_text(
+                    json.dumps(payload, indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
+                hotspot_path = _relative_or_str(output_path, root)
+            report_summary = {
                 "submit_ordinal": submit_ordinal,
                 "capture_path": _relative_or_str(rgp_path, root),
-                "path": _relative_or_str(output_path, root),
                 "availability": payload["availability"],
                 "unavailable_reason": payload["unavailable_reason"],
                 "decoded_stream_count": payload["decoded_stream_count"],
@@ -346,23 +375,52 @@ def _write_source_hotspot_reports(*, root: Path, rows: list[dict[str, Any]]) -> 
                 "matched_instruction_event_count": payload["matched_instruction_event_count"],
                 "unmatched_instruction_event_count": payload["unmatched_instruction_event_count"],
                 "zero_pc_instruction_event_count": payload["zero_pc_instruction_event_count"],
-            })
+            }
+            if hotspot_path is not None:
+                report_summary["debug_hotspot_path"] = hotspot_path
+                debug_outputs.setdefault("source_isa_hotspot_paths", []).append(hotspot_path)
+            try:
+                focus.append(
+                    compact_hotspot_focus(
+                        attribution_row=row,
+                        hotspot_payload=payload,
+                        hotspot_path=hotspot_path,
+                        root=root,
+                    )
+                )
+            except Exception as focus_exc:
+                report_summary["focus_error"] = str(focus_exc)
+            reports.append(report_summary)
         except Exception as exc:
             reports.append({
                 "submit_ordinal": submit_ordinal,
                 "capture_path": _relative_or_str(rgp_path, root),
-                "path": None,
                 "availability": "error",
                 "unavailable_reason": str(exc),
             })
 
-    return {
-        "pipeline_attribution_path": "pipeline-attribution.json",
-        "source_isa_hotspot_reports": reports,
-    }
+    return reports, focus, debug_outputs
 
 
-def _update_run_json(root: Path, sqtt_summary: dict[str, Any]) -> None:
+def _remove_stale_report_outputs(root: Path) -> None:
+    for name in (
+        "sqtt-summary.json",
+        "sqtt-report.md",
+        "pipeline-attribution.json",
+        "source-isa-sqtt-hotspots.json",
+    ):
+        path = root / name
+        if path.is_file():
+            path.unlink()
+    for path in root.glob("source-isa-sqtt-hotspots-submit*.json"):
+        if path.is_file():
+            path.unlink()
+    debug_dir = root / "debug"
+    if debug_dir.is_dir():
+        shutil.rmtree(debug_dir)
+
+
+def _update_run_json(root: Path, report: dict[str, Any]) -> None:
     path = root / "run.json"
     payload: dict[str, Any] = {}
     if path.is_file():
@@ -371,8 +429,7 @@ def _update_run_json(root: Path, sqtt_summary: dict[str, Any]) -> None:
             payload = raw
     payload["sqtt"] = {
         "attribution_path": "attribution.jsonl",
-        "summary_path": "sqtt-summary.json",
-        **sqtt_summary,
+        **report,
     }
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 

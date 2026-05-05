@@ -125,10 +125,7 @@ def _glsl_path_for_row(row: dict[str, Any]) -> Path:
     for candidate in candidates:
         if candidate.is_file():
             return candidate
-    raise FileNotFoundError(
-        f"Could not find GLSL source next to shader_spv_path={spv_path}. "
-        f"Searched: {', '.join(str(item) for item in candidates)}"
-    )
+    return candidates[0]
 
 
 def _expect_str(row: dict[str, Any], key: str) -> str:
@@ -136,4 +133,3 @@ def _expect_str(row: dict[str, Any], key: str) -> str:
     if not isinstance(value, str) or value == "":
         raise RuntimeError(f"{key} must be a non-empty string, got {value!r}")
     return value
-

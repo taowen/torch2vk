@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from bisect import bisect_right
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypeGuard
 
@@ -74,9 +74,6 @@ class DriverPipelineArtifact:
     pipeline_debug_path: str
     compiler_native_disasm_path: str
     shaders: tuple[DriverShaderArtifact, ...]
-
-    def to_dict(self) -> dict[str, object]:
-        return asdict(self)
 
 
 @dataclass(frozen=True, slots=True)

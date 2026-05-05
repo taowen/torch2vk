@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -23,23 +23,12 @@ class DisasmInstruction:
     def end_offset(self) -> int:
         return self.offset + self.size_bytes
 
-    def to_dict(self) -> dict[str, object]:
-        return asdict(self)
-
 
 @dataclass(frozen=True, slots=True)
 class CompilerNativeDisasmIndex:
     path: str
     instructions: tuple[DisasmInstruction, ...]
     block_offsets: dict[str, int]
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "path": self.path,
-            "instruction_count": len(self.instructions),
-            "block_offsets": self.block_offsets,
-            "instructions": [instruction.to_dict() for instruction in self.instructions],
-        }
 
 
 def parse_compiler_native_disasm(path: Path) -> CompilerNativeDisasmIndex:
