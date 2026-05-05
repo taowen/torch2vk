@@ -54,6 +54,7 @@ class Qwen3AsrTextDecodeTensors:
     norm_weight: LogicalTensor
     final_norm: LogicalTensor
     lm_head_weight: LogicalTensor
+    lm_head_select_scratch: LogicalTensor
     logits: LogicalTensor
 
 
@@ -222,6 +223,13 @@ def declare_qwen3_asr_text_tensors(
             probe=PyTorchProbe(kind="module_output", target="model.norm"),
         ),
         lm_head_weight=_weight("thinker.lm_head.weight", (vocab_size, hidden_size)),
+        lm_head_select_scratch=LogicalTensor(
+            name="qwen3_asr.text_decode.lm_head_select_scratch",
+            spec=TensorSpec(dtype="float32", shape=(2 * ((vocab_size + 3) // 4),)),
+            role=TensorRole.OUTPUT,
+            memory=MemoryClass.REQUEST_STATE,
+            lifetime=TensorLifetime.REQUEST,
+        ),
         logits=LogicalTensor(
             name="qwen3_asr.text_decode.logits",
             spec=TensorSpec(dtype="float32", shape=(1, 1, vocab_size)),

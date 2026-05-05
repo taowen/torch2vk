@@ -47,7 +47,7 @@ dump one .rgp file
 但 per-submit 不能对完整 workload 全局打开。`torch2vk` 的实际用法是再加一层 label filter：
 
 ```text
-AGENTORCH_RADV_SQTT_PROFILE_TAG_FILTER=shader=qwen3_asr_text_linear_nobias_f32
+AGENTORCH_RADV_SQTT_PROFILE_TAG_FILTER=shader=qwen3_asr_text_linear_nobias_t1_f32
 ```
 
 Mesa 仍初始化 RGP/SQTT 能力，但只有 submit 的

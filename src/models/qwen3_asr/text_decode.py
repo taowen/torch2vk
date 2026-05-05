@@ -10,11 +10,16 @@ from models.qwen3_asr.shaders.text_kv_cache_write_f32 import (
 )
 from models.qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
 from models.qwen3_asr.shaders.text_linear_nobias_t1_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
+from models.qwen3_asr.shaders.text_lm_head_select_t1_f32 import (
+    QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32,
+    QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32,
+)
 from models.qwen3_asr.shaders.text_qk_norm_f32 import QWEN3_ASR_TEXT_QK_NORM_F32
 from models.qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
 from models.qwen3_asr.shaders.text_rope_f32 import QWEN3_ASR_TEXT_ROPE_F32
 from models.qwen3_asr.shaders.text_swiglu_f32 import QWEN3_ASR_TEXT_SWIGLU_F32
-from models.qwen3_asr.tensors.text import Qwen3AsrTextDecodeTensors
+from models.qwen3_asr.tensors.text import Qwen3AsrTextDecodeTensors, Qwen3AsrTokenSelectTensors
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
 
@@ -24,10 +29,13 @@ def run_qwen3_asr_text_decode(
     *,
     step: int,
     pytorch_compare: bool = True,
+    token_select: Qwen3AsrTokenSelectTensors | None = None,
 ) -> None:
     """Frame boundary for one cached decode step."""
     if step < 0:
         raise ValueError(f"step must be non-negative, got {step}")
+    if pytorch_compare and token_select is not None:
+        raise ValueError("lm-head token selection fusion requires pytorch_compare=False")
     if pytorch_compare:
         from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
             Qwen3ASRForConditionalGeneration,
@@ -57,14 +65,26 @@ def run_qwen3_asr_text_decode(
             QWEN3_ASR_TEXT_RMS_NORM_F32(
                 rt, x=hidden, weight=layer.input_layernorm_weight, output=layer.input_layernorm,
             )
-            QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
-                rt, x=layer.input_layernorm, weight=layer.q_proj_weight, output=layer.q_proj,
+            _run_linear_nobias_decode(
+                rt,
+                x=layer.input_layernorm,
+                weight=layer.q_proj_weight,
+                output=layer.q_proj,
+                pytorch_compare=pytorch_compare,
             )
-            QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
-                rt, x=layer.input_layernorm, weight=layer.k_proj_weight, output=layer.k_proj,
+            _run_linear_nobias_decode(
+                rt,
+                x=layer.input_layernorm,
+                weight=layer.k_proj_weight,
+                output=layer.k_proj,
+                pytorch_compare=pytorch_compare,
             )
-            QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
-                rt, x=layer.input_layernorm, weight=layer.v_proj_weight, output=layer.v_proj,
+            _run_linear_nobias_decode(
+                rt,
+                x=layer.input_layernorm,
+                weight=layer.v_proj_weight,
+                output=layer.v_proj,
+                pytorch_compare=pytorch_compare,
             )
             QWEN3_ASR_TEXT_QK_NORM_F32(
                 rt, x=layer.q_proj, weight=layer.q_norm_weight, output=layer.q_normed,
@@ -91,8 +111,12 @@ def run_qwen3_asr_text_decode(
                 cache_position=tensors.cache_position,
                 output=layer.attention,
             )
-            QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
-                rt, x=layer.attention, weight=layer.o_proj_weight, output=layer.o_proj,
+            _run_linear_nobias_decode(
+                rt,
+                x=layer.attention,
+                weight=layer.o_proj_weight,
+                output=layer.o_proj,
+                pytorch_compare=pytorch_compare,
             )
             QWEN3_ASR_TEXT_ADD_3D_F32(
                 rt, x=hidden, y=layer.o_proj, output=layer.attn_residual,
@@ -101,19 +125,29 @@ def run_qwen3_asr_text_decode(
                 rt, x=layer.attn_residual, weight=layer.post_attention_layernorm_weight,
                 output=layer.post_attention_layernorm,
             )
-            QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
-                rt, x=layer.post_attention_layernorm, weight=layer.gate_proj_weight,
+            _run_linear_nobias_decode(
+                rt,
+                x=layer.post_attention_layernorm,
+                weight=layer.gate_proj_weight,
                 output=layer.gate_proj,
+                pytorch_compare=pytorch_compare,
             )
-            QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
-                rt, x=layer.post_attention_layernorm, weight=layer.up_proj_weight,
+            _run_linear_nobias_decode(
+                rt,
+                x=layer.post_attention_layernorm,
+                weight=layer.up_proj_weight,
                 output=layer.up_proj,
+                pytorch_compare=pytorch_compare,
             )
             QWEN3_ASR_TEXT_SWIGLU_F32(
                 rt, gate=layer.gate_proj, up=layer.up_proj, output=layer.swiglu,
             )
-            QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
-                rt, x=layer.swiglu, weight=layer.down_proj_weight, output=layer.down_proj,
+            _run_linear_nobias_decode(
+                rt,
+                x=layer.swiglu,
+                weight=layer.down_proj_weight,
+                output=layer.down_proj,
+                pytorch_compare=pytorch_compare,
             )
             QWEN3_ASR_TEXT_ADD_3D_F32(
                 rt, x=layer.attn_residual, y=layer.down_proj, output=layer.output,
@@ -127,7 +161,33 @@ def run_qwen3_asr_text_decode(
             QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
                 rt, x=tensors.final_norm, weight=tensors.lm_head_weight, output=tensors.logits,
             )
+        elif token_select is not None:
+            QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32(
+                rt,
+                x=tensors.final_norm,
+                weight=tensors.lm_head_weight,
+                scratch=tensors.lm_head_select_scratch,
+            )
+            QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32(
+                rt,
+                scratch=tensors.lm_head_select_scratch,
+                eos_token_ids=token_select.eos_token_ids,
+                next_token=token_select.next_token,
+                done=token_select.done,
+            )
         else:
             QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32(
                 rt, x=tensors.final_norm, weight=tensors.lm_head_weight, output=tensors.logits,
             )
+
+
+def _run_linear_nobias_decode(
+    rt: RuntimeSession,
+    *,
+    x: LogicalTensor,
+    weight: LogicalTensor,
+    output: LogicalTensor,
+    pytorch_compare: bool,
+) -> None:
+    variant = QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32 if pytorch_compare else QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
+    variant(rt, x=x, weight=weight, output=output)
