@@ -13,7 +13,6 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     add,
-    ceil_div,
     mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import SubgroupRequirements
@@ -77,7 +76,7 @@ QWEN3_ASR_TEXT_QKV_PROJ_T1_F32 = ShaderVariant(
                 PushConstantFieldSpec("KV", PushConstantType.UINT32, 8, "KV"),
             ),
         ),
-        dispatch=(ceil_div(add("Q", mul("KV", 2)), 4), 1, 1),
+        dispatch=(add("Q", mul("KV", 2)), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(
         subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
@@ -127,7 +126,7 @@ layout(push_constant) uniform PushConstants {
     uint KV;
 } pc;
 
-layout(local_size_x = 64, local_size_y = 4, local_size_z = 1) in;
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 float bf16_to_f32(uint16_t value) {
     return uintBitsToFloat(uint(value) << 16);
@@ -136,7 +135,7 @@ float bf16_to_f32(uint16_t value) {
 void main() {
     const uint k_lane = gl_LocalInvocationID.x;
     const uint local_col = gl_LocalInvocationID.y;
-    const uint global_col = gl_WorkGroupID.x * 4u + local_col;
+    const uint global_col = gl_WorkGroupID.x + local_col;
     const uint q_end = pc.Q;
     const uint k_end = pc.Q + pc.KV;
     const uint total = pc.Q + 2u * pc.KV;

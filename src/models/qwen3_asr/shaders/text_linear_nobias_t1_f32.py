@@ -12,7 +12,6 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
-    ceil_div,
 )
 from torch2vk.vulkan.shader_execution_requirements import SubgroupRequirements
 
@@ -50,7 +49,7 @@ QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32 = ShaderVariant(
                 PushConstantFieldSpec("N", PushConstantType.UINT32, 4, "N"),
             ),
         ),
-        dispatch=(ceil_div("N", 4), 1, 1),
+        dispatch=("N", 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(
         subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
@@ -83,7 +82,7 @@ layout(push_constant) uniform PushConstants {
     uint N;
 } pc;
 
-layout(local_size_x = 64, local_size_y = 4, local_size_z = 1) in;
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 float bf16_to_f32(uint16_t value) {
     return uintBitsToFloat(uint(value) << 16);
@@ -92,7 +91,7 @@ float bf16_to_f32(uint16_t value) {
 void main() {
     const uint k_lane = gl_LocalInvocationID.x;
     const uint local_col = gl_LocalInvocationID.y;
-    const uint col = gl_WorkGroupID.x * 4u + local_col;
+    const uint col = gl_WorkGroupID.x + local_col;
 
     float acc = 0.0;
     if (col < pc.N) {

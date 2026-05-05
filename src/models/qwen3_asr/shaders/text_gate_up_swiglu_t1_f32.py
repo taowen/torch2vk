@@ -12,7 +12,6 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
-    ceil_div,
 )
 from torch2vk.vulkan.shader_execution_requirements import SubgroupRequirements
 
@@ -56,7 +55,7 @@ QWEN3_ASR_TEXT_GATE_UP_SWIGLU_T1_F32 = ShaderVariant(
                 PushConstantFieldSpec("I", PushConstantType.UINT32, 4, "I"),
             ),
         ),
-        dispatch=(ceil_div("I", 4), 1, 1),
+        dispatch=("I", 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(
         subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
@@ -93,7 +92,7 @@ layout(push_constant) uniform PushConstants {
     uint I;
 } pc;
 
-layout(local_size_x = 64, local_size_y = 4, local_size_z = 1) in;
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 float bf16_to_f32(uint16_t value) {
     return uintBitsToFloat(uint(value) << 16);
@@ -102,7 +101,7 @@ float bf16_to_f32(uint16_t value) {
 void main() {
     const uint k_lane = gl_LocalInvocationID.x;
     const uint local_col = gl_LocalInvocationID.y;
-    const uint col = gl_WorkGroupID.x * 4u + local_col;
+    const uint col = gl_WorkGroupID.x + local_col;
 
     float gate_acc = 0.0;
     float up_acc = 0.0;
