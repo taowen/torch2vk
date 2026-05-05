@@ -1,0 +1,17 @@
+"""Generated Qwen3-ASR shader modules."""
+
+{% for module in shader_modules %}
+from models.generated_qwen3_asr.shaders.{{ module.module }} import (
+{% for constant in module.constants %}
+    {{ constant }},
+{% endfor %}
+)
+{% endfor %}
+
+__all__ = [
+{% for module in shader_modules %}
+{% for constant in module.constants %}
+    "{{ constant }}",
+{% endfor %}
+{% endfor %}
+]

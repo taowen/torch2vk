@@ -1,0 +1,39 @@
+"""Shared helpers for generated Qwen3-ASR frame scaffolds."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from torch2vk.runtime.session import RuntimeSession
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratedFrameStep:
+    op: str
+    inputs: tuple[str, ...]
+    outputs: tuple[str, ...]
+    note: str = ""
+
+
+def qwen3_asr_frame(
+    rt: RuntimeSession,
+    name: str,
+    *,
+    pytorch_compare: bool,
+    pytorch_model_submodule: str,
+    pytorch_input_prefixes: tuple[str, ...] = (),
+):
+    if not pytorch_compare:
+        return rt.frame(name)
+
+    from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
+        Qwen3ASRForConditionalGeneration,
+    )
+
+    return rt.frame(
+        name,
+        pytorch_model_class=Qwen3ASRForConditionalGeneration,
+        pytorch_model_submodule=pytorch_model_submodule,
+        pytorch_input_prefixes=pytorch_input_prefixes,
+    )
+

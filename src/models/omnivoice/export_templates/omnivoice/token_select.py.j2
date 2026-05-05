@@ -1,0 +1,47 @@
+"""Generated OmniVoice token selection frame scaffold."""
+
+from __future__ import annotations
+
+from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.session import RuntimeSession
+
+from models.omnivoice._frame import OmniVoiceFrameStep
+from models.omnivoice.shaders.argmax_select_apply_fused_l import (
+    OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_L,
+)
+from models.omnivoice.shaders.argmax_select_apply_fused_s import (
+    OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_S,
+)
+from models.omnivoice.shaders.codebook_argmax_f32 import OMNIVOICE_CODEBOOK_ARGMAX_F32
+from models.omnivoice.shaders.codebook_argmax_scores_f32 import OMNIVOICE_CODEBOOK_ARGMAX_SCORES_F32
+from models.omnivoice.tensors.text import OmniVoiceTokenSelectTensors
+
+
+TOKEN_SELECT_FRAME_STEPS = (
+{% for step in token_select_steps %}
+    OmniVoiceFrameStep(
+        {{ step.op|pyrepr }},
+        {{ step.inputs|pyrepr }},
+        {{ step.outputs|pyrepr }},
+        {{ step.note|pyrepr }},
+    ),
+{% endfor %}
+)
+
+TOKEN_SELECT_SHADERS = (
+    OMNIVOICE_CODEBOOK_ARGMAX_F32,
+    OMNIVOICE_CODEBOOK_ARGMAX_SCORES_F32,
+    OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_L,
+    OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_S,
+)
+
+
+def run_omnivoice_token_select(
+    rt: RuntimeSession,
+    tensors: OmniVoiceTokenSelectTensors,
+    *,
+    audio_mask_id: int = {{ defaults.audio_mask_id }},
+) -> LogicalTensor:
+    del tensors, audio_mask_id
+    with rt.frame("omnivoice.token_select"):
+        raise NotImplementedError("Generated scaffold only: lower TOKEN_SELECT_FRAME_STEPS.")

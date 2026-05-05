@@ -1,0 +1,39 @@
+"""Generated OmniVoice input embedding frame scaffold."""
+
+from __future__ import annotations
+
+from torch2vk.runtime.session import RuntimeSession
+
+from models.omnivoice._frame import OmniVoiceFrameStep, omnivoice_frame
+from models.omnivoice.shaders.audio_embedding_sum_f32 import OMNIVOICE_AUDIO_EMBEDDING_SUM_F32
+from models.omnivoice.tensors.text import OmniVoiceTextPrefillTensors
+
+
+INPUT_EMBEDDINGS_FRAME_STEPS = (
+{% for step in input_embeddings_steps %}
+    OmniVoiceFrameStep(
+        {{ step.op|pyrepr }},
+        {{ step.inputs|pyrepr }},
+        {{ step.outputs|pyrepr }},
+        {{ step.note|pyrepr }},
+    ),
+{% endfor %}
+)
+
+INPUT_EMBEDDINGS_SHADERS = (OMNIVOICE_AUDIO_EMBEDDING_SUM_F32,)
+
+
+def run_omnivoice_input_embeddings(
+    rt: RuntimeSession,
+    tensors: OmniVoiceTextPrefillTensors,
+    *,
+    pytorch_compare: bool = True,
+) -> None:
+    del tensors
+    frame_scope = omnivoice_frame(
+        rt,
+        "omnivoice.input_embeddings",
+        pytorch_compare=pytorch_compare,
+    )
+    with frame_scope:
+        raise NotImplementedError("Generated scaffold only: lower INPUT_EMBEDDINGS_FRAME_STEPS.")

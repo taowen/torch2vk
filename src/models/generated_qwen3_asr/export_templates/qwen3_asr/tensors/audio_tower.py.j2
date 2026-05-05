@@ -1,0 +1,44 @@
+"""Generated Qwen3-ASR audio tower tensor scaffold."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from torch2vk.runtime.logical import LogicalTensor
+
+from models.generated_qwen3_asr.tensors.audio_tower_layer import (
+    GeneratedQwen3AsrAudioEncoderLayerTensors,
+)
+
+
+AUDIO_TOWER_PARAMETER_FIELDS = {
+{% for item in audio_tower_fields if item.source_parameter %}
+    "{{ item.field }}": "{{ item.source_parameter }}",
+{% endfor %}
+}
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratedQwen3AsrAudioTowerTensors:
+{% for item in audio_tower_fields %}
+{% if item.field == "layers" %}
+    layers: tuple[GeneratedQwen3AsrAudioEncoderLayerTensors, ...]
+{% else %}
+    {{ item.field }}: LogicalTensor
+{% endif %}
+{% endfor %}
+
+
+def declare_generated_qwen3_asr_audio_tower_tensors(
+    *,
+    input_features_shape: tuple[int, int],
+    hidden_size: int = {{ defaults.audio_hidden_size }},
+    output_size: int = {{ defaults.audio_output_size }},
+    downsample_hidden_size: int = {{ defaults.audio_downsample_hidden_size }},
+    encoder_layers: int = {{ defaults.audio_encoder_layers }},
+    encoder_ffn_dim: int = {{ defaults.audio_encoder_ffn_dim }},
+) -> GeneratedQwen3AsrAudioTowerTensors:
+    raise NotImplementedError(
+        "Generated scaffold only: fill audio tower chunking and LogicalTensor declarations."
+    )
+

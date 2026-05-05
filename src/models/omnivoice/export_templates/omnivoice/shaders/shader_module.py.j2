@@ -1,0 +1,28 @@
+"""Generated OmniVoice {{ module.doc }} shader scaffold."""
+
+from __future__ import annotations
+
+from torch2vk.runtime.shader import ShaderContract, ShaderVariant
+
+
+{% for variant in module.variants %}
+{{ variant.constant }} = ShaderVariant(
+    name={{ variant.shader_name|pyrepr }},
+    family={{ variant.family|pyrepr }},
+    contract=ShaderContract(
+        class_name={{ variant.class_name|pyrepr }},
+        shader_name={{ variant.shader_name|pyrepr }},
+        fields=(),
+        dispatch=(1, 1, 1),
+    ),
+    source="""
+{{ variant.source }}""".lstrip(),
+)
+{% endfor %}
+
+
+__all__ = [
+{% for variant in module.variants %}
+    "{{ variant.constant }}",
+{% endfor %}
+]

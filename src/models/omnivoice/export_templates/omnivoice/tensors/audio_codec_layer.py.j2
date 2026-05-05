@@ -1,0 +1,36 @@
+"""Generated OmniVoice audio codec decoder layer tensor scaffold."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from torch2vk.runtime.logical import LogicalTensor
+
+
+{% if audio_codec_layer_fields|selectattr("source_parameter")|list %}
+AUDIO_CODEC_DECODER_LAYER_PARAMETER_FIELDS = {
+{% for item in audio_codec_layer_fields if item.source_parameter %}
+    "{{ item.field }}": "{{ item.source_parameter }}",
+{% endfor %}
+}
+{% else %}
+AUDIO_CODEC_DECODER_LAYER_PARAMETER_FIELDS = {}
+{% endif %}
+
+
+@dataclass(frozen=True, slots=True)
+class OmniVoiceAudioCodecDecoderLayerTensors:
+{% for item in audio_codec_layer_fields %}
+    {{ item.field }}: LogicalTensor
+{% endfor %}
+
+
+def declare_omnivoice_audio_codec_decoder_layer_tensors(
+    *,
+    layer: int,
+    channel_count: int,
+    sequence_length: int,
+) -> OmniVoiceAudioCodecDecoderLayerTensors:
+    raise NotImplementedError(
+        "Generated scaffold only: fill one OmniVoice audio codec decoder layer declaration."
+    )

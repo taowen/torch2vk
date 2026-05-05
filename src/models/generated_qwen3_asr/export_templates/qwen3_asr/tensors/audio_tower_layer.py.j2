@@ -1,0 +1,34 @@
+"""Generated Qwen3-ASR audio encoder layer tensor scaffold."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from torch2vk.runtime.logical import LogicalTensor
+
+
+AUDIO_ENCODER_LAYER_PARAMETER_FIELDS = {
+{% for item in audio_layer_fields if item.source_parameter %}
+    "{{ item.field }}": "{{ item.source_parameter }}",
+{% endfor %}
+}
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratedQwen3AsrAudioEncoderLayerTensors:
+{% for item in audio_layer_fields %}
+    {{ item.field }}: LogicalTensor
+{% endfor %}
+
+
+def declare_generated_qwen3_asr_audio_encoder_layer_tensors(
+    *,
+    layer: int,
+    hidden_shape: tuple[int, int],
+    hidden_size: int,
+    encoder_ffn_dim: int,
+) -> GeneratedQwen3AsrAudioEncoderLayerTensors:
+    raise NotImplementedError(
+        "Generated scaffold only: fill LogicalTensor shape/probe policy for one audio layer."
+    )
+

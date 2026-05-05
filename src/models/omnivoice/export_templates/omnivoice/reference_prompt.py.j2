@@ -1,0 +1,34 @@
+"""Generated OmniVoice reference prompt frame scaffold."""
+
+from __future__ import annotations
+
+from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.session import RuntimeSession
+
+from models.omnivoice._frame import OmniVoiceFrameStep, omnivoice_frame
+
+
+REFERENCE_PROMPT_FRAME_STEPS = (
+{% for step in reference_prompt_steps %}
+    OmniVoiceFrameStep(
+        {{ step.op|pyrepr }},
+        {{ step.inputs|pyrepr }},
+        {{ step.outputs|pyrepr }},
+        {{ step.note|pyrepr }},
+    ),
+{% endfor %}
+)
+
+
+def run_omnivoice_reference_prompt(
+    rt: RuntimeSession,
+    *,
+    pytorch_compare: bool = True,
+) -> LogicalTensor:
+    frame_scope = omnivoice_frame(
+        rt,
+        "omnivoice.reference_prompt",
+        pytorch_compare=pytorch_compare,
+    )
+    with frame_scope:
+        raise NotImplementedError("Generated scaffold only: lower REFERENCE_PROMPT_FRAME_STEPS.")

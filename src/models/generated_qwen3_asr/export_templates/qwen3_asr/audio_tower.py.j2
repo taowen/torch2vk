@@ -1,0 +1,52 @@
+"""Generated Qwen3-ASR audio tower frame scaffold."""
+
+from __future__ import annotations
+
+from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.session import RuntimeSession
+
+from models.generated_qwen3_asr._frame import GeneratedFrameStep, qwen3_asr_frame
+from models.generated_qwen3_asr.tensors.audio_tower import GeneratedQwen3AsrAudioTowerTensors
+
+
+AUDIO_TOWER_FRAME_STEPS = (
+{% for step in audio_tower_steps %}
+    GeneratedFrameStep(
+        {{ step.op|pyrepr }},
+        {{ step.inputs|pyrepr }},
+        {{ step.outputs|pyrepr }},
+        {{ step.note|pyrepr }},
+    ),
+{% endfor %}
+)
+
+AUDIO_ENCODER_LAYER_STEPS = (
+{% for step in audio_layer_steps %}
+    GeneratedFrameStep(
+        {{ step.op|pyrepr }},
+        {{ step.inputs|pyrepr }},
+        {{ step.outputs|pyrepr }},
+        {{ step.note|pyrepr }},
+    ),
+{% endfor %}
+)
+
+
+def run_generated_qwen3_asr_audio_tower(
+    rt: RuntimeSession,
+    tensors: GeneratedQwen3AsrAudioTowerTensors,
+    *,
+    pytorch_compare: bool = True,
+) -> LogicalTensor:
+    del tensors
+    frame_scope = qwen3_asr_frame(
+        rt,
+        "generated_qwen3_asr.audio_tower",
+        pytorch_compare=pytorch_compare,
+        pytorch_model_submodule="thinker.audio_tower",
+    )
+    with frame_scope:
+        raise NotImplementedError(
+            "Generated scaffold only: lower AUDIO_TOWER_FRAME_STEPS to shader dispatches."
+        )
+

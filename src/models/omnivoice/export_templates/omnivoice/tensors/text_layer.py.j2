@@ -1,0 +1,41 @@
+"""Generated OmniVoice text decoder layer tensor scaffold."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from torch2vk.runtime.logical import LogicalTensor
+
+
+TEXT_DECODER_LAYER_PARAMETER_FIELDS = {
+{% for item in text_layer_fields if item.source_parameter %}
+    "{{ item.field }}": "{{ item.source_parameter }}",
+{% endfor %}
+}
+
+
+@dataclass(frozen=True, slots=True)
+class OmniVoiceTextLayerTensors:
+{% for item in text_layer_fields %}
+    {{ item.field }}: LogicalTensor
+{% endfor %}
+
+
+def declare_omnivoice_text_layer_tensors(
+    *,
+    frame_prefix: str,
+    layer: int,
+    sequence_length: int,
+    max_sequence_length: int,
+    hidden_size: int,
+    intermediate_size: int,
+    num_attention_heads: int,
+    num_key_value_heads: int,
+    head_dim: int,
+    key_cache: LogicalTensor | None = None,
+    value_cache: LogicalTensor | None = None,
+) -> OmniVoiceTextLayerTensors:
+    raise NotImplementedError(
+        "Generated scaffold only: fill one OmniVoice text decoder layer tensor declaration."
+    )
+

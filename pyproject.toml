@@ -30,6 +30,7 @@ dependencies = [
   "tensorboardx>=2.6,<3",
   "webdataset>=1,<2",
   "gradio>=6,<7",
+  "jinja2>=3.1,<4",
 ]
 
 [[tool.uv.index]]

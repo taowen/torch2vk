@@ -1,0 +1,48 @@
+"""Generated Qwen3-ASR text decode frame scaffold."""
+
+from __future__ import annotations
+
+from torch2vk.runtime.session import RuntimeSession
+
+from models.generated_qwen3_asr._frame import GeneratedFrameStep, qwen3_asr_frame
+from models.generated_qwen3_asr.tensors.text import (
+    GeneratedQwen3AsrTextDecodeTensors,
+    GeneratedQwen3AsrTokenSelectTensors,
+)
+
+
+TEXT_DECODE_FRAME_STEPS = (
+{% for step in text_decode_steps %}
+    GeneratedFrameStep(
+        {{ step.op|pyrepr }},
+        {{ step.inputs|pyrepr }},
+        {{ step.outputs|pyrepr }},
+        {{ step.note|pyrepr }},
+    ),
+{% endfor %}
+)
+
+
+def run_generated_qwen3_asr_text_decode(
+    rt: RuntimeSession,
+    tensors: GeneratedQwen3AsrTextDecodeTensors,
+    *,
+    step: int,
+    pytorch_compare: bool = True,
+    token_select: GeneratedQwen3AsrTokenSelectTensors | None = None,
+) -> None:
+    del tensors, token_select
+    if step < 0:
+        raise ValueError(f"step must be non-negative, got {step}")
+    frame_scope = qwen3_asr_frame(
+        rt,
+        f"generated_qwen3_asr.text_decode.{step:04d}",
+        pytorch_compare=pytorch_compare,
+        pytorch_model_submodule="thinker",
+        pytorch_input_prefixes=("generated_qwen3_asr.text_decode",),
+    )
+    with frame_scope:
+        raise NotImplementedError(
+            "Generated scaffold only: lower TEXT_DECODE_FRAME_STEPS to shader dispatches."
+        )
+

@@ -1,0 +1,41 @@
+"""Generated Qwen3-ASR text prefill frame scaffold."""
+
+from __future__ import annotations
+
+from torch2vk.runtime.session import RuntimeSession
+
+from models.generated_qwen3_asr._frame import GeneratedFrameStep, qwen3_asr_frame
+from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTextPrefillTensors
+
+
+TEXT_PREFILL_FRAME_STEPS = (
+{% for step in text_prefill_steps %}
+    GeneratedFrameStep(
+        {{ step.op|pyrepr }},
+        {{ step.inputs|pyrepr }},
+        {{ step.outputs|pyrepr }},
+        {{ step.note|pyrepr }},
+    ),
+{% endfor %}
+)
+
+
+def run_generated_qwen3_asr_text_prefill(
+    rt: RuntimeSession,
+    tensors: GeneratedQwen3AsrTextPrefillTensors,
+    *,
+    pytorch_compare: bool = True,
+) -> None:
+    del tensors
+    frame_scope = qwen3_asr_frame(
+        rt,
+        "generated_qwen3_asr.text_prefill",
+        pytorch_compare=pytorch_compare,
+        pytorch_model_submodule="thinker",
+        pytorch_input_prefixes=("generated_qwen3_asr.text_prefill",),
+    )
+    with frame_scope:
+        raise NotImplementedError(
+            "Generated scaffold only: lower TEXT_PREFILL_FRAME_STEPS to shader dispatches."
+        )
+

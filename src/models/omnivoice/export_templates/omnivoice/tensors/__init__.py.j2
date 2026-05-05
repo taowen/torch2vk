@@ -1,0 +1,55 @@
+"""Generated OmniVoice tensor scaffolds."""
+
+from models.omnivoice.tensors.audio_codec import (
+    OmniVoiceAudioCodecTensors,
+    declare_omnivoice_audio_codec_tensors,
+)
+from models.omnivoice.tensors.audio_codec_layer import (
+    AUDIO_CODEC_DECODER_LAYER_PARAMETER_FIELDS,
+    OmniVoiceAudioCodecDecoderLayerTensors,
+    declare_omnivoice_audio_codec_decoder_layer_tensors,
+)
+from models.omnivoice.tensors.inference import (
+    OmniVoiceIterativeDecodeTensors,
+    OmniVoicePreparedInputTensors,
+    OmniVoiceReferencePromptTensors,
+    declare_omnivoice_iterative_decode_tensors,
+)
+from models.omnivoice.tensors.text import (
+    TEXT_PARAMETER_FIELDS,
+    OmniVoiceAudioHeadTensors,
+    OmniVoiceTextDecodeTensors,
+    OmniVoiceTextPrefillTensors,
+    OmniVoiceTextTensors,
+    OmniVoiceTokenSelectTensors,
+    OmniVoiceTrainingLossTensors,
+    declare_omnivoice_text_tensors,
+)
+from models.omnivoice.tensors.text_layer import (
+    TEXT_DECODER_LAYER_PARAMETER_FIELDS,
+    OmniVoiceTextLayerTensors,
+    declare_omnivoice_text_layer_tensors,
+)
+
+__all__ = [
+    "AUDIO_CODEC_DECODER_LAYER_PARAMETER_FIELDS",
+    "TEXT_DECODER_LAYER_PARAMETER_FIELDS",
+    "TEXT_PARAMETER_FIELDS",
+    "OmniVoiceAudioCodecDecoderLayerTensors",
+    "OmniVoiceAudioCodecTensors",
+    "OmniVoiceAudioHeadTensors",
+    "OmniVoiceIterativeDecodeTensors",
+    "OmniVoicePreparedInputTensors",
+    "OmniVoiceReferencePromptTensors",
+    "OmniVoiceTextDecodeTensors",
+    "OmniVoiceTextLayerTensors",
+    "OmniVoiceTextPrefillTensors",
+    "OmniVoiceTextTensors",
+    "OmniVoiceTokenSelectTensors",
+    "OmniVoiceTrainingLossTensors",
+    "declare_omnivoice_audio_codec_decoder_layer_tensors",
+    "declare_omnivoice_audio_codec_tensors",
+    "declare_omnivoice_iterative_decode_tensors",
+    "declare_omnivoice_text_layer_tensors",
+    "declare_omnivoice_text_tensors",
+]
