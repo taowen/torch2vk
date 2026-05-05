@@ -44,6 +44,17 @@ dump one .rgp file
 `torch2vk` 是 compute-only，没有 swapchain present，所以不适合依赖
 `MESA_VK_TRACE_FRAME`。实际录制主路径应使用 per-submit capture。
 
+但 per-submit 不能对完整 workload 全局打开。`torch2vk` 的实际用法是再加一层 label filter：
+
+```text
+AGENTORCH_RADV_SQTT_PROFILE_TAG_FILTER=shader=qwen3_asr_text_linear_nobias_f32
+```
+
+Mesa 仍初始化 RGP/SQTT 能力，但只有 submit 的
+`agentorch-profile-submit:frame=...;shader=...;dispatch=...` payload 包含这个 filter 时，才真正
+start/stop SQTT 并写 RGP。其它 submit 直接正常提交。
+`scripts/profile-sqtt.sh` 要求 filter 非空；不要用空 filter 跑完整 workload。
+
 ## agentorch Mesa fork 增加的产物
 
 这个 fork 除了写 `/tmp/*.rgp`，还会在指定目录写 driver artifacts：
@@ -104,9 +115,11 @@ export MESA_VK_TRACE_PER_SUBMIT=true
 export RADV_THREAD_TRACE_BUFFER_SIZE=$((256 * 1024 * 1024))
 export RADV_THREAD_TRACE_QUEUE_EVENTS=true
 export RADV_THREAD_TRACE_INSTRUCTION_TIMING=true
+export AGENTORCH_RADV_SQTT_PROFILE_TAG_FILTER=<label substring>
 export AGENTORCH_RADV_DRIVER_ARTIFACTS_DIR=<root>/driver
 export AGENTORCH_RADV_EXPORT_TAG=<run-id>
 export MESA_SHADER_CACHE_DIR=<root>/mesa-shader-cache
+export TORCH2VK_PROFILE_RUN_DIR=<root>
 ```
 
 这些环境变量必须在 Vulkan instance 创建前设置。已经创建 `VulkanDevice` 后再设置是无效的。
@@ -139,7 +152,8 @@ frame=qwen3_asr.text_decode;shader=text_attention_decode_f32;dispatch=42
 2. 确认环境变量在 Python 创建 Vulkan instance 前已经设置。
 3. 确认加载的是 `.cache/torch2vk/mesa-radv`，不是系统 Mesa。
 4. 确认命令确实触发了 `vkQueueSubmit`。
-5. 确认 Mesa build 有 libelf 支持，否则 RGP 写出会失败。
+5. 确认 `AGENTORCH_RADV_SQTT_PROFILE_TAG_FILTER` 能匹配 runtime label。
+6. 确认 Mesa build 有 libelf 支持，否则 RGP 写出会失败。
 
 如果有 RGP 但无法映射回 dispatch：
 

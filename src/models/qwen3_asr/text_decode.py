@@ -9,6 +9,7 @@ from models.qwen3_asr.shaders.text_kv_cache_write_f32 import (
     QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32,
 )
 from models.qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
+from models.qwen3_asr.shaders.text_linear_nobias_t1_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
 from models.qwen3_asr.shaders.text_qk_norm_f32 import QWEN3_ASR_TEXT_QK_NORM_F32
 from models.qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
 from models.qwen3_asr.shaders.text_rope_f32 import QWEN3_ASR_TEXT_ROPE_F32
@@ -122,6 +123,11 @@ def run_qwen3_asr_text_decode(
         QWEN3_ASR_TEXT_RMS_NORM_F32(
             rt, x=hidden, weight=tensors.norm_weight, output=tensors.final_norm,
         )
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
-            rt, x=tensors.final_norm, weight=tensors.lm_head_weight, output=tensors.logits,
-        )
+        if pytorch_compare:
+            QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
+                rt, x=tensors.final_norm, weight=tensors.lm_head_weight, output=tensors.logits,
+            )
+        else:
+            QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32(
+                rt, x=tensors.final_norm, weight=tensors.lm_head_weight, output=tensors.logits,
+            )

@@ -80,6 +80,7 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
     if any(dim <= 0 for dim in dispatch_size):
         raise ValueError(f"{variant.name} resolved non-positive dispatch {dispatch_size}")
 
+    index = len(rt._dispatch_records)
     pipeline = rt._pipeline_for_variant(variant)
     dispatch_started_ns = time.perf_counter_ns()
     try:
@@ -89,13 +90,17 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
             group_count_y=dispatch_size[1],
             group_count_z=dispatch_size[2],
             push_constants=push_constants,
+            debug_label=rt.profiler.sqtt_label(
+                frame=frame.frame,
+                shader=variant.name,
+                dispatch_index=index,
+            ),
         )
         elapsed_wall_ns = time.perf_counter_ns() - dispatch_started_ns
     finally:
         if params_allocation is not None:
             params_allocation.close()
 
-    index = len(rt._dispatch_records)
     record = DispatchRecord(
         index=index,
         frame=frame.frame,

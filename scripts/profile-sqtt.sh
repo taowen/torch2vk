@@ -12,6 +12,10 @@ BUILD_MESA=auto
 TRACE_BUFFER_MIB=256
 QUEUE_EVENTS=true
 INSTRUCTION_TIMING=true
+CAPTURE_FILTER=""
+CAPTURE_FRAME=""
+CAPTURE_SHADER=""
+CAPTURE_DISPATCH=""
 DRY_RUN=0
 PRINT_ENV=0
 COMMAND=()
@@ -39,6 +43,12 @@ Options:
   --instruction-timing BOOL
                           RADV_THREAD_TRACE_INSTRUCTION_TIMING
                           default: true
+  --capture-filter TEXT   Only capture submits whose profile label payload
+                          contains TEXT, for example:
+                          'frame=qwen3_asr.text_decode.0000;shader=...'
+  --frame NAME            Shorthand filter field: frame=NAME
+  --shader NAME           Shorthand filter field: shader=NAME
+  --dispatch-index N      Shorthand filter field: dispatch=N
   --print-env             Print selected environment before running
   --dry-run               Print environment/command and exit
   -h, --help              Show this help
@@ -102,6 +112,22 @@ while [[ $# -gt 0 ]]; do
       INSTRUCTION_TIMING=$(bool_value "$2")
       shift 2
       ;;
+    --capture-filter)
+      CAPTURE_FILTER=$2
+      shift 2
+      ;;
+    --frame)
+      CAPTURE_FRAME=$2
+      shift 2
+      ;;
+    --shader)
+      CAPTURE_SHADER=$2
+      shift 2
+      ;;
+    --dispatch-index)
+      CAPTURE_DISPATCH=$2
+      shift 2
+      ;;
     --print-env)
       PRINT_ENV=1
       shift
@@ -138,6 +164,33 @@ ROOT=$(abs_path "$ROOT")
 MESA_PREFIX=$(abs_path "$MESA_PREFIX")
 SDK_ROOT=$(abs_path "$SDK_ROOT")
 TRACE_BUFFER_BYTES=$((TRACE_BUFFER_MIB * 1024 * 1024))
+
+if [[ -n "$CAPTURE_FILTER" && ( -n "$CAPTURE_FRAME" || -n "$CAPTURE_SHADER" || -n "$CAPTURE_DISPATCH" ) ]]; then
+  echo "Use either --capture-filter or --frame/--shader/--dispatch-index shorthands, not both." >&2
+  exit 2
+fi
+
+if [[ -z "$CAPTURE_FILTER" ]]; then
+  FILTER_PARTS=()
+  if [[ -n "$CAPTURE_FRAME" ]]; then
+    FILTER_PARTS+=("frame=$CAPTURE_FRAME")
+  fi
+  if [[ -n "$CAPTURE_SHADER" ]]; then
+    FILTER_PARTS+=("shader=$CAPTURE_SHADER")
+  fi
+  if [[ -n "$CAPTURE_DISPATCH" ]]; then
+    FILTER_PARTS+=("dispatch=$CAPTURE_DISPATCH")
+  fi
+  if [[ ${#FILTER_PARTS[@]} -gt 0 ]]; then
+    CAPTURE_FILTER=$(IFS=';'; printf '%s' "${FILTER_PARTS[*]}")
+  fi
+fi
+
+if [[ -z "$CAPTURE_FILTER" ]]; then
+  echo "SQTT capture requires --capture-filter or --frame/--shader/--dispatch-index." >&2
+  echo "Do not run per-submit SQTT globally; first use the normal profiler to choose a target dispatch." >&2
+  exit 2
+fi
 
 find_radv_icd() {
   local prefix=$1
@@ -271,10 +324,12 @@ export MESA_VK_TRACE_PER_SUBMIT=true
 export RADV_THREAD_TRACE_BUFFER_SIZE="$TRACE_BUFFER_BYTES"
 export RADV_THREAD_TRACE_QUEUE_EVENTS="$QUEUE_EVENTS"
 export RADV_THREAD_TRACE_INSTRUCTION_TIMING="$INSTRUCTION_TIMING"
+export AGENTORCH_RADV_SQTT_PROFILE_TAG_FILTER="$CAPTURE_FILTER"
 export AGENTORCH_RADV_DRIVER_ARTIFACTS_DIR="$ROOT/driver"
 export AGENTORCH_RADV_EXPORT_TAG="$RUN_ID"
 export MESA_SHADER_CACHE_DIR="$ROOT/mesa-shader-cache"
 export TORCH2VK_SQTT_ROOT="$ROOT"
+export TORCH2VK_PROFILE_RUN_DIR="$ROOT"
 export TORCH2VK_MESA_PREFIX="$MESA_PREFIX"
 
 if [[ "$PRINT_ENV" == 1 ]]; then
@@ -292,8 +347,10 @@ SQTT profile environment:
   RADV_THREAD_TRACE_BUFFER_SIZE=$RADV_THREAD_TRACE_BUFFER_SIZE
   RADV_THREAD_TRACE_QUEUE_EVENTS=$RADV_THREAD_TRACE_QUEUE_EVENTS
   RADV_THREAD_TRACE_INSTRUCTION_TIMING=$RADV_THREAD_TRACE_INSTRUCTION_TIMING
+  AGENTORCH_RADV_SQTT_PROFILE_TAG_FILTER=$AGENTORCH_RADV_SQTT_PROFILE_TAG_FILTER
   AGENTORCH_RADV_DRIVER_ARTIFACTS_DIR=$AGENTORCH_RADV_DRIVER_ARTIFACTS_DIR
   MESA_SHADER_CACHE_DIR=$MESA_SHADER_CACHE_DIR
+  TORCH2VK_PROFILE_RUN_DIR=$TORCH2VK_PROFILE_RUN_DIR
 Command:
   ${COMMAND[*]}
 EOF
@@ -311,7 +368,12 @@ set +e
 STATUS=$?
 set -e
 
-copy_new_rgp_captures
+POSTPROCESS_STATUS=0
+if [[ "$STATUS" -eq 0 ]]; then
+  python3 "$SCRIPT_DIR/postprocess-sqtt.py" --root "$ROOT" || POSTPROCESS_STATUS=$?
+else
+  copy_new_rgp_captures
+fi
 
 if [[ -f "$ROOT/driver/capture-sequence.jsonl" ]]; then
   echo "SQTT capture records:"
@@ -327,4 +389,7 @@ else
   echo "warning: no dispatch-sequence.jsonl was written under $ROOT/driver" >&2
 fi
 
-exit "$STATUS"
+if [[ "$STATUS" -ne 0 ]]; then
+  exit "$STATUS"
+fi
+exit "$POSTPROCESS_STATUS"

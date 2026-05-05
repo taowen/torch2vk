@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
+import pytest
 
 from models.hf_cache import load_config_json, resolve_cached_model
 from models.qwen3_asr.audio_tower import run_qwen3_asr_audio_tower
@@ -155,6 +157,37 @@ def test_qwen3_asr_replay_decode_cache_reused_for_second_wav(tmp_path: Path) -> 
     print(_format_profile_summary(profile_summary, profile_dir=profile_dir))
 
 
+def test_qwen3_asr_record_decode_one_step_for_sqtt(tmp_path: Path) -> None:
+    """Record-mode decode slice used by scripts/profile-sqtt.sh."""
+    if os.environ.get("TORCH2VK_ENABLE_QWEN3_ASR_SQTT_TEST") != "1":
+        pytest.skip("set TORCH2VK_ENABLE_QWEN3_ASR_SQTT_TEST=1 to run the SQTT slice")
+
+    resolved_model_dir, audio_config, text_config = _load_model_config()
+    rope_theta = _config_float(text_config, "rope_theta", 5_000_000.0)
+    mrope_section = _mrope_section(text_config)
+    artifact_dir = tmp_path / "qwen3_asr_sqtt_record"
+
+    with RuntimeSession.open(
+        device_index=0,
+        artifact_dir=artifact_dir,
+        model_dir=resolved_model_dir,
+    ) as rt:
+        result = _run_qwen3_asr_request(
+            rt,
+            model_dir=resolved_model_dir,
+            audio_config=audio_config,
+            text_config=text_config,
+            wav=_ASKNOT_WAV,
+            rope_theta=rope_theta,
+            mrope_section=mrope_section,
+            decode_kind="greedy",
+            max_new_tokens=2,
+        )
+        rt.profile_summary()
+
+    assert result.tokens == _EXPECTED_ASKNOT_TOKEN_PREFIX[:2]
+
+
 def _run_qwen3_asr_request(
     rt: RuntimeSession,
     *,
@@ -165,6 +198,7 @@ def _run_qwen3_asr_request(
     rope_theta: float,
     mrope_section: tuple[int, ...],
     decode_kind: DecodeKind,
+    max_new_tokens: int = _MAX_NEW_TOKENS,
     language: str = "English",
     replay_mode: ReplayMode = "default",
     audio_pytorch_compare: bool = False,
@@ -177,6 +211,7 @@ def _run_qwen3_asr_request(
             text_config=text_config,
             wav=wav,
             language=language,
+            max_new_tokens=max_new_tokens,
         )
     )
 
@@ -195,7 +230,7 @@ def _run_qwen3_asr_request(
         generated = run_qwen3_asr_greedy_decode_loop(
             rt,
             text_tensors,
-            max_new_tokens=_MAX_NEW_TOKENS,
+            max_new_tokens=max_new_tokens,
             rope_theta=rope_theta,
             mrope_section=mrope_section,
             pytorch_compare=text_pytorch_compare,
@@ -205,7 +240,7 @@ def _run_qwen3_asr_request(
         generated = run_qwen3_asr_replay_decode_loop(
             rt,
             text_tensors,
-            max_new_tokens=_MAX_NEW_TOKENS,
+            max_new_tokens=max_new_tokens,
             rope_theta=rope_theta,
             mrope_section=mrope_section,
             stop_on_eos=True,
@@ -231,6 +266,7 @@ def _prepare_qwen3_asr_request(
     text_config: JsonObject,
     wav: Path,
     language: str,
+    max_new_tokens: int,
 ) -> tuple[
     Qwen3AsrProcessorLike,
     Qwen3AsrAudioTowerTensors,
@@ -258,7 +294,7 @@ def _prepare_qwen3_asr_request(
     text_tensors = declare_qwen3_asr_text_tensors(
         prompt_length=prepared.prompt_length,
         audio_tokens=audio_tensors.last_hidden_state.concrete_shape[0],
-        max_sequence_length=prepared.prompt_length + _MAX_NEW_TOKENS,
+        max_sequence_length=prepared.prompt_length + max_new_tokens,
         hidden_size=_config_int(text_config, "hidden_size"),
         intermediate_size=_config_int(text_config, "intermediate_size"),
         vocab_size=_config_int(text_config, "vocab_size"),

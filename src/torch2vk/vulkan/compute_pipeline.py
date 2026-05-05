@@ -300,6 +300,7 @@ class ComputePipeline:
         group_count_y: int = 1,
         group_count_z: int = 1,
         push_constants: bytes | None = None,
+        debug_label: str | None = None,
     ) -> None:
         self.device.require_open()
         if len(buffers) != len(self.descriptor_types):
@@ -309,14 +310,20 @@ class ComputePipeline:
         with self.bind_buffers(buffers) as binding:
             command_buffer = self.device.allocate_command_buffer()
             vkBeginCommandBuffer(command_buffer, VkCommandBufferBeginInfo())
-            self.record_dispatch(
-                command_buffer=command_buffer,
-                binding=binding,
-                group_count_x=group_count_x,
-                group_count_y=group_count_y,
-                group_count_z=group_count_z,
-                push_constants=push_constants,
-            )
+            if debug_label is not None:
+                self.device.begin_command_label(command_buffer=command_buffer, name=debug_label)
+            try:
+                self.record_dispatch(
+                    command_buffer=command_buffer,
+                    binding=binding,
+                    group_count_x=group_count_x,
+                    group_count_y=group_count_y,
+                    group_count_z=group_count_z,
+                    push_constants=push_constants,
+                )
+            finally:
+                if debug_label is not None:
+                    self.device.end_command_label(command_buffer=command_buffer)
             self.record_eager_completion_barrier(command_buffer)
             vkEndCommandBuffer(command_buffer)
             self.device.submit_one_shot_and_wait(command_buffer)

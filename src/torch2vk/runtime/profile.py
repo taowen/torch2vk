@@ -1,4 +1,4 @@
-"""Runtime dispatch/replay profiling without SQTT."""
+"""Runtime dispatch/replay profiling and SQTT attribution labels."""
 
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ class RuntimeProfiler:
         resolved = root if root is not None else os.environ.get("TORCH2VK_PROFILE_RUN_DIR")
         self.root = None if resolved is None else Path(resolved).expanduser().resolve()
         self.enabled = self.root is not None
+        self.sqtt_labels_enabled = os.environ.get("TORCH2VK_SQTT_ROOT") is not None
         self._dispatch_rows: list[dict[str, Any]] = []
         self._replay_plan_samples: dict[str, list[int]] = defaultdict(list)
         self._replay_dispatch_samples: dict[tuple[str, int], list[int]] = defaultdict(list)
@@ -65,6 +66,18 @@ class RuntimeProfiler:
             elapsed_wall_ns=elapsed_wall_ns,
         )
         self._append_dispatch_row(row)
+
+    def sqtt_label(
+        self,
+        *,
+        frame: str,
+        shader: str,
+        dispatch_index: int,
+    ) -> str | None:
+        if not self.sqtt_labels_enabled:
+            return None
+        payload = f"frame={frame};shader={shader};dispatch={dispatch_index}"
+        return f"agentorch-profile-submit:{payload}"
 
     def record_replay_execution(
         self,
