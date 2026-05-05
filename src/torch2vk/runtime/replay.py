@@ -8,12 +8,20 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from vulkan import (
+    VK_QUERY_RESULT_64_BIT,
+    VK_QUERY_RESULT_WAIT_BIT,
+    VK_QUERY_TYPE_TIMESTAMP,
+    VkQueryPoolCreateInfo,
     VkSubmitInfo,
+    vkCreateQueryPool,
     vkDestroyFence,
+    vkDestroyQueryPool,
+    vkGetQueryPoolResults,
     vkQueueSubmit,
     vkResetFences,
     vkWaitForFences,
 )
+from vulkan._vulkan import ffi
 
 from torch2vk.runtime.shader import (
     ExprDim,
@@ -58,6 +66,55 @@ class ReplayDispatchEntry:
     indirect_offset: int | None = None
     params_buffer: BufferAllocation | None = None
     params_layout: ParamsBufferSpec | None = None
+    source_dispatch_index: int | None = None
+    source_frame: str | None = None
+    source_shader: str | None = None
+    source_logical_reads: tuple[tuple[str, str], ...] = ()
+    source_logical_writes: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(slots=True)
+class ReplayProfileState:
+    """Timestamp query resources recorded into a profiled replay command buffer."""
+
+    query_pool: object | None
+    query_count: int
+
+    @classmethod
+    def create(cls, device: "VulkanDevice", *, num_dispatches: int) -> "ReplayProfileState":
+        query_count = 2 + num_dispatches * 2
+        query_pool = vkCreateQueryPool(
+            device.device,
+            VkQueryPoolCreateInfo(
+                queryType=VK_QUERY_TYPE_TIMESTAMP,
+                queryCount=query_count,
+            ),
+            None,
+        )
+        return cls(query_pool=query_pool, query_count=query_count)
+
+    def close(self, device: "VulkanDevice") -> None:
+        if self.query_pool is None:
+            return
+        if not device.closed:
+            vkDestroyQueryPool(device.device, self.query_pool, None)
+        self.query_pool = None
+
+    def read_timestamps(self, device: "VulkanDevice") -> tuple[int, ...]:
+        data = ffi.new("uint64_t[]", self.query_count)
+        if self.query_pool is None:
+            raise RuntimeError("Replay profile query pool is closed")
+        vkGetQueryPoolResults(
+            device.device,
+            self.query_pool,
+            0,
+            self.query_count,
+            self.query_count * 8,
+            data,
+            8,
+            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT,
+        )
+        return tuple(int(data[i]) for i in range(self.query_count))
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +149,8 @@ class ReplayPlan:
 
     workspace_allocations: list[BufferAllocation]
     bindings: list[BoundComputeBinding]
+    profile_state: ReplayProfileState | None = None
+    profile_recorder: object | None = None
 
     _closed: bool = False
 
@@ -105,6 +164,8 @@ class ReplayPlan:
             vkDestroyFence(self.device.device, self.fence, None)
         if self.command_buffer is not None:
             self.device.free_command_buffer(self.command_buffer)
+        if self.profile_state is not None:
+            self.profile_state.close(self.device)
         if self.indirect_buffer is not None:
             self.indirect_buffer.close()
         for slot in self.readback_slots.values():
@@ -144,6 +205,10 @@ def execute_replay(
     )
     vkQueueSubmit(plan.device.queue, 1, [submit_info], plan.fence)
     vkWaitForFences(plan.device.device, 1, [plan.fence], True, _WAIT_TIMEOUT_NS)
+    if plan.profile_state is not None and plan.profile_recorder is not None:
+        timestamps = plan.profile_state.read_timestamps(plan.device)
+        record_replay_execution = getattr(plan.profile_recorder, "record_replay_execution")
+        record_replay_execution(plan=plan, timestamps=timestamps)
 
     results: dict[str, bytes] = {}
     for name, slot in plan.readback_slots.items():

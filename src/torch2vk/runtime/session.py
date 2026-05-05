@@ -39,8 +39,13 @@ class RuntimeSession:
         device_index: int = 0,
         artifact_dir: str | Path | None = None,
         model_dir: str | Path | None = None,
+        profile_dir: str | Path | None = None,
     ) -> None:
+        from torch2vk.runtime.profile import RuntimeProfiler
+
         self.device = VulkanDevice(physical_device_index=device_index)
+        self.profiler = RuntimeProfiler(profile_dir)
+        self.profiler.attach_device(self.device)
         self.artifact_dir = Path(
             ".cache/torch2vk/generated" if artifact_dir is None else artifact_dir
         )
@@ -66,8 +71,14 @@ class RuntimeSession:
         device_index: int = 0,
         artifact_dir: str | Path | None = None,
         model_dir: str | Path | None = None,
+        profile_dir: str | Path | None = None,
     ) -> "RuntimeSession":
-        return cls(device_index=device_index, artifact_dir=artifact_dir, model_dir=model_dir)
+        return cls(
+            device_index=device_index,
+            artifact_dir=artifact_dir,
+            model_dir=model_dir,
+            profile_dir=profile_dir,
+        )
 
     def __enter__(self) -> "RuntimeSession":
         return self
@@ -258,6 +269,9 @@ class RuntimeSession:
 
         cache_replay_plan(self, namespace, plan)
 
+    def profile_summary(self) -> dict[str, object]:
+        return self.profiler.write_summary()
+
     def close(self) -> None:
         if self._closed:
             return
@@ -276,6 +290,7 @@ class RuntimeSession:
         for allocation in reversed(self._model_allocations):
             allocation.close()
         self._model_allocations.clear()
+        self.profiler.close()
         self.device.close()
 
     def _require_open(self) -> None:

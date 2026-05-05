@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,8 @@ from models.hf_cache import load_config_json, resolve_cached_model
 from models.qwen3_asr.audio_tower import run_qwen3_asr_audio_tower
 from models.qwen3_asr.execution import (
     QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS,
+    Qwen3AsrPreparedInputs,
+    Qwen3AsrProcessorLike,
     prepare_qwen3_asr_inputs,
     run_qwen3_asr_greedy_decode_loop,
     run_qwen3_asr_replay_decode_loop,
@@ -94,11 +97,14 @@ def test_qwen3_asr_replay_decode_cache_reused_for_second_wav(tmp_path: Path) -> 
     resolved_model_dir, audio_config, text_config = _load_model_config()
     rope_theta = _config_float(text_config, "rope_theta", 5_000_000.0)
     mrope_section = _mrope_section(text_config)
+    artifact_dir = tmp_path / "qwen3_asr_replay"
+    profile_dir = artifact_dir / "profile"
 
     with RuntimeSession.open(
         device_index=0,
-        artifact_dir=tmp_path / "qwen3_asr_replay",
+        artifact_dir=artifact_dir,
         model_dir=resolved_model_dir,
+        profile_dir=profile_dir,
     ) as rt:
         first = _run_qwen3_asr_request(
             rt,
@@ -144,6 +150,9 @@ def test_qwen3_asr_replay_decode_cache_reused_for_second_wav(tmp_path: Path) -> 
         assert second.eos_reached
         assert len(second.tokens) < _MAX_NEW_TOKENS
         assert second.text == _EXPECTED_ZH_TEXT
+        profile_summary = rt.profile_summary()
+
+    print(_format_profile_summary(profile_summary, profile_dir=profile_dir))
 
 
 def _run_qwen3_asr_request(
@@ -223,10 +232,10 @@ def _prepare_qwen3_asr_request(
     wav: Path,
     language: str,
 ) -> tuple[
-    object,
+    Qwen3AsrProcessorLike,
     Qwen3AsrAudioTowerTensors,
     Qwen3AsrTextTensors,
-    object,
+    Qwen3AsrPreparedInputs,
     np.ndarray,
     np.ndarray,
 ]:
@@ -264,7 +273,10 @@ def _prepare_qwen3_asr_request(
     return processor, audio_tensors, text_tensors, prepared, input_features, feature_lens
 
 
-def _decode_generated_text(processor: object, tokens: tuple[int, ...]) -> str:
+def _decode_generated_text(
+    processor: Qwen3AsrProcessorLike,
+    tokens: tuple[int, ...],
+) -> str:
     decoded = processor.batch_decode(
         np.array([tokens], dtype=np.int64),
         skip_special_tokens=True,
@@ -279,7 +291,7 @@ def _register_text_inputs(
     rt: RuntimeSession,
     *,
     text_tensors: Qwen3AsrTextTensors,
-    prepared: object,
+    prepared: Qwen3AsrPreparedInputs,
 ) -> None:
     prefill_input_features = text_tensors.prefill.input_features
     prefill_feature_attention_mask = text_tensors.prefill.feature_attention_mask
@@ -340,3 +352,70 @@ def _expect_int(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise TypeError(f"{name} must be an int, got {type(value).__name__}")
     return value
+
+
+def _format_profile_summary(summary: Mapping[str, object], *, profile_dir: Path) -> str:
+    replay = _expect_mapping(summary.get("replay", {}), "profile.replay")
+    plans = _expect_mapping(replay.get("plans", {}), "profile.replay.plans")
+    top_shaders = replay.get("top_shaders_by_median_ns", [])
+    top_outputs = replay.get("top_outputs_by_median_ns", [])
+    top_dispatches = replay.get("top_dispatches_by_median_ns", [])
+    lines = [
+        "Qwen3-ASR profile summary:",
+        f"  profile_dir: {profile_dir}",
+        f"  dispatch_rows: {summary.get('dispatch_rows', 0)}",
+    ]
+    if plans:
+        lines.append("  replay plans:")
+        for name, raw_stats in plans.items():
+            stats = _expect_mapping(raw_stats, f"profile.replay.plans.{name}")
+            lines.append(
+                "    "
+                f"{name}: count={stats.get('count', 0)} "
+                f"median={_ns_to_ms(stats.get('median_ns', 0)):.3f}ms "
+                f"min={_ns_to_ms(stats.get('min_ns', 0)):.3f}ms "
+                f"p95={_ns_to_ms(stats.get('p95_ns', 0)):.3f}ms"
+            )
+    if isinstance(top_shaders, Sequence) and not isinstance(top_shaders, str | bytes):
+        lines.append("  replay shader breakdown:")
+        for raw_entry in list(top_shaders)[:8]:
+            if not isinstance(raw_entry, Mapping):
+                continue
+            lines.append(
+                "    "
+                f"{raw_entry.get('name', '<unknown>')}: "
+                f"sum_median={_ns_to_ms(raw_entry.get('median_ns_total', 0)):.3f}ms "
+                f"dispatches={raw_entry.get('dispatch_count', 0)}"
+            )
+    if isinstance(top_outputs, Sequence) and not isinstance(top_outputs, str | bytes):
+        lines.append("  replay output breakdown:")
+        for raw_entry in list(top_outputs)[:8]:
+            if not isinstance(raw_entry, Mapping):
+                continue
+            lines.append(
+                "    "
+                f"{raw_entry.get('name', '<unknown>')}: "
+                f"sum_median={_ns_to_ms(raw_entry.get('median_ns_total', 0)):.3f}ms "
+                f"dispatches={raw_entry.get('dispatch_count', 0)}"
+            )
+    if isinstance(top_dispatches, Sequence) and not isinstance(top_dispatches, str | bytes):
+        lines.append("  top replay dispatches:")
+        for raw_entry in list(top_dispatches)[:8]:
+            if not isinstance(raw_entry, Mapping):
+                continue
+            shader = raw_entry.get("shader", "<unknown>")
+            frame = raw_entry.get("frame", "<unknown>")
+            index = raw_entry.get("replay_dispatch_index", "?")
+            median_ms = _ns_to_ms(raw_entry.get("median_ns", 0))
+            lines.append(
+                f"    #{index} {shader} ({frame}): median={median_ms:.3f}ms"
+            )
+    lines.append("  raw_summary:")
+    lines.append(json.dumps(summary, indent=2, sort_keys=True))
+    return "\n".join(lines)
+
+
+def _ns_to_ms(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return 0.0
+    return float(value) / 1_000_000.0

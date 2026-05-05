@@ -17,7 +17,9 @@ from vulkan import (
     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
     VK_PIPELINE_STAGE_HOST_BIT,
+    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
     VK_PIPELINE_STAGE_TRANSFER_BIT,
     VkBufferCopy,
     VkCommandBufferBeginInfo,
@@ -26,6 +28,8 @@ from vulkan import (
     vkBeginCommandBuffer,
     vkCmdCopyBuffer,
     vkCmdPipelineBarrier,
+    vkCmdResetQueryPool,
+    vkCmdWriteTimestamp,
     vkCreateFence,
     vkEndCommandBuffer,
 )
@@ -35,6 +39,7 @@ from torch2vk.runtime.replay import (
     ReplayDescriptorBinding,
     ReplayDispatchEntry,
     ReplayPlan,
+    ReplayProfileState,
     ReplayReadbackSlot,
 )
 from torch2vk.runtime.shader import DispatchRecord, IOKind, ShaderVariant, TensorFieldSpec
@@ -188,6 +193,11 @@ def build_replay_plan(
             indirect_offset=i * 12 if use_indirect_dispatch else None,
             params_buffer=params_alloc,
             params_layout=contract.params_buffer,
+            source_dispatch_index=record.index,
+            source_frame=record.frame,
+            source_shader=record.shader,
+            source_logical_reads=tuple(record.logical_reads),
+            source_logical_writes=tuple(record.logical_writes),
         )
         dispatch_entries.append(entry)
         if params_alloc is not None:
@@ -212,9 +222,31 @@ def build_replay_plan(
             readback_copy_sources.append((rname, rtensor.buffer, nbytes))
 
     command_buffer = rt.device.allocate_command_buffer()
+    profile_state = (
+        ReplayProfileState.create(rt.device, num_dispatches=len(dispatch_entries))
+        if rt.profiler.enabled
+        else None
+    )
     vkBeginCommandBuffer(command_buffer, VkCommandBufferBeginInfo())
+    if profile_state is not None:
+        assert profile_state.query_pool is not None
+        vkCmdResetQueryPool(command_buffer, profile_state.query_pool, 0, profile_state.query_count)
+        vkCmdWriteTimestamp(
+            command_buffer,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            profile_state.query_pool,
+            0,
+        )
 
-    for entry in dispatch_entries:
+    for i, entry in enumerate(dispatch_entries):
+        if profile_state is not None:
+            assert profile_state.query_pool is not None
+            vkCmdWriteTimestamp(
+                command_buffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                profile_state.query_pool,
+                1 + i * 2,
+            )
         if indirect_buffer is None:
             entry.pipeline.record_dispatch(
                 command_buffer=command_buffer,
@@ -233,6 +265,14 @@ def build_replay_plan(
                 indirect_buffer=indirect_buffer.buffer.handle,
                 indirect_offset=indirect_buffer.offset + entry.indirect_offset,
                 push_constants=entry.push_constants,
+            )
+        if profile_state is not None:
+            assert profile_state.query_pool is not None
+            vkCmdWriteTimestamp(
+                command_buffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                profile_state.query_pool,
+                2 + i * 2,
             )
         entry.pipeline.record_eager_completion_barrier(command_buffer)
 
@@ -287,6 +327,14 @@ def build_replay_plan(
             None,
         )
 
+    if profile_state is not None:
+        assert profile_state.query_pool is not None
+        vkCmdWriteTimestamp(
+            command_buffer,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            profile_state.query_pool,
+            profile_state.query_count - 1,
+        )
     vkEndCommandBuffer(command_buffer)
     fence = vkCreateFence(rt.device.device, VkFenceCreateInfo(), None)
 
@@ -303,6 +351,8 @@ def build_replay_plan(
         readback_slots=readback_slots,
         workspace_allocations=workspace_allocations + params_allocations,
         bindings=bindings,
+        profile_state=profile_state,
+        profile_recorder=rt.profiler,
     )
 
 

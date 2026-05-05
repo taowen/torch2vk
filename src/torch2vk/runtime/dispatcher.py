@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 from torch2vk.runtime.logical import DispatchWriter, LogicalTensor
@@ -80,6 +81,7 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
         raise ValueError(f"{variant.name} resolved non-positive dispatch {dispatch_size}")
 
     pipeline = rt._pipeline_for_variant(variant)
+    dispatch_started_ns = time.perf_counter_ns()
     try:
         pipeline.dispatch(
             buffers=[view for _, view in descriptor_views],
@@ -88,6 +90,7 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
             group_count_z=dispatch_size[2],
             push_constants=push_constants,
         )
+        elapsed_wall_ns = time.perf_counter_ns() - dispatch_started_ns
     finally:
         if params_allocation is not None:
             params_allocation.close()
@@ -117,6 +120,11 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
         push_constant_values=tuple(sorted(push_values.items())),
     )
     rt._dispatch_records.append(record)
+    rt.profiler.record_dispatch(
+        record=record,
+        pipeline=pipeline,
+        elapsed_wall_ns=elapsed_wall_ns,
+    )
     for field in contract.output_fields:
         tensor = tensors[field.name]
         with tensor.runtime_write_scope():
