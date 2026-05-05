@@ -13,6 +13,9 @@ from models.qwen3_asr.shaders.text_kv_cache_write_f32 import (
 )
 from models.qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
 from models.qwen3_asr.shaders.text_linear_nobias_t1_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
+from models.qwen3_asr.shaders.text_linear_nobias_t1_splitk4_f32 import (
+    QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32,
+)
 from models.qwen3_asr.shaders.text_lm_head_select_t1_f32 import (
     QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32,
     QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32,
@@ -129,7 +132,7 @@ def run_qwen3_asr_text_decode(
                 output=layer.swiglu,
                 pytorch_compare=pytorch_compare,
             )
-            _run_linear_nobias_decode(
+            _run_down_proj_decode(
                 rt,
                 x=layer.swiglu,
                 weight=layer.down_proj_weight,
@@ -177,6 +180,22 @@ def _run_linear_nobias_decode(
     pytorch_compare: bool,
 ) -> None:
     variant = QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32 if pytorch_compare else QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
+    variant(rt, x=x, weight=weight, output=output)
+
+
+def _run_down_proj_decode(
+    rt: RuntimeSession,
+    *,
+    x: LogicalTensor,
+    weight: LogicalTensor,
+    output: LogicalTensor,
+    pytorch_compare: bool,
+) -> None:
+    variant = (
+        QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
+        if pytorch_compare
+        else QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32
+    )
     variant(rt, x=x, weight=weight, output=output)
 
 

@@ -829,6 +829,9 @@ def _collect_decode_variants(out: dict[str, "ShaderVariant"]) -> None:
     from models.qwen3_asr.shaders.text_kv_cache_write_f32 import QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32
     from models.qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
     from models.qwen3_asr.shaders.text_linear_nobias_t1_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
+    from models.qwen3_asr.shaders.text_linear_nobias_t1_splitk4_f32 import (
+        QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32,
+    )
     from models.qwen3_asr.shaders.text_lm_head_select_t1_f32 import (
         QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32,
         QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32,
@@ -847,6 +850,7 @@ def _collect_decode_variants(out: dict[str, "ShaderVariant"]) -> None:
         QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32,
         QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32,
         QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32,
+        QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32,
         QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32,
         QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32,
         QWEN3_ASR_TEXT_QK_NORM_F32,
