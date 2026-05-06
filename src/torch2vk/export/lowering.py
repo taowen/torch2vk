@@ -28,12 +28,16 @@ class OpShaderBinding:
 
 class OpLoweringRegistry:
     def __init__(self, bindings: Iterable[OpShaderBinding] = ()) -> None:
-        self._bindings = list(bindings)
+        self._bindings: list[OpShaderBinding] = []
+        for binding in bindings:
+            self.register(binding)
 
     def register(self, binding: OpShaderBinding) -> None:
+        _require_aten_target(binding.target, context="binding.target")
         self._bindings.append(binding)
 
     def resolve(self, *, op: TorchOpPattern) -> OpShaderBinding | None:
+        _require_aten_target(op.target, context="op.target")
         for binding in self._bindings:
             if binding.matches(op):
                 return binding
@@ -45,6 +49,11 @@ def _match_second_input(name: str) -> LoweringMatchFn:
         return len(op.inputs) > 1 and op.inputs[1] == name
 
     return _match
+
+
+def _require_aten_target(target: str, *, context: str) -> None:
+    if not target.startswith("aten."):
+        raise ValueError(f"{context} must start with 'aten.', got {target!r}")
 
 
 DEFAULT_LOWERING_REGISTRY = OpLoweringRegistry(
