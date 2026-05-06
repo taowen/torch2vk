@@ -4,6 +4,7 @@ from models.generated_qwen3_asr.execution import (
     QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS,
     GeneratedQwen3AsrReplayMode,
     run_generated_qwen3_asr_greedy_decode_loop,
+    run_generated_qwen3_asr_replay_decode_loop,
 )
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp
 from models.generated_qwen3_asr.audio_tower import (
@@ -79,6 +80,7 @@ __all__ = [
     "declare_generated_qwen3_asr_text_tensors",
     "run_generated_qwen3_asr_audio_tower",
     "run_generated_qwen3_asr_greedy_decode_loop",
+    "run_generated_qwen3_asr_replay_decode_loop",
     "run_generated_qwen3_asr_text_decode",
     "run_generated_qwen3_asr_text_prefill",
     "run_generated_qwen3_asr_token_select",

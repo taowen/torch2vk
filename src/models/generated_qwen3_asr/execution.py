@@ -11,6 +11,7 @@ from models.generated_qwen3_asr.text_decode import run_generated_qwen3_asr_text_
 from models.generated_qwen3_asr.text_prefill import run_generated_qwen3_asr_text_prefill
 from models.generated_qwen3_asr.token_select import run_generated_qwen3_asr_token_select
 from models.generated_qwen3_asr.token_store import run_generated_qwen3_asr_token_store
+from models.qwen3_asr.execution import run_qwen3_asr_replay_decode_loop
 from models.qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TABLE_F32
 from torch2vk.runtime.logical import LogicalTensor, MemoryClass, TensorLifetime, TensorRole
 from torch2vk.runtime.session import RuntimeSession
@@ -79,6 +80,27 @@ def run_generated_qwen3_asr_greedy_decode_loop(
         if stop_on_eos and _token_store_stopped(rt, tensors):
             break
     return tensors.token_store.generated_tokens
+
+
+def run_generated_qwen3_asr_replay_decode_loop(
+    rt: RuntimeSession,
+    tensors: GeneratedQwen3AsrTextTensors,
+    *,
+    max_new_tokens: int,
+    rope_theta: float = 5000000.0,
+    mrope_section: tuple[int, ...] = (24, 20, 20),
+    stop_on_eos: bool = True,
+    mode: GeneratedQwen3AsrReplayMode = "default",
+) -> LogicalTensor:
+    return run_qwen3_asr_replay_decode_loop(
+        rt,
+        tensors,
+        max_new_tokens=max_new_tokens,
+        rope_theta=rope_theta,
+        mrope_section=mrope_section,
+        stop_on_eos=stop_on_eos,
+        mode=mode,
+    )
 
 
 def _register_prefill_rope(
