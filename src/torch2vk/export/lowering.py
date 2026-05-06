@@ -117,6 +117,7 @@ DEFAULT_LOWERING_REGISTRY = OpLoweringRegistry(
         OpShaderBinding(
             target="aten.linear.default",
             shader="QWEN3_ASR_LINEAR_F32",
+            match=lambda op: len(op.inputs) == 3,
         ),
         OpShaderBinding(
             target="aten.torch2vk.linear_gelu.default",
@@ -140,12 +141,14 @@ DEFAULT_LOWERING_REGISTRY = OpLoweringRegistry(
             shader="QWEN3_ASR_TEXT_RMS_NORM_F32",
         ),
         OpShaderBinding(
-            target="aten.torch2vk.text_linear.default",
+            target="aten.linear.default",
             shader="QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32",
+            match=lambda op: len(op.inputs) == 2,
         ),
         OpShaderBinding(
-            target="aten.torch2vk.embed_lookup.default",
+            target="aten.embedding.default",
             shader="QWEN3_ASR_TEXT_EMBED_LOOKUP_F32",
+            match=lambda op: op.inputs == ("input_ids", "embed_tokens_weight"),
         ),
         OpShaderBinding(
             target="aten.torch2vk.greedy_argmax.default",

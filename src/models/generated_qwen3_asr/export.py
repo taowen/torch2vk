@@ -596,14 +596,14 @@ def _text_prefill_ops() -> tuple[TorchOpPattern, ...]:
             ("hidden",),
         ),
         TorchOpPattern("aten.rms_norm.default", ("hidden", "norm_weight"), ("final_norm",)),
-        TorchOpPattern("aten.torch2vk.text_linear.default", ("final_norm", "lm_head_weight"), ("logits",)),
+        TorchOpPattern("aten.linear.default", ("final_norm", "lm_head_weight"), ("logits",)),
     )
 
 
 def _text_decode_ops() -> tuple[TorchOpPattern, ...]:
     return (
         TorchOpPattern(
-            "aten.torch2vk.embed_lookup.default",
+            "aten.embedding.default",
             ("input_ids", "embed_tokens_weight"),
             ("inputs_embeds",),
         ),
@@ -613,11 +613,7 @@ def _text_decode_ops() -> tuple[TorchOpPattern, ...]:
             ("hidden",),
         ),
         TorchOpPattern("aten.rms_norm.default", ("hidden", "norm_weight"), ("final_norm",)),
-        TorchOpPattern(
-            "aten.torch2vk.text_linear.default",
-            ("final_norm", "lm_head_weight"),
-            ("logits",),
-        ),
+        TorchOpPattern("aten.linear.default", ("final_norm", "lm_head_weight"), ("logits",)),
     )
 
 
