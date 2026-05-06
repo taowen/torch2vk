@@ -205,7 +205,7 @@ def _lower_input_embeddings_op(
         _alias_tensor(rt, src=env[op.inputs[0]], dst=env[op.outputs[0]])
         return env[op.outputs[0]]
 
-    shader = resolve_shader_symbol(model="omnivoice", frame="input_embeddings", op=op)
+    shader = resolve_shader_symbol(op=op)
     if shader == "OMNIVOICE_ATEN_SELECT_INT_I64":
         OMNIVOICE_ATEN_SELECT_INT_I64(rt, x=env[op.inputs[0]], output=env[op.outputs[0]])
     elif shader == "OMNIVOICE_ATEN_EMBEDDING_F32":

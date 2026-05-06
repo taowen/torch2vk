@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.export.lowering import resolve_shader_symbol
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
 from models.generated_qwen3_asr.shaders.add_f32 import QWEN3_ASR_ADD_F32
@@ -256,7 +255,7 @@ def _lower_audio_tower_op(
         env[step.outputs[0]] = hidden_states
         return
 
-    shader = resolve_shader_symbol(model="generated_qwen3_asr", frame="audio_tower", op=step)
+    shader = _resolve_audio_tower_shader(step.target)
     if shader == "QWEN3_ASR_PAD_FEATURE_F32":
         QWEN3_ASR_PAD_FEATURE_F32(
             rt,
@@ -332,9 +331,7 @@ def _lower_audio_layer_op(
     *,
     env: dict[str, object],
 ) -> None:
-    shader = resolve_shader_symbol(
-        model="generated_qwen3_asr", frame="audio_encoder_layer", op=step
-    )
+    shader = _resolve_audio_layer_shader(step.target)
     if shader == "QWEN3_ASR_LAYER_NORM_F32":
         QWEN3_ASR_LAYER_NORM_F32(
             rt,
@@ -377,3 +374,27 @@ def _lower_audio_layer_op(
         )
     else:
         raise NotImplementedError(f"Unsupported generated audio encoder layer op: {step.target}")
+
+
+def _resolve_audio_tower_shader(target: str) -> str | None:
+    return {
+        "pad_feature": "QWEN3_ASR_PAD_FEATURE_F32",
+        "conv2d_gelu": "QWEN3_ASR_CONV2D_GELU_F32",
+        "conv_out": "QWEN3_ASR_CONV_OUT_F32",
+        "add_position": "QWEN3_ASR_ADD_POSITION_F32",
+        "compact_after_cnn": "QWEN3_ASR_COMPACT_AFTER_CNN_F32",
+        "cu_seqlens": "QWEN3_ASR_CU_SEQLENS_U32",
+        "layer_norm": "QWEN3_ASR_LAYER_NORM_F32",
+        "linear_gelu": "QWEN3_ASR_LINEAR_GELU_F32",
+        "linear": "QWEN3_ASR_LINEAR_F32",
+    }.get(target)
+
+
+def _resolve_audio_layer_shader(target: str) -> str | None:
+    return {
+        "layer_norm": "QWEN3_ASR_LAYER_NORM_F32",
+        "linear": "QWEN3_ASR_LINEAR_F32",
+        "attention": "QWEN3_ASR_ENCODER_ATTENTION_F32",
+        "residual_add": "QWEN3_ASR_ADD_F32",
+        "linear_gelu": "QWEN3_ASR_LINEAR_GELU_F32",
+    }.get(target)
