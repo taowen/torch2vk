@@ -7,6 +7,7 @@ from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp
+from models.generated_qwen3_asr._lowering import resolve_local_shader
 from models.generated_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTokenSelectTensors
 
@@ -35,7 +36,11 @@ def run_generated_qwen3_asr_token_select(
     }
     with rt.frame("generated_qwen3_asr.token_select"):
         for step in TOKEN_SELECT_TORCH_OPS:
-            shader = _resolve_token_select_shader(step.target)
+            shader = resolve_local_shader(
+                target=step.target,
+                mapping=_TOKEN_SELECT_SHADER_BY_TARGET,
+                frame="token_select",
+            )
             if shader == "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32":
                 QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
                     rt,
@@ -49,7 +54,4 @@ def run_generated_qwen3_asr_token_select(
     return tensors.next_token
 
 
-def _resolve_token_select_shader(target: str) -> str | None:
-    return {
-        "greedy_argmax": "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32",
-    }.get(target)
+_TOKEN_SELECT_SHADER_BY_TARGET = {"greedy_argmax": "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32"}

@@ -6,6 +6,7 @@ from __future__ import annotations
 from torch2vk.runtime.session import RuntimeSession
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
+from models.generated_qwen3_asr._lowering import resolve_local_shader
 from models.generated_qwen3_asr.shaders.text_embed_lookup_f32 import QWEN3_ASR_TEXT_EMBED_LOOKUP_F32
 from models.generated_qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
 from models.generated_qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
@@ -70,7 +71,11 @@ def run_generated_qwen3_asr_text_decode(
                 raise NotImplementedError(
                     "generated_qwen3_asr.text_decode text_decoder_layer_loop lowering is not implemented yet"
                 )
-            shader = _resolve_text_decode_shader(op.target)
+            shader = resolve_local_shader(
+                target=op.target,
+                mapping=_TEXT_DECODE_SHADER_BY_TARGET,
+                frame="text_decode",
+            )
             if shader == "QWEN3_ASR_TEXT_EMBED_LOOKUP_F32":
                 QWEN3_ASR_TEXT_EMBED_LOOKUP_F32(
                     rt,
@@ -96,9 +101,8 @@ def run_generated_qwen3_asr_text_decode(
                 raise NotImplementedError(f"Unsupported generated text_decode op: {op.target}")
 
 
-def _resolve_text_decode_shader(target: str) -> str | None:
-    return {
-        "embed_lookup": "QWEN3_ASR_TEXT_EMBED_LOOKUP_F32",
-        "rms_norm": "QWEN3_ASR_TEXT_RMS_NORM_F32",
-        "lm_head_or_token_select": "QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32",
-    }.get(target)
+_TEXT_DECODE_SHADER_BY_TARGET = {
+    "embed_lookup": "QWEN3_ASR_TEXT_EMBED_LOOKUP_F32",
+    "rms_norm": "QWEN3_ASR_TEXT_RMS_NORM_F32",
+    "lm_head_or_token_select": "QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32",
+}
