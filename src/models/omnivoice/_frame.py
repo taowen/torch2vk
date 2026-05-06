@@ -9,14 +9,26 @@ from torch2vk.runtime.session import RuntimeSession
 
 
 @dataclass(frozen=True, slots=True)
-class OmniVoiceFrameStep:
-    op: str
+class OmniVoiceTorchOp:
+    target: str
     inputs: tuple[str, ...]
     outputs: tuple[str, ...]
     note: str = ""
+    name: str = ""
+    op: str = "call_function"
+    args: tuple[object, ...] = ()
+    kwargs: tuple[tuple[str, object], ...] = ()
+    shape: tuple[int, ...] | None = None
+    dtype: str | None = None
 
 
-def omnivoice_frame(rt: RuntimeSession, name: str, *, pytorch_compare: bool = True):
+def omnivoice_frame(
+    rt: RuntimeSession,
+    name: str,
+    *,
+    pytorch_compare: bool = True,
+    pytorch_input_prefixes: tuple[str, ...] = (),
+):
     if not pytorch_compare:
         return rt.frame(name)
 
@@ -25,4 +37,5 @@ def omnivoice_frame(rt: RuntimeSession, name: str, *, pytorch_compare: bool = Tr
     return rt.frame(
         name,
         pytorch_model_class=OmniVoice,
+        pytorch_input_prefixes=pytorch_input_prefixes,
     )

@@ -6,7 +6,7 @@ from __future__ import annotations
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
-from models.omnivoice._frame import OmniVoiceFrameStep
+from models.omnivoice._frame import OmniVoiceTorchOp
 from models.omnivoice.shaders.audio_codec_decoder_conv1d_k1_f32 import (
     OMNIVOICE_AUDIO_CODEC_DECODER_CONV1D_K1_F32,
 )
@@ -31,20 +31,20 @@ from models.omnivoice.shaders.audio_codec_decoder_snake_f32 import (
 from models.omnivoice.tensors.audio_codec import OmniVoiceAudioCodecTensors
 
 
-AUDIO_CODEC_DECODE_FRAME_STEPS = (
-    OmniVoiceFrameStep(
+AUDIO_CODEC_DECODE_TORCH_OPS = (
+    OmniVoiceTorchOp(
         "quantizer_embed_sum",
         ("audio_tokens", "quantizer_embeddings"),
         ("decoder_hidden",),
         "",
     ),
-    OmniVoiceFrameStep(
+    OmniVoiceTorchOp(
         "decoder_conv_stack",
         ("decoder_hidden",),
         ("decoder_hidden",),
         "",
     ),
-    OmniVoiceFrameStep(
+    OmniVoiceTorchOp(
         "project_out",
         ("decoder_hidden",),
         ("audio_waveform",),
@@ -69,4 +69,4 @@ def run_omnivoice_audio_codec_decode(
 ) -> LogicalTensor:
     del tensors
     with rt.frame("omnivoice.audio_codec_decode"):
-        raise NotImplementedError("Generated scaffold only: lower AUDIO_CODEC_DECODE_FRAME_STEPS.")
+        raise NotImplementedError("Generated scaffold only: lower AUDIO_CODEC_DECODE_TORCH_OPS.")

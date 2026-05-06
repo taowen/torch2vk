@@ -3,35 +3,142 @@
 
 from __future__ import annotations
 
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
-from models.omnivoice._frame import OmniVoiceFrameStep, omnivoice_frame
-from models.omnivoice.shaders.audio_embedding_sum_f32 import OMNIVOICE_AUDIO_EMBEDDING_SUM_F32
+from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
+from models.omnivoice.shaders.aten_embedding_f32 import OMNIVOICE_ATEN_EMBEDDING_F32
+from models.omnivoice.shaders.aten_select_int_i64 import OMNIVOICE_ATEN_SELECT_INT_I64
 from models.omnivoice.tensors.text import OmniVoiceTextPrefillTensors
 
 
-INPUT_EMBEDDINGS_FRAME_STEPS = (
-    OmniVoiceFrameStep(
-        "text_embed_lookup",
-        ("input_ids", "embed_tokens_weight"),
-        ("text_embeds",),
-        "",
+INPUT_EMBEDDINGS_TORCH_OPS = (
+    OmniVoiceTorchOp(
+        target="aten.select.int",
+        inputs=("input_ids",),
+        outputs=("text_token_ids",),
+        note="",
+        name="select",
+        op="call_function",
+        args=("input_ids", 1, 0),
+        kwargs=(),
+        shape=(1, 4),
+        dtype="int64",
     ),
-    OmniVoiceFrameStep(
-        "audio_embedding_sum",
-        ("input_ids", "audio_mask", "audio_embeddings_weight"),
-        ("audio_embeds",),
-        "",
+    OmniVoiceTorchOp(
+        target="aten.embedding.default",
+        inputs=("embed_tokens_weight", "text_token_ids"),
+        outputs=("text_embeds",),
+        note="",
+        name="embedding",
+        op="call_function",
+        args=("embed_tokens_weight", "text_token_ids"),
+        kwargs=(),
+        shape=(1, 4, 1024),
+        dtype="float32",
     ),
-    OmniVoiceFrameStep(
-        "where_audio_mask",
-        ("audio_mask", "audio_embeds", "text_embeds"),
-        ("inputs_embeds",),
-        "",
+    OmniVoiceTorchOp(
+        target="aten.view.default",
+        inputs=("codebook_layer_offsets",),
+        outputs=("codebook_layer_offsets_view",),
+        note="",
+        name="view",
+        op="call_function",
+        args=("codebook_layer_offsets", [1, -1, 1]),
+        kwargs=(),
+        shape=(1, 8, 1),
+        dtype="int64",
+    ),
+    OmniVoiceTorchOp(
+        target="aten.unsqueeze.default",
+        inputs=("audio_mask",),
+        outputs=("audio_mask_for_shift",),
+        note="",
+        name="unsqueeze",
+        op="call_function",
+        args=("audio_mask", 1),
+        kwargs=(),
+        shape=(1, 1, 4),
+        dtype="bool",
+    ),
+    OmniVoiceTorchOp(
+        target="aten.mul.Tensor",
+        inputs=("input_ids", "audio_mask_for_shift"),
+        outputs=("masked_audio_ids",),
+        note="",
+        name="mul",
+        op="call_function",
+        args=("input_ids", "audio_mask_for_shift"),
+        kwargs=(),
+        shape=(1, 8, 4),
+        dtype="int64",
+    ),
+    OmniVoiceTorchOp(
+        target="aten.add.Tensor",
+        inputs=("masked_audio_ids", "codebook_layer_offsets_view"),
+        outputs=("shifted_ids",),
+        note="",
+        name="add",
+        op="call_function",
+        args=("masked_audio_ids", "codebook_layer_offsets_view"),
+        kwargs=(),
+        shape=(1, 8, 4),
+        dtype="int64",
+    ),
+    OmniVoiceTorchOp(
+        target="aten.embedding.default",
+        inputs=("audio_embeddings_weight", "shifted_ids"),
+        outputs=("audio_embedding_values",),
+        note="",
+        name="embedding_1",
+        op="call_function",
+        args=("audio_embeddings_weight", "shifted_ids"),
+        kwargs=(),
+        shape=(1, 8, 4, 1024),
+        dtype="float32",
+    ),
+    OmniVoiceTorchOp(
+        target="aten.sum.dim_IntList",
+        inputs=("audio_embedding_values",),
+        outputs=("audio_embeds",),
+        note="",
+        name="sum_1",
+        op="call_function",
+        args=("audio_embedding_values", [1]),
+        kwargs=(),
+        shape=(1, 4, 1024),
+        dtype="float32",
+    ),
+    OmniVoiceTorchOp(
+        target="aten.unsqueeze.default",
+        inputs=("audio_mask",),
+        outputs=("audio_mask_expanded",),
+        note="",
+        name="unsqueeze_1",
+        op="call_function",
+        args=("audio_mask", -1),
+        kwargs=(),
+        shape=(1, 4, 1),
+        dtype="bool",
+    ),
+    OmniVoiceTorchOp(
+        target="aten.where.self",
+        inputs=("audio_mask_expanded", "audio_embeds", "text_embeds"),
+        outputs=("inputs_embeds",),
+        note="",
+        name="where",
+        op="call_function",
+        args=("audio_mask_expanded", "audio_embeds", "text_embeds"),
+        kwargs=(),
+        shape=(1, 4, 1024),
+        dtype="float32",
     ),
 )
 
-INPUT_EMBEDDINGS_SHADERS = (OMNIVOICE_AUDIO_EMBEDDING_SUM_F32,)
+INPUT_EMBEDDINGS_SHADERS = (
+    OMNIVOICE_ATEN_SELECT_INT_I64,
+    OMNIVOICE_ATEN_EMBEDDING_F32,
+)
 
 
 def run_omnivoice_input_embeddings(
@@ -39,12 +146,75 @@ def run_omnivoice_input_embeddings(
     tensors: OmniVoiceTextPrefillTensors,
     *,
     pytorch_compare: bool = True,
-) -> None:
-    del tensors
-    frame_scope = omnivoice_frame(
+    max_ops: int | None = None,
+) -> LogicalTensor:
+    with omnivoice_frame(
         rt,
         "omnivoice.input_embeddings",
         pytorch_compare=pytorch_compare,
-    )
-    with frame_scope:
-        raise NotImplementedError("Generated scaffold only: lower INPUT_EMBEDDINGS_FRAME_STEPS.")
+        pytorch_input_prefixes=("omnivoice.prefill.",),
+    ):
+        env = _input_embeddings_env(tensors)
+        selected_ops = (
+            INPUT_EMBEDDINGS_TORCH_OPS
+            if max_ops is None
+            else INPUT_EMBEDDINGS_TORCH_OPS[:max_ops]
+        )
+        last_output = tensors.inputs_embeds
+        for op in selected_ops:
+            last_output = _lower_input_embeddings_op(rt, op, env=env)
+    return last_output
+
+
+def _input_embeddings_env(tensors: OmniVoiceTextPrefillTensors) -> dict[str, LogicalTensor]:
+    return {
+        "input_ids": tensors.input_ids,
+        "audio_mask": tensors.audio_mask,
+        "embed_tokens_weight": tensors.embed_tokens_weight,
+        "audio_embeddings_weight": tensors.audio_embeddings_weight,
+        "codebook_layer_offsets": tensors.codebook_layer_offsets,
+        "text_token_ids": tensors.text_token_ids,
+        "text_embeds": tensors.text_embeds,
+        "audio_mask_for_shift": tensors.audio_mask_for_shift,
+        "masked_audio_ids": tensors.masked_audio_ids,
+        "codebook_layer_offsets_view": tensors.codebook_layer_offsets_view,
+        "shifted_ids": tensors.shifted_ids,
+        "audio_embedding_values": tensors.audio_embedding_values,
+        "audio_embeds": tensors.audio_embeds,
+        "audio_mask_expanded": tensors.audio_mask_expanded,
+        "inputs_embeds": tensors.inputs_embeds,
+    }
+
+
+def _lower_input_embeddings_op(
+    rt: RuntimeSession,
+    op: OmniVoiceTorchOp,
+    *,
+    env: dict[str, LogicalTensor],
+) -> LogicalTensor:
+    if op.target == "aten.select.int":
+        OMNIVOICE_ATEN_SELECT_INT_I64(
+            rt,
+            x=env[op.inputs[0]],
+            output=env[op.outputs[0]],
+        )
+    elif op.target == "aten.embedding.default":
+        OMNIVOICE_ATEN_EMBEDDING_F32(
+            rt,
+            weight=env[op.inputs[0]],
+            indices=env[op.inputs[1]],
+            output=env[op.outputs[0]],
+        )
+    elif op.target in {"aten.view.default", "aten.unsqueeze.default"}:
+        _alias_tensor(rt, src=env[op.inputs[0]], dst=env[op.outputs[0]])
+    else:
+        raise NotImplementedError(f"Unsupported generated OmniVoice input embedding op: {op.target}")
+    return env[op.outputs[0]]
+
+
+def _alias_tensor(rt: RuntimeSession, *, src: LogicalTensor, dst: LogicalTensor) -> None:
+    rt._materialize_read(src)
+    with dst.runtime_write_scope():
+        dst.buffer = src.buffer
+        dst.descriptor_nbytes = src.descriptor_nbytes
+        dst.version = src.version

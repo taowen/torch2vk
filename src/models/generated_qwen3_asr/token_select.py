@@ -6,12 +6,12 @@ from __future__ import annotations
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
-from models.generated_qwen3_asr._frame import GeneratedFrameStep
+from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp
 from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTokenSelectTensors
 
 
-TOKEN_SELECT_FRAME_STEPS = (
-    GeneratedFrameStep(
+TOKEN_SELECT_TORCH_OPS = (
+    Qwen3ASRTorchOp(
         "greedy_argmax",
         ("logits", "eos_token_ids"),
         ("next_token", "done"),
@@ -29,5 +29,5 @@ def run_generated_qwen3_asr_token_select(
     del tensors, logits
     with rt.frame("generated_qwen3_asr.token_select"):
         raise NotImplementedError(
-            "Generated scaffold only: lower TOKEN_SELECT_FRAME_STEPS to shader dispatches."
+            "Generated scaffold only: lower TOKEN_SELECT_TORCH_OPS to shader dispatches."
         )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -102,6 +103,23 @@ def write_rendered_files(
         checked_different=tuple(checked_different),
         dry_run=dry_run,
     )
+
+
+def remove_stale_files(
+    output_dir: str | Path,
+    stale_files: Iterable[Path],
+    *,
+    check: bool,
+    dry_run: bool,
+) -> None:
+    root = Path(output_dir)
+    existing = tuple(root / relative for relative in stale_files if (root / relative).exists())
+    if check and existing:
+        raise ExportCheckError(existing)
+    if dry_run:
+        return
+    for path in existing:
+        path.unlink()
 
 
 def format_python_source(source: str, *, filename: str | Path) -> str:

@@ -5,33 +5,33 @@ from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
 
-from models.generated_qwen3_asr._frame import GeneratedFrameStep, qwen3_asr_frame
+from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
 from models.generated_qwen3_asr.tensors.text import (
     GeneratedQwen3AsrTextDecodeTensors,
     GeneratedQwen3AsrTokenSelectTensors,
 )
 
 
-TEXT_DECODE_FRAME_STEPS = (
-    GeneratedFrameStep(
+TEXT_DECODE_TORCH_OPS = (
+    Qwen3ASRTorchOp(
         "embed_lookup",
         ("input_ids", "embed_tokens_weight"),
         ("inputs_embeds",),
         "",
     ),
-    GeneratedFrameStep(
+    Qwen3ASRTorchOp(
         "text_decoder_layer_loop",
         ("inputs_embeds", "cache_position", "rope_cos", "rope_sin", "layers"),
         ("hidden",),
         "",
     ),
-    GeneratedFrameStep(
+    Qwen3ASRTorchOp(
         "rms_norm",
         ("hidden", "norm_weight"),
         ("final_norm",),
         "",
     ),
-    GeneratedFrameStep(
+    Qwen3ASRTorchOp(
         "lm_head_or_token_select",
         ("final_norm", "lm_head_weight"),
         ("logits",),
@@ -60,5 +60,5 @@ def run_generated_qwen3_asr_text_decode(
     )
     with frame_scope:
         raise NotImplementedError(
-            "Generated scaffold only: lower TEXT_DECODE_FRAME_STEPS to shader dispatches."
+            "Generated scaffold only: lower TEXT_DECODE_TORCH_OPS to shader dispatches."
         )

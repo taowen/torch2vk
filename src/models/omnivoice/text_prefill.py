@@ -5,24 +5,24 @@ from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
 
-from models.omnivoice._frame import OmniVoiceFrameStep, omnivoice_frame
+from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
 from models.omnivoice.tensors.text import OmniVoiceTextPrefillTensors
 
 
-TEXT_PREFILL_FRAME_STEPS = (
-    OmniVoiceFrameStep(
+TEXT_PREFILL_TORCH_OPS = (
+    OmniVoiceTorchOp(
         "input_embeddings",
         ("input_ids", "audio_mask"),
         ("inputs_embeds",),
         "",
     ),
-    OmniVoiceFrameStep(
+    OmniVoiceTorchOp(
         "llm_layer_loop",
         ("inputs_embeds", "attention_mask"),
         ("hidden_states",),
         "",
     ),
-    OmniVoiceFrameStep(
+    OmniVoiceTorchOp(
         "final_norm",
         ("hidden_states",),
         ("hidden_states",),
@@ -44,4 +44,4 @@ def run_omnivoice_text_prefill(
         pytorch_compare=pytorch_compare,
     )
     with frame_scope:
-        raise NotImplementedError("Generated scaffold only: lower TEXT_PREFILL_FRAME_STEPS.")
+        raise NotImplementedError("Generated scaffold only: lower TEXT_PREFILL_TORCH_OPS.")

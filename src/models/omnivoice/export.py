@@ -19,16 +19,18 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from torch2vk.export.exported_program import export_torch_program, torch_ops_from_exported_program
 from torch2vk.export.reflection import (
     TorchModuleReflection,
     instantiate_torch_module_on_meta,
     reflect_torch_module,
 )
+from torch2vk.export.torch_ops import TorchOpPattern, TensorFieldPattern
 from torch2vk.export.writer import (
-    ExportCheckError,
     ExportWriteResult,
     RenderedFile,
     TemplateRenderer,
+    remove_stale_files,
     write_rendered_files,
 )
 
@@ -68,21 +70,6 @@ class OmniVoiceExportConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class TensorFieldPattern:
-    field: str
-    source_parameter: str | None = None
-    note: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class FrameStepPattern:
-    op: str
-    inputs: tuple[str, ...]
-    outputs: tuple[str, ...]
-    note: str = ""
-
-
-@dataclass(frozen=True, slots=True)
 class ShaderPattern:
     constant: str
     shader_name: str
@@ -90,6 +77,7 @@ class ShaderPattern:
     family: str
     source_file: str
     source: str
+    variant_body: str = ""
     note: str = ""
 
 
@@ -190,13 +178,13 @@ def build_omnivoice_pattern_context(
         "text_layer_fields": _text_layer_fields(),
         "audio_codec_fields": _audio_codec_fields(),
         "audio_codec_layer_fields": _audio_codec_layer_fields(),
-        "input_embeddings_steps": _input_embeddings_steps(),
-        "text_prefill_steps": _text_prefill_steps(),
-        "iterative_decode_steps": _iterative_decode_steps(),
-        "token_select_steps": _token_select_steps(),
-        "audio_head_steps": _audio_head_steps(),
-        "audio_codec_decode_steps": _audio_codec_decode_steps(),
-        "reference_prompt_steps": _reference_prompt_steps(),
+        "input_embeddings_ops": _input_embeddings_ops(config),
+        "text_prefill_ops": _text_prefill_ops(),
+        "iterative_decode_ops": _iterative_decode_ops(),
+        "token_select_ops": _token_select_ops(),
+        "audio_head_ops": _audio_head_ops(),
+        "audio_codec_decode_ops": _audio_codec_decode_ops(),
+        "reference_prompt_ops": _reference_prompt_ops(),
         "shader_modules": _shader_modules(),
     }
 
@@ -214,7 +202,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--no-reflect",
         action="store_true",
-        help="Skip PyTorch meta-device reflection and render from config/patterns only.",
+        help="Skip PyTorch meta-device reflection and render from config/op declarations only.",
     )
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -389,94 +377,165 @@ def _audio_codec_layer_fields() -> tuple[TensorFieldPattern, ...]:
     )
 
 
-def _input_embeddings_steps() -> tuple[FrameStepPattern, ...]:
-    return (
-        FrameStepPattern(
-            "text_embed_lookup", ("input_ids", "embed_tokens_weight"), ("text_embeds",)
-        ),
-        FrameStepPattern(
-            "audio_embedding_sum",
-            ("input_ids", "audio_mask", "audio_embeddings_weight"),
-            ("audio_embeds",),
-        ),
-        FrameStepPattern(
-            "where_audio_mask", ("audio_mask", "audio_embeds", "text_embeds"), ("inputs_embeds",)
-        ),
+def _input_embeddings_ops(config: OmniVoiceExportConfig) -> tuple[TorchOpPattern, ...]:
+    exported_program = _export_input_embeddings_program(config)
+    return torch_ops_from_exported_program(
+        exported_program,
+        tensor_name_map={
+            "p_embed_tokens_weight": "embed_tokens_weight",
+            "p_audio_embeddings_weight": "audio_embeddings_weight",
+            "b_codebook_layer_offsets": "codebook_layer_offsets",
+            "input_ids": "input_ids",
+            "audio_mask": "audio_mask",
+            "select": "text_token_ids",
+            "embedding": "text_embeds",
+            "unsqueeze": "audio_mask_for_shift",
+            "mul": "masked_audio_ids",
+            "view": "codebook_layer_offsets_view",
+            "add": "shifted_ids",
+            "embedding_1": "audio_embedding_values",
+            "sum_1": "audio_embeds",
+            "unsqueeze_1": "audio_mask_expanded",
+            "where": "inputs_embeds",
+        },
     )
 
 
-def _text_prefill_steps() -> tuple[FrameStepPattern, ...]:
-    return (
-        FrameStepPattern("input_embeddings", ("input_ids", "audio_mask"), ("inputs_embeds",)),
-        FrameStepPattern("llm_layer_loop", ("inputs_embeds", "attention_mask"), ("hidden_states",)),
-        FrameStepPattern("final_norm", ("hidden_states",), ("hidden_states",)),
+def _export_input_embeddings_program(config: OmniVoiceExportConfig) -> object:
+    import torch
+    from torch import nn
+
+    class InputEmbeddingsModule(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.embed_tokens = nn.Embedding(
+                config.llm_vocab_size,
+                config.llm_hidden_size,
+                device="meta",
+            )
+            self.audio_embeddings = nn.Embedding(
+                config.num_audio_codebook * config.audio_vocab_size,
+                config.llm_hidden_size,
+                device="meta",
+            )
+            self.register_buffer(
+                "codebook_layer_offsets",
+                torch.arange(config.num_audio_codebook, device="meta") * config.audio_vocab_size,
+            )
+
+        def forward(self, input_ids: torch.Tensor, audio_mask: torch.Tensor) -> torch.Tensor:
+            text_embeds = self.embed_tokens(input_ids[:, 0, :])
+            codebook_layer_offsets = torch.ops.aten.view.default(
+                self.codebook_layer_offsets,
+                [1, -1, 1],
+            )
+            shifted_ids = (
+                input_ids * audio_mask.unsqueeze(1)
+            ) + codebook_layer_offsets
+            audio_embeds = self.audio_embeddings(shifted_ids).sum(dim=1)
+            return torch.where(audio_mask.unsqueeze(-1), audio_embeds, text_embeds)
+
+    example_input_ids = torch.zeros(
+        (1, config.num_audio_codebook, 4),
+        dtype=torch.long,
+        device="meta",
+    )
+    example_audio_mask = torch.zeros((1, 4), dtype=torch.bool, device="meta")
+    return export_torch_program(
+        InputEmbeddingsModule().eval(),
+        (example_input_ids, example_audio_mask),
+        strict=False,
     )
 
 
-def _audio_head_steps() -> tuple[FrameStepPattern, ...]:
+def _text_prefill_ops() -> tuple[TorchOpPattern, ...]:
     return (
-        FrameStepPattern(
+        TorchOpPattern("input_embeddings", ("input_ids", "audio_mask"), ("inputs_embeds",)),
+        TorchOpPattern("llm_layer_loop", ("inputs_embeds", "attention_mask"), ("hidden_states",)),
+        TorchOpPattern("final_norm", ("hidden_states",), ("hidden_states",)),
+    )
+
+
+def _audio_head_ops() -> tuple[TorchOpPattern, ...]:
+    return (
+        TorchOpPattern(
             "audio_head_projection", ("hidden_states", "audio_heads_weight"), ("audio_logits",)
         ),
-        FrameStepPattern("reshape_codebooks", ("audio_logits",), ("audio_logits",)),
+        TorchOpPattern("reshape_codebooks", ("audio_logits",), ("audio_logits",)),
     )
 
 
-def _token_select_steps() -> tuple[FrameStepPattern, ...]:
+def _token_select_ops() -> tuple[TorchOpPattern, ...]:
     return (
-        FrameStepPattern(
+        TorchOpPattern(
             "classifier_free_guidance", ("cond_logits", "uncond_logits"), ("guided_logits",)
         ),
-        FrameStepPattern("mask_forbidden_ids", ("guided_logits",), ("guided_logits",)),
-        FrameStepPattern(
+        TorchOpPattern("mask_forbidden_ids", ("guided_logits",), ("guided_logits",)),
+        TorchOpPattern(
             "codebook_argmax", ("guided_logits",), ("pred_tokens", "confidence_scores")
         ),
-        FrameStepPattern(
+        TorchOpPattern(
             "select_positions", ("confidence_scores", "current_tokens"), ("selected_positions",)
         ),
-        FrameStepPattern(
+        TorchOpPattern(
             "apply_selected_tokens", ("pred_tokens", "selected_positions"), ("updated_tokens",)
         ),
     )
 
 
-def _iterative_decode_steps() -> tuple[FrameStepPattern, ...]:
+def _iterative_decode_ops() -> tuple[TorchOpPattern, ...]:
     return (
-        FrameStepPattern("initialize_masked_tokens", ("target_lens",), ("tokens",)),
-        FrameStepPattern(
+        TorchOpPattern("initialize_masked_tokens", ("target_lens",), ("tokens",)),
+        TorchOpPattern(
             "for_each_decode_step", ("batch_input_ids", "batch_audio_mask"), ("audio_logits",)
         ),
-        FrameStepPattern("token_select", ("audio_logits", "tokens"), ("tokens",)),
-        FrameStepPattern("update_conditioned_inputs", ("tokens",), ("batch_input_ids",)),
+        TorchOpPattern("token_select", ("audio_logits", "tokens"), ("tokens",)),
+        TorchOpPattern("update_conditioned_inputs", ("tokens",), ("batch_input_ids",)),
     )
 
 
-def _audio_codec_decode_steps() -> tuple[FrameStepPattern, ...]:
+def _audio_codec_decode_ops() -> tuple[TorchOpPattern, ...]:
     return (
-        FrameStepPattern(
+        TorchOpPattern(
             "quantizer_embed_sum", ("audio_tokens", "quantizer_embeddings"), ("decoder_hidden",)
         ),
-        FrameStepPattern("decoder_conv_stack", ("decoder_hidden",), ("decoder_hidden",)),
-        FrameStepPattern("project_out", ("decoder_hidden",), ("audio_waveform",)),
+        TorchOpPattern("decoder_conv_stack", ("decoder_hidden",), ("decoder_hidden",)),
+        TorchOpPattern("project_out", ("decoder_hidden",), ("audio_waveform",)),
     )
 
 
-def _reference_prompt_steps() -> tuple[FrameStepPattern, ...]:
+def _reference_prompt_ops() -> tuple[TorchOpPattern, ...]:
     return (
-        FrameStepPattern(
+        TorchOpPattern(
             "load_or_resample_reference_audio", ("ref_audio",), ("reference_waveform",)
         ),
-        FrameStepPattern("audio_tokenizer_encode", ("reference_waveform",), ("reference_tokens",)),
-        FrameStepPattern("normalize_reference_text", ("ref_text",), ("reference_text",)),
+        TorchOpPattern("audio_tokenizer_encode", ("reference_waveform",), ("reference_tokens",)),
+        TorchOpPattern("normalize_reference_text", ("ref_text",), ("reference_text",)),
     )
 
 
 def _shader_modules() -> tuple[ShaderModulePattern, ...]:
     return (
+        _inline_shader_module(
+            "OMNIVOICE_ATEN_SELECT_INT_I64",
+            "aten_select_int_i64",
+            family="aten",
+            source=_aten_select_int_i64_source(),
+            variant_body=_aten_select_int_i64_variant_body(),
+        ),
+        _inline_shader_module(
+            "OMNIVOICE_ATEN_EMBEDDING_F32",
+            "aten_embedding_f32",
+            family="omnivoice.text",
+            source=_aten_embedding_f32_source(),
+            variant_body=_aten_embedding_f32_variant_body(),
+        ),
         _single_shader_module(
             "OMNIVOICE_AUDIO_EMBEDDING_SUM_F32",
             "audio_embedding_sum_f32.glsl",
             family="omnivoice.text",
+            source=_audio_embedding_sum_source(),
+            variant_body=_audio_embedding_sum_variant_body(),
         ),
         _single_shader_module(
             "OMNIVOICE_AUDIO_HEAD_MATMUL_F16_F32_F16ACC_LARGE",
@@ -621,12 +680,45 @@ def _single_shader_module(
     source_file: str,
     *,
     family: str,
+    source: str | None = None,
+    variant_body: str = "",
 ) -> ShaderModulePattern:
     module = source_file.removesuffix(".glsl")
     return ShaderModulePattern(
         module,
         module.replace("_", " "),
-        (_shader_variant(constant, source_file, family=family),),
+        (
+            _shader_variant(
+                constant,
+                source_file,
+                family=family,
+                source=source,
+                variant_body=variant_body,
+            ),
+        ),
+    )
+
+
+def _inline_shader_module(
+    constant: str,
+    module: str,
+    *,
+    family: str,
+    source: str,
+    variant_body: str,
+) -> ShaderModulePattern:
+    return ShaderModulePattern(
+        module,
+        module.replace("_", " "),
+        (
+            _shader_variant(
+                constant,
+                f"{module}.glsl",
+                family=family,
+                source=source,
+                variant_body=variant_body,
+            ),
+        ),
     )
 
 
@@ -635,17 +727,282 @@ def _shader_variant(
     source_file: str,
     *,
     family: str,
+    source: str | None = None,
+    variant_body: str = "",
 ) -> ShaderPattern:
     shader_name = f"omnivoice_{source_file.removesuffix('.glsl')}"
-    source = _load_imported_glsl_source(source_file)
     return ShaderPattern(
         constant=constant,
         shader_name=shader_name,
         class_name=_shader_class_name(shader_name),
         family=family,
         source_file=source_file,
-        source=source,
+        source=_load_imported_glsl_source(source_file) if source is None else source,
+        variant_body=variant_body,
     )
+
+
+def _aten_select_int_i64_variant_body() -> str:
+    return """
+contract=ShaderContract(
+    class_name="OmniVoiceAtenSelectIntI64Program",
+    shader_name="omnivoice_aten_select_int_i64",
+    fields=(
+        TensorFieldSpec(
+            name="x",
+            io_kind=IOKind.INPUT,
+            role="x",
+            contract=TensorContract(dtype="int64", shape=("B", "C", "T")),
+        ),
+        TensorFieldSpec(
+            name="output",
+            io_kind=IOKind.OUTPUT,
+            role="output",
+            contract=TensorContract(dtype="int64", shape=("B", "T")),
+        ),
+    ),
+    push_constants=PushConstantSpec(
+        size=8,
+        fields=(
+            PushConstantFieldSpec("C", PushConstantType.UINT32, 0, "C"),
+            PushConstantFieldSpec("T", PushConstantType.UINT32, 4, "T"),
+        ),
+    ),
+    dispatch=(ceil_div("T", 256), "B", 1),
+),
+execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+""".lstrip()
+
+
+def _aten_embedding_f32_variant_body() -> str:
+    return """
+contract=ShaderContract(
+    class_name="OmniVoiceAtenEmbeddingF32Program",
+    shader_name="omnivoice_aten_embedding_f32",
+    fields=(
+        TensorFieldSpec(
+            name="weight",
+            io_kind=IOKind.INPUT,
+            role="weight",
+            contract=TensorContract(dtype="float32", shape=("V", "H")),
+        ),
+        TensorFieldSpec(
+            name="indices",
+            io_kind=IOKind.INPUT,
+            role="indices",
+            contract=TensorContract(dtype="int64", shape=("B", "T")),
+        ),
+        TensorFieldSpec(
+            name="output",
+            io_kind=IOKind.OUTPUT,
+            role="output",
+            contract=TensorContract(dtype="float32", shape=("B", "T", "H")),
+        ),
+    ),
+    push_constants=PushConstantSpec(
+        size=12,
+        fields=(
+            PushConstantFieldSpec("T", PushConstantType.UINT32, 0, "T"),
+            PushConstantFieldSpec("H", PushConstantType.UINT32, 4, "H"),
+            PushConstantFieldSpec("V", PushConstantType.UINT32, 8, "V"),
+        ),
+    ),
+    dispatch=(ceil_div("H", 256), "T", "B"),
+),
+execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+""".lstrip()
+
+
+def _audio_embedding_sum_variant_body() -> str:
+    return """
+contract=ShaderContract(
+    class_name="OmniVoiceAudioEmbeddingSumF32Program",
+    shader_name="omnivoice_audio_embedding_sum_f32",
+    fields=(
+        TensorFieldSpec(
+            name="input_ids",
+            io_kind=IOKind.INPUT,
+            role="input_ids",
+            contract=TensorContract(dtype="int64", shape=("B", "C", "T")),
+        ),
+        TensorFieldSpec(
+            name="audio_mask",
+            io_kind=IOKind.INPUT,
+            role="audio_mask",
+            contract=TensorContract(dtype="uint32", shape=("B", "T")),
+        ),
+        TensorFieldSpec(
+            name="codebook_layer_offsets",
+            io_kind=IOKind.INPUT,
+            role="codebook_layer_offsets",
+            contract=TensorContract(dtype="int64", shape=("C",)),
+        ),
+        TensorFieldSpec(
+            name="audio_embeddings_weight",
+            io_kind=IOKind.INPUT,
+            role="audio_embeddings_weight",
+            contract=TensorContract(dtype="float32", shape=("E", "H")),
+        ),
+        TensorFieldSpec(
+            name="output",
+            io_kind=IOKind.OUTPUT,
+            role="output",
+            contract=TensorContract(dtype="float32", shape=("B", "T", "H")),
+        ),
+    ),
+    push_constants=PushConstantSpec(
+        size=16,
+        fields=(
+            PushConstantFieldSpec("C", PushConstantType.UINT32, 0, "C"),
+            PushConstantFieldSpec("T", PushConstantType.UINT32, 4, "T"),
+            PushConstantFieldSpec("H", PushConstantType.UINT32, 8, "H"),
+            PushConstantFieldSpec("E", PushConstantType.UINT32, 12, "E"),
+        ),
+    ),
+    dispatch=(ceil_div("H", 256), "T", "B"),
+),
+execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+""".lstrip()
+
+
+def _aten_select_int_i64_source() -> str:
+    return """
+#version 450
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+layout(std430) buffer;
+
+layout(set = 0, binding = 0) buffer restrict readonly InputBuffer {
+    int64_t x[];
+};
+
+layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer {
+    int64_t output_values[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint C;
+    uint T;
+} pc;
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+    const uint token = gl_GlobalInvocationID.x;
+    const uint batch = gl_GlobalInvocationID.y;
+    if (token >= pc.T) {
+        return;
+    }
+    output_values[batch * pc.T + token] = x[(batch * pc.C) * pc.T + token];
+}
+""".lstrip()
+
+
+def _aten_embedding_f32_source() -> str:
+    return """
+#version 450
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+layout(std430) buffer;
+
+layout(set = 0, binding = 0) buffer restrict readonly WeightBuffer {
+    float weight[];
+};
+
+layout(set = 0, binding = 1) buffer restrict readonly IndicesBuffer {
+    int64_t indices[];
+};
+
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer {
+    float output_values[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint T;
+    uint H;
+    uint V;
+} pc;
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+    const uint h = gl_GlobalInvocationID.x;
+    const uint token = gl_GlobalInvocationID.y;
+    const uint batch = gl_GlobalInvocationID.z;
+    if (h >= pc.H || token >= pc.T) {
+        return;
+    }
+
+    const int64_t token_id = indices[batch * pc.T + token];
+    const uint out_index = (batch * pc.T + token) * pc.H + h;
+    if (token_id >= int64_t(0) && token_id < int64_t(pc.V)) {
+        output_values[out_index] = weight[uint(token_id) * pc.H + h];
+    } else {
+        output_values[out_index] = 0.0;
+    }
+}
+""".lstrip()
+
+
+def _audio_embedding_sum_source() -> str:
+    return """
+#version 450
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+layout(std430) buffer;
+
+layout(set = 0, binding = 0) buffer restrict readonly InputIdsBuffer {
+    int64_t input_ids[];
+};
+
+layout(set = 0, binding = 1) buffer restrict readonly AudioMaskBuffer {
+    uint audio_mask[];
+};
+
+layout(set = 0, binding = 2) buffer restrict readonly CodebookOffsetsBuffer {
+    int64_t codebook_layer_offsets[];
+};
+
+layout(set = 0, binding = 3) buffer restrict readonly AudioEmbeddingsBuffer {
+    float audio_embeddings_weight[];
+};
+
+layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer {
+    float output_values[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint C;
+    uint T;
+    uint H;
+    uint E;
+} pc;
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+    const uint h = gl_GlobalInvocationID.x;
+    const uint token = gl_GlobalInvocationID.y;
+    const uint batch = gl_GlobalInvocationID.z;
+    if (h >= pc.H || token >= pc.T) {
+        return;
+    }
+
+    const int64_t mask = audio_mask[batch * pc.T + token] != 0u ? int64_t(1) : int64_t(0);
+    float acc = 0.0;
+    for (uint codebook = 0u; codebook < pc.C; ++codebook) {
+        const uint id_index = (batch * pc.C + codebook) * pc.T + token;
+        const int64_t shifted_id = input_ids[id_index] * mask + codebook_layer_offsets[codebook];
+        if (shifted_id >= int64_t(0) && shifted_id < int64_t(pc.E)) {
+            acc += audio_embeddings_weight[uint(shifted_id) * pc.H + h];
+        }
+    }
+    output_values[(batch * pc.T + token) * pc.H + h] = acc;
+}
+""".lstrip()
 
 
 def _load_imported_glsl_source(source_file: str) -> str:
@@ -736,17 +1093,7 @@ def _remove_stale_files(
     check: bool,
     dry_run: bool,
 ) -> None:
-    existing = tuple(
-        Path(output_dir) / relative
-        for relative in _STALE_FILES
-        if (Path(output_dir) / relative).exists()
-    )
-    if check and existing:
-        raise ExportCheckError(existing)
-    if dry_run:
-        return
-    for path in existing:
-        path.unlink()
+    remove_stale_files(output_dir, _STALE_FILES, check=check, dry_run=dry_run)
 
 
 @contextmanager

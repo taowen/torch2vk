@@ -6,30 +6,30 @@ from __future__ import annotations
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
-from models.omnivoice._frame import OmniVoiceFrameStep, omnivoice_frame
+from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
 from models.omnivoice.tensors.inference import OmniVoiceIterativeDecodeTensors
 
 
-ITERATIVE_DECODE_FRAME_STEPS = (
-    OmniVoiceFrameStep(
+ITERATIVE_DECODE_TORCH_OPS = (
+    OmniVoiceTorchOp(
         "initialize_masked_tokens",
         ("target_lens",),
         ("tokens",),
         "",
     ),
-    OmniVoiceFrameStep(
+    OmniVoiceTorchOp(
         "for_each_decode_step",
         ("batch_input_ids", "batch_audio_mask"),
         ("audio_logits",),
         "",
     ),
-    OmniVoiceFrameStep(
+    OmniVoiceTorchOp(
         "token_select",
         ("audio_logits", "tokens"),
         ("tokens",),
         "",
     ),
-    OmniVoiceFrameStep(
+    OmniVoiceTorchOp(
         "update_conditioned_inputs",
         ("tokens",),
         ("batch_input_ids",),
@@ -54,4 +54,4 @@ def run_omnivoice_iterative_decode(
         pytorch_compare=pytorch_compare,
     )
     with frame_scope:
-        raise NotImplementedError("Generated scaffold only: lower ITERATIVE_DECODE_FRAME_STEPS.")
+        raise NotImplementedError("Generated scaffold only: lower ITERATIVE_DECODE_TORCH_OPS.")

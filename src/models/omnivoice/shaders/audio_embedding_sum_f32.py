@@ -3,7 +3,18 @@
 
 from __future__ import annotations
 
-from torch2vk.runtime.shader import ShaderContract, ShaderVariant
+from torch2vk.runtime.shader import (
+    IOKind,
+    PushConstantFieldSpec,
+    PushConstantSpec,
+    PushConstantType,
+    ShaderContract,
+    ShaderExecutionRequirements,
+    ShaderVariant,
+    TensorContract,
+    TensorFieldSpec,
+    ceil_div,
+)
 
 
 OMNIVOICE_AUDIO_EMBEDDING_SUM_F32 = ShaderVariant(
@@ -12,78 +23,105 @@ OMNIVOICE_AUDIO_EMBEDDING_SUM_F32 = ShaderVariant(
     contract=ShaderContract(
         class_name="OmniVoiceAudioEmbeddingSumF32Program",
         shader_name="omnivoice_audio_embedding_sum_f32",
-        fields=(),
-        dispatch=(1, 1, 1),
+        fields=(
+            TensorFieldSpec(
+                name="input_ids",
+                io_kind=IOKind.INPUT,
+                role="input_ids",
+                contract=TensorContract(dtype="int64", shape=("B", "C", "T")),
+            ),
+            TensorFieldSpec(
+                name="audio_mask",
+                io_kind=IOKind.INPUT,
+                role="audio_mask",
+                contract=TensorContract(dtype="uint32", shape=("B", "T")),
+            ),
+            TensorFieldSpec(
+                name="codebook_layer_offsets",
+                io_kind=IOKind.INPUT,
+                role="codebook_layer_offsets",
+                contract=TensorContract(dtype="int64", shape=("C",)),
+            ),
+            TensorFieldSpec(
+                name="audio_embeddings_weight",
+                io_kind=IOKind.INPUT,
+                role="audio_embeddings_weight",
+                contract=TensorContract(dtype="float32", shape=("E", "H")),
+            ),
+            TensorFieldSpec(
+                name="output",
+                io_kind=IOKind.OUTPUT,
+                role="output",
+                contract=TensorContract(dtype="float32", shape=("B", "T", "H")),
+            ),
+        ),
+        push_constants=PushConstantSpec(
+            size=16,
+            fields=(
+                PushConstantFieldSpec("C", PushConstantType.UINT32, 0, "C"),
+                PushConstantFieldSpec("T", PushConstantType.UINT32, 4, "T"),
+                PushConstantFieldSpec("H", PushConstantType.UINT32, 8, "H"),
+                PushConstantFieldSpec("E", PushConstantType.UINT32, 12, "E"),
+            ),
+        ),
+        dispatch=(ceil_div("H", 256), "T", "B"),
     ),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+
     source="""
-#version 460
-#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#version 450
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict writeonly OutputBuffer {
-    float t_output[];
+layout(set = 0, binding = 0) buffer restrict readonly InputIdsBuffer {
+    int64_t input_ids[];
 };
 
-layout(set = 0, binding = 1) buffer restrict readonly AudioIdsBuffer {
-    int t_audio_ids[];
+layout(set = 0, binding = 1) buffer restrict readonly AudioMaskBuffer {
+    uint audio_mask[];
 };
 
 layout(set = 0, binding = 2) buffer restrict readonly CodebookOffsetsBuffer {
-    int t_codebook_offsets[];
+    int64_t codebook_layer_offsets[];
 };
 
 layout(set = 0, binding = 3) buffer restrict readonly AudioEmbeddingsBuffer {
-    float16_t t_audio_embeddings[];
+    float audio_embeddings_weight[];
 };
 
-layout(set = 0, binding = 4) uniform restrict readonly sizes_UBO {
-    ivec4 sizes;
+layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer {
+    float output_values[];
 };
+
+layout(push_constant) uniform PushConstants {
+    uint C;
+    uint T;
+    uint H;
+    uint E;
+} pc;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 void main() {
-    const uint hidden_index = gl_GlobalInvocationID.x;
-    const uint step_index = gl_GlobalInvocationID.y;
-    const uint batch_index = gl_GlobalInvocationID.z;
-
-    const uint hidden = uint(sizes.x);
-    const uint steps = uint(sizes.y);
-    const uint codebooks = uint(sizes.z);
-    const uint vocab = uint(sizes.w);
-
-    if (hidden_index >= hidden || step_index >= steps) {
-        return;
-    }
-    // OmniVoice Stage0 fixed contract: exactly 8 codebooks.
-    if (codebooks != 8u) {
+    const uint h = gl_GlobalInvocationID.x;
+    const uint token = gl_GlobalInvocationID.y;
+    const uint batch = gl_GlobalInvocationID.z;
+    if (h >= pc.H || token >= pc.T) {
         return;
     }
 
-    const uint base = batch_index * codebooks * steps + step_index;
-    const uint stride = steps;
-    const uint id0 = uint(t_audio_ids[base + 0u * stride] + t_codebook_offsets[0]);
-    const uint id1 = uint(t_audio_ids[base + 1u * stride] + t_codebook_offsets[1]);
-    const uint id2 = uint(t_audio_ids[base + 2u * stride] + t_codebook_offsets[2]);
-    const uint id3 = uint(t_audio_ids[base + 3u * stride] + t_codebook_offsets[3]);
-    const uint id4 = uint(t_audio_ids[base + 4u * stride] + t_codebook_offsets[4]);
-    const uint id5 = uint(t_audio_ids[base + 5u * stride] + t_codebook_offsets[5]);
-    const uint id6 = uint(t_audio_ids[base + 6u * stride] + t_codebook_offsets[6]);
-    const uint id7 = uint(t_audio_ids[base + 7u * stride] + t_codebook_offsets[7]);
-
-    // Strict high-performance path: runtime guarantees ids are in range.
-    float16_t value = float16_t(0.0);
-    value += t_audio_embeddings[id0 * hidden + hidden_index];
-    value += t_audio_embeddings[id1 * hidden + hidden_index];
-    value += t_audio_embeddings[id2 * hidden + hidden_index];
-    value += t_audio_embeddings[id3 * hidden + hidden_index];
-    value += t_audio_embeddings[id4 * hidden + hidden_index];
-    value += t_audio_embeddings[id5 * hidden + hidden_index];
-    value += t_audio_embeddings[id6 * hidden + hidden_index];
-    value += t_audio_embeddings[id7 * hidden + hidden_index];
-
-    t_output[(batch_index * steps + step_index) * hidden + hidden_index] = float(value);
+    const int64_t mask = audio_mask[batch * pc.T + token] != 0u ? int64_t(1) : int64_t(0);
+    float acc = 0.0;
+    for (uint codebook = 0u; codebook < pc.C; ++codebook) {
+        const uint id_index = (batch * pc.C + codebook) * pc.T + token;
+        const int64_t shifted_id = input_ids[id_index] * mask + codebook_layer_offsets[codebook];
+        if (shifted_id >= int64_t(0) && shifted_id < int64_t(pc.E)) {
+            acc += audio_embeddings_weight[uint(shifted_id) * pc.H + h];
+        }
+    }
+    output_values[(batch * pc.T + token) * pc.H + h] = acc;
 }
 """.lstrip(),
 )

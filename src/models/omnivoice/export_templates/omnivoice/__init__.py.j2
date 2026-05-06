@@ -1,25 +1,25 @@
 """OmniVoice generated Vulkan-adapter scaffolds."""
 
-from models.omnivoice._frame import OmniVoiceFrameStep
+from models.omnivoice._frame import OmniVoiceTorchOp
 from models.omnivoice.audio_codec_decode import (
-    AUDIO_CODEC_DECODE_FRAME_STEPS,
+    AUDIO_CODEC_DECODE_TORCH_OPS,
     run_omnivoice_audio_codec_decode,
 )
 from models.omnivoice.audio_head import (
-    AUDIO_HEAD_FRAME_STEPS,
+    AUDIO_HEAD_TORCH_OPS,
     run_omnivoice_audio_head,
 )
 from models.omnivoice.execution import run_omnivoice_generation_loop
 from models.omnivoice.input_embeddings import (
-    INPUT_EMBEDDINGS_FRAME_STEPS,
+    INPUT_EMBEDDINGS_TORCH_OPS,
     run_omnivoice_input_embeddings,
 )
 from models.omnivoice.iterative_decode import (
-    ITERATIVE_DECODE_FRAME_STEPS,
+    ITERATIVE_DECODE_TORCH_OPS,
     run_omnivoice_iterative_decode,
 )
 from models.omnivoice.reference_prompt import (
-    REFERENCE_PROMPT_FRAME_STEPS,
+    REFERENCE_PROMPT_TORCH_OPS,
     run_omnivoice_reference_prompt,
 )
 from models.omnivoice.tensors import (
@@ -45,29 +45,29 @@ from models.omnivoice.tensors import (
     declare_omnivoice_text_tensors,
 )
 from models.omnivoice.text_prefill import (
-    TEXT_PREFILL_FRAME_STEPS,
+    TEXT_PREFILL_TORCH_OPS,
     run_omnivoice_text_prefill,
 )
 from models.omnivoice.token_select import (
-    TOKEN_SELECT_FRAME_STEPS,
+    TOKEN_SELECT_TORCH_OPS,
     run_omnivoice_token_select,
 )
 
 __all__ = [
-    "AUDIO_CODEC_DECODE_FRAME_STEPS",
+    "AUDIO_CODEC_DECODE_TORCH_OPS",
     "AUDIO_CODEC_DECODER_LAYER_PARAMETER_FIELDS",
-    "AUDIO_HEAD_FRAME_STEPS",
-    "INPUT_EMBEDDINGS_FRAME_STEPS",
-    "ITERATIVE_DECODE_FRAME_STEPS",
-    "REFERENCE_PROMPT_FRAME_STEPS",
+    "AUDIO_HEAD_TORCH_OPS",
+    "INPUT_EMBEDDINGS_TORCH_OPS",
+    "ITERATIVE_DECODE_TORCH_OPS",
+    "REFERENCE_PROMPT_TORCH_OPS",
     "TEXT_DECODER_LAYER_PARAMETER_FIELDS",
     "TEXT_PARAMETER_FIELDS",
-    "TEXT_PREFILL_FRAME_STEPS",
-    "TOKEN_SELECT_FRAME_STEPS",
+    "TEXT_PREFILL_TORCH_OPS",
+    "TOKEN_SELECT_TORCH_OPS",
     "OmniVoiceAudioCodecDecoderLayerTensors",
     "OmniVoiceAudioCodecTensors",
     "OmniVoiceAudioHeadTensors",
-    "OmniVoiceFrameStep",
+    "OmniVoiceTorchOp",
     "OmniVoiceIterativeDecodeTensors",
     "OmniVoicePreparedInputTensors",
     "OmniVoiceReferencePromptTensors",

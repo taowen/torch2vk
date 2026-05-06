@@ -6,26 +6,26 @@ from models.generated_qwen3_asr.execution import (
     GeneratedQwen3AsrReplayMode,
     run_generated_qwen3_asr_greedy_decode_loop,
 )
-from models.generated_qwen3_asr._frame import GeneratedFrameStep
+from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp
 from models.generated_qwen3_asr.audio_tower import (
-    AUDIO_ENCODER_LAYER_STEPS,
-    AUDIO_TOWER_FRAME_STEPS,
+    AUDIO_ENCODER_LAYER_TORCH_OPS,
+    AUDIO_TOWER_TORCH_OPS,
     run_generated_qwen3_asr_audio_tower,
 )
 from models.generated_qwen3_asr.text_decode import (
-    TEXT_DECODE_FRAME_STEPS,
+    TEXT_DECODE_TORCH_OPS,
     run_generated_qwen3_asr_text_decode,
 )
 from models.generated_qwen3_asr.text_prefill import (
-    TEXT_PREFILL_FRAME_STEPS,
+    TEXT_PREFILL_TORCH_OPS,
     run_generated_qwen3_asr_text_prefill,
 )
 from models.generated_qwen3_asr.token_select import (
-    TOKEN_SELECT_FRAME_STEPS,
+    TOKEN_SELECT_TORCH_OPS,
     run_generated_qwen3_asr_token_select,
 )
 from models.generated_qwen3_asr.token_store import (
-    TOKEN_STORE_FRAME_STEPS,
+    TOKEN_STORE_TORCH_OPS,
     run_generated_qwen3_asr_token_store,
 )
 from models.generated_qwen3_asr.tensors import (
@@ -48,16 +48,16 @@ from models.generated_qwen3_asr.tensors import (
 
 __all__ = [
     "AUDIO_ENCODER_LAYER_PARAMETER_FIELDS",
-    "AUDIO_ENCODER_LAYER_STEPS",
-    "AUDIO_TOWER_FRAME_STEPS",
+    "AUDIO_ENCODER_LAYER_TORCH_OPS",
+    "AUDIO_TOWER_TORCH_OPS",
     "AUDIO_TOWER_PARAMETER_FIELDS",
     "QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS",
     "TEXT_DECODER_LAYER_PARAMETER_FIELDS",
-    "TEXT_DECODE_FRAME_STEPS",
-    "TEXT_PREFILL_FRAME_STEPS",
-    "TOKEN_SELECT_FRAME_STEPS",
-    "TOKEN_STORE_FRAME_STEPS",
-    "GeneratedFrameStep",
+    "TEXT_DECODE_TORCH_OPS",
+    "TEXT_PREFILL_TORCH_OPS",
+    "TOKEN_SELECT_TORCH_OPS",
+    "TOKEN_STORE_TORCH_OPS",
+    "Qwen3ASRTorchOp",
     "GeneratedQwen3AsrAudioEncoderLayerTensors",
     "GeneratedQwen3AsrAudioTowerTensors",
     "GeneratedQwen3AsrReplayMode",

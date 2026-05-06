@@ -9,11 +9,17 @@ from torch2vk.runtime.session import RuntimeSession
 
 
 @dataclass(frozen=True, slots=True)
-class GeneratedFrameStep:
-    op: str
+class Qwen3ASRTorchOp:
+    target: str
     inputs: tuple[str, ...]
     outputs: tuple[str, ...]
     note: str = ""
+    name: str = ""
+    op: str = "call_function"
+    args: tuple[object, ...] = ()
+    kwargs: tuple[tuple[str, object], ...] = ()
+    shape: tuple[int, ...] | None = None
+    dtype: str | None = None
 
 
 def qwen3_asr_frame(

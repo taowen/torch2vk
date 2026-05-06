@@ -2,25 +2,36 @@
 
 from __future__ import annotations
 
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
-from models.omnivoice._frame import OmniVoiceFrameStep, omnivoice_frame
-from models.omnivoice.shaders.audio_embedding_sum_f32 import OMNIVOICE_AUDIO_EMBEDDING_SUM_F32
+from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
+from models.omnivoice.shaders.aten_embedding_f32 import OMNIVOICE_ATEN_EMBEDDING_F32
+from models.omnivoice.shaders.aten_select_int_i64 import OMNIVOICE_ATEN_SELECT_INT_I64
 from models.omnivoice.tensors.text import OmniVoiceTextPrefillTensors
 
 
-INPUT_EMBEDDINGS_FRAME_STEPS = (
-{% for step in input_embeddings_steps %}
-    OmniVoiceFrameStep(
-        {{ step.op|pyrepr }},
-        {{ step.inputs|pyrepr }},
-        {{ step.outputs|pyrepr }},
-        {{ step.note|pyrepr }},
+INPUT_EMBEDDINGS_TORCH_OPS = (
+{% for step in input_embeddings_ops %}
+    OmniVoiceTorchOp(
+        target={{ step.target|pyrepr }},
+        inputs={{ step.inputs|pyrepr }},
+        outputs={{ step.outputs|pyrepr }},
+        note={{ step.note|pyrepr }},
+        name={{ step.name|pyrepr }},
+        op={{ step.op|pyrepr }},
+        args={{ step.args|pyrepr }},
+        kwargs={{ step.kwargs|pyrepr }},
+        shape={{ step.shape|pyrepr }},
+        dtype={{ step.dtype|pyrepr }},
     ),
 {% endfor %}
 )
 
-INPUT_EMBEDDINGS_SHADERS = (OMNIVOICE_AUDIO_EMBEDDING_SUM_F32,)
+INPUT_EMBEDDINGS_SHADERS = (
+    OMNIVOICE_ATEN_SELECT_INT_I64,
+    OMNIVOICE_ATEN_EMBEDDING_F32,
+)
 
 
 def run_omnivoice_input_embeddings(
@@ -28,12 +39,75 @@ def run_omnivoice_input_embeddings(
     tensors: OmniVoiceTextPrefillTensors,
     *,
     pytorch_compare: bool = True,
-) -> None:
-    del tensors
-    frame_scope = omnivoice_frame(
+    max_ops: int | None = None,
+) -> LogicalTensor:
+    with omnivoice_frame(
         rt,
         "omnivoice.input_embeddings",
         pytorch_compare=pytorch_compare,
-    )
-    with frame_scope:
-        raise NotImplementedError("Generated scaffold only: lower INPUT_EMBEDDINGS_FRAME_STEPS.")
+        pytorch_input_prefixes=("omnivoice.prefill.",),
+    ):
+        env = _input_embeddings_env(tensors)
+        selected_ops = (
+            INPUT_EMBEDDINGS_TORCH_OPS
+            if max_ops is None
+            else INPUT_EMBEDDINGS_TORCH_OPS[:max_ops]
+        )
+        last_output = tensors.inputs_embeds
+        for op in selected_ops:
+            last_output = _lower_input_embeddings_op(rt, op, env=env)
+    return last_output
+
+
+def _input_embeddings_env(tensors: OmniVoiceTextPrefillTensors) -> dict[str, LogicalTensor]:
+    return {
+        "input_ids": tensors.input_ids,
+        "audio_mask": tensors.audio_mask,
+        "embed_tokens_weight": tensors.embed_tokens_weight,
+        "audio_embeddings_weight": tensors.audio_embeddings_weight,
+        "codebook_layer_offsets": tensors.codebook_layer_offsets,
+        "text_token_ids": tensors.text_token_ids,
+        "text_embeds": tensors.text_embeds,
+        "audio_mask_for_shift": tensors.audio_mask_for_shift,
+        "masked_audio_ids": tensors.masked_audio_ids,
+        "codebook_layer_offsets_view": tensors.codebook_layer_offsets_view,
+        "shifted_ids": tensors.shifted_ids,
+        "audio_embedding_values": tensors.audio_embedding_values,
+        "audio_embeds": tensors.audio_embeds,
+        "audio_mask_expanded": tensors.audio_mask_expanded,
+        "inputs_embeds": tensors.inputs_embeds,
+    }
+
+
+def _lower_input_embeddings_op(
+    rt: RuntimeSession,
+    op: OmniVoiceTorchOp,
+    *,
+    env: dict[str, LogicalTensor],
+) -> LogicalTensor:
+    if op.target == "aten.select.int":
+        OMNIVOICE_ATEN_SELECT_INT_I64(
+            rt,
+            x=env[op.inputs[0]],
+            output=env[op.outputs[0]],
+        )
+    elif op.target == "aten.embedding.default":
+        OMNIVOICE_ATEN_EMBEDDING_F32(
+            rt,
+            weight=env[op.inputs[0]],
+            indices=env[op.inputs[1]],
+            output=env[op.outputs[0]],
+        )
+    elif op.target in {"aten.view.default", "aten.unsqueeze.default"}:
+        _alias_tensor(rt, src=env[op.inputs[0]], dst=env[op.outputs[0]])
+    else:
+        raise NotImplementedError(f"Unsupported generated OmniVoice input embedding op: {op.target}")
+    return env[op.outputs[0]]
+
+
+def _alias_tensor(rt: RuntimeSession, *, src: LogicalTensor, dst: LogicalTensor) -> None:
+    rt._materialize_read(src)
+    with dst.runtime_write_scope():
+        dst.buffer = src.buffer
+        dst.descriptor_nbytes = src.descriptor_nbytes
+        dst.version = src.version

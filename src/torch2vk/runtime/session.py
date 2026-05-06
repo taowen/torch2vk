@@ -150,7 +150,6 @@ class RuntimeSession:
         pytorch_cache_policy: str = "none",
         pytorch_cache_namespace: str | None = None,
         pytorch_reset_cache: bool = False,
-        reference_model: object | None = None,
     ):
         if not name:
             raise ValueError("frame name must be non-empty")
@@ -177,7 +176,6 @@ class RuntimeSession:
             pytorch_cache_policy=cache_policy,
             pytorch_cache_namespace=pytorch_cache_namespace,
             pytorch_reset_cache=pytorch_reset_cache,
-            reference_model=reference_model,
         )
         self._frame_stack.append(context)
         candidate_completed = False

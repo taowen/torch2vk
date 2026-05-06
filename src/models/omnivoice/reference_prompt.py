@@ -6,23 +6,23 @@ from __future__ import annotations
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
-from models.omnivoice._frame import OmniVoiceFrameStep, omnivoice_frame
+from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
 
 
-REFERENCE_PROMPT_FRAME_STEPS = (
-    OmniVoiceFrameStep(
+REFERENCE_PROMPT_TORCH_OPS = (
+    OmniVoiceTorchOp(
         "load_or_resample_reference_audio",
         ("ref_audio",),
         ("reference_waveform",),
         "",
     ),
-    OmniVoiceFrameStep(
+    OmniVoiceTorchOp(
         "audio_tokenizer_encode",
         ("reference_waveform",),
         ("reference_tokens",),
         "",
     ),
-    OmniVoiceFrameStep(
+    OmniVoiceTorchOp(
         "normalize_reference_text",
         ("ref_text",),
         ("reference_text",),
@@ -42,4 +42,4 @@ def run_omnivoice_reference_prompt(
         pytorch_compare=pytorch_compare,
     )
     with frame_scope:
-        raise NotImplementedError("Generated scaffold only: lower REFERENCE_PROMPT_FRAME_STEPS.")
+        raise NotImplementedError("Generated scaffold only: lower REFERENCE_PROMPT_TORCH_OPS.")

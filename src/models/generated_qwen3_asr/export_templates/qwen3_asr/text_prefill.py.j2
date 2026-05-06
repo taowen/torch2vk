@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
 
-from models.generated_qwen3_asr._frame import GeneratedFrameStep, qwen3_asr_frame
+from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
 from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTextPrefillTensors
 
 
-TEXT_PREFILL_FRAME_STEPS = (
-{% for step in text_prefill_steps %}
-    GeneratedFrameStep(
-        {{ step.op|pyrepr }},
+TEXT_PREFILL_TORCH_OPS = (
+{% for step in text_prefill_ops %}
+    Qwen3ASRTorchOp(
+        {{ step.target|pyrepr }},
         {{ step.inputs|pyrepr }},
         {{ step.outputs|pyrepr }},
         {{ step.note|pyrepr }},
@@ -36,6 +36,6 @@ def run_generated_qwen3_asr_text_prefill(
     )
     with frame_scope:
         raise NotImplementedError(
-            "Generated scaffold only: lower TEXT_PREFILL_FRAME_STEPS to shader dispatches."
+            "Generated scaffold only: lower TEXT_PREFILL_TORCH_OPS to shader dispatches."
         )
 

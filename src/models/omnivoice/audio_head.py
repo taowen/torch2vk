@@ -6,7 +6,7 @@ from __future__ import annotations
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
-from models.omnivoice._frame import OmniVoiceFrameStep, omnivoice_frame
+from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
 from models.omnivoice.shaders.audio_head_mat_vec_f16_f32_f32 import (
     OMNIVOICE_AUDIO_HEAD_MAT_VEC_F16_F32_F32,
 )
@@ -25,14 +25,14 @@ from models.omnivoice.shaders.audio_head_scalar_f16_f32_f32 import (
 from models.omnivoice.tensors.text import OmniVoiceAudioHeadTensors
 
 
-AUDIO_HEAD_FRAME_STEPS = (
-    OmniVoiceFrameStep(
+AUDIO_HEAD_TORCH_OPS = (
+    OmniVoiceTorchOp(
         "audio_head_projection",
         ("hidden_states", "audio_heads_weight"),
         ("audio_logits",),
         "",
     ),
-    OmniVoiceFrameStep(
+    OmniVoiceTorchOp(
         "reshape_codebooks",
         ("audio_logits",),
         ("audio_logits",),
@@ -62,4 +62,4 @@ def run_omnivoice_audio_head(
         pytorch_compare=pytorch_compare,
     )
     with frame_scope:
-        raise NotImplementedError("Generated scaffold only: lower AUDIO_HEAD_FRAME_STEPS.")
+        raise NotImplementedError("Generated scaffold only: lower AUDIO_HEAD_TORCH_OPS.")

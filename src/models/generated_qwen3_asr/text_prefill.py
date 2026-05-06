@@ -5,30 +5,30 @@ from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
 
-from models.generated_qwen3_asr._frame import GeneratedFrameStep, qwen3_asr_frame
+from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
 from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTextPrefillTensors
 
 
-TEXT_PREFILL_FRAME_STEPS = (
-    GeneratedFrameStep(
+TEXT_PREFILL_TORCH_OPS = (
+    Qwen3ASRTorchOp(
         "prefill_inputs_embeds",
         ("input_ids", "embed_tokens_weight", "audio_features"),
         ("inputs_embeds", "audio_scatter_mask"),
         "",
     ),
-    GeneratedFrameStep(
+    Qwen3ASRTorchOp(
         "text_decoder_layer_loop",
         ("inputs_embeds", "rope_cos", "rope_sin", "layers"),
         ("hidden",),
         "",
     ),
-    GeneratedFrameStep(
+    Qwen3ASRTorchOp(
         "rms_norm",
         ("hidden", "norm_weight"),
         ("final_norm",),
         "",
     ),
-    GeneratedFrameStep(
+    Qwen3ASRTorchOp(
         "lm_head",
         ("final_norm", "lm_head_weight"),
         ("logits",),
@@ -53,5 +53,5 @@ def run_generated_qwen3_asr_text_prefill(
     )
     with frame_scope:
         raise NotImplementedError(
-            "Generated scaffold only: lower TEXT_PREFILL_FRAME_STEPS to shader dispatches."
+            "Generated scaffold only: lower TEXT_PREFILL_TORCH_OPS to shader dispatches."
         )

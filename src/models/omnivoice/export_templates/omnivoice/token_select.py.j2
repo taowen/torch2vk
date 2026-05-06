@@ -5,7 +5,7 @@ from __future__ import annotations
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
-from models.omnivoice._frame import OmniVoiceFrameStep
+from models.omnivoice._frame import OmniVoiceTorchOp
 from models.omnivoice.shaders.argmax_select_apply_fused_l import (
     OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_L,
 )
@@ -17,10 +17,10 @@ from models.omnivoice.shaders.codebook_argmax_scores_f32 import OMNIVOICE_CODEBO
 from models.omnivoice.tensors.text import OmniVoiceTokenSelectTensors
 
 
-TOKEN_SELECT_FRAME_STEPS = (
-{% for step in token_select_steps %}
-    OmniVoiceFrameStep(
-        {{ step.op|pyrepr }},
+TOKEN_SELECT_TORCH_OPS = (
+{% for step in token_select_ops %}
+    OmniVoiceTorchOp(
+        {{ step.target|pyrepr }},
         {{ step.inputs|pyrepr }},
         {{ step.outputs|pyrepr }},
         {{ step.note|pyrepr }},
@@ -44,4 +44,4 @@ def run_omnivoice_token_select(
 ) -> LogicalTensor:
     del tensors, audio_mask_id
     with rt.frame("omnivoice.token_select"):
-        raise NotImplementedError("Generated scaffold only: lower TOKEN_SELECT_FRAME_STEPS.")
+        raise NotImplementedError("Generated scaffold only: lower TOKEN_SELECT_TORCH_OPS.")

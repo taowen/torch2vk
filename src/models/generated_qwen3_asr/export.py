@@ -24,12 +24,13 @@ from torch2vk.export.reflection import (
     instantiate_torch_module_on_meta,
     reflect_torch_module,
 )
+from torch2vk.export.torch_ops import TorchOpPattern, TensorFieldPattern
 from torch2vk.export.writer import (
-    ExportCheckError,
     ExportWriteResult,
     RenderedFile,
     TemplateRenderer,
     format_python_source,
+    remove_stale_files,
     write_rendered_files,
 )
 from torch2vk.runtime.shader import ShaderVariant
@@ -75,21 +76,6 @@ class Qwen3AsrExportConfig:
         value["text_mrope_section"] = tuple(self.text_mrope_section)
         value["eos_token_ids"] = tuple(self.eos_token_ids)
         return value
-
-
-@dataclass(frozen=True, slots=True)
-class TensorFieldPattern:
-    field: str
-    source_parameter: str | None = None
-    note: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class FrameStepPattern:
-    op: str
-    inputs: tuple[str, ...]
-    outputs: tuple[str, ...]
-    note: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,12 +226,12 @@ def build_qwen3_asr_pattern_context(
         "text_layer_fields": _text_layer_fields(),
         "audio_tower_fields": _audio_tower_fields(),
         "text_frame_fields": _text_frame_fields(),
-        "audio_tower_steps": _audio_tower_steps(),
-        "audio_layer_steps": _audio_layer_steps(),
-        "text_prefill_steps": _text_prefill_steps(),
-        "text_decode_steps": _text_decode_steps(),
-        "token_select_steps": _token_select_steps(),
-        "token_store_steps": _token_store_steps(),
+        "audio_tower_ops": _audio_tower_ops(),
+        "audio_layer_ops": _audio_layer_ops(),
+        "text_prefill_ops": _text_prefill_ops(),
+        "text_decode_ops": _text_decode_ops(),
+        "token_select_ops": _token_select_ops(),
+        "token_store_ops": _token_store_ops(),
         "shader_modules": _shader_modules(),
     }
 
@@ -263,7 +249,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--no-reflect",
         action="store_true",
-        help="Skip PyTorch meta-device reflection and render from config/patterns only.",
+        help="Skip PyTorch meta-device reflection and render from config/op declarations only.",
     )
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -494,110 +480,110 @@ def _text_frame_fields() -> tuple[TensorFieldPattern, ...]:
     )
 
 
-def _audio_tower_steps() -> tuple[FrameStepPattern, ...]:
+def _audio_tower_ops() -> tuple[TorchOpPattern, ...]:
     return (
-        FrameStepPattern("pad_feature", ("input_features", "feature_lens"), ("padded_feature",)),
-        FrameStepPattern(
+        TorchOpPattern("pad_feature", ("input_features", "feature_lens"), ("padded_feature",)),
+        TorchOpPattern(
             "conv2d_gelu", ("padded_feature", "conv2d1_weight", "conv2d1_bias"), ("conv2d1_gelu",)
         ),
-        FrameStepPattern(
+        TorchOpPattern(
             "conv2d_gelu", ("conv2d1_gelu", "conv2d2_weight", "conv2d2_bias"), ("conv2d2_gelu",)
         ),
-        FrameStepPattern(
+        TorchOpPattern(
             "conv2d_gelu", ("conv2d2_gelu", "conv2d3_weight", "conv2d3_bias"), ("conv2d3_gelu",)
         ),
-        FrameStepPattern("conv_out", ("conv2d3_gelu", "conv_out_weight"), ("conv_out",)),
-        FrameStepPattern("add_position", ("conv_out",), ("conv_out_add_position",)),
-        FrameStepPattern(
+        TorchOpPattern("conv_out", ("conv2d3_gelu", "conv_out_weight"), ("conv_out",)),
+        TorchOpPattern("add_position", ("conv_out",), ("conv_out_add_position",)),
+        TorchOpPattern(
             "compact_after_cnn", ("conv_out_add_position", "feature_lens"), ("hidden_states",)
         ),
-        FrameStepPattern("cu_seqlens", ("feature_lens",), ("cu_seqlens",)),
-        FrameStepPattern(
+        TorchOpPattern("cu_seqlens", ("feature_lens",), ("cu_seqlens",)),
+        TorchOpPattern(
             "audio_encoder_layer_loop",
             ("hidden_states", "cu_seqlens", "layers"),
             ("hidden_states",),
         ),
-        FrameStepPattern(
+        TorchOpPattern(
             "layer_norm", ("hidden_states", "ln_post_weight", "ln_post_bias"), ("ln_post",)
         ),
-        FrameStepPattern("linear_gelu", ("ln_post", "proj1_weight", "proj1_bias"), ("proj1_gelu",)),
-        FrameStepPattern(
+        TorchOpPattern("linear_gelu", ("ln_post", "proj1_weight", "proj1_bias"), ("proj1_gelu",)),
+        TorchOpPattern(
             "linear", ("proj1_gelu", "proj2_weight", "proj2_bias"), ("last_hidden_state",)
         ),
     )
 
 
-def _audio_layer_steps() -> tuple[FrameStepPattern, ...]:
+def _audio_layer_ops() -> tuple[TorchOpPattern, ...]:
     return (
-        FrameStepPattern(
+        TorchOpPattern(
             "layer_norm",
             ("hidden_states", "self_attn_layer_norm_weight", "self_attn_layer_norm_bias"),
             ("self_attn_layer_norm",),
         ),
-        FrameStepPattern(
+        TorchOpPattern(
             "linear", ("self_attn_layer_norm", "q_proj_weight", "q_proj_bias"), ("q_proj",)
         ),
-        FrameStepPattern(
+        TorchOpPattern(
             "linear", ("self_attn_layer_norm", "k_proj_weight", "k_proj_bias"), ("k_proj",)
         ),
-        FrameStepPattern(
+        TorchOpPattern(
             "linear", ("self_attn_layer_norm", "v_proj_weight", "v_proj_bias"), ("v_proj",)
         ),
-        FrameStepPattern("attention", ("q_proj", "k_proj", "v_proj", "cu_seqlens"), ("self_attn",)),
-        FrameStepPattern(
+        TorchOpPattern("attention", ("q_proj", "k_proj", "v_proj", "cu_seqlens"), ("self_attn",)),
+        TorchOpPattern(
             "linear", ("self_attn", "out_proj_weight", "out_proj_bias"), ("out_proj",)
         ),
-        FrameStepPattern("residual_add", ("hidden_states", "out_proj"), ("self_attn_residual",)),
-        FrameStepPattern(
+        TorchOpPattern("residual_add", ("hidden_states", "out_proj"), ("self_attn_residual",)),
+        TorchOpPattern(
             "layer_norm",
             ("self_attn_residual", "final_layer_norm_weight", "final_layer_norm_bias"),
             ("final_layer_norm",),
         ),
-        FrameStepPattern(
+        TorchOpPattern(
             "linear_gelu", ("final_layer_norm", "fc1_weight", "fc1_bias"), ("fc1_gelu",)
         ),
-        FrameStepPattern("linear", ("fc1_gelu", "fc2_weight", "fc2_bias"), ("fc2",)),
-        FrameStepPattern("residual_add", ("self_attn_residual", "fc2"), ("output",)),
+        TorchOpPattern("linear", ("fc1_gelu", "fc2_weight", "fc2_bias"), ("fc2",)),
+        TorchOpPattern("residual_add", ("self_attn_residual", "fc2"), ("output",)),
     )
 
 
-def _text_prefill_steps() -> tuple[FrameStepPattern, ...]:
+def _text_prefill_ops() -> tuple[TorchOpPattern, ...]:
     return (
-        FrameStepPattern(
+        TorchOpPattern(
             "prefill_inputs_embeds",
             ("input_ids", "embed_tokens_weight", "audio_features"),
             ("inputs_embeds", "audio_scatter_mask"),
         ),
-        FrameStepPattern(
+        TorchOpPattern(
             "text_decoder_layer_loop",
             ("inputs_embeds", "rope_cos", "rope_sin", "layers"),
             ("hidden",),
         ),
-        FrameStepPattern("rms_norm", ("hidden", "norm_weight"), ("final_norm",)),
-        FrameStepPattern("lm_head", ("final_norm", "lm_head_weight"), ("logits",)),
+        TorchOpPattern("rms_norm", ("hidden", "norm_weight"), ("final_norm",)),
+        TorchOpPattern("lm_head", ("final_norm", "lm_head_weight"), ("logits",)),
     )
 
 
-def _text_decode_steps() -> tuple[FrameStepPattern, ...]:
+def _text_decode_ops() -> tuple[TorchOpPattern, ...]:
     return (
-        FrameStepPattern("embed_lookup", ("input_ids", "embed_tokens_weight"), ("inputs_embeds",)),
-        FrameStepPattern(
+        TorchOpPattern("embed_lookup", ("input_ids", "embed_tokens_weight"), ("inputs_embeds",)),
+        TorchOpPattern(
             "text_decoder_layer_loop",
             ("inputs_embeds", "cache_position", "rope_cos", "rope_sin", "layers"),
             ("hidden",),
         ),
-        FrameStepPattern("rms_norm", ("hidden", "norm_weight"), ("final_norm",)),
-        FrameStepPattern("lm_head_or_token_select", ("final_norm", "lm_head_weight"), ("logits",)),
+        TorchOpPattern("rms_norm", ("hidden", "norm_weight"), ("final_norm",)),
+        TorchOpPattern("lm_head_or_token_select", ("final_norm", "lm_head_weight"), ("logits",)),
     )
 
 
-def _token_select_steps() -> tuple[FrameStepPattern, ...]:
-    return (FrameStepPattern("greedy_argmax", ("logits", "eos_token_ids"), ("next_token", "done")),)
+def _token_select_ops() -> tuple[TorchOpPattern, ...]:
+    return (TorchOpPattern("greedy_argmax", ("logits", "eos_token_ids"), ("next_token", "done")),)
 
 
-def _token_store_steps() -> tuple[FrameStepPattern, ...]:
+def _token_store_ops() -> tuple[TorchOpPattern, ...]:
     return (
-        FrameStepPattern(
+        TorchOpPattern(
             "token_store",
             ("next_token", "token_index", "done"),
             ("generated_tokens", "generated_length", "stopped"),
@@ -708,17 +694,7 @@ def _remove_stale_files(
     check: bool,
     dry_run: bool,
 ) -> None:
-    existing = tuple(
-        Path(output_dir) / relative
-        for relative in _STALE_FILES
-        if (Path(output_dir) / relative).exists()
-    )
-    if check and existing:
-        raise ExportCheckError(existing)
-    if dry_run:
-        return
-    for path in existing:
-        path.unlink()
+    remove_stale_files(output_dir, _STALE_FILES, check=check, dry_run=dry_run)
 
 
 @contextmanager

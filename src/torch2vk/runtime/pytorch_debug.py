@@ -19,7 +19,6 @@ from torch2vk.runtime.compare import (
     TensorCompareResult,
     as_numpy_array,
     compare_arrays,
-    normalize_reference_outputs,
     select_probe_value,
     write_compare_summary,
 )
@@ -114,32 +113,6 @@ class _PyTorchDebugRunner:
 
     def _compare_frame(self, frame: FrameContext) -> None:
         written = _unique_tensors(frame.written_tensors)
-        if frame.reference_model is not None:
-            reference_targets = _default_frame_compare_targets(written)
-            if not reference_targets:
-                return
-            reference_outputs = normalize_reference_outputs(
-                _call_reference_model(
-                    frame.reference_model,
-                    inputs=self._inputs,
-                    frame=frame.frame,
-                )
-            )
-            for tensor in reference_targets:
-                try:
-                    expected = reference_outputs[tensor.name]
-                except KeyError as exc:
-                    raise KeyError(
-                        f"Reference model did not return artifact for {tensor.name}"
-                    ) from exc
-                self._record_compare(
-                    tensor=tensor,
-                    frame=frame,
-                    candidate=self.readback(tensor),
-                    expected=expected,
-                )
-            return
-
         if frame.pytorch_model is None:
             return
 
@@ -1271,37 +1244,6 @@ def _serializable_dispatch_record(record: DispatchRecord) -> dict[str, object]:
             for field_name, tensor in record.writes
         ],
     }
-
-
-def _call_reference_model(
-    reference_model: object,
-    *,
-    inputs: Mapping[LogicalTensor, object],
-    frame: str,
-) -> Mapping[object, object]:
-    if not callable(reference_model):
-        raise TypeError(f"reference_model must be callable, got {type(reference_model).__name__}")
-    signature = inspect.signature(reference_model)
-    parameters = [
-        parameter
-        for parameter in signature.parameters.values()
-        if parameter.kind
-        in {
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            inspect.Parameter.KEYWORD_ONLY,
-        }
-        and parameter.default is inspect.Parameter.empty
-    ]
-    if not parameters:
-        result = reference_model()
-    elif len(parameters) == 1:
-        result = reference_model(dict(inputs))
-    else:
-        result = reference_model(dict(inputs), frame)
-    if not isinstance(result, Mapping):
-        raise TypeError(f"reference_model must return a Mapping, got {type(result).__name__}")
-    return result
 
 
 def _make_output_hook(

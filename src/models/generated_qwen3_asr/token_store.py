@@ -5,12 +5,12 @@ from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
 
-from models.generated_qwen3_asr._frame import GeneratedFrameStep
+from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp
 from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTokenStoreTensors
 
 
-TOKEN_STORE_FRAME_STEPS = (
-    GeneratedFrameStep(
+TOKEN_STORE_TORCH_OPS = (
+    Qwen3ASRTorchOp(
         "token_store",
         ("next_token", "token_index", "done"),
         ("generated_tokens", "generated_length", "stopped"),
@@ -28,5 +28,5 @@ def run_generated_qwen3_asr_token_store(
     del tensors, stop_on_eos
     with rt.frame("generated_qwen3_asr.token_store"):
         raise NotImplementedError(
-            "Generated scaffold only: lower TOKEN_STORE_FRAME_STEPS to token-store shader dispatches."
+            "Generated scaffold only: lower TOKEN_STORE_TORCH_OPS to token-store shader dispatches."
         )
