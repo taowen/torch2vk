@@ -54,6 +54,7 @@ class OmniVoiceIterativeDecodeTensors:
     batch_logits: LogicalTensor
     cond_logits: LogicalTensor
     uncond_logits: LogicalTensor
+    guided_logits: LogicalTensor
     sample_tokens: LogicalTensor
     topk_values: LogicalTensor
     topk_indices: LogicalTensor
@@ -99,9 +100,10 @@ def declare_omnivoice_iterative_decode_tensors(
         schedules=_input("omnivoice.decode.schedules", "float32", (batch_size, num_audio_codebook)),
         layer_ids=_input("omnivoice.decode.layer_ids", "int32", (num_audio_codebook,)),
         batch_logits=_activation("omnivoice.decode.batch_logits", "float32", logits_shape),
-        cond_logits=_activation("omnivoice.decode.cond_logits", "float32", logits_shape),
-        uncond_logits=_activation("omnivoice.decode.uncond_logits", "float32", logits_shape),
-        sample_tokens=_activation("omnivoice.decode.sample_tokens", "int32", token_shape),
+        cond_logits=_input("omnivoice.decode.cond_logits", "float32", logits_shape),
+        uncond_logits=_input("omnivoice.decode.uncond_logits", "float32", logits_shape),
+        guided_logits=_input("omnivoice.decode.guided_logits", "float32", logits_shape),
+        sample_tokens=_input("omnivoice.decode.sample_tokens", "int32", token_shape),
         topk_values=_activation("omnivoice.decode.topk_values", "float32", token_shape),
         topk_indices=_activation("omnivoice.decode.topk_indices", "int32", token_shape),
         flat_tokens=_activation("omnivoice.decode.flat_tokens", "int32", token_shape),

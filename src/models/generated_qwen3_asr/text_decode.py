@@ -5,31 +5,25 @@ from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.export.lowering import resolve_shader_symbol
+from torch2vk.export.shaders import (
+    TEXT_ADD_3D_F32,
+    TEXT_ATTENTION_DECODE_F32,
+    TEXT_EMBED_LOOKUP_F32,
+    TEXT_GATE_UP_SWIGLU_T1_F32,
+    TEXT_KV_CACHE_WRITE_DECODE_F32,
+    TEXT_LINEAR_NOBIAS_T1_F32,
+    TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32,
+    TEXT_LINEAR_NOBIAS_F32,
+    TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32,
+    TEXT_LM_HEAD_SELECT_REDUCE_T1_F32,
+    TEXT_QK_NORM_F32,
+    TEXT_QKV_PROJ_T1_F32,
+    TEXT_RMS_NORM_F32,
+    TEXT_ROPE_F32,
+    TEXT_SWIGLU_F32,
+)
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
-from models.generated_qwen3_asr.shaders.text_add_3d_f32 import QWEN3_ASR_TEXT_ADD_3D_F32
-from models.generated_qwen3_asr.shaders.text_attention_decode_f32 import QWEN3_ASR_TEXT_ATTENTION_DECODE_F32
-from models.generated_qwen3_asr.shaders.text_embed_lookup_f32 import QWEN3_ASR_TEXT_EMBED_LOOKUP_F32
-from models.generated_qwen3_asr.shaders.text_gate_up_swiglu_t1_f32 import (
-    QWEN3_ASR_TEXT_GATE_UP_SWIGLU_T1_F32,
-)
-from models.generated_qwen3_asr.shaders.text_kv_cache_write_f32 import (
-    QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32,
-)
-from models.generated_qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
-from models.generated_qwen3_asr.shaders.text_linear_nobias_t1_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
-from models.generated_qwen3_asr.shaders.text_linear_nobias_t1_splitk4_f32 import (
-    QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32,
-)
-from models.generated_qwen3_asr.shaders.text_lm_head_select_t1_f32 import (
-    QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32,
-    QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32,
-)
-from models.generated_qwen3_asr.shaders.text_qk_norm_f32 import QWEN3_ASR_TEXT_QK_NORM_F32
-from models.generated_qwen3_asr.shaders.text_qkv_proj_t1_f32 import QWEN3_ASR_TEXT_QKV_PROJ_T1_F32
-from models.generated_qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
-from models.generated_qwen3_asr.shaders.text_rope_f32 import QWEN3_ASR_TEXT_ROPE_F32
-from models.generated_qwen3_asr.shaders.text_swiglu_f32 import QWEN3_ASR_TEXT_SWIGLU_F32
 from torch2vk.runtime.logical import LogicalTensor
 from models.generated_qwen3_asr.tensors.text import (
     GeneratedQwen3AsrTextDecodeTensors,
@@ -92,7 +86,7 @@ def run_generated_qwen3_asr_text_decode(
             if op.target == "aten.torch2vk.text_decoder_layer_loop.default":
                 hidden = env["inputs_embeds"]
                 for layer in tensors.layers:
-                    QWEN3_ASR_TEXT_RMS_NORM_F32(
+                    TEXT_RMS_NORM_F32(
                         rt, x=hidden, weight=layer.input_layernorm_weight, output=layer.input_layernorm
                     )
                     _run_qkv_proj_decode(
@@ -106,19 +100,19 @@ def run_generated_qwen3_asr_text_decode(
                         v_output=layer.v_proj,
                         pytorch_compare=pytorch_compare,
                     )
-                    QWEN3_ASR_TEXT_QK_NORM_F32(
+                    TEXT_QK_NORM_F32(
                         rt, x=layer.q_proj, weight=layer.q_norm_weight, output=layer.q_normed
                     )
-                    QWEN3_ASR_TEXT_QK_NORM_F32(
+                    TEXT_QK_NORM_F32(
                         rt, x=layer.k_proj, weight=layer.k_norm_weight, output=layer.k_normed
                     )
-                    QWEN3_ASR_TEXT_ROPE_F32(
+                    TEXT_ROPE_F32(
                         rt, x=layer.q_normed, cos=tensors.rope_cos, sin=tensors.rope_sin, output=layer.q_roped
                     )
-                    QWEN3_ASR_TEXT_ROPE_F32(
+                    TEXT_ROPE_F32(
                         rt, x=layer.k_normed, cos=tensors.rope_cos, sin=tensors.rope_sin, output=layer.k_roped
                     )
-                    QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32(
+                    TEXT_KV_CACHE_WRITE_DECODE_F32(
                         rt,
                         k=layer.k_roped,
                         v=layer.v_proj,
@@ -126,7 +120,7 @@ def run_generated_qwen3_asr_text_decode(
                         key_cache=layer.key_cache,
                         value_cache=layer.value_cache,
                     )
-                    QWEN3_ASR_TEXT_ATTENTION_DECODE_F32(
+                    TEXT_ATTENTION_DECODE_F32(
                         rt,
                         q=layer.q_roped,
                         key_cache=layer.key_cache,
@@ -141,8 +135,8 @@ def run_generated_qwen3_asr_text_decode(
                         output=layer.o_proj,
                         pytorch_compare=pytorch_compare,
                     )
-                    QWEN3_ASR_TEXT_ADD_3D_F32(rt, x=hidden, y=layer.o_proj, output=layer.attn_residual)
-                    QWEN3_ASR_TEXT_RMS_NORM_F32(
+                    TEXT_ADD_3D_F32(rt, x=hidden, y=layer.o_proj, output=layer.attn_residual)
+                    TEXT_RMS_NORM_F32(
                         rt,
                         x=layer.attn_residual,
                         weight=layer.post_attention_layernorm_weight,
@@ -165,40 +159,40 @@ def run_generated_qwen3_asr_text_decode(
                         output=layer.down_proj,
                         pytorch_compare=pytorch_compare,
                     )
-                    QWEN3_ASR_TEXT_ADD_3D_F32(
+                    TEXT_ADD_3D_F32(
                         rt, x=layer.attn_residual, y=layer.down_proj, output=layer.output
                     )
                     hidden = layer.output
                 env[op.outputs[0]] = hidden
                 continue
             shader = resolve_shader_symbol(op=op)
-            if shader == "QWEN3_ASR_TEXT_EMBED_LOOKUP_F32":
-                QWEN3_ASR_TEXT_EMBED_LOOKUP_F32(
+            if shader == "TEXT_EMBED_LOOKUP_F32":
+                TEXT_EMBED_LOOKUP_F32(
                     rt,
                     input_ids=env[op.inputs[0]],
                     embed_tokens_weight=env[op.inputs[1]],
                     output=env[op.outputs[0]],
                 )
-            elif shader == "QWEN3_ASR_TEXT_RMS_NORM_F32":
-                QWEN3_ASR_TEXT_RMS_NORM_F32(
+            elif shader == "TEXT_RMS_NORM_F32":
+                TEXT_RMS_NORM_F32(
                     rt,
                     x=env[op.inputs[0]],
                     weight=env[op.inputs[1]],
                     output=env[op.outputs[0]],
                 )
-            elif shader == "QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32":
+            elif shader == "TEXT_LINEAR_NOBIAS_F32":
                 if pytorch_compare:
-                    QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
+                    TEXT_LINEAR_NOBIAS_F32(
                         rt, x=env[op.inputs[0]], weight=env[op.inputs[1]], output=env[op.outputs[0]]
                     )
                 elif token_select is not None:
-                    QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32(
+                    TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32(
                         rt,
                         x=env[op.inputs[0]],
                         weight=env[op.inputs[1]],
                         scratch=tensors.lm_head_select_scratch,
                     )
-                    QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32(
+                    TEXT_LM_HEAD_SELECT_REDUCE_T1_F32(
                         rt,
                         scratch=tensors.lm_head_select_scratch,
                         eos_token_ids=token_select.eos_token_ids,
@@ -206,7 +200,7 @@ def run_generated_qwen3_asr_text_decode(
                         done=token_select.done,
                     )
                 else:
-                    QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32(
+                    TEXT_LINEAR_NOBIAS_T1_F32(
                         rt, x=env[op.inputs[0]], weight=env[op.inputs[1]], output=env[op.outputs[0]]
                     )
             else:
@@ -222,9 +216,9 @@ def _run_linear_nobias_decode(
     pytorch_compare: bool,
 ) -> None:
     variant = (
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
+        TEXT_LINEAR_NOBIAS_F32
         if pytorch_compare
-        else QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
+        else TEXT_LINEAR_NOBIAS_T1_F32
     )
     variant(rt, x=x, weight=weight, output=output)
 
@@ -238,9 +232,9 @@ def _run_down_proj_decode(
     pytorch_compare: bool,
 ) -> None:
     variant = (
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
+        TEXT_LINEAR_NOBIAS_F32
         if pytorch_compare
-        else QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32
+        else TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32
     )
     variant(rt, x=x, weight=weight, output=output)
 
@@ -257,11 +251,11 @@ def _run_mlp_gate_up_swiglu_decode(
     pytorch_compare: bool,
 ) -> None:
     if pytorch_compare:
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(rt, x=x, weight=gate_weight, output=gate)
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(rt, x=x, weight=up_weight, output=up)
-        QWEN3_ASR_TEXT_SWIGLU_F32(rt, gate=gate, up=up, output=output)
+        TEXT_LINEAR_NOBIAS_F32(rt, x=x, weight=gate_weight, output=gate)
+        TEXT_LINEAR_NOBIAS_F32(rt, x=x, weight=up_weight, output=up)
+        TEXT_SWIGLU_F32(rt, gate=gate, up=up, output=output)
         return
-    QWEN3_ASR_TEXT_GATE_UP_SWIGLU_T1_F32(
+    TEXT_GATE_UP_SWIGLU_T1_F32(
         rt,
         x=x,
         gate_weight=gate_weight,
@@ -283,11 +277,11 @@ def _run_qkv_proj_decode(
     pytorch_compare: bool,
 ) -> None:
     if pytorch_compare:
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(rt, x=x, weight=q_weight, output=q_output)
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(rt, x=x, weight=k_weight, output=k_output)
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(rt, x=x, weight=v_weight, output=v_output)
+        TEXT_LINEAR_NOBIAS_F32(rt, x=x, weight=q_weight, output=q_output)
+        TEXT_LINEAR_NOBIAS_F32(rt, x=x, weight=k_weight, output=k_output)
+        TEXT_LINEAR_NOBIAS_F32(rt, x=x, weight=v_weight, output=v_output)
         return
-    QWEN3_ASR_TEXT_QKV_PROJ_T1_F32(
+    TEXT_QKV_PROJ_T1_F32(
         rt,
         x=x,
         q_weight=q_weight,

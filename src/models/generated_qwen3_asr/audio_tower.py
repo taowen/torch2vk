@@ -6,25 +6,21 @@ from __future__ import annotations
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.export.lowering import resolve_shader_symbol
+from torch2vk.export.shaders import (
+    ADD_F32,
+    ADD_POSITION_F32,
+    COMPACT_AFTER_CNN_F32,
+    CONV2D_GELU_F32,
+    CONV_OUT_F32,
+    CU_SEQLENS_U32,
+    ENCODER_ATTENTION_F32,
+    LAYER_NORM_F32,
+    LINEAR_F32,
+    LINEAR_GELU_F32,
+    PAD_FEATURE_F32,
+)
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
-from models.generated_qwen3_asr.shaders.add_f32 import QWEN3_ASR_ADD_F32
-from models.generated_qwen3_asr.shaders.attention_f32 import QWEN3_ASR_ENCODER_ATTENTION_F32
-from models.generated_qwen3_asr.shaders.compact_after_cnn_f32 import (
-    QWEN3_ASR_COMPACT_AFTER_CNN_F32,
-)
-from models.generated_qwen3_asr.shaders.conv2d_gelu_f32 import QWEN3_ASR_CONV2D_GELU_F32
-from models.generated_qwen3_asr.shaders.conv_out_add_position_f32 import (
-    QWEN3_ASR_ADD_POSITION_F32,
-    QWEN3_ASR_CONV_OUT_F32,
-)
-from models.generated_qwen3_asr.shaders.cu_seqlens_u32 import QWEN3_ASR_CU_SEQLENS_U32
-from models.generated_qwen3_asr.shaders.layer_norm_f32 import QWEN3_ASR_LAYER_NORM_F32
-from models.generated_qwen3_asr.shaders.linear_f32 import (
-    QWEN3_ASR_LINEAR_F32,
-    QWEN3_ASR_LINEAR_GELU_F32,
-)
-from models.generated_qwen3_asr.shaders.pad_feature_f32 import QWEN3_ASR_PAD_FEATURE_F32
 from models.generated_qwen3_asr.tensors.audio_tower import GeneratedQwen3AsrAudioTowerTensors
 from models.generated_qwen3_asr.tensors.audio_tower_layer import (
     GeneratedQwen3AsrAudioEncoderLayerTensors,
@@ -257,65 +253,65 @@ def _lower_audio_tower_op(
         return
 
     shader = resolve_shader_symbol(op=step)
-    if shader == "QWEN3_ASR_PAD_FEATURE_F32":
-        QWEN3_ASR_PAD_FEATURE_F32(
+    if shader == "PAD_FEATURE_F32":
+        PAD_FEATURE_F32(
             rt,
             input_features=_tensor(env, step.inputs[0]),
             feature_lens=_tensor(env, step.inputs[1]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_CONV2D_GELU_F32":
-        QWEN3_ASR_CONV2D_GELU_F32(
+    elif shader == "CONV2D_GELU_F32":
+        CONV2D_GELU_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             weight=_tensor(env, step.inputs[1]),
             bias=_tensor(env, step.inputs[2]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_CONV_OUT_F32":
-        QWEN3_ASR_CONV_OUT_F32(
+    elif shader == "CONV_OUT_F32":
+        CONV_OUT_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             weight=_tensor(env, step.inputs[1]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_ADD_POSITION_F32":
-        QWEN3_ASR_ADD_POSITION_F32(
+    elif shader == "ADD_POSITION_F32":
+        ADD_POSITION_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_COMPACT_AFTER_CNN_F32":
-        QWEN3_ASR_COMPACT_AFTER_CNN_F32(
+    elif shader == "COMPACT_AFTER_CNN_F32":
+        COMPACT_AFTER_CNN_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             feature_lens=_tensor(env, step.inputs[1]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_CU_SEQLENS_U32":
-        QWEN3_ASR_CU_SEQLENS_U32(
+    elif shader == "CU_SEQLENS_U32":
+        CU_SEQLENS_U32(
             rt,
             feature_lens=_tensor(env, step.inputs[0]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_LAYER_NORM_F32":
-        QWEN3_ASR_LAYER_NORM_F32(
+    elif shader == "LAYER_NORM_F32":
+        LAYER_NORM_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             weight=_tensor(env, step.inputs[1]),
             bias=_tensor(env, step.inputs[2]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_LINEAR_GELU_F32":
-        QWEN3_ASR_LINEAR_GELU_F32(
+    elif shader == "LINEAR_GELU_F32":
+        LINEAR_GELU_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             weight=_tensor(env, step.inputs[1]),
             bias=_tensor(env, step.inputs[2]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_LINEAR_F32":
-        QWEN3_ASR_LINEAR_F32(
+    elif shader == "LINEAR_F32":
+        LINEAR_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             weight=_tensor(env, step.inputs[1]),
@@ -333,24 +329,24 @@ def _lower_audio_layer_op(
     env: dict[str, object],
 ) -> None:
     shader = resolve_shader_symbol(op=step)
-    if shader == "QWEN3_ASR_LAYER_NORM_F32":
-        QWEN3_ASR_LAYER_NORM_F32(
+    if shader == "LAYER_NORM_F32":
+        LAYER_NORM_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             weight=_tensor(env, step.inputs[1]),
             bias=_tensor(env, step.inputs[2]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_LINEAR_F32":
-        QWEN3_ASR_LINEAR_F32(
+    elif shader == "LINEAR_F32":
+        LINEAR_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             weight=_tensor(env, step.inputs[1]),
             bias=_tensor(env, step.inputs[2]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_ENCODER_ATTENTION_F32":
-        QWEN3_ASR_ENCODER_ATTENTION_F32(
+    elif shader == "ENCODER_ATTENTION_F32":
+        ENCODER_ATTENTION_F32(
             rt,
             q=_tensor(env, step.inputs[0]),
             k=_tensor(env, step.inputs[1]),
@@ -358,15 +354,15 @@ def _lower_audio_layer_op(
             cu_seqlens=_tensor(env, step.inputs[3]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_ADD_F32":
-        QWEN3_ASR_ADD_F32(
+    elif shader == "ADD_F32":
+        ADD_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             y=_tensor(env, step.inputs[1]),
             output=_tensor(env, step.outputs[0]),
         )
-    elif shader == "QWEN3_ASR_LINEAR_GELU_F32":
-        QWEN3_ASR_LINEAR_GELU_F32(
+    elif shader == "LINEAR_GELU_F32":
+        LINEAR_GELU_F32(
             rt,
             x=_tensor(env, step.inputs[0]),
             weight=_tensor(env, step.inputs[1]),

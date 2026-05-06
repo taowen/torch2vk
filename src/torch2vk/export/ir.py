@@ -11,17 +11,3 @@ class TensorFieldPattern:
     source_parameter: str | None = None
     note: str = ""
 
-
-@dataclass(frozen=True, slots=True)
-class TorchOpPattern:
-    target: str
-    inputs: tuple[str, ...]
-    outputs: tuple[str, ...]
-    note: str = ""
-    name: str = ""
-    op: str = "call_function"
-    args: tuple[object, ...] = ()
-    kwargs: tuple[tuple[str, object], ...] = ()
-    shape: tuple[int, ...] | None = None
-    dtype: str | None = None
-

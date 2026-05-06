@@ -19,7 +19,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from torch2vk.export.exported_program import export_torch_program, torch_ops_from_exported_program
+from torch2vk.export.exported_program import export_torch_program, iter_fx_call_function_nodes
+from torch2vk.export.graph import input_names, mapped_node_name
 from torch2vk.export.contract_codegen import (
     ParamsFieldDecl,
     TensorFieldDecl,
@@ -30,7 +31,7 @@ from torch2vk.export.reflection import (
     instantiate_torch_module_on_meta,
     reflect_torch_module,
 )
-from torch2vk.export.torch_ops import TorchOpPattern, TensorFieldPattern
+from torch2vk.export.torch_ops import TensorFieldPattern
 from torch2vk.export.writer import (
     ExportWriteResult,
     RenderedFile,
@@ -54,7 +55,7 @@ _STALE_FILES = (
     Path("shaders/token_select_f32.py"),
     Path("shaders/audio_codec_decoder_f32.py"),
 )
-_IMPORTED_GLSL_DIR = _PACKAGE_DIR / "imported_glsl"
+_SHADER_SOURCE_DIR = _TEMPLATE_ROOT / "omnivoice" / "shaders" / "sources"
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +92,11 @@ class ShaderModulePattern:
     module: str
     doc: str
     variants: tuple[ShaderPattern, ...]
+
+
+def _op(target: str, inputs: tuple[str, ...], outputs: tuple[str, ...], note: str = "", **extra: object) -> object:
+    from types import SimpleNamespace
+    return SimpleNamespace(target=target, inputs=inputs, outputs=outputs, note=note, **extra)
 
 
 def export_omnivoice_package(
@@ -382,28 +388,40 @@ def _audio_codec_layer_fields() -> tuple[TensorFieldPattern, ...]:
     )
 
 
-def _input_embeddings_ops(config: OmniVoiceExportConfig) -> tuple[TorchOpPattern, ...]:
+def _input_embeddings_ops(config: OmniVoiceExportConfig) -> tuple[object, ...]:
     exported_program = _export_input_embeddings_program(config)
-    return torch_ops_from_exported_program(
-        exported_program,
-        tensor_name_map={
-            "p_embed_tokens_weight": "embed_tokens_weight",
-            "p_audio_embeddings_weight": "audio_embeddings_weight",
-            "b_codebook_layer_offsets": "codebook_layer_offsets",
-            "input_ids": "input_ids",
-            "audio_mask": "audio_mask",
-            "select": "text_token_ids",
-            "embedding": "text_embeds",
-            "unsqueeze": "audio_mask_for_shift",
-            "mul": "masked_audio_ids",
-            "view": "codebook_layer_offsets_view",
-            "add": "shifted_ids",
-            "embedding_1": "audio_embedding_values",
-            "sum_1": "audio_embeds",
-            "unsqueeze_1": "audio_mask_expanded",
-            "where": "inputs_embeds",
-        },
-    )
+    names = {
+        "p_embed_tokens_weight": "embed_tokens_weight",
+        "p_audio_embeddings_weight": "audio_embeddings_weight",
+        "b_codebook_layer_offsets": "codebook_layer_offsets",
+        "input_ids": "input_ids",
+        "audio_mask": "audio_mask",
+        "select": "text_token_ids",
+        "embedding": "text_embeds",
+        "unsqueeze": "audio_mask_for_shift",
+        "mul": "masked_audio_ids",
+        "view": "codebook_layer_offsets_view",
+        "add": "shifted_ids",
+        "embedding_1": "audio_embedding_values",
+        "sum_1": "audio_embeds",
+        "unsqueeze_1": "audio_mask_expanded",
+        "where": "inputs_embeds",
+    }
+    ops: list[object] = []
+    for node in iter_fx_call_function_nodes(exported_program):
+        output = mapped_node_name(node, names)
+        ops.append(
+            _op(
+                target=str(getattr(node, "target")),
+                inputs=input_names(getattr(node, "args", ()), getattr(node, "kwargs", {}), names),
+                outputs=(output,),
+                name=str(getattr(node, "name")),
+                op=str(getattr(node, "op")),
+                args=tuple(getattr(node, "args", ())),
+                kwargs=tuple((str(key), value) for key, value in getattr(node, "kwargs", {}).items()),
+            )
+        )
+    return tuple(ops)
 
 
 def _export_input_embeddings_program(config: OmniVoiceExportConfig) -> object:
@@ -453,83 +471,83 @@ def _export_input_embeddings_program(config: OmniVoiceExportConfig) -> object:
     )
 
 
-def _text_prefill_ops() -> tuple[TorchOpPattern, ...]:
+def _text_prefill_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern("input_embeddings", ("input_ids", "audio_mask"), ("inputs_embeds",)),
-        TorchOpPattern("llm_layer_loop", ("inputs_embeds", "attention_mask"), ("hidden_states",)),
-        TorchOpPattern("final_norm", ("hidden_states",), ("hidden_states",)),
+        _op("input_embeddings", ("input_ids", "audio_mask"), ("inputs_embeds",)),
+        _op("llm_layer_loop", ("inputs_embeds", "attention_mask"), ("hidden_states",)),
+        _op("final_norm", ("hidden_states",), ("hidden_states",)),
     )
 
 
-def _audio_head_ops() -> tuple[TorchOpPattern, ...]:
+def _audio_head_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern(
+        _op(
             "audio_head_projection", ("hidden_states", "audio_heads_weight"), ("audio_logits",)
         ),
-        TorchOpPattern("reshape_codebooks", ("audio_logits",), ("audio_logits",)),
+        _op("reshape_codebooks", ("audio_logits",), ("audio_logits",)),
     )
 
 
-def _token_select_ops() -> tuple[TorchOpPattern, ...]:
+def _token_select_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern(
+        _op(
             "classifier_free_guidance", ("cond_logits", "uncond_logits"), ("guided_logits",)
         ),
-        TorchOpPattern("mask_forbidden_ids", ("guided_logits",), ("guided_logits",)),
-        TorchOpPattern(
+        _op("mask_forbidden_ids", ("guided_logits",), ("guided_logits",)),
+        _op(
             "codebook_argmax", ("guided_logits",), ("pred_tokens", "confidence_scores")
         ),
-        TorchOpPattern(
+        _op(
             "select_positions", ("confidence_scores", "current_tokens"), ("selected_positions",)
         ),
-        TorchOpPattern(
+        _op(
             "apply_selected_tokens", ("pred_tokens", "selected_positions"), ("updated_tokens",)
         ),
     )
 
 
-def _iterative_decode_ops() -> tuple[TorchOpPattern, ...]:
+def _iterative_decode_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern("initialize_masked_tokens", ("target_lens",), ("tokens",)),
-        TorchOpPattern(
+        _op("initialize_masked_tokens", ("target_lens",), ("tokens",)),
+        _op(
             "for_each_decode_step", ("batch_input_ids", "batch_audio_mask"), ("audio_logits",)
         ),
-        TorchOpPattern("token_select", ("audio_logits", "tokens"), ("tokens",)),
-        TorchOpPattern("update_conditioned_inputs", ("tokens",), ("batch_input_ids",)),
+        _op("token_select", ("audio_logits", "tokens"), ("tokens",)),
+        _op("update_conditioned_inputs", ("tokens",), ("batch_input_ids",)),
     )
 
 
-def _audio_codec_decode_ops() -> tuple[TorchOpPattern, ...]:
+def _audio_codec_decode_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern(
+        _op(
             "quantizer_embed_sum", ("audio_tokens", "quantizer_embeddings"), ("decoder_hidden",)
         ),
-        TorchOpPattern("decoder_conv_stack", ("decoder_hidden",), ("decoder_hidden",)),
-        TorchOpPattern("project_out", ("decoder_hidden",), ("audio_waveform",)),
+        _op("decoder_conv_stack", ("decoder_hidden",), ("decoder_hidden",)),
+        _op("project_out", ("decoder_hidden",), ("audio_waveform",)),
     )
 
 
-def _reference_prompt_ops() -> tuple[TorchOpPattern, ...]:
+def _reference_prompt_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern(
+        _op(
             "load_or_resample_reference_audio", ("ref_audio",), ("reference_waveform",)
         ),
-        TorchOpPattern("audio_tokenizer_encode", ("reference_waveform",), ("reference_tokens",)),
-        TorchOpPattern("normalize_reference_text", ("ref_text",), ("reference_text",)),
+        _op("audio_tokenizer_encode", ("reference_waveform",), ("reference_tokens",)),
+        _op("normalize_reference_text", ("ref_text",), ("reference_text",)),
     )
 
 
 def _shader_modules() -> tuple[ShaderModulePattern, ...]:
     return (
         _inline_shader_module(
-            "OMNIVOICE_ATEN_SELECT_INT_I64",
+            "ATEN_SELECT_INT_I64",
             "aten_select_int_i64",
             family="aten",
             source=_aten_select_int_i64_source(),
             variant_body=_aten_select_int_i64_variant_body(),
         ),
         _inline_shader_module(
-            "OMNIVOICE_ATEN_EMBEDDING_F32",
+            "ATEN_EMBEDDING_F32",
             "aten_embedding_f32",
             family="omnivoice.text",
             source=_aten_embedding_f32_source(),
@@ -754,7 +772,7 @@ def _shader_variant(
         class_name=_shader_class_name(shader_name),
         family=family,
         source_file=source_file,
-        source=_load_imported_glsl_source(source_file) if source is None else source,
+        source=_load_shader_template_source(source_file) if source is None else source,
         variant_body=variant_body,
     )
 
@@ -1099,8 +1117,8 @@ void main() {
 """.lstrip()
 
 
-def _load_imported_glsl_source(source_file: str) -> str:
-    return (_IMPORTED_GLSL_DIR / source_file).read_text(encoding="utf-8").rstrip() + "\n"
+def _load_shader_template_source(source_file: str) -> str:
+    return (_SHADER_SOURCE_DIR / source_file).read_text(encoding="utf-8").rstrip() + "\n"
 
 
 def _shader_class_name(shader_name: str) -> str:

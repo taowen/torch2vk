@@ -8,12 +8,14 @@ from torch2vk.runtime.session import RuntimeSession
 from torch2vk.export.lowering import resolve_shader_symbol
 
 from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
-from models.omnivoice.shaders.aten_embedding_3d_f32 import OMNIVOICE_ATEN_EMBEDDING_3D_F32
-from models.omnivoice.shaders.aten_embedding_f32 import OMNIVOICE_ATEN_EMBEDDING_F32
-from models.omnivoice.shaders.aten_select_int_i64 import OMNIVOICE_ATEN_SELECT_INT_I64
-from models.omnivoice.shaders.aten_shifted_ids_i64 import OMNIVOICE_ATEN_SHIFTED_IDS_I64
-from models.omnivoice.shaders.aten_sum_dim1_f32 import OMNIVOICE_ATEN_SUM_DIM1_F32
-from models.omnivoice.shaders.aten_where_f32 import OMNIVOICE_ATEN_WHERE_F32
+from torch2vk.export.shaders import (
+    ATEN_EMBEDDING_3D_F32,
+    ATEN_EMBEDDING_F32,
+    ATEN_SELECT_INT_I64,
+    ATEN_SHIFTED_IDS_I64,
+    ATEN_SUM_DIM1_F32,
+    ATEN_WHERE_F32,
+)
 from models.omnivoice.tensors.text import OmniVoiceTextPrefillTensors
 
 
@@ -141,12 +143,12 @@ INPUT_EMBEDDINGS_TORCH_OPS = (
 )
 
 INPUT_EMBEDDINGS_SHADERS = (
-    OMNIVOICE_ATEN_SELECT_INT_I64,
-    OMNIVOICE_ATEN_EMBEDDING_F32,
-    OMNIVOICE_ATEN_SHIFTED_IDS_I64,
-    OMNIVOICE_ATEN_EMBEDDING_3D_F32,
-    OMNIVOICE_ATEN_SUM_DIM1_F32,
-    OMNIVOICE_ATEN_WHERE_F32,
+    ATEN_SELECT_INT_I64,
+    ATEN_EMBEDDING_F32,
+    ATEN_SHIFTED_IDS_I64,
+    ATEN_EMBEDDING_3D_F32,
+    ATEN_SUM_DIM1_F32,
+    ATEN_WHERE_F32,
 )
 
 
@@ -206,42 +208,42 @@ def _lower_input_embeddings_op(
         return env[op.outputs[0]]
 
     shader = resolve_shader_symbol(op=op)
-    if shader == "OMNIVOICE_ATEN_SELECT_INT_I64":
-        OMNIVOICE_ATEN_SELECT_INT_I64(
+    if shader == "ATEN_SELECT_INT_I64":
+        ATEN_SELECT_INT_I64(
             rt,
             x=env[op.inputs[0]],
             output=env[op.outputs[0]],
         )
-    elif shader == "OMNIVOICE_ATEN_EMBEDDING_F32":
-        OMNIVOICE_ATEN_EMBEDDING_F32(
+    elif shader == "ATEN_EMBEDDING_F32":
+        ATEN_EMBEDDING_F32(
             rt,
             weight=env[op.inputs[0]],
             indices=env[op.inputs[1]],
             output=env[op.outputs[0]],
         )
-    elif shader == "OMNIVOICE_ATEN_SHIFTED_IDS_I64":
-        OMNIVOICE_ATEN_SHIFTED_IDS_I64(
+    elif shader == "ATEN_SHIFTED_IDS_I64":
+        ATEN_SHIFTED_IDS_I64(
             rt,
             input_ids=env["input_ids"],
             audio_mask=env["audio_mask"],
             codebook_layer_offsets=env["codebook_layer_offsets_view"],
             output=env[op.outputs[0]],
         )
-    elif shader == "OMNIVOICE_ATEN_EMBEDDING_3D_F32":
-        OMNIVOICE_ATEN_EMBEDDING_3D_F32(
+    elif shader == "ATEN_EMBEDDING_3D_F32":
+        ATEN_EMBEDDING_3D_F32(
             rt,
             weight=env[op.inputs[0]],
             indices=env[op.inputs[1]],
             output=env[op.outputs[0]],
         )
-    elif shader == "OMNIVOICE_ATEN_SUM_DIM1_F32":
-        OMNIVOICE_ATEN_SUM_DIM1_F32(
+    elif shader == "ATEN_SUM_DIM1_F32":
+        ATEN_SUM_DIM1_F32(
             rt,
             x=env[op.inputs[0]],
             output=env[op.outputs[0]],
         )
-    elif shader == "OMNIVOICE_ATEN_WHERE_F32":
-        OMNIVOICE_ATEN_WHERE_F32(
+    elif shader == "ATEN_WHERE_F32":
+        ATEN_WHERE_F32(
             rt,
             mask=env[op.inputs[0]],
             x=env[op.inputs[1]],

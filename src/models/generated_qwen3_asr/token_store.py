@@ -5,12 +5,9 @@ from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.export.lowering import resolve_shader_symbol
+from torch2vk.export.shaders import TOKEN_STORE_EOS_F32, TOKEN_STORE_F32
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp
-from models.generated_qwen3_asr.shaders.token_store_f32 import (
-    QWEN3_ASR_TOKEN_STORE_EOS_F32,
-    QWEN3_ASR_TOKEN_STORE_F32,
-)
 from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTokenStoreTensors
 
 
@@ -41,8 +38,8 @@ def run_generated_qwen3_asr_token_store(
     with rt.frame("generated_qwen3_asr.token_store"):
         for step in TOKEN_STORE_TORCH_OPS:
             shader = resolve_shader_symbol(op=step)
-            if shader == "QWEN3_ASR_TOKEN_STORE_F32":
-                variant = QWEN3_ASR_TOKEN_STORE_EOS_F32 if stop_on_eos else QWEN3_ASR_TOKEN_STORE_F32
+            if shader == "TOKEN_STORE_F32":
+                variant = TOKEN_STORE_EOS_F32 if stop_on_eos else TOKEN_STORE_F32
                 variant(
                     rt,
                     next_token=env[step.inputs[0]],

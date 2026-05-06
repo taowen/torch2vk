@@ -81,6 +81,7 @@ class LogicalTensor:
     semantic: TensorSemantic | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
+    checkpoint: str | None = None
     _runtime_writable: bool = field(default=False, init=False, repr=False)
     _buffer: BufferSlice | None = field(default=None, init=False, repr=False)
     _descriptor_nbytes: int | None = field(default=None, init=False, repr=False)

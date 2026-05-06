@@ -160,6 +160,13 @@ def resolve_weight_checkpoint(rt: RuntimeSession, tensor: LogicalTensor) -> Path
         raise RuntimeError(
             f"{tensor.name} is a weight tensor but RuntimeSession has no model_dir to resolve checkpoint"
         )
+    if tensor.checkpoint:
+        explicit = (rt.model_dir / tensor.checkpoint).resolve()
+        if explicit.is_file():
+            return explicit
+        raise RuntimeError(
+            f"{tensor.name} requested checkpoint {tensor.checkpoint!r} but file does not exist: {explicit}"
+        )
     primary = rt.model_dir / "model.safetensors"
     if primary.is_file():
         return primary

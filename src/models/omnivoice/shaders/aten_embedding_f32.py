@@ -105,5 +105,5 @@ void main() {
 
 
 __all__ = [
-    "OMNIVOICE_ATEN_EMBEDDING_F32",
+    "ATEN_EMBEDDING_F32",
 ]

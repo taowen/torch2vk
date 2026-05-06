@@ -3,7 +3,16 @@
 
 from __future__ import annotations
 
-from torch2vk.runtime.shader import ShaderContract, ShaderVariant
+from torch2vk.runtime.shader import (
+    IOKind,
+    ParamsBufferFieldSpec,
+    ParamsBufferSpec,
+    PushConstantType,
+    ShaderContract,
+    ShaderVariant,
+    TensorContract,
+    TensorFieldSpec,
+)
 
 
 OMNIVOICE_AUDIO_CODEC_DECODER_QUANTIZER_EMBED_SUM_F32 = ShaderVariant(
@@ -12,8 +21,79 @@ OMNIVOICE_AUDIO_CODEC_DECODER_QUANTIZER_EMBED_SUM_F32 = ShaderVariant(
     contract=ShaderContract(
         class_name="OmniVoiceAudioCodecDecoderQuantizerEmbedSumF32Program",
         shader_name="omnivoice_audio_codec_decoder_quantizer_embed_sum_f32",
-        fields=(),
-        dispatch=(1, 1, 1),
+        fields=(
+            TensorFieldSpec(
+                name="output",
+                io_kind=IOKind.OUTPUT,
+                role="output",
+                contract=TensorContract(dtype="float32", shape=("B", "D", "S")),
+            ),
+            TensorFieldSpec(
+                name="audio_ids",
+                io_kind=IOKind.INPUT,
+                role="audio_ids",
+                contract=TensorContract(dtype="int32", shape=("B", 8, "S")),
+            ),
+            TensorFieldSpec(
+                name="embed0",
+                io_kind=IOKind.INPUT,
+                role="embed0",
+                contract=TensorContract(dtype="float32", shape=("V", "D")),
+            ),
+            TensorFieldSpec(
+                name="embed1",
+                io_kind=IOKind.INPUT,
+                role="embed1",
+                contract=TensorContract(dtype="float32", shape=("V", "D")),
+            ),
+            TensorFieldSpec(
+                name="embed2",
+                io_kind=IOKind.INPUT,
+                role="embed2",
+                contract=TensorContract(dtype="float32", shape=("V", "D")),
+            ),
+            TensorFieldSpec(
+                name="embed3",
+                io_kind=IOKind.INPUT,
+                role="embed3",
+                contract=TensorContract(dtype="float32", shape=("V", "D")),
+            ),
+            TensorFieldSpec(
+                name="embed4",
+                io_kind=IOKind.INPUT,
+                role="embed4",
+                contract=TensorContract(dtype="float32", shape=("V", "D")),
+            ),
+            TensorFieldSpec(
+                name="embed5",
+                io_kind=IOKind.INPUT,
+                role="embed5",
+                contract=TensorContract(dtype="float32", shape=("V", "D")),
+            ),
+            TensorFieldSpec(
+                name="embed6",
+                io_kind=IOKind.INPUT,
+                role="embed6",
+                contract=TensorContract(dtype="float32", shape=("V", "D")),
+            ),
+            TensorFieldSpec(
+                name="embed7",
+                io_kind=IOKind.INPUT,
+                role="embed7",
+                contract=TensorContract(dtype="float32", shape=("V", "D")),
+            ),
+        ),
+        dispatch=("D", "S", "B"),
+        params_buffer=ParamsBufferSpec(
+            size=16,
+            fields=(
+                ParamsBufferFieldSpec("steps", PushConstantType.UINT32, 0, "S"),
+                ParamsBufferFieldSpec("batches", PushConstantType.UINT32, 4, "B"),
+                ParamsBufferFieldSpec("dims", PushConstantType.UINT32, 8, "D"),
+                ParamsBufferFieldSpec("vocab", PushConstantType.UINT32, 12, "V"),
+            ),
+            binding_index=10,
+        ),
     ),
     source="""
 #version 460
@@ -54,7 +134,7 @@ void main() {
     const int id5 = clamp(t_audio_ids[ids_base + 5u * steps], 0, int(vocab) - 1);
     const int id6 = clamp(t_audio_ids[ids_base + 6u * steps], 0, int(vocab) - 1);
     const int id7 = clamp(t_audio_ids[ids_base + 7u * steps], 0, int(vocab) - 1);
-    const uint out_idx = (batch * steps + step) * dims + d;
+    const uint out_idx = (batch * dims + d) * steps + step;
     const uint o0 = uint(id0) * dims + d;
     const uint o1 = uint(id1) * dims + d;
     const uint o2 = uint(id2) * dims + d;

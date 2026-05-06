@@ -1,18 +1,23 @@
 """Generic code-generation helpers for model-to-runtime adapter scaffolds."""
 
-from torch2vk.export.exported_program import export_torch_program, torch_ops_from_exported_program
+from torch2vk.export.exported_program import (
+    export_torch_program,
+    iter_fx_call_function_nodes,
+    torch_ops_from_exported_program,
+)
 from torch2vk.export.contract_codegen import (
     ParamsFieldDecl,
     TensorFieldDecl,
     render_shader_contract_variant_body,
 )
-from torch2vk.export.ir import TorchOpPattern, TensorFieldPattern
+from torch2vk.export.ir import TensorFieldPattern
 from torch2vk.export.lowering import (
     DEFAULT_LOWERING_REGISTRY,
     OpLoweringRegistry,
     OpShaderBinding,
     resolve_shader_symbol,
 )
+from torch2vk.export.protocols import ExportOpLike
 from torch2vk.export.reflection import (
     TorchModuleReflection,
     instantiate_torch_module_on_meta,
@@ -36,7 +41,6 @@ __all__ = [
     "OpLoweringRegistry",
     "ParamsFieldDecl",
     "OpShaderBinding",
-    "TorchOpPattern",
     "RenderedFile",
     "TemplateRenderer",
     "TensorFieldPattern",
@@ -50,6 +54,8 @@ __all__ = [
     "precompute_qwen3_asr_mrope",
     "render_shader_contract_variant_body",
     "resolve_shader_symbol",
+    "ExportOpLike",
+    "iter_fx_call_function_nodes",
     "torch_ops_from_exported_program",
     "write_rendered_files",
 ]

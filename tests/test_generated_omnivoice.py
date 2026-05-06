@@ -7,13 +7,17 @@ import numpy as np
 
 from models.hf_cache import resolve_cached_model
 from models.omnivoice.export import load_omnivoice_export_config
+from models.omnivoice.audio_codec_decode import run_omnivoice_audio_codec_decode
 from models.omnivoice.input_embeddings import (
     INPUT_EMBEDDINGS_TORCH_OPS,
     run_omnivoice_input_embeddings,
 )
+from models.omnivoice.iterative_decode import run_omnivoice_iterative_decode
 from models.omnivoice.text_prefill import run_omnivoice_text_prefill
 from models.omnivoice.token_select import run_omnivoice_token_select
 from models.omnivoice.pytorch.example import REPO_ID
+from models.omnivoice.tensors.audio_codec import declare_omnivoice_audio_codec_tensors
+from models.omnivoice.tensors.inference import declare_omnivoice_iterative_decode_tensors
 from models.omnivoice.tensors.text import declare_omnivoice_text_tensors
 from torch2vk.runtime.session import RuntimeSession
 
@@ -55,12 +59,82 @@ def test_generated_omnivoice_input_embeddings_runs_full_chain_and_matches_pytorc
             pytorch_compare=True,
         ) is tensors.inputs_embeds
         assert [record.shader for record in rt.dispatch_records[-6:]] == [
-            "omnivoice_aten_select_int_i64",
-            "omnivoice_aten_embedding_f32",
-            "omnivoice_aten_shifted_ids_i64",
-            "omnivoice_aten_embedding_3d_f32",
-            "omnivoice_aten_sum_dim1_f32",
-            "omnivoice_aten_where_f32",
+            "aten_select_int_i64",
+            "aten_embedding_f32",
+            "aten_shifted_ids_i64",
+            "aten_embedding_3d_f32",
+            "aten_sum_dim1_f32",
+            "aten_where_f32",
+        ]
+
+        audio_codec = declare_omnivoice_audio_codec_tensors(
+            audio_token_length=4,
+            audio_sample_length=32,
+            num_audio_codebook=config.num_audio_codebook,
+        )
+        audio_tokens = np.zeros(audio_codec.audio_tokens.concrete_shape, dtype=np.int32)
+        audio_tokens[:, :, :] = 1
+        rt.register_inputs(
+            {
+                audio_codec.audio_tokens: audio_tokens,
+            }
+        )
+        assert run_omnivoice_audio_codec_decode(rt, audio_codec) is audio_codec.decoder_input
+        assert rt.dispatch_records[-1].shader == "omnivoice_audio_codec_decoder_quantizer_embed_sum_f32"
+
+        iterative = declare_omnivoice_iterative_decode_tensors(
+            batch_size=1,
+            max_condition_length=8,
+            max_target_tokens=4,
+            num_step=1,
+            audio_vocab_size=config.audio_vocab_size,
+            num_audio_codebook=config.num_audio_codebook,
+        )
+        iter_rng = np.random.default_rng(2)
+        iterative_codebook_offsets = np.arange(
+            0,
+            config.audio_vocab_size * config.num_audio_codebook,
+            config.audio_vocab_size,
+            dtype=np.int32,
+        )
+        rt.register_inputs(
+            {
+                iterative.c_lens: np.array([8], dtype=np.int32),
+                iterative.u_lens: np.array([8], dtype=np.int32),
+                iterative.target_lens: np.array([4], dtype=np.int32),
+                iterative.batch_input_ids: np.zeros(iterative.batch_input_ids.concrete_shape, dtype=np.int64),
+                iterative.batch_audio_mask: np.zeros(iterative.batch_audio_mask.concrete_shape, dtype=np.bool_),
+                iterative.batch_attention_mask: np.zeros(
+                    iterative.batch_attention_mask.concrete_shape, dtype=np.uint32
+                ),
+                iterative.timesteps: np.array([0], dtype=np.int32),
+                iterative.schedules: np.linspace(
+                    0.0, 0.3, config.num_audio_codebook, dtype=np.float32
+                ).reshape(1, config.num_audio_codebook),
+                iterative.layer_ids: iterative_codebook_offsets,
+                iterative.cond_logits: iter_rng.standard_normal(
+                    iterative.cond_logits.concrete_shape, dtype=np.float32
+                ),
+                iterative.uncond_logits: iter_rng.standard_normal(
+                    iterative.uncond_logits.concrete_shape, dtype=np.float32
+                ),
+                iterative.sample_tokens: np.zeros(iterative.sample_tokens.concrete_shape, dtype=np.int32),
+                iterative.guided_logits: iter_rng.standard_normal(
+                    iterative.guided_logits.concrete_shape, dtype=np.float32
+                ),
+            }
+        )
+        iterative_tokens = run_omnivoice_iterative_decode(
+            rt,
+            iterative,
+            num_step=1,
+            pytorch_compare=False,
+        )
+        assert iterative_tokens is iterative.updated_sample_tokens
+        assert [record.shader for record in rt.dispatch_records[-3:]] == [
+            "omnivoice_codebook_argmax_f32",
+            "omnivoice_codebook_argmax_scores_f32",
+            "omnivoice_argmax_select_apply_fused_s",
         ]
 
         codebook_offsets = np.arange(
@@ -136,12 +210,12 @@ def test_generated_omnivoice_input_embeddings_runs_full_chain_and_matches_pytorc
             is tensors.inputs_embeds
         )
         assert [record.shader for record in rt.dispatch_records[-6:]] == [
-            "omnivoice_aten_select_int_i64",
-            "omnivoice_aten_embedding_f32",
-            "omnivoice_aten_shifted_ids_i64",
-            "omnivoice_aten_embedding_3d_f32",
-            "omnivoice_aten_sum_dim1_f32",
-            "omnivoice_aten_where_f32",
+            "aten_select_int_i64",
+            "aten_embedding_f32",
+            "aten_shifted_ids_i64",
+            "aten_embedding_3d_f32",
+            "aten_sum_dim1_f32",
+            "aten_where_f32",
         ]
         assert rt.compare_results
         assert len(rt.compare_results) == 2
@@ -178,12 +252,12 @@ def test_generated_omnivoice_input_embeddings_runs_full_chain_and_matches_pytorc
         ) is tensors.inputs_embeds
 
         assert [record.shader for record in rt.dispatch_records[-6:]] == [
-            "omnivoice_aten_select_int_i64",
-            "omnivoice_aten_embedding_f32",
-            "omnivoice_aten_shifted_ids_i64",
-            "omnivoice_aten_embedding_3d_f32",
-            "omnivoice_aten_sum_dim1_f32",
-            "omnivoice_aten_where_f32",
+            "aten_select_int_i64",
+            "aten_embedding_f32",
+            "aten_shifted_ids_i64",
+            "aten_embedding_3d_f32",
+            "aten_sum_dim1_f32",
+            "aten_where_f32",
         ]
 
 

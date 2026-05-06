@@ -607,7 +607,7 @@ shaders/
   embedding_sum_f32.spv    # generated artifact
 ```
 
-`imported_glsl/` 可以保留外部项目导入、尚未整理的 GLSL baseline，但纳入 torch2vk 管理的 shader 必须迁移成
+`docs/models/omnivoice/imported_glsl_reference/` 可以保留外部项目导入、尚未整理的 GLSL baseline，但纳入 torch2vk 管理的 shader 必须迁移成
 inline GLSL variant。构建工具负责从 `ShaderVariant.source` 生成 `.cache/torch2vk/generated/*.glsl`
 和 `.spv`，并把 source hash、contract manifest、compile defines、include dirs 和 specialization
 constants 记录进 artifact manifest。不要让 `*.comp` 或 generated `.glsl` 成为 source of truth。

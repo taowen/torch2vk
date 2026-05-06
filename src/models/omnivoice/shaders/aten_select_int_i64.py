@@ -85,5 +85,5 @@ void main() {
 
 
 __all__ = [
-    "OMNIVOICE_ATEN_SELECT_INT_I64",
+    "ATEN_SELECT_INT_I64",
 ]

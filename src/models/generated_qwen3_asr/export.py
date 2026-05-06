@@ -24,7 +24,7 @@ from torch2vk.export.reflection import (
     instantiate_torch_module_on_meta,
     reflect_torch_module,
 )
-from torch2vk.export.torch_ops import TorchOpPattern, TensorFieldPattern
+from torch2vk.export.torch_ops import TensorFieldPattern
 from torch2vk.export.writer import (
     ExportWriteResult,
     RenderedFile,
@@ -481,52 +481,52 @@ def _text_frame_fields() -> tuple[TensorFieldPattern, ...]:
     )
 
 
-def _audio_tower_ops() -> tuple[TorchOpPattern, ...]:
+def _audio_tower_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.pad_feature.default",
             ("input_features", "feature_lens"),
             ("padded_feature",),
         ),
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.conv2d_gelu.default",
             ("padded_feature", "conv2d1_weight", "conv2d1_bias"),
             ("conv2d1_gelu",),
         ),
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.conv2d_gelu.default",
             ("conv2d1_gelu", "conv2d2_weight", "conv2d2_bias"),
             ("conv2d2_gelu",),
         ),
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.conv2d_gelu.default",
             ("conv2d2_gelu", "conv2d3_weight", "conv2d3_bias"),
             ("conv2d3_gelu",),
         ),
-        TorchOpPattern("aten.torch2vk.conv_out.default", ("conv2d3_gelu", "conv_out_weight"), ("conv_out",)),
-        TorchOpPattern("aten.add.Tensor", ("conv_out",), ("conv_out_add_position",), name="add_position"),
-        TorchOpPattern(
+        _op("aten.torch2vk.conv_out.default", ("conv2d3_gelu", "conv_out_weight"), ("conv_out",)),
+        _op("aten.add.Tensor", ("conv_out",), ("conv_out_add_position",), name="add_position"),
+        _op(
             "aten.torch2vk.compact_after_cnn.default",
             ("conv_out_add_position", "feature_lens"),
             ("hidden_states",),
         ),
-        TorchOpPattern("aten.torch2vk.cu_seqlens.default", ("feature_lens",), ("cu_seqlens",)),
-        TorchOpPattern(
+        _op("aten.torch2vk.cu_seqlens.default", ("feature_lens",), ("cu_seqlens",)),
+        _op(
             "aten.torch2vk.audio_encoder_layer_loop.default",
             ("hidden_states", "cu_seqlens", "layers"),
             ("hidden_states",),
         ),
-        TorchOpPattern(
+        _op(
             "aten.native_layer_norm.default",
             ("hidden_states", "ln_post_weight", "ln_post_bias"),
             ("ln_post",),
         ),
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.linear_gelu.default",
             ("ln_post", "proj1_weight", "proj1_bias"),
             ("proj1_gelu",),
         ),
-        TorchOpPattern(
+        _op(
             "aten.linear.default",
             ("proj1_gelu", "proj2_weight", "proj2_bias"),
             ("last_hidden_state",),
@@ -534,48 +534,48 @@ def _audio_tower_ops() -> tuple[TorchOpPattern, ...]:
     )
 
 
-def _audio_layer_ops() -> tuple[TorchOpPattern, ...]:
+def _audio_layer_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern(
+        _op(
             "aten.native_layer_norm.default",
             ("hidden_states", "self_attn_layer_norm_weight", "self_attn_layer_norm_bias"),
             ("self_attn_layer_norm",),
         ),
-        TorchOpPattern(
+        _op(
             "aten.linear.default", ("self_attn_layer_norm", "q_proj_weight", "q_proj_bias"), ("q_proj",)
         ),
-        TorchOpPattern(
+        _op(
             "aten.linear.default", ("self_attn_layer_norm", "k_proj_weight", "k_proj_bias"), ("k_proj",)
         ),
-        TorchOpPattern(
+        _op(
             "aten.linear.default", ("self_attn_layer_norm", "v_proj_weight", "v_proj_bias"), ("v_proj",)
         ),
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.encoder_attention.default",
             ("q_proj", "k_proj", "v_proj", "cu_seqlens"),
             ("self_attn",),
         ),
-        TorchOpPattern(
+        _op(
             "aten.linear.default", ("self_attn", "out_proj_weight", "out_proj_bias"), ("out_proj",)
         ),
-        TorchOpPattern(
+        _op(
             "aten.add.Tensor",
             ("hidden_states", "out_proj"),
             ("self_attn_residual",),
             name="residual_add",
         ),
-        TorchOpPattern(
+        _op(
             "aten.native_layer_norm.default",
             ("self_attn_residual", "final_layer_norm_weight", "final_layer_norm_bias"),
             ("final_layer_norm",),
         ),
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.linear_gelu.default",
             ("final_layer_norm", "fc1_weight", "fc1_bias"),
             ("fc1_gelu",),
         ),
-        TorchOpPattern("aten.linear.default", ("fc1_gelu", "fc2_weight", "fc2_bias"), ("fc2",)),
-        TorchOpPattern(
+        _op("aten.linear.default", ("fc1_gelu", "fc2_weight", "fc2_bias"), ("fc2",)),
+        _op(
             "aten.add.Tensor",
             ("self_attn_residual", "fc2"),
             ("output",),
@@ -584,43 +584,43 @@ def _audio_layer_ops() -> tuple[TorchOpPattern, ...]:
     )
 
 
-def _text_prefill_ops() -> tuple[TorchOpPattern, ...]:
+def _text_prefill_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.prefill_inputs_embeds.default",
             ("input_ids", "embed_tokens_weight", "audio_features"),
             ("inputs_embeds", "audio_scatter_mask"),
         ),
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.text_decoder_layer_loop.default",
             ("inputs_embeds", "rope_cos", "rope_sin", "layers"),
             ("hidden",),
         ),
-        TorchOpPattern("aten.rms_norm.default", ("hidden", "norm_weight"), ("final_norm",)),
-        TorchOpPattern("aten.linear.default", ("final_norm", "lm_head_weight"), ("logits",)),
+        _op("aten.rms_norm.default", ("hidden", "norm_weight"), ("final_norm",)),
+        _op("aten.linear.default", ("final_norm", "lm_head_weight"), ("logits",)),
     )
 
 
-def _text_decode_ops() -> tuple[TorchOpPattern, ...]:
+def _text_decode_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern(
+        _op(
             "aten.embedding.default",
             ("input_ids", "embed_tokens_weight"),
             ("inputs_embeds",),
         ),
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.text_decoder_layer_loop.default",
             ("inputs_embeds", "cache_position", "rope_cos", "rope_sin", "layers"),
             ("hidden",),
         ),
-        TorchOpPattern("aten.rms_norm.default", ("hidden", "norm_weight"), ("final_norm",)),
-        TorchOpPattern("aten.linear.default", ("final_norm", "lm_head_weight"), ("logits",)),
+        _op("aten.rms_norm.default", ("hidden", "norm_weight"), ("final_norm",)),
+        _op("aten.linear.default", ("final_norm", "lm_head_weight"), ("logits",)),
     )
 
 
-def _token_select_ops() -> tuple[TorchOpPattern, ...]:
+def _token_select_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.greedy_argmax.default",
             ("logits", "eos_token_ids"),
             ("next_token", "done"),
@@ -628,9 +628,9 @@ def _token_select_ops() -> tuple[TorchOpPattern, ...]:
     )
 
 
-def _token_store_ops() -> tuple[TorchOpPattern, ...]:
+def _token_store_ops() -> tuple[object, ...]:
     return (
-        TorchOpPattern(
+        _op(
             "aten.torch2vk.token_store.default",
             ("next_token", "token_index", "done"),
             ("generated_tokens", "generated_length", "stopped"),
