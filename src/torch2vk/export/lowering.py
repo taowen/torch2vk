@@ -175,6 +175,54 @@ DEFAULT_LOWERING_REGISTRY = OpLoweringRegistry(
             target="linear_gelu",
             shader="QWEN3_ASR_LINEAR_GELU_F32",
         ),
+        OpShaderBinding(
+            model="generated_qwen3_asr",
+            frame="text_prefill",
+            target="prefill_inputs_embeds",
+            shader="QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32",
+        ),
+        OpShaderBinding(
+            model="generated_qwen3_asr",
+            frame="text_prefill",
+            target="rms_norm",
+            shader="QWEN3_ASR_TEXT_RMS_NORM_F32",
+        ),
+        OpShaderBinding(
+            model="generated_qwen3_asr",
+            frame="text_prefill",
+            target="lm_head",
+            shader="QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32",
+        ),
+        OpShaderBinding(
+            model="generated_qwen3_asr",
+            frame="text_decode",
+            target="embed_lookup",
+            shader="QWEN3_ASR_TEXT_EMBED_LOOKUP_F32",
+        ),
+        OpShaderBinding(
+            model="generated_qwen3_asr",
+            frame="text_decode",
+            target="rms_norm",
+            shader="QWEN3_ASR_TEXT_RMS_NORM_F32",
+        ),
+        OpShaderBinding(
+            model="generated_qwen3_asr",
+            frame="text_decode",
+            target="lm_head_or_token_select",
+            shader="QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32",
+        ),
+        OpShaderBinding(
+            model="generated_qwen3_asr",
+            frame="token_select",
+            target="greedy_argmax",
+            shader="QWEN3_ASR_TOKEN_SELECT_GREEDY_F32",
+        ),
+        OpShaderBinding(
+            model="generated_qwen3_asr",
+            frame="token_store",
+            target="token_store",
+            shader="QWEN3_ASR_TOKEN_STORE_F32",
+        ),
     )
 )
 

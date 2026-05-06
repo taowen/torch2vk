@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.export.lowering import resolve_shader_symbol
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
+from models.generated_qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
+from models.generated_qwen3_asr.shaders.text_prefill_inputs_embeds_f32 import (
+    QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32,
+)
+from models.generated_qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
 from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTextPrefillTensors
 
 
@@ -26,7 +32,6 @@ def run_generated_qwen3_asr_text_prefill(
     *,
     pytorch_compare: bool = True,
 ) -> None:
-    del tensors
     frame_scope = qwen3_asr_frame(
         rt,
         "generated_qwen3_asr.text_prefill",
@@ -34,8 +39,38 @@ def run_generated_qwen3_asr_text_prefill(
         pytorch_model_submodule="thinker",
         pytorch_input_prefixes=("generated_qwen3_asr.text_prefill",),
     )
+    env: dict[str, object] = {field: getattr(tensors, field) for field in tensors.__dataclass_fields__}
+    if "hidden" not in env:
+        env["hidden"] = tensors.inputs_embeds
     with frame_scope:
-        raise NotImplementedError(
-            "Generated scaffold only: lower TEXT_PREFILL_TORCH_OPS to shader dispatches."
-        )
-
+        for step in TEXT_PREFILL_TORCH_OPS:
+            if step.target == "text_decoder_layer_loop":
+                raise NotImplementedError(
+                    "generated_qwen3_asr.text_prefill text_decoder_layer_loop lowering is not implemented yet"
+                )
+            shader = resolve_shader_symbol(model="generated_qwen3_asr", frame="text_prefill", op=step)
+            if shader == "QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32":
+                QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32(
+                    rt,
+                    input_ids=env[step.inputs[0]],
+                    embed_tokens_weight=env[step.inputs[1]],
+                    audio_features=env[step.inputs[2]],
+                    inputs_embeds=env[step.outputs[0]],
+                    audio_scatter_mask=env[step.outputs[1]],
+                )
+            elif shader == "QWEN3_ASR_TEXT_RMS_NORM_F32":
+                QWEN3_ASR_TEXT_RMS_NORM_F32(
+                    rt,
+                    x=env[step.inputs[0]],
+                    weight=env[step.inputs[1]],
+                    output=env[step.outputs[0]],
+                )
+            elif shader == "QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32":
+                QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32(
+                    rt,
+                    x=env[step.inputs[0]],
+                    weight=env[step.inputs[1]],
+                    output=env[step.outputs[0]],
+                )
+            else:
+                raise NotImplementedError(f"Unsupported generated text_prefill op: {step.target}")

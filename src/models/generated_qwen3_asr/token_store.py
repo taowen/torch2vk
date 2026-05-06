@@ -4,8 +4,13 @@
 from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.export.lowering import resolve_shader_symbol
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp
+from models.generated_qwen3_asr.shaders.token_store_f32 import (
+    QWEN3_ASR_TOKEN_STORE_EOS_F32,
+    QWEN3_ASR_TOKEN_STORE_F32,
+)
 from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTokenStoreTensors
 
 
@@ -25,8 +30,27 @@ def run_generated_qwen3_asr_token_store(
     *,
     stop_on_eos: bool,
 ) -> None:
-    del tensors, stop_on_eos
+    env = {
+        "next_token": tensors.next_token,
+        "token_index": tensors.token_index,
+        "done": tensors.done,
+        "generated_tokens": tensors.generated_tokens,
+        "generated_length": tensors.generated_length,
+        "stopped": tensors.stopped,
+    }
     with rt.frame("generated_qwen3_asr.token_store"):
-        raise NotImplementedError(
-            "Generated scaffold only: lower TOKEN_STORE_TORCH_OPS to token-store shader dispatches."
-        )
+        for step in TOKEN_STORE_TORCH_OPS:
+            shader = resolve_shader_symbol(model="generated_qwen3_asr", frame="token_store", op=step)
+            if shader == "QWEN3_ASR_TOKEN_STORE_F32":
+                variant = QWEN3_ASR_TOKEN_STORE_EOS_F32 if stop_on_eos else QWEN3_ASR_TOKEN_STORE_F32
+                variant(
+                    rt,
+                    next_token=env[step.inputs[0]],
+                    token_index=env[step.inputs[1]],
+                    done=env[step.inputs[2]],
+                    generated_tokens=env[step.outputs[0]],
+                    generated_length=env[step.outputs[1]],
+                    stopped=env[step.outputs[2]],
+                )
+            else:
+                raise NotImplementedError(f"Unsupported generated token_store op: {step.target}")
