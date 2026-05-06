@@ -66,15 +66,19 @@ def test_generated_omnivoice_input_embeddings_first_two_ops_match_pytorch(
             run_omnivoice_input_embeddings(
                 rt,
                 tensors,
-                max_ops=4,
+                max_ops=10,
                 pytorch_compare=False,
             )
-            is tensors.audio_mask_for_shift
+            is tensors.inputs_embeds
         )
 
-        assert [record.shader for record in rt.dispatch_records[-2:]] == [
+        assert [record.shader for record in rt.dispatch_records[-6:]] == [
             "omnivoice_aten_select_int_i64",
             "omnivoice_aten_embedding_f32",
+            "omnivoice_aten_shifted_ids_i64",
+            "omnivoice_aten_embedding_3d_f32",
+            "omnivoice_aten_sum_dim1_f32",
+            "omnivoice_aten_where_f32",
         ]
 
 

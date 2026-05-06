@@ -60,17 +60,19 @@ def test_generated_qwen3_asr_audio_tower_runs_first_ops_and_matches_pytorch(
 
         assert (
             run_generated_qwen3_asr_audio_tower(
-                rt, tensors, pytorch_compare=True, max_ops=5
+                rt, tensors, pytorch_compare=True, max_ops=7
             )
-            is tensors.conv_out
+            is tensors.hidden_states
         )
 
-        assert [record.shader for record in rt.dispatch_records[:5]] == [
+        assert [record.shader for record in rt.dispatch_records[:7]] == [
             "qwen3_asr_pad_feature_f32",
             "qwen3_asr_audio_tower_conv2d_gelu_f32",
             "qwen3_asr_audio_tower_conv2d_gelu_f32",
             "qwen3_asr_audio_tower_conv2d_gelu_f32",
             "qwen3_asr_audio_tower_conv_out_f32",
+            "qwen3_asr_audio_tower_add_position_f32",
+            "qwen3_asr_compact_after_cnn_f32",
         ]
         assert rt.compare_results
         assert all(result.passed for result in rt.compare_results)
