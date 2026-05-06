@@ -14,6 +14,7 @@ from torch2vk.vulkan.types import CONTIGUOUS_LAYOUT, TensorLayout, TensorSpec, d
 
 
 class TensorRole(StrEnum):
+    MISSING_VALUE = "missing_value"
     INPUT = "input"
     WEIGHT = "weight"
     ACTIVATION = "activation"
@@ -31,6 +32,7 @@ class TensorSemantic(StrEnum):
 
 
 class MemoryClass(StrEnum):
+    MISSING_VALUE = "missing_value"
     MODEL_WEIGHT = "model_weight"
     REQUEST_STATE = "request_state"
     FRAME_WORKSPACE = "frame_workspace"
@@ -40,11 +42,30 @@ class MemoryClass(StrEnum):
 
 
 class TensorLifetime(StrEnum):
+    MISSING_VALUE = "missing_value"
     MODEL = "model"
     REQUEST = "request"
     FRAME = "frame"
     OP = "op"
     EXTERNAL = "external"
+
+
+def default_memory_lifetime_for_role(
+    role: TensorRole,
+) -> tuple[MemoryClass, TensorLifetime] | None:
+    if role is TensorRole.WEIGHT:
+        return MemoryClass.MODEL_WEIGHT, TensorLifetime.MODEL
+    if role is TensorRole.INPUT:
+        return MemoryClass.HOST_INPUT, TensorLifetime.FRAME
+    if role is TensorRole.ACTIVATION:
+        return MemoryClass.FRAME_WORKSPACE, TensorLifetime.FRAME
+    if role is TensorRole.SCRATCH:
+        return MemoryClass.OP_SCRATCH, TensorLifetime.OP
+    if role is TensorRole.OUTPUT:
+        return MemoryClass.HOST_OUTPUT, TensorLifetime.FRAME
+    if role is TensorRole.STATE:
+        return MemoryClass.REQUEST_STATE, TensorLifetime.REQUEST
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,15 +165,34 @@ class LogicalTensor:
         self._writer = value
 
     def validate_declaration(self) -> None:
+        self.fill_missing_declaration_defaults()
         if not self.name:
             raise ValueError("LogicalTensor name must be non-empty")
         if any(part == "" for part in self.name.split(".")):
             raise ValueError(f"LogicalTensor name has an empty component: {self.name!r}")
+        if (
+            self.role is TensorRole.MISSING_VALUE
+            or self.memory is MemoryClass.MISSING_VALUE
+            or self.lifetime is TensorLifetime.MISSING_VALUE
+            or self.spec.dtype == "missing_value"
+            or "MISSING_VALUE" in self.spec.shape
+        ):
+            raise ValueError(f"{self.name} has unresolved missing LogicalTensor metadata")
         dtype_nbytes(self.spec.dtype)
         if not self.spec.shape:
             raise ValueError(f"{self.name} shape must have fixed rank")
         validate_tensor_layout(self.layout, self.spec.shape)
         _validate_role_memory_lifetime(self)
+
+    def fill_missing_declaration_defaults(self) -> None:
+        defaults = default_memory_lifetime_for_role(self.role)
+        if defaults is None:
+            return
+        memory, lifetime = defaults
+        if self.memory is MemoryClass.MISSING_VALUE:
+            self.memory = memory
+        if self.lifetime is TensorLifetime.MISSING_VALUE:
+            self.lifetime = lifetime
 
     @property
     def concrete_shape(self) -> tuple[int, ...]:
@@ -175,6 +215,12 @@ def _validate_role_memory_lifetime(tensor: LogicalTensor) -> None:
     role = tensor.role
     memory = tensor.memory
     lifetime = tensor.lifetime
+    if (
+        role is TensorRole.MISSING_VALUE
+        or memory is MemoryClass.MISSING_VALUE
+        or lifetime is TensorLifetime.MISSING_VALUE
+    ):
+        raise ValueError(f"{tensor.name} has unresolved missing LogicalTensor metadata")
     if role is TensorRole.ACTIVATION and (
         memory is not MemoryClass.FRAME_WORKSPACE or lifetime is not TensorLifetime.FRAME
     ):

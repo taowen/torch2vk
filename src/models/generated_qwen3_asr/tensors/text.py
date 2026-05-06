@@ -8,14 +8,19 @@ from dataclasses import dataclass
 from torch2vk.runtime.logical import (
     ComparePolicy,
     LogicalTensor,
-    MemoryClass,
     PyTorchProbe,
-    TensorLifetime,
-    TensorRole,
     TensorSemantic,
-    TensorSpec,
 )
 
+from models.generated_qwen3_asr.tensors._logical import (
+    comparable_activation_tensor as _comparable_activation,
+    input_tensor as _input,
+    request_output_tensor,
+    scratch_tensor as _scratch,
+    typed_activation_tensor as _activation,
+    typed_state_tensor as _state,
+    weight_tensor as _weight,
+)
 from models.generated_qwen3_asr.tensors.text_layer import (
     GeneratedQwen3AsrTextLayerTensors,
     declare_generated_qwen3_asr_text_layer_tensors,
@@ -65,7 +70,6 @@ class GeneratedQwen3AsrTokenSelectTensors:
     eos_token_ids: LogicalTensor
     next_token: LogicalTensor
     done: LogicalTensor
-    generated_tokens: LogicalTensor
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,12 +215,10 @@ def declare_generated_qwen3_asr_text_tensors(
             probe=PyTorchProbe(kind="module_output", target="model.norm"),
         ),
         lm_head_weight=_weight("thinker.lm_head.weight", (vocab_size, hidden_size)),
-        logits=LogicalTensor(
-            name="generated_qwen3_asr.text_prefill.logits",
-            spec=TensorSpec(dtype="float32", shape=(1, prompt_length, vocab_size)),
-            role=TensorRole.OUTPUT,
-            memory=MemoryClass.REQUEST_STATE,
-            lifetime=TensorLifetime.REQUEST,
+        logits=request_output_tensor(
+            "generated_qwen3_asr.text_prefill.logits",
+            "float32",
+            (1, prompt_length, vocab_size),
             semantic=TensorSemantic.LOGITS,
             compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
             pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),
@@ -258,19 +260,15 @@ def declare_generated_qwen3_asr_text_tensors(
             probe=PyTorchProbe(kind="module_output", target="model.norm"),
         ),
         lm_head_weight=_weight("thinker.lm_head.weight", (vocab_size, hidden_size)),
-        lm_head_select_scratch=LogicalTensor(
-            name="generated_qwen3_asr.text_decode.lm_head_select_scratch",
-            spec=TensorSpec(dtype="float32", shape=(2 * ((vocab_size + 3) // 4),)),
-            role=TensorRole.OUTPUT,
-            memory=MemoryClass.REQUEST_STATE,
-            lifetime=TensorLifetime.REQUEST,
+        lm_head_select_scratch=_scratch(
+            "generated_qwen3_asr.text_decode.lm_head_select_scratch",
+            "float32",
+            (2 * ((vocab_size + 3) // 4),),
         ),
-        logits=LogicalTensor(
-            name="generated_qwen3_asr.text_decode.logits",
-            spec=TensorSpec(dtype="float32", shape=(1, 1, vocab_size)),
-            role=TensorRole.OUTPUT,
-            memory=MemoryClass.REQUEST_STATE,
-            lifetime=TensorLifetime.REQUEST,
+        logits=request_output_tensor(
+            "generated_qwen3_asr.text_decode.logits",
+            "float32",
+            (1, 1, vocab_size),
             semantic=TensorSemantic.LOGITS,
             compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
             pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),
@@ -282,29 +280,19 @@ def declare_generated_qwen3_asr_text_tensors(
             "int64",
             (len(eos_token_ids),),
         ),
-        next_token=LogicalTensor(
-            name="generated_qwen3_asr.token_select.next_token",
-            spec=TensorSpec(dtype="int64", shape=(1,)),
-            role=TensorRole.OUTPUT,
-            memory=MemoryClass.REQUEST_STATE,
-            lifetime=TensorLifetime.REQUEST,
-            semantic=TensorSemantic.TOKEN,
-            compare=ComparePolicy(kind="token", rtol=0.0, atol=0.0),
-        ),
-        done=LogicalTensor(
-            name="generated_qwen3_asr.token_select.done",
-            spec=TensorSpec(dtype="uint32", shape=(1,)),
-            role=TensorRole.OUTPUT,
-            memory=MemoryClass.REQUEST_STATE,
-            lifetime=TensorLifetime.REQUEST,
-            semantic=TensorSemantic.TOKEN,
-            compare=ComparePolicy(kind="token", rtol=0.0, atol=0.0),
-        ),
-        generated_tokens=_state(
-            "generated_qwen3_asr.generated_tokens",
+        next_token=request_output_tensor(
+            "generated_qwen3_asr.token_select.next_token",
             "int64",
-            (1, 0),
+            (1,),
             semantic=TensorSemantic.TOKEN,
+            compare=ComparePolicy(kind="token", rtol=0.0, atol=0.0),
+        ),
+        done=request_output_tensor(
+            "generated_qwen3_asr.token_select.done",
+            "uint32",
+            (1,),
+            semantic=TensorSemantic.TOKEN,
+            compare=ComparePolicy(kind="token", rtol=0.0, atol=0.0),
         ),
     )
     token_store = GeneratedQwen3AsrTokenStoreTensors(
@@ -335,75 +323,4 @@ def declare_generated_qwen3_asr_text_tensors(
         decode=decode,
         token_select=token_select,
         token_store=token_store,
-    )
-
-
-def _weight(name: str, shape: tuple[int, ...]) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype="bfloat16", shape=shape),
-        role=TensorRole.WEIGHT,
-        memory=MemoryClass.MODEL_WEIGHT,
-        lifetime=TensorLifetime.MODEL,
-    )
-
-
-def _input(name: str, dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype=dtype, shape=shape),
-        role=TensorRole.INPUT,
-        memory=MemoryClass.HOST_INPUT,
-        lifetime=TensorLifetime.FRAME,
-    )
-
-
-def _state(
-    name: str,
-    dtype: str,
-    shape: tuple[int, ...],
-    *,
-    semantic: TensorSemantic | None = None,
-) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype=dtype, shape=shape),
-        role=TensorRole.STATE,
-        memory=MemoryClass.REQUEST_STATE,
-        lifetime=TensorLifetime.REQUEST,
-        semantic=semantic,
-    )
-
-
-def _activation(
-    name: str,
-    dtype: str,
-    shape: tuple[int, ...],
-    *,
-    semantic: TensorSemantic | None = None,
-) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype=dtype, shape=shape),
-        role=TensorRole.ACTIVATION,
-        memory=MemoryClass.FRAME_WORKSPACE,
-        lifetime=TensorLifetime.FRAME,
-        semantic=semantic,
-    )
-
-
-def _comparable_activation(
-    name: str,
-    shape: tuple[int, ...],
-    *,
-    probe: PyTorchProbe,
-) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype="float32", shape=shape),
-        role=TensorRole.ACTIVATION,
-        memory=MemoryClass.FRAME_WORKSPACE,
-        lifetime=TensorLifetime.FRAME,
-        compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-        pytorch_probe=probe,
     )

@@ -56,5 +56,18 @@ def run_omnivoice_audio_codec_decode(
     rt: RuntimeSession,
     tensors: OmniVoiceAudioCodecTensors,
 ) -> LogicalTensor:
-    del rt, tensors
-    raise NotImplementedError("Generated scaffold only: lower AUDIO_CODEC_DECODE_TORCH_OPS.")
+    with rt.frame("omnivoice.audio_codec_decode"):
+        OMNIVOICE_AUDIO_CODEC_DECODER_QUANTIZER_EMBED_SUM_F32(
+            rt,
+            output=tensors.decoder_input,
+            audio_ids=tensors.audio_tokens,
+            embed0=tensors.quantizer_embed0,
+            embed1=tensors.quantizer_embed1,
+            embed2=tensors.quantizer_embed2,
+            embed3=tensors.quantizer_embed3,
+            embed4=tensors.quantizer_embed4,
+            embed5=tensors.quantizer_embed5,
+            embed6=tensors.quantizer_embed6,
+            embed7=tensors.quantizer_embed7,
+        )
+    return tensors.decoder_input

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from torch2vk.runtime.logical import (
     ComparePolicy,
@@ -18,121 +19,10 @@ from torch2vk.runtime.logical import (
 from models.omnivoice.tensors.text_layer import OmniVoiceTextLayerTensors
 
 
-TEXT_PARAMETER_FIELDS = {
-{% for item in text_parameter_fields if item.source_parameter %}
-    "{{ item.field }}": "{{ item.source_parameter }}",
-{% endfor %}
-}
+{{ text_parameter_fields_source }}
 
 
-@dataclass(frozen=True, slots=True)
-class OmniVoiceTextPrefillTensors:
-    input_ids: LogicalTensor
-    audio_mask: LogicalTensor
-    attention_mask: LogicalTensor
-    position_ids: LogicalTensor
-    embed_tokens_weight: LogicalTensor
-    audio_embeddings_weight: LogicalTensor
-    codebook_layer_offsets: LogicalTensor
-    text_token_ids: LogicalTensor
-    text_embeds: LogicalTensor
-    audio_mask_for_shift: LogicalTensor
-    masked_audio_ids: LogicalTensor
-    codebook_layer_offsets_view: LogicalTensor
-    shifted_ids: LogicalTensor
-    audio_embedding_values: LogicalTensor
-    audio_embeds: LogicalTensor
-    audio_mask_expanded: LogicalTensor
-    inputs_embeds: LogicalTensor
-    layers: tuple[OmniVoiceTextLayerTensors, ...]
-    norm_weight: LogicalTensor
-    llm_hidden_states: LogicalTensor
-    final_norm: LogicalTensor
-    hidden_states: LogicalTensor
-
-
-@dataclass(frozen=True, slots=True)
-class OmniVoiceTextDecodeTensors:
-    input_ids: LogicalTensor
-    audio_mask: LogicalTensor
-    attention_mask: LogicalTensor
-    position_ids: LogicalTensor
-    cache_position: LogicalTensor
-    embed_tokens_weight: LogicalTensor
-    audio_embeddings_weight: LogicalTensor
-    codebook_layer_offsets: LogicalTensor
-    text_token_ids: LogicalTensor
-    text_embeds: LogicalTensor
-    audio_mask_for_shift: LogicalTensor
-    masked_audio_ids: LogicalTensor
-    codebook_layer_offsets_view: LogicalTensor
-    shifted_ids: LogicalTensor
-    audio_embedding_values: LogicalTensor
-    audio_embeds: LogicalTensor
-    audio_mask_expanded: LogicalTensor
-    inputs_embeds: LogicalTensor
-    layers: tuple[OmniVoiceTextLayerTensors, ...]
-    norm_weight: LogicalTensor
-    llm_hidden_states: LogicalTensor
-    final_norm: LogicalTensor
-    hidden_states: LogicalTensor
-
-
-@dataclass(frozen=True, slots=True)
-class OmniVoiceAudioHeadTensors:
-    hidden_states: LogicalTensor
-    audio_heads_weight: LogicalTensor
-    logits_flat: LogicalTensor
-    audio_logits_view: LogicalTensor
-    audio_logits: LogicalTensor
-
-
-@dataclass(frozen=True, slots=True)
-class OmniVoiceTokenSelectTensors:
-    cond_logits: LogicalTensor
-    uncond_logits: LogicalTensor
-    c_log_probs: LogicalTensor
-    u_log_probs: LogicalTensor
-    guided_logits: LogicalTensor
-    log_probs: LogicalTensor
-    masked_log_probs: LogicalTensor
-    filtered_probs: LogicalTensor
-    class_gumbel_uniform: LogicalTensor
-    class_gumbel_noise: LogicalTensor
-    class_sample_logits: LogicalTensor
-    pred_tokens: LogicalTensor
-    confidence_scores: LogicalTensor
-    layer_ids: LogicalTensor
-    position_scores: LogicalTensor
-    position_gumbel_uniform: LogicalTensor
-    position_gumbel_noise: LogicalTensor
-    current_tokens: LogicalTensor
-    topk_values: LogicalTensor
-    topk_indices: LogicalTensor
-    selected_positions: LogicalTensor
-    updated_tokens: LogicalTensor
-
-
-@dataclass(frozen=True, slots=True)
-class OmniVoiceTrainingLossTensors:
-    labels: LogicalTensor
-    logits_for_loss: LogicalTensor
-    per_token_loss: LogicalTensor
-    valid_mask: LogicalTensor
-    layer_loss_sum: LogicalTensor
-    layer_valid_count: LogicalTensor
-    layer_means: LogicalTensor
-    loss_weights: LogicalTensor
-    loss: LogicalTensor
-
-
-@dataclass(frozen=True, slots=True)
-class OmniVoiceTextTensors:
-    prefill: OmniVoiceTextPrefillTensors
-    decode: OmniVoiceTextDecodeTensors
-    audio_head: OmniVoiceAudioHeadTensors
-    token_select: OmniVoiceTokenSelectTensors
-    training_loss: OmniVoiceTrainingLossTensors | None
+{{ text_dataclasses_source }}
 
 
 def declare_omnivoice_text_tensors(
@@ -274,7 +164,7 @@ def _common_text_tensors(
     vocab_size: int,
     audio_vocab_size: int,
     num_audio_codebook: int,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     hidden_shape = (batch_size, sequence_length, hidden_size)
     return {
         "input_ids": _input(

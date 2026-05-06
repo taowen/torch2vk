@@ -48,7 +48,6 @@ def run_omnivoice_reference_prompt(
         pytorch_compare=pytorch_compare,
     )
     with frame_scope:
-        # Placeholder logical output for generated pipeline wiring.
         return LogicalTensor(
             name="omnivoice.reference_prompt.reference_text",
             spec=TensorSpec(dtype="int64", shape=(1, 1)),

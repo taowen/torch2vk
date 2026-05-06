@@ -26,19 +26,19 @@ from models.generated_qwen3_asr.tensors.text_layer import (
 )
 
 __all__ = [
-    "AUDIO_ENCODER_LAYER_PARAMETER_FIELDS",
     "AUDIO_TOWER_PARAMETER_FIELDS",
-    "TEXT_DECODER_LAYER_PARAMETER_FIELDS",
-    "GeneratedQwen3AsrAudioEncoderLayerTensors",
     "GeneratedQwen3AsrAudioTowerTensors",
+    "declare_generated_qwen3_asr_audio_tower_tensors",
+    "AUDIO_ENCODER_LAYER_PARAMETER_FIELDS",
+    "GeneratedQwen3AsrAudioEncoderLayerTensors",
+    "declare_generated_qwen3_asr_audio_encoder_layer_tensors",
     "GeneratedQwen3AsrTextDecodeTensors",
-    "GeneratedQwen3AsrTextLayerTensors",
     "GeneratedQwen3AsrTextPrefillTensors",
     "GeneratedQwen3AsrTextTensors",
     "GeneratedQwen3AsrTokenSelectTensors",
     "GeneratedQwen3AsrTokenStoreTensors",
-    "declare_generated_qwen3_asr_audio_encoder_layer_tensors",
-    "declare_generated_qwen3_asr_audio_tower_tensors",
-    "declare_generated_qwen3_asr_text_layer_tensors",
     "declare_generated_qwen3_asr_text_tensors",
+    "TEXT_DECODER_LAYER_PARAMETER_FIELDS",
+    "GeneratedQwen3AsrTextLayerTensors",
+    "declare_generated_qwen3_asr_text_layer_tensors",
 ]

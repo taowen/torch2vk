@@ -10,4 +10,5 @@ class TensorFieldPattern:
     field: str
     source_parameter: str | None = None
     note: str = ""
-
+    dtype: str | None = None
+    role: str | None = None

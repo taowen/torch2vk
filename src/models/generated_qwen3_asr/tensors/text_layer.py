@@ -6,62 +6,63 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
-    MemoryClass,
-    PyTorchProbe,
-    TensorLifetime,
-    TensorRole,
     TensorSemantic,
-    TensorSpec,
+)
+
+from models.generated_qwen3_asr.tensors._logical import (
+    activation_tensor as _activation,
+    probed_activation_tensor as _probed,
+    state_tensor as _state,
+    weight_tensor as _weight,
 )
 
 
 TEXT_DECODER_LAYER_PARAMETER_FIELDS = {
-    "input_layernorm_weight": "input_layernorm.weight",
-    "post_attention_layernorm_weight": "post_attention_layernorm.weight",
-    "q_norm_weight": "self_attn.q_norm.weight",
-    "k_norm_weight": "self_attn.k_norm.weight",
-    "q_proj_weight": "self_attn.q_proj.weight",
-    "k_proj_weight": "self_attn.k_proj.weight",
-    "v_proj_weight": "self_attn.v_proj.weight",
-    "o_proj_weight": "self_attn.o_proj.weight",
-    "gate_proj_weight": "mlp.gate_proj.weight",
-    "up_proj_weight": "mlp.up_proj.weight",
-    "down_proj_weight": "mlp.down_proj.weight",
+    'input_layernorm_weight': 'input_layernorm.weight',
+    'q_proj_weight': 'self_attn.q_proj.weight',
+    'k_proj_weight': 'self_attn.k_proj.weight',
+    'v_proj_weight': 'self_attn.v_proj.weight',
+    'q_norm_weight': 'self_attn.q_norm.weight',
+    'k_norm_weight': 'self_attn.k_norm.weight',
+    'o_proj_weight': 'self_attn.o_proj.weight',
+    'post_attention_layernorm_weight': 'post_attention_layernorm.weight',
+    'gate_proj_weight': 'mlp.gate_proj.weight',
+    'up_proj_weight': 'mlp.up_proj.weight',
+    'down_proj_weight': 'mlp.down_proj.weight',
 }
 
 
 @dataclass(frozen=True, slots=True)
 class GeneratedQwen3AsrTextLayerTensors:
     input_layernorm_weight: LogicalTensor
-    post_attention_layernorm_weight: LogicalTensor
-    q_norm_weight: LogicalTensor
-    k_norm_weight: LogicalTensor
-    q_proj_weight: LogicalTensor
-    k_proj_weight: LogicalTensor
-    v_proj_weight: LogicalTensor
-    o_proj_weight: LogicalTensor
-    gate_proj_weight: LogicalTensor
-    up_proj_weight: LogicalTensor
-    down_proj_weight: LogicalTensor
     input_layernorm: LogicalTensor
+    q_proj_weight: LogicalTensor
     q_proj: LogicalTensor
+    k_proj_weight: LogicalTensor
     k_proj: LogicalTensor
+    v_proj_weight: LogicalTensor
     v_proj: LogicalTensor
+    q_norm_weight: LogicalTensor
     q_normed: LogicalTensor
+    k_norm_weight: LogicalTensor
     k_normed: LogicalTensor
     q_roped: LogicalTensor
     k_roped: LogicalTensor
     key_cache: LogicalTensor
     value_cache: LogicalTensor
     attention: LogicalTensor
+    o_proj_weight: LogicalTensor
     o_proj: LogicalTensor
     attn_residual: LogicalTensor
+    post_attention_layernorm_weight: LogicalTensor
     post_attention_layernorm: LogicalTensor
+    gate_proj_weight: LogicalTensor
     gate_proj: LogicalTensor
+    up_proj_weight: LogicalTensor
     up_proj: LogicalTensor
     swiglu: LogicalTensor
+    down_proj_weight: LogicalTensor
     down_proj: LogicalTensor
     output: LogicalTensor
 
@@ -130,18 +131,12 @@ def declare_generated_qwen3_asr_text_layer_tensors(
             cache_shape,
             semantic=TensorSemantic.KV_CACHE,
         ),
-        attention=LogicalTensor(
-            name=f"{tensor_prefix}.self_attn",
-            spec=TensorSpec(dtype="float32", shape=(1, sequence_length, q_width)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(
-                kind="module_input",
-                target=f"model.layers.{layer}.self_attn.o_proj",
-                index=0,
-            ),
+        attention=_probed(
+            f"{tensor_prefix}.self_attn",
+            (1, sequence_length, q_width),
+            target=f"model.layers.{layer}.self_attn.o_proj",
+            kind="module_input",
+            index=0,
         ),
         o_proj=_probed(f"{tensor_prefix}.self_attn.o_proj", hidden_shape, target=f"model.layers.{layer}.self_attn.o_proj"),
         attn_residual=_activation(f"{tensor_prefix}.attn_residual", hidden_shape),
@@ -162,56 +157,9 @@ def declare_generated_qwen3_asr_text_layer_tensors(
         ),
         swiglu=_activation(f"{tensor_prefix}.mlp.swiglu", (1, sequence_length, intermediate_size)),
         down_proj=_probed(f"{tensor_prefix}.mlp.down_proj", hidden_shape, target=f"model.layers.{layer}.mlp.down_proj"),
-        output=LogicalTensor(
-            name=f"{tensor_prefix}.output",
-            spec=TensorSpec(dtype="float32", shape=hidden_shape),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target=f"model.layers.{layer}"),
+        output=_probed(
+            f"{tensor_prefix}.output",
+            hidden_shape,
+            target=f"model.layers.{layer}",
         ),
-    )
-
-
-def _weight(name: str, shape: tuple[int, ...]) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype="bfloat16", shape=shape),
-        role=TensorRole.WEIGHT,
-        memory=MemoryClass.MODEL_WEIGHT,
-        lifetime=TensorLifetime.MODEL,
-    )
-
-
-def _probed(name: str, shape: tuple[int, ...], *, target: str) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype="float32", shape=shape),
-        role=TensorRole.ACTIVATION,
-        memory=MemoryClass.FRAME_WORKSPACE,
-        lifetime=TensorLifetime.FRAME,
-        compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-        pytorch_probe=PyTorchProbe(kind="module_output", target=target),
-    )
-
-
-def _activation(name: str, shape: tuple[int, ...]) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype="float32", shape=shape),
-        role=TensorRole.ACTIVATION,
-        memory=MemoryClass.FRAME_WORKSPACE,
-        lifetime=TensorLifetime.FRAME,
-    )
-
-
-def _state(name: str, shape: tuple[int, ...], *, semantic: TensorSemantic) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype="float32", shape=shape),
-        role=TensorRole.STATE,
-        memory=MemoryClass.REQUEST_STATE,
-        lifetime=TensorLifetime.REQUEST,
-        semantic=semantic,
     )

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from torch2vk.runtime.shader import (
+from torch2vk.runtime.shader import (  # noqa: F401
     IOKind,
     ParamsBufferFieldSpec,
     ParamsBufferSpec,

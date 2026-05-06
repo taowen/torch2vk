@@ -19,6 +19,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+import torch2vk.export.shaders as export_shaders
 from torch2vk.export.exported_program import export_torch_program, iter_fx_call_function_nodes
 from torch2vk.export.graph import input_names, mapped_node_name
 from torch2vk.export.contract_codegen import (
@@ -26,10 +27,22 @@ from torch2vk.export.contract_codegen import (
     TensorFieldDecl,
     render_shader_contract_variant_body,
 )
+from torch2vk.export.logical_tensor_codegen import render_logical_tensor_helpers_file
+from torch2vk.export.protocols import FxNodeLike
 from torch2vk.export.reflection import (
     TorchModuleReflection,
     instantiate_torch_module_on_meta,
     reflect_torch_module,
+)
+from torch2vk.export.tensor_scaffold_codegen import (
+    LoweredOpContract,
+    TensorDataclassDecl,
+    TensorDataclassFieldDecl,
+    logical_tensor_dataclass_from_patterns,
+    render_parameter_fields_constant,
+    render_tensor_dataclass,
+    render_tensor_dataclasses,
+    tensor_scaffold_fields_from_lowered_ops,
 )
 from torch2vk.export.torch_ops import TensorFieldPattern
 from torch2vk.export.writer import (
@@ -39,6 +52,7 @@ from torch2vk.export.writer import (
     remove_stale_files,
     write_rendered_files,
 )
+from torch2vk.runtime.shader import ShaderVariant
 
 
 JsonObject = Mapping[str, object]
@@ -183,13 +197,78 @@ def build_omnivoice_pattern_context(
 ) -> dict[str, object]:
     if reflection is not None:
         _validate_reflected_source(reflection)
+    shader_variants = _export_shader_variants()
+    input_embedding_nodes = _input_embeddings_fx_nodes(config)
+    input_embedding_ops = _input_embeddings_ops_from_nodes(input_embedding_nodes)
+    input_embedding_contracts = _lowered_op_contracts(input_embedding_ops)
+    text_layer_ops = _text_layer_ops()
+    text_layer_fields = tensor_scaffold_fields_from_lowered_ops(
+        ops=_lowered_op_contracts(text_layer_ops),
+        shader_variants=shader_variants,
+        parameter_sources=_text_layer_parameter_sources(),
+        external_fields=("hidden", "rope_cos", "rope_sin", "cache_position"),
+        role_overrides={"key_cache": "state", "value_cache": "state"},
+    )
+    text_prefill_fields = _text_prefill_fields(
+        ops=input_embedding_contracts,
+        shader_variants=shader_variants,
+    )
+    text_decode_fields = _text_decode_fields(
+        ops=input_embedding_contracts,
+        shader_variants=shader_variants,
+    )
+    audio_codec_fields = _audio_codec_fields(config)
+    audio_codec_layer_fields = _audio_codec_layer_fields()
     return {
         "defaults": config.to_template_defaults(),
         "text_parameter_fields": _text_parameter_fields(),
-        "text_layer_fields": _text_layer_fields(),
-        "audio_codec_fields": _audio_codec_fields(),
-        "audio_codec_layer_fields": _audio_codec_layer_fields(),
-        "input_embeddings_ops": _input_embeddings_ops(config),
+        "text_layer_fields": text_layer_fields,
+        "audio_codec_fields": audio_codec_fields,
+        "audio_codec_layer_fields": audio_codec_layer_fields,
+        "text_parameter_fields_source": render_parameter_fields_constant(
+            "TEXT_PARAMETER_FIELDS",
+            _text_parameter_fields(),
+        ),
+        "text_dataclasses_source": render_tensor_dataclasses(
+            _text_tensor_dataclasses(
+                prefill_fields=text_prefill_fields,
+                decode_fields=text_decode_fields,
+            )
+        ),
+        "text_layer_parameter_fields_source": render_parameter_fields_constant(
+            "TEXT_DECODER_LAYER_PARAMETER_FIELDS",
+            text_layer_fields,
+        ),
+        "text_layer_dataclass_source": render_tensor_dataclass(
+            logical_tensor_dataclass_from_patterns(
+                class_name="OmniVoiceTextLayerTensors",
+                fields=text_layer_fields,
+            )
+        ),
+        "audio_codec_parameter_fields_source": render_parameter_fields_constant(
+            "AUDIO_CODEC_PARAMETER_FIELDS",
+            audio_codec_fields,
+        ),
+        "audio_codec_dataclass_source": render_tensor_dataclass(
+            logical_tensor_dataclass_from_patterns(
+                class_name="OmniVoiceAudioCodecTensors",
+                fields=audio_codec_fields,
+                annotation_overrides={
+                    "decoder_layers": "tuple[OmniVoiceAudioCodecDecoderLayerTensors, ...]"
+                },
+            )
+        ),
+        "audio_codec_layer_parameter_fields_source": render_parameter_fields_constant(
+            "AUDIO_CODEC_DECODER_LAYER_PARAMETER_FIELDS",
+            audio_codec_layer_fields,
+        ),
+        "audio_codec_layer_dataclass_source": render_tensor_dataclass(
+            logical_tensor_dataclass_from_patterns(
+                class_name="OmniVoiceAudioCodecDecoderLayerTensors",
+                fields=audio_codec_layer_fields,
+            )
+        ),
+        "input_embeddings_ops": input_embedding_ops,
         "text_prefill_ops": _text_prefill_ops(),
         "iterative_decode_ops": _iterative_decode_ops(),
         "token_select_ops": _token_select_ops(),
@@ -253,6 +332,7 @@ def _render_tensor_files(
     context: dict[str, object],
 ) -> list[RenderedFile]:
     return [
+        render_logical_tensor_helpers_file(relative_path="tensors/_logical.py"),
         renderer.render("omnivoice/tensors/__init__.py.j2", "tensors/__init__.py", **context),
         renderer.render("omnivoice/tensors/inference.py.j2", "tensors/inference.py", **context),
         renderer.render("omnivoice/tensors/text_layer.py.j2", "tensors/text_layer.py", **context),
@@ -326,71 +406,63 @@ def _text_parameter_fields() -> tuple[TensorFieldPattern, ...]:
     )
 
 
-def _text_layer_fields() -> tuple[TensorFieldPattern, ...]:
-    return (
-        TensorFieldPattern("input_layernorm_weight", "input_layernorm.weight"),
-        TensorFieldPattern("post_attention_layernorm_weight", "post_attention_layernorm.weight"),
-        TensorFieldPattern("q_norm_weight", "self_attn.q_norm.weight"),
-        TensorFieldPattern("k_norm_weight", "self_attn.k_norm.weight"),
-        TensorFieldPattern("q_proj_weight", "self_attn.q_proj.weight"),
-        TensorFieldPattern("k_proj_weight", "self_attn.k_proj.weight"),
-        TensorFieldPattern("v_proj_weight", "self_attn.v_proj.weight"),
-        TensorFieldPattern("o_proj_weight", "self_attn.o_proj.weight"),
-        TensorFieldPattern("gate_proj_weight", "mlp.gate_proj.weight"),
-        TensorFieldPattern("up_proj_weight", "mlp.up_proj.weight"),
-        TensorFieldPattern("down_proj_weight", "mlp.down_proj.weight"),
-        TensorFieldPattern("input_layernorm"),
-        TensorFieldPattern("q_proj"),
-        TensorFieldPattern("k_proj"),
-        TensorFieldPattern("v_proj"),
-        TensorFieldPattern("q_normed"),
-        TensorFieldPattern("k_normed"),
-        TensorFieldPattern("q_roped"),
-        TensorFieldPattern("k_roped"),
-        TensorFieldPattern("key_cache"),
-        TensorFieldPattern("value_cache"),
-        TensorFieldPattern("attention"),
-        TensorFieldPattern("o_proj"),
-        TensorFieldPattern("attn_residual"),
-        TensorFieldPattern("post_attention_layernorm"),
-        TensorFieldPattern("gate_proj"),
-        TensorFieldPattern("up_proj"),
-        TensorFieldPattern("swiglu"),
-        TensorFieldPattern("down_proj"),
-        TensorFieldPattern("output"),
-    )
+def _text_layer_parameter_sources() -> dict[str, str]:
+    return {
+        "input_layernorm_weight": "input_layernorm.weight",
+        "post_attention_layernorm_weight": "post_attention_layernorm.weight",
+        "q_norm_weight": "self_attn.q_norm.weight",
+        "k_norm_weight": "self_attn.k_norm.weight",
+        "q_proj_weight": "self_attn.q_proj.weight",
+        "k_proj_weight": "self_attn.k_proj.weight",
+        "v_proj_weight": "self_attn.v_proj.weight",
+        "o_proj_weight": "self_attn.o_proj.weight",
+        "gate_proj_weight": "mlp.gate_proj.weight",
+        "up_proj_weight": "mlp.up_proj.weight",
+        "down_proj_weight": "mlp.down_proj.weight",
+    }
 
 
-def _audio_codec_fields() -> tuple[TensorFieldPattern, ...]:
+def _audio_codec_fields(config: OmniVoiceExportConfig) -> tuple[TensorFieldPattern, ...]:
     return (
-        TensorFieldPattern("audio_tokens"),
-        TensorFieldPattern("quantizer_embeddings"),
-        TensorFieldPattern("decoder_input"),
+        TensorFieldPattern("audio_tokens", dtype="int32", role="input"),
+        *(
+            TensorFieldPattern(
+                f"quantizer_embed{index}",
+                f"quantizer.quantizers.{index}.codebook.embed",
+                dtype="float32",
+                role="weight",
+            )
+            for index in range(config.num_audio_codebook)
+        ),
+        TensorFieldPattern("decoder_input", dtype="float32", role="activation"),
         TensorFieldPattern("decoder_layers"),
-        TensorFieldPattern("decoder_hidden"),
-        TensorFieldPattern("projected_waveform"),
-        TensorFieldPattern("audio_waveform"),
+        TensorFieldPattern("decoder_hidden", dtype="float32", role="activation"),
+        TensorFieldPattern("projected_waveform", dtype="float32", role="activation"),
+        TensorFieldPattern("audio_waveform", dtype="float32", role="output"),
     )
 
 
 def _audio_codec_layer_fields() -> tuple[TensorFieldPattern, ...]:
     return (
-        TensorFieldPattern("conv1_weight"),
-        TensorFieldPattern("conv1_bias"),
-        TensorFieldPattern("conv7_weight"),
-        TensorFieldPattern("conv7_bias"),
-        TensorFieldPattern("deconv_weight"),
-        TensorFieldPattern("deconv_bias"),
-        TensorFieldPattern("decoder_hidden"),
-        TensorFieldPattern("snake_activation"),
-        TensorFieldPattern("decoder_residual"),
-        TensorFieldPattern("output"),
+        TensorFieldPattern("conv1_weight", "conv1.weight", dtype="float32", role="weight"),
+        TensorFieldPattern("conv1_bias", "conv1.bias", dtype="float32", role="weight"),
+        TensorFieldPattern("conv7_weight", "conv7.weight", dtype="float32", role="weight"),
+        TensorFieldPattern("conv7_bias", "conv7.bias", dtype="float32", role="weight"),
+        TensorFieldPattern("deconv_weight", "deconv.weight", dtype="float32", role="weight"),
+        TensorFieldPattern("deconv_bias", "deconv.bias", dtype="float32", role="weight"),
+        TensorFieldPattern("decoder_hidden", dtype="float32", role="activation"),
+        TensorFieldPattern("snake_activation", dtype="float32", role="activation"),
+        TensorFieldPattern("decoder_residual", dtype="float32", role="activation"),
+        TensorFieldPattern("output", dtype="float32", role="activation"),
     )
 
 
-def _input_embeddings_ops(config: OmniVoiceExportConfig) -> tuple[object, ...]:
-    exported_program = _export_input_embeddings_program(config)
-    names = {
+def _input_embeddings_fx_nodes(config: OmniVoiceExportConfig) -> tuple[FxNodeLike, ...]:
+    return iter_fx_call_function_nodes(_export_input_embeddings_program(config))
+
+
+def _input_embedding_name_map() -> dict[str, str]:
+    return {
         "p_embed_tokens_weight": "embed_tokens_weight",
         "p_audio_embeddings_weight": "audio_embeddings_weight",
         "b_codebook_layer_offsets": "codebook_layer_offsets",
@@ -407,8 +479,12 @@ def _input_embeddings_ops(config: OmniVoiceExportConfig) -> tuple[object, ...]:
         "unsqueeze_1": "audio_mask_expanded",
         "where": "inputs_embeds",
     }
+
+
+def _input_embeddings_ops_from_nodes(nodes: Sequence[FxNodeLike]) -> tuple[object, ...]:
+    names = _input_embedding_name_map()
     ops: list[object] = []
-    for node in iter_fx_call_function_nodes(exported_program):
+    for node in nodes:
         output = mapped_node_name(node, names)
         ops.append(
             _op(
@@ -417,8 +493,13 @@ def _input_embeddings_ops(config: OmniVoiceExportConfig) -> tuple[object, ...]:
                 outputs=(output,),
                 name=str(getattr(node, "name")),
                 op=str(getattr(node, "op")),
-                args=tuple(getattr(node, "args", ())),
-                kwargs=tuple((str(key), value) for key, value in getattr(node, "kwargs", {}).items()),
+                args=tuple(_serializable_fx_value(value, names) for value in getattr(node, "args", ())),
+                kwargs=tuple(
+                    (str(key), _serializable_fx_value(value, names))
+                    for key, value in getattr(node, "kwargs", {}).items()
+                ),
+                shape=_fx_node_shape(node),
+                dtype=_fx_node_dtype(node),
             )
         )
     return tuple(ops)
@@ -469,6 +550,311 @@ def _export_input_embeddings_program(config: OmniVoiceExportConfig) -> object:
         (example_input_ids, example_audio_mask),
         strict=False,
     )
+
+
+def _text_prefill_fields(
+    *,
+    ops: Sequence[LoweredOpContract],
+    shader_variants: Mapping[str, ShaderVariant],
+) -> tuple[TensorFieldPattern, ...]:
+    fields = _common_text_fields(ops=ops, shader_variants=shader_variants)
+    return _ordered_tensor_fields(
+        fields,
+        (
+            "input_ids",
+            "audio_mask",
+            "attention_mask",
+            "position_ids",
+            "embed_tokens_weight",
+            "audio_embeddings_weight",
+            "codebook_layer_offsets",
+            "text_token_ids",
+            "text_embeds",
+            "audio_mask_for_shift",
+            "masked_audio_ids",
+            "codebook_layer_offsets_view",
+            "shifted_ids",
+            "audio_embedding_values",
+            "audio_embeds",
+            "audio_mask_expanded",
+            "inputs_embeds",
+            "layers",
+            "norm_weight",
+            "llm_hidden_states",
+            "final_norm",
+            "hidden_states",
+        ),
+    )
+
+
+def _text_decode_fields(
+    *,
+    ops: Sequence[LoweredOpContract],
+    shader_variants: Mapping[str, ShaderVariant],
+) -> tuple[TensorFieldPattern, ...]:
+    fields = _common_text_fields(
+        ops=ops,
+        shader_variants=shader_variants,
+        extra_fields=(TensorFieldPattern("cache_position", dtype="int64", role="input"),),
+    )
+    return _ordered_tensor_fields(
+        fields,
+        (
+            "input_ids",
+            "audio_mask",
+            "attention_mask",
+            "position_ids",
+            "cache_position",
+            "embed_tokens_weight",
+            "audio_embeddings_weight",
+            "codebook_layer_offsets",
+            "text_token_ids",
+            "text_embeds",
+            "audio_mask_for_shift",
+            "masked_audio_ids",
+            "codebook_layer_offsets_view",
+            "shifted_ids",
+            "audio_embedding_values",
+            "audio_embeds",
+            "audio_mask_expanded",
+            "inputs_embeds",
+            "layers",
+            "norm_weight",
+            "llm_hidden_states",
+            "final_norm",
+            "hidden_states",
+        ),
+    )
+
+
+def _common_text_fields(
+    *,
+    ops: Sequence[LoweredOpContract],
+    shader_variants: Mapping[str, ShaderVariant],
+    extra_fields: Sequence[TensorFieldPattern] = (),
+) -> tuple[TensorFieldPattern, ...]:
+    return tensor_scaffold_fields_from_lowered_ops(
+        ops=ops,
+        shader_variants=shader_variants,
+        parameter_sources=_text_parameter_sources(),
+        extra_fields=(
+            TensorFieldPattern("attention_mask", dtype="uint32", role="input"),
+            TensorFieldPattern("position_ids", dtype="int64", role="input"),
+            TensorFieldPattern("layers"),
+            TensorFieldPattern("norm_weight", "llm.norm.weight", dtype="float32", role="weight"),
+            TensorFieldPattern("llm_hidden_states", dtype="float32", role="activation"),
+            TensorFieldPattern("final_norm", dtype="float32", role="activation"),
+            TensorFieldPattern("hidden_states", dtype="float32", role="activation"),
+            *extra_fields,
+        ),
+        role_overrides={
+            "text_token_ids": "output",
+            "text_embeds": "output",
+            "audio_embeds": "output",
+        },
+    )
+
+
+def _text_parameter_sources() -> dict[str, str]:
+    return {
+        field.field: field.source_parameter
+        for field in _text_parameter_fields()
+        if field.source_parameter is not None
+    }
+
+
+def _ordered_tensor_fields(
+    fields: Sequence[TensorFieldPattern],
+    order: Sequence[str],
+) -> tuple[TensorFieldPattern, ...]:
+    by_name = {field.field: field for field in fields}
+    ordered = [by_name.pop(name) for name in order if name in by_name]
+    ordered.extend(by_name.values())
+    return tuple(ordered)
+
+
+def _text_tensor_dataclasses(
+    *,
+    prefill_fields: Sequence[TensorFieldPattern],
+    decode_fields: Sequence[TensorFieldPattern],
+) -> tuple[TensorDataclassDecl, ...]:
+    audio_head_fields = (
+        TensorFieldPattern("hidden_states"),
+        TensorFieldPattern("audio_heads_weight"),
+        TensorFieldPattern("logits_flat"),
+        TensorFieldPattern("audio_logits_view"),
+        TensorFieldPattern("audio_logits"),
+    )
+    token_select_fields = (
+        TensorFieldPattern("cond_logits"),
+        TensorFieldPattern("uncond_logits"),
+        TensorFieldPattern("c_log_probs"),
+        TensorFieldPattern("u_log_probs"),
+        TensorFieldPattern("guided_logits"),
+        TensorFieldPattern("log_probs"),
+        TensorFieldPattern("masked_log_probs"),
+        TensorFieldPattern("filtered_probs"),
+        TensorFieldPattern("class_gumbel_uniform"),
+        TensorFieldPattern("class_gumbel_noise"),
+        TensorFieldPattern("class_sample_logits"),
+        TensorFieldPattern("pred_tokens"),
+        TensorFieldPattern("confidence_scores"),
+        TensorFieldPattern("layer_ids"),
+        TensorFieldPattern("position_scores"),
+        TensorFieldPattern("position_gumbel_uniform"),
+        TensorFieldPattern("position_gumbel_noise"),
+        TensorFieldPattern("current_tokens"),
+        TensorFieldPattern("topk_values"),
+        TensorFieldPattern("topk_indices"),
+        TensorFieldPattern("selected_positions"),
+        TensorFieldPattern("updated_tokens"),
+    )
+    training_loss_fields = (
+        TensorFieldPattern("labels"),
+        TensorFieldPattern("logits_for_loss"),
+        TensorFieldPattern("per_token_loss"),
+        TensorFieldPattern("valid_mask"),
+        TensorFieldPattern("layer_loss_sum"),
+        TensorFieldPattern("layer_valid_count"),
+        TensorFieldPattern("layer_means"),
+        TensorFieldPattern("loss_weights"),
+        TensorFieldPattern("loss"),
+    )
+    return (
+        logical_tensor_dataclass_from_patterns(
+            class_name="OmniVoiceTextPrefillTensors",
+            fields=prefill_fields,
+            annotation_overrides={"layers": "tuple[OmniVoiceTextLayerTensors, ...]"},
+        ),
+        logical_tensor_dataclass_from_patterns(
+            class_name="OmniVoiceTextDecodeTensors",
+            fields=decode_fields,
+            annotation_overrides={"layers": "tuple[OmniVoiceTextLayerTensors, ...]"},
+        ),
+        logical_tensor_dataclass_from_patterns(
+            class_name="OmniVoiceAudioHeadTensors",
+            fields=audio_head_fields,
+        ),
+        logical_tensor_dataclass_from_patterns(
+            class_name="OmniVoiceTokenSelectTensors",
+            fields=token_select_fields,
+        ),
+        logical_tensor_dataclass_from_patterns(
+            class_name="OmniVoiceTrainingLossTensors",
+            fields=training_loss_fields,
+        ),
+        TensorDataclassDecl(
+            "OmniVoiceTextTensors",
+            (
+                TensorDataclassFieldDecl("prefill", "OmniVoiceTextPrefillTensors"),
+                TensorDataclassFieldDecl("decode", "OmniVoiceTextDecodeTensors"),
+                TensorDataclassFieldDecl("audio_head", "OmniVoiceAudioHeadTensors"),
+                TensorDataclassFieldDecl("token_select", "OmniVoiceTokenSelectTensors"),
+                TensorDataclassFieldDecl("training_loss", "OmniVoiceTrainingLossTensors | None"),
+            ),
+        ),
+    )
+
+
+def _text_layer_ops() -> tuple[object, ...]:
+    return (
+        _op("aten.rms_norm.default", ("hidden", "input_layernorm_weight"), ("input_layernorm",)),
+        _op("aten.linear.default", ("input_layernorm", "q_proj_weight"), ("q_proj",)),
+        _op("aten.linear.default", ("input_layernorm", "k_proj_weight"), ("k_proj",)),
+        _op("aten.linear.default", ("input_layernorm", "v_proj_weight"), ("v_proj",)),
+        _op("aten.torch2vk.text_qk_norm.default", ("q_proj", "q_norm_weight"), ("q_normed",)),
+        _op("aten.torch2vk.text_qk_norm.default", ("k_proj", "k_norm_weight"), ("k_normed",)),
+        _op("aten.torch2vk.text_rope.default", ("q_normed", "rope_cos", "rope_sin"), ("q_roped",)),
+        _op("aten.torch2vk.text_rope.default", ("k_normed", "rope_cos", "rope_sin"), ("k_roped",)),
+        _op(
+            "aten.torch2vk.text_kv_cache_write.default",
+            ("k_roped", "v_proj", "key_cache", "value_cache"),
+            ("key_cache", "value_cache"),
+        ),
+        _op(
+            "aten.torch2vk.text_attention.default",
+            ("q_roped", "key_cache", "value_cache"),
+            ("attention",),
+        ),
+        _op("aten.linear.default", ("attention", "o_proj_weight"), ("o_proj",)),
+        _op("aten.add.Tensor", ("hidden", "o_proj"), ("attn_residual",)),
+        _op(
+            "aten.rms_norm.default",
+            ("attn_residual", "post_attention_layernorm_weight"),
+            ("post_attention_layernorm",),
+        ),
+        _op(
+            "aten.linear.default",
+            ("post_attention_layernorm", "gate_proj_weight"),
+            ("gate_proj",),
+        ),
+        _op("aten.linear.default", ("post_attention_layernorm", "up_proj_weight"), ("up_proj",)),
+        _op("aten.torch2vk.text_swiglu.default", ("gate_proj", "up_proj"), ("swiglu",)),
+        _op("aten.linear.default", ("swiglu", "down_proj_weight"), ("down_proj",)),
+        _op("aten.add.Tensor", ("attn_residual", "down_proj"), ("output",)),
+    )
+
+
+def _lowered_op_contracts(ops: Sequence[object]) -> tuple[LoweredOpContract, ...]:
+    contracts: list[LoweredOpContract] = []
+    for op in ops:
+        contracts.append(
+            (
+                str(getattr(op, "target")),
+                tuple(str(item) for item in getattr(op, "inputs")),
+                tuple(str(item) for item in getattr(op, "outputs")),
+            )
+        )
+    return tuple(contracts)
+
+
+def _export_shader_variants() -> dict[str, ShaderVariant]:
+    return {
+        name: value
+        for name in export_shaders.__all__
+        if isinstance(value := getattr(export_shaders, name), ShaderVariant)
+    }
+
+
+def _fx_node_shape(node: FxNodeLike) -> tuple[int, ...] | None:
+    tensor_meta = _fx_node_tensor_meta(node)
+    if tensor_meta is None:
+        return None
+    shape = getattr(tensor_meta, "shape", None)
+    if shape is None:
+        return None
+    return tuple(int(dim) for dim in shape)
+
+
+def _fx_node_dtype(node: FxNodeLike) -> str | None:
+    tensor_meta = _fx_node_tensor_meta(node)
+    if tensor_meta is None:
+        return None
+    dtype = getattr(tensor_meta, "dtype", None)
+    if dtype is None:
+        return None
+    return str(dtype).removeprefix("torch.")
+
+
+def _fx_node_tensor_meta(node: FxNodeLike) -> object | None:
+    meta = node.meta
+    return meta.get("tensor_meta")
+
+
+def _serializable_fx_value(value: object, names: Mapping[str, str]) -> object:
+    if _is_fx_node_like(value):
+        return mapped_node_name(value, names)
+    if isinstance(value, tuple):
+        return tuple(_serializable_fx_value(item, names) for item in value)
+    if isinstance(value, list):
+        return [_serializable_fx_value(item, names) for item in value]
+    if isinstance(value, dict):
+        return {key: _serializable_fx_value(item, names) for key, item in value.items()}
+    return value
+
+
+def _is_fx_node_like(value: object) -> bool:
+    return hasattr(value, "op") and hasattr(value, "target") and hasattr(value, "name")
 
 
 def _text_prefill_ops() -> tuple[object, ...]:
@@ -621,6 +1007,7 @@ def _shader_modules() -> tuple[ShaderModulePattern, ...]:
             "OMNIVOICE_AUDIO_CODEC_DECODER_QUANTIZER_EMBED_SUM_F32",
             "audio_codec_decoder_quantizer_embed_sum_f32.glsl",
             family="omnivoice.audio_codec",
+            variant_body=_audio_codec_quantizer_embed_sum_variant_body(),
         ),
         _single_shader_module(
             "OMNIVOICE_AUDIO_CODEC_DECODER_QUANTIZER_EMBED_PROJECT_OUT_SUM_F32",
@@ -974,6 +1361,34 @@ def _token_select_argmax_select_apply_variant_body(
         ),
         params_size=16,
         params_binding_index=8,
+    )
+
+
+def _audio_codec_quantizer_embed_sum_variant_body() -> str:
+    return render_shader_contract_variant_body(
+        class_name="OmniVoiceAudioCodecDecoderQuantizerEmbedSumF32Program",
+        shader_name="omnivoice_audio_codec_decoder_quantizer_embed_sum_f32",
+        tensor_fields=(
+            TensorFieldDecl("output", "OUTPUT", "output", "float32", ("B", "D", "S")),
+            TensorFieldDecl("audio_ids", "INPUT", "audio_ids", "int32", ("B", 8, "S")),
+            TensorFieldDecl("embed0", "INPUT", "embed0", "float32", ("V", "D")),
+            TensorFieldDecl("embed1", "INPUT", "embed1", "float32", ("V", "D")),
+            TensorFieldDecl("embed2", "INPUT", "embed2", "float32", ("V", "D")),
+            TensorFieldDecl("embed3", "INPUT", "embed3", "float32", ("V", "D")),
+            TensorFieldDecl("embed4", "INPUT", "embed4", "float32", ("V", "D")),
+            TensorFieldDecl("embed5", "INPUT", "embed5", "float32", ("V", "D")),
+            TensorFieldDecl("embed6", "INPUT", "embed6", "float32", ("V", "D")),
+            TensorFieldDecl("embed7", "INPUT", "embed7", "float32", ("V", "D")),
+        ),
+        dispatch=("D", "S", "B"),
+        params_fields=(
+            ParamsFieldDecl("steps", "UINT32", 0, "S"),
+            ParamsFieldDecl("batches", "UINT32", 4, "B"),
+            ParamsFieldDecl("dims", "UINT32", 8, "D"),
+            ParamsFieldDecl("vocab", "UINT32", 12, "V"),
+        ),
+        params_size=16,
+        params_binding_index=10,
     )
 
 

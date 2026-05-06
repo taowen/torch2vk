@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from torch2vk.runtime.logical import (
     ComparePolicy,
@@ -20,11 +21,11 @@ from models.omnivoice.tensors.text_layer import OmniVoiceTextLayerTensors
 
 
 TEXT_PARAMETER_FIELDS = {
-    "embed_tokens_weight": "llm.embed_tokens.weight",
-    "audio_embeddings_weight": "audio_embeddings.weight",
-    "codebook_layer_offsets": "codebook_layer_offsets",
-    "norm_weight": "llm.norm.weight",
-    "audio_heads_weight": "audio_heads.weight",
+    'embed_tokens_weight': 'llm.embed_tokens.weight',
+    'audio_embeddings_weight': 'audio_embeddings.weight',
+    'codebook_layer_offsets': 'codebook_layer_offsets',
+    'norm_weight': 'llm.norm.weight',
+    'audio_heads_weight': 'audio_heads.weight',
 }
 
 
@@ -203,6 +204,7 @@ def declare_omnivoice_text_tensors(
             memory=MemoryClass.HOST_OUTPUT,
             lifetime=TensorLifetime.FRAME,
             semantic=TensorSemantic.LOGITS,
+            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
         ),
     )
     return OmniVoiceTextTensors(
@@ -276,7 +278,7 @@ def _common_text_tensors(
     vocab_size: int,
     audio_vocab_size: int,
     num_audio_codebook: int,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     hidden_shape = (batch_size, sequence_length, hidden_size)
     return {
         "input_ids": _input(

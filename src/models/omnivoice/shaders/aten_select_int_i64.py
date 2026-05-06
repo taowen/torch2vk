@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from torch2vk.runtime.shader import (
+from torch2vk.runtime.shader import (  # noqa: F401
     IOKind,
     ParamsBufferFieldSpec,
     ParamsBufferSpec,
@@ -19,7 +19,7 @@ from torch2vk.runtime.shader import (
 )
 
 
-OMNIVOICE_ATEN_SELECT_INT_I64 = ShaderVariant(
+ATEN_SELECT_INT_I64 = ShaderVariant(
     name="omnivoice_aten_select_int_i64",
     family="aten",
     contract=ShaderContract(

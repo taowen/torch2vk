@@ -5,28 +5,27 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from torch2vk.runtime.logical import (
-    LogicalTensor,
-    MemoryClass,
-    TensorLifetime,
-    TensorRole,
-    TensorSemantic,
-)
-from torch2vk.vulkan.types import TensorSpec
+from torch2vk.runtime.logical import LogicalTensor, TensorSemantic
 
+from models.omnivoice.tensors._logical import (
+    activation_tensor as _activation,
+    host_output_tensor as _host_output,
+    input_tensor as _input,
+    weight_tensor as _weight,
+)
 from models.omnivoice.tensors.audio_codec_layer import OmniVoiceAudioCodecDecoderLayerTensors
 from models.omnivoice.tensors.audio_codec_layer import declare_omnivoice_audio_codec_decoder_layer_tensors
 
 
 AUDIO_CODEC_PARAMETER_FIELDS = {
-    "quantizer_embed0": "quantizer.quantizers.0.codebook.embed",
-    "quantizer_embed1": "quantizer.quantizers.1.codebook.embed",
-    "quantizer_embed2": "quantizer.quantizers.2.codebook.embed",
-    "quantizer_embed3": "quantizer.quantizers.3.codebook.embed",
-    "quantizer_embed4": "quantizer.quantizers.4.codebook.embed",
-    "quantizer_embed5": "quantizer.quantizers.5.codebook.embed",
-    "quantizer_embed6": "quantizer.quantizers.6.codebook.embed",
-    "quantizer_embed7": "quantizer.quantizers.7.codebook.embed",
+    'quantizer_embed0': 'quantizer.quantizers.0.codebook.embed',
+    'quantizer_embed1': 'quantizer.quantizers.1.codebook.embed',
+    'quantizer_embed2': 'quantizer.quantizers.2.codebook.embed',
+    'quantizer_embed3': 'quantizer.quantizers.3.codebook.embed',
+    'quantizer_embed4': 'quantizer.quantizers.4.codebook.embed',
+    'quantizer_embed5': 'quantizer.quantizers.5.codebook.embed',
+    'quantizer_embed6': 'quantizer.quantizers.6.codebook.embed',
+    'quantizer_embed7': 'quantizer.quantizers.7.codebook.embed',
 }
 
 
@@ -64,13 +63,10 @@ def declare_omnivoice_audio_codec_tensors(
         for layer in range(5)
     )
     return OmniVoiceAudioCodecTensors(
-        audio_tokens=LogicalTensor(
-            name="omnivoice.audio_codec.audio_tokens",
-            spec=TensorSpec(dtype="int32", shape=(1, num_audio_codebook, audio_token_length)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            semantic=TensorSemantic.TOKEN,
+        audio_tokens=_input(
+            "omnivoice.audio_codec.audio_tokens",
+            "int32",
+            (1, num_audio_codebook, audio_token_length),
         ),
         quantizer_embed0=_quantizer_embed("quantizer.quantizers.0.codebook.embed", channels),
         quantizer_embed1=_quantizer_embed("quantizer.quantizers.1.codebook.embed", channels),
@@ -80,45 +76,32 @@ def declare_omnivoice_audio_codec_tensors(
         quantizer_embed5=_quantizer_embed("quantizer.quantizers.5.codebook.embed", channels),
         quantizer_embed6=_quantizer_embed("quantizer.quantizers.6.codebook.embed", channels),
         quantizer_embed7=_quantizer_embed("quantizer.quantizers.7.codebook.embed", channels),
-        decoder_input=LogicalTensor(
-            name="omnivoice.audio_codec.decoder_input",
-            spec=TensorSpec(dtype="float32", shape=(1, channels, audio_token_length)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
+        decoder_input=_activation(
+            "omnivoice.audio_codec.decoder_input",
+            (1, channels, audio_token_length),
         ),
         decoder_layers=decoder_layers,
-        decoder_hidden=LogicalTensor(
-            name="omnivoice.audio_codec.decoder_hidden",
-            spec=TensorSpec(dtype="float32", shape=(1, channels, audio_token_length)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
+        decoder_hidden=_activation(
+            "omnivoice.audio_codec.decoder_hidden",
+            (1, channels, audio_token_length),
         ),
-        projected_waveform=LogicalTensor(
-            name="omnivoice.audio_codec.projected_waveform",
-            spec=TensorSpec(dtype="float32", shape=(1, audio_sample_length)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
+        projected_waveform=_activation(
+            "omnivoice.audio_codec.projected_waveform",
+            (1, audio_sample_length),
         ),
-        audio_waveform=LogicalTensor(
-            name="omnivoice.audio_codec.audio_waveform",
-            spec=TensorSpec(dtype="float32", shape=(1, audio_sample_length)),
-            role=TensorRole.OUTPUT,
-            memory=MemoryClass.HOST_OUTPUT,
-            lifetime=TensorLifetime.FRAME,
+        audio_waveform=_host_output(
+            "omnivoice.audio_codec.audio_waveform",
+            "float32",
+            (1, audio_sample_length),
             semantic=TensorSemantic.WAVEFORM,
         ),
     )
 
 
 def _quantizer_embed(name: str, channels: int) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype="float32", shape=(1024, channels)),
-        role=TensorRole.WEIGHT,
-        memory=MemoryClass.MODEL_WEIGHT,
-        lifetime=TensorLifetime.MODEL,
+    return _weight(
+        name,
+        (1024, channels),
+        dtype="float32",
         checkpoint="audio_tokenizer/model.safetensors",
     )

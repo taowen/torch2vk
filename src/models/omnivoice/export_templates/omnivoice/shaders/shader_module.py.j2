@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 {% if module.variants[0].variant_body %}
-from torch2vk.runtime.shader import (
+from torch2vk.runtime.shader import (  # noqa: F401
     IOKind,
     ParamsBufferFieldSpec,
     ParamsBufferSpec,

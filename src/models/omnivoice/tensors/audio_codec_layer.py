@@ -5,22 +5,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from torch2vk.runtime.logical import (
-    LogicalTensor,
-    MemoryClass,
-    TensorLifetime,
-    TensorRole,
+from torch2vk.runtime.logical import LogicalTensor
+
+from models.omnivoice.tensors._logical import (
+    activation_tensor as _activation,
+    weight_tensor as _weight,
 )
-from torch2vk.vulkan.types import TensorSpec
 
 
 AUDIO_CODEC_DECODER_LAYER_PARAMETER_FIELDS = {
-    "conv1_weight": "conv1.weight",
-    "conv1_bias": "conv1.bias",
-    "conv7_weight": "conv7.weight",
-    "conv7_bias": "conv7.bias",
-    "deconv_weight": "deconv.weight",
-    "deconv_bias": "deconv.bias",
+    'conv1_weight': 'conv1.weight',
+    'conv1_bias': 'conv1.bias',
+    'conv7_weight': 'conv7.weight',
+    'conv7_bias': 'conv7.bias',
+    'deconv_weight': 'deconv.weight',
+    'deconv_bias': 'deconv.bias',
 }
 
 
@@ -44,47 +43,30 @@ def declare_omnivoice_audio_codec_decoder_layer_tensors(
     channel_count: int,
     sequence_length: int,
 ) -> OmniVoiceAudioCodecDecoderLayerTensors:
+    weight_prefix = f"audio_codec.decoder.layers.{layer}"
+    tensor_prefix = f"omnivoice.audio_codec.layer{layer}"
+    hidden_shape = (1, channel_count, sequence_length)
     return OmniVoiceAudioCodecDecoderLayerTensors(
-        conv1_weight=_weight(f"audio_codec.decoder.layers.{layer}.conv1.weight", (channel_count, channel_count)),
-        conv1_bias=_weight(f"audio_codec.decoder.layers.{layer}.conv1.bias", (channel_count,)),
-        conv7_weight=_weight(f"audio_codec.decoder.layers.{layer}.conv7.weight", (channel_count, channel_count, 7)),
-        conv7_bias=_weight(f"audio_codec.decoder.layers.{layer}.conv7.bias", (channel_count,)),
-        deconv_weight=_weight(f"audio_codec.decoder.layers.{layer}.deconv.weight", (channel_count, channel_count, 2)),
-        deconv_bias=_weight(f"audio_codec.decoder.layers.{layer}.deconv.bias", (channel_count,)),
-        decoder_hidden=_activation(
-            f"omnivoice.audio_codec.layer{layer}.decoder_hidden",
-            (1, channel_count, sequence_length),
+        conv1_weight=_weight(
+            f"{weight_prefix}.conv1.weight",
+            (channel_count, channel_count),
+            dtype="float32",
         ),
-        snake_activation=_activation(
-            f"omnivoice.audio_codec.layer{layer}.snake_activation",
-            (1, channel_count, sequence_length),
+        conv1_bias=_weight(f"{weight_prefix}.conv1.bias", (channel_count,), dtype="float32"),
+        conv7_weight=_weight(
+            f"{weight_prefix}.conv7.weight",
+            (channel_count, channel_count, 7),
+            dtype="float32",
         ),
-        decoder_residual=_activation(
-            f"omnivoice.audio_codec.layer{layer}.decoder_residual",
-            (1, channel_count, sequence_length),
+        conv7_bias=_weight(f"{weight_prefix}.conv7.bias", (channel_count,), dtype="float32"),
+        deconv_weight=_weight(
+            f"{weight_prefix}.deconv.weight",
+            (channel_count, channel_count, 2),
+            dtype="float32",
         ),
-        output=_activation(
-            f"omnivoice.audio_codec.layer{layer}.output",
-            (1, channel_count, sequence_length),
-        ),
-    )
-
-
-def _weight(name: str, shape: tuple[int, ...]) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype="float32", shape=shape),
-        role=TensorRole.WEIGHT,
-        memory=MemoryClass.MODEL_WEIGHT,
-        lifetime=TensorLifetime.MODEL,
-    )
-
-
-def _activation(name: str, shape: tuple[int, ...]) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype="float32", shape=shape),
-        role=TensorRole.ACTIVATION,
-        memory=MemoryClass.FRAME_WORKSPACE,
-        lifetime=TensorLifetime.FRAME,
+        deconv_bias=_weight(f"{weight_prefix}.deconv.bias", (channel_count,), dtype="float32"),
+        decoder_hidden=_activation(f"{tensor_prefix}.decoder_hidden", hidden_shape),
+        snake_activation=_activation(f"{tensor_prefix}.snake_activation", hidden_shape),
+        decoder_residual=_activation(f"{tensor_prefix}.decoder_residual", hidden_shape),
+        output=_activation(f"{tensor_prefix}.output", hidden_shape),
     )

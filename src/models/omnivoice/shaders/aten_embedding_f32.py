@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from torch2vk.runtime.shader import (
+from torch2vk.runtime.shader import (  # noqa: F401
     IOKind,
     ParamsBufferFieldSpec,
     ParamsBufferSpec,
@@ -19,7 +19,7 @@ from torch2vk.runtime.shader import (
 )
 
 
-OMNIVOICE_ATEN_EMBEDDING_F32 = ShaderVariant(
+ATEN_EMBEDDING_F32 = ShaderVariant(
     name="omnivoice_aten_embedding_f32",
     family="omnivoice.text",
     contract=ShaderContract(

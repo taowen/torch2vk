@@ -6,33 +6,34 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
-    MemoryClass,
     PyTorchProbe,
-    TensorLifetime,
-    TensorRole,
-    TensorSpec,
+)
+
+from models.generated_qwen3_asr.tensors._logical import (
+    activation_tensor as activation,
+    comparable_activation_tensor as comparable_activation,
+    weight_tensor as weight,
 )
 
 
 AUDIO_ENCODER_LAYER_PARAMETER_FIELDS = {
-    "self_attn_layer_norm_weight": "self_attn_layer_norm.weight",
-    "self_attn_layer_norm_bias": "self_attn_layer_norm.bias",
-    "q_proj_weight": "self_attn.q_proj.weight",
-    "q_proj_bias": "self_attn.q_proj.bias",
-    "k_proj_weight": "self_attn.k_proj.weight",
-    "k_proj_bias": "self_attn.k_proj.bias",
-    "v_proj_weight": "self_attn.v_proj.weight",
-    "v_proj_bias": "self_attn.v_proj.bias",
-    "out_proj_weight": "self_attn.out_proj.weight",
-    "out_proj_bias": "self_attn.out_proj.bias",
-    "final_layer_norm_weight": "final_layer_norm.weight",
-    "final_layer_norm_bias": "final_layer_norm.bias",
-    "fc1_weight": "fc1.weight",
-    "fc1_bias": "fc1.bias",
-    "fc2_weight": "fc2.weight",
-    "fc2_bias": "fc2.bias",
+    'self_attn_layer_norm_weight': 'self_attn_layer_norm.weight',
+    'self_attn_layer_norm_bias': 'self_attn_layer_norm.bias',
+    'q_proj_weight': 'self_attn.q_proj.weight',
+    'q_proj_bias': 'self_attn.q_proj.bias',
+    'k_proj_weight': 'self_attn.k_proj.weight',
+    'k_proj_bias': 'self_attn.k_proj.bias',
+    'v_proj_weight': 'self_attn.v_proj.weight',
+    'v_proj_bias': 'self_attn.v_proj.bias',
+    'out_proj_weight': 'self_attn.out_proj.weight',
+    'out_proj_bias': 'self_attn.out_proj.bias',
+    'final_layer_norm_weight': 'final_layer_norm.weight',
+    'final_layer_norm_bias': 'final_layer_norm.bias',
+    'fc1_weight': 'fc1.weight',
+    'fc1_bias': 'fc1.bias',
+    'fc2_weight': 'fc2.weight',
+    'fc2_bias': 'fc2.bias',
 }
 
 
@@ -40,29 +41,29 @@ AUDIO_ENCODER_LAYER_PARAMETER_FIELDS = {
 class GeneratedQwen3AsrAudioEncoderLayerTensors:
     self_attn_layer_norm_weight: LogicalTensor
     self_attn_layer_norm_bias: LogicalTensor
+    self_attn_layer_norm: LogicalTensor
     q_proj_weight: LogicalTensor
     q_proj_bias: LogicalTensor
+    q_proj: LogicalTensor
     k_proj_weight: LogicalTensor
     k_proj_bias: LogicalTensor
+    k_proj: LogicalTensor
     v_proj_weight: LogicalTensor
     v_proj_bias: LogicalTensor
-    out_proj_weight: LogicalTensor
-    out_proj_bias: LogicalTensor
-    final_layer_norm_weight: LogicalTensor
-    final_layer_norm_bias: LogicalTensor
-    fc1_weight: LogicalTensor
-    fc1_bias: LogicalTensor
-    fc2_weight: LogicalTensor
-    fc2_bias: LogicalTensor
-    self_attn_layer_norm: LogicalTensor
-    q_proj: LogicalTensor
-    k_proj: LogicalTensor
     v_proj: LogicalTensor
     self_attn: LogicalTensor
+    out_proj_weight: LogicalTensor
+    out_proj_bias: LogicalTensor
     out_proj: LogicalTensor
     self_attn_residual: LogicalTensor
+    final_layer_norm_weight: LogicalTensor
+    final_layer_norm_bias: LogicalTensor
     final_layer_norm: LogicalTensor
+    fc1_weight: LogicalTensor
+    fc1_bias: LogicalTensor
     fc1_gelu: LogicalTensor
+    fc2_weight: LogicalTensor
+    fc2_bias: LogicalTensor
     fc2: LogicalTensor
     output: LogicalTensor
 
@@ -76,42 +77,6 @@ def declare_generated_qwen3_asr_audio_encoder_layer_tensors(
 ) -> GeneratedQwen3AsrAudioEncoderLayerTensors:
     weight_prefix = f"thinker.audio_tower.layers.{layer}"
     tensor_prefix = f"generated_qwen3_asr.audio_tower.layers.{layer:02d}"
-
-    def weight(name: str, shape: tuple[int, ...]) -> LogicalTensor:
-        return LogicalTensor(
-            name=name,
-            spec=TensorSpec(dtype="bfloat16", shape=shape),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-        )
-
-    def activation(name: str, shape: tuple[int, ...]) -> LogicalTensor:
-        return LogicalTensor(
-            name=name,
-            spec=TensorSpec(dtype="float32", shape=shape),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-        )
-
-    def comparable_activation(
-        name: str,
-        shape: tuple[int, ...],
-        *,
-        probe: PyTorchProbe,
-        rtol: float = 2e-3,
-        atol: float = 2e-2,
-    ) -> LogicalTensor:
-        return LogicalTensor(
-            name=name,
-            spec=TensorSpec(dtype="float32", shape=shape),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            compare=ComparePolicy(kind="tensor", rtol=rtol, atol=atol),
-            pytorch_probe=probe,
-        )
 
     return GeneratedQwen3AsrAudioEncoderLayerTensors(
         self_attn_layer_norm_weight=weight(

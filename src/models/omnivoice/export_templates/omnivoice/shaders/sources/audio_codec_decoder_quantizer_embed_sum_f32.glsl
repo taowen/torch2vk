@@ -36,7 +36,7 @@ void main() {
     const int id5 = clamp(t_audio_ids[ids_base + 5u * steps], 0, int(vocab) - 1);
     const int id6 = clamp(t_audio_ids[ids_base + 6u * steps], 0, int(vocab) - 1);
     const int id7 = clamp(t_audio_ids[ids_base + 7u * steps], 0, int(vocab) - 1);
-    const uint out_idx = (batch * steps + step) * dims + d;
+    const uint out_idx = (batch * dims + d) * steps + step;
     const uint o0 = uint(id0) * dims + d;
     const uint o1 = uint(id1) * dims + d;
     const uint o2 = uint(id2) * dims + d;

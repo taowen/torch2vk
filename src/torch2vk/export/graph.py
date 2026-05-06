@@ -5,6 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from torch2vk.export.protocols import FxNodeLike
+
+
 def export_torch_program(
     module: Any,
     args: tuple[Any, ...],
@@ -26,14 +29,14 @@ def export_torch_program(
 def torch_ops_from_exported_program(
     exported_program: object,
     *,
-    tensor_name_map: Mapping[str, str] | None = None,  # kept for compatibility
-) -> tuple[object, ...]:
-    """Return PyTorch FX call_function nodes directly (no torch2vk op abstraction)."""
+    tensor_name_map: Mapping[str, str] | None = None,
+) -> tuple[FxNodeLike, ...]:
+    """Return PyTorch FX call_function nodes directly with no torch2vk op abstraction."""
     del tensor_name_map
     return iter_fx_call_function_nodes(exported_program)
 
 
-def iter_fx_call_function_nodes(exported_program: object) -> tuple[object, ...]:
+def iter_fx_call_function_nodes(exported_program: object) -> tuple[FxNodeLike, ...]:
     """Return PyTorch FX call_function nodes directly with no torch2vk abstraction."""
     graph = getattr(exported_program, "graph")
     return tuple(node for node in graph.nodes if getattr(node, "op", None) == "call_function")

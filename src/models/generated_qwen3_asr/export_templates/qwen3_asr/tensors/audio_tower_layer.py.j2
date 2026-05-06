@@ -5,28 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
-    MemoryClass,
     PyTorchProbe,
-    TensorLifetime,
-    TensorRole,
-    TensorSpec,
+)
+
+from models.generated_qwen3_asr.tensors._logical import (
+    activation_tensor as activation,
+    comparable_activation_tensor as comparable_activation,
+    weight_tensor as weight,
 )
 
 
-AUDIO_ENCODER_LAYER_PARAMETER_FIELDS = {
-{% for item in audio_layer_fields if item.source_parameter %}
-    "{{ item.field }}": "{{ item.source_parameter }}",
-{% endfor %}
-}
+{{ audio_layer_parameter_fields_source }}
 
 
-@dataclass(frozen=True, slots=True)
-class GeneratedQwen3AsrAudioEncoderLayerTensors:
-{% for item in audio_layer_fields %}
-    {{ item.field }}: LogicalTensor
-{% endfor %}
+{{ audio_layer_dataclass_source }}
 
 
 def declare_generated_qwen3_asr_audio_encoder_layer_tensors(
@@ -38,42 +31,6 @@ def declare_generated_qwen3_asr_audio_encoder_layer_tensors(
 ) -> GeneratedQwen3AsrAudioEncoderLayerTensors:
     weight_prefix = f"thinker.audio_tower.layers.{layer}"
     tensor_prefix = f"generated_qwen3_asr.audio_tower.layers.{layer:02d}"
-
-    def weight(name: str, shape: tuple[int, ...]) -> LogicalTensor:
-        return LogicalTensor(
-            name=name,
-            spec=TensorSpec(dtype="bfloat16", shape=shape),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-        )
-
-    def activation(name: str, shape: tuple[int, ...]) -> LogicalTensor:
-        return LogicalTensor(
-            name=name,
-            spec=TensorSpec(dtype="float32", shape=shape),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-        )
-
-    def comparable_activation(
-        name: str,
-        shape: tuple[int, ...],
-        *,
-        probe: PyTorchProbe,
-        rtol: float = 2e-3,
-        atol: float = 2e-2,
-    ) -> LogicalTensor:
-        return LogicalTensor(
-            name=name,
-            spec=TensorSpec(dtype="float32", shape=shape),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            compare=ComparePolicy(kind="tensor", rtol=rtol, atol=atol),
-            pytorch_probe=probe,
-        )
 
     return GeneratedQwen3AsrAudioEncoderLayerTensors(
         self_attn_layer_norm_weight=weight(
