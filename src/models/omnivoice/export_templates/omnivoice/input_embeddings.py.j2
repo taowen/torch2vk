@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.export.lowering import resolve_shader_symbol
 
 from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
 from models.omnivoice.shaders.aten_embedding_3d_f32 import OMNIVOICE_ATEN_EMBEDDING_3D_F32
@@ -93,24 +94,25 @@ def _lower_input_embeddings_op(
     *,
     env: dict[str, LogicalTensor],
 ) -> LogicalTensor:
-    if op.target == "aten.select.int":
+    if op.target in {"aten.view.default", "aten.unsqueeze.default", "aten.mul.Tensor"}:
+        _alias_tensor(rt, src=env[op.inputs[0]], dst=env[op.outputs[0]])
+        return env[op.outputs[0]]
+
+    shader = resolve_shader_symbol(model="omnivoice", frame="input_embeddings", op=op)
+    if shader == "OMNIVOICE_ATEN_SELECT_INT_I64":
         OMNIVOICE_ATEN_SELECT_INT_I64(
             rt,
             x=env[op.inputs[0]],
             output=env[op.outputs[0]],
         )
-    elif op.target == "aten.embedding.default" and len(op.inputs) == 2 and op.inputs[1] == "text_token_ids":
+    elif shader == "OMNIVOICE_ATEN_EMBEDDING_F32":
         OMNIVOICE_ATEN_EMBEDDING_F32(
             rt,
             weight=env[op.inputs[0]],
             indices=env[op.inputs[1]],
             output=env[op.outputs[0]],
         )
-    elif op.target in {"aten.view.default", "aten.unsqueeze.default"}:
-        _alias_tensor(rt, src=env[op.inputs[0]], dst=env[op.outputs[0]])
-    elif op.target == "aten.mul.Tensor":
-        _alias_tensor(rt, src=env[op.inputs[0]], dst=env[op.outputs[0]])
-    elif op.target == "aten.add.Tensor":
+    elif shader == "OMNIVOICE_ATEN_SHIFTED_IDS_I64":
         OMNIVOICE_ATEN_SHIFTED_IDS_I64(
             rt,
             input_ids=env["input_ids"],
@@ -118,20 +120,20 @@ def _lower_input_embeddings_op(
             codebook_layer_offsets=env["codebook_layer_offsets_view"],
             output=env[op.outputs[0]],
         )
-    elif op.target == "aten.sum.dim_IntList":
-        OMNIVOICE_ATEN_SUM_DIM1_F32(
-            rt,
-            x=env[op.inputs[0]],
-            output=env[op.outputs[0]],
-        )
-    elif op.target == "aten.embedding.default" and len(op.inputs) == 2 and op.inputs[1] == "shifted_ids":
+    elif shader == "OMNIVOICE_ATEN_EMBEDDING_3D_F32":
         OMNIVOICE_ATEN_EMBEDDING_3D_F32(
             rt,
             weight=env[op.inputs[0]],
             indices=env[op.inputs[1]],
             output=env[op.outputs[0]],
         )
-    elif op.target == "aten.where.self":
+    elif shader == "OMNIVOICE_ATEN_SUM_DIM1_F32":
+        OMNIVOICE_ATEN_SUM_DIM1_F32(
+            rt,
+            x=env[op.inputs[0]],
+            output=env[op.outputs[0]],
+        )
+    elif shader == "OMNIVOICE_ATEN_WHERE_F32":
         OMNIVOICE_ATEN_WHERE_F32(
             rt,
             mask=env[op.inputs[0]],

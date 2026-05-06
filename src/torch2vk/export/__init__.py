@@ -1,12 +1,18 @@
 """Generic code-generation helpers for model-to-runtime adapter scaffolds."""
 
 from torch2vk.export.exported_program import export_torch_program, torch_ops_from_exported_program
+from torch2vk.export.ir import TorchOpPattern, TensorFieldPattern
+from torch2vk.export.lowering import (
+    DEFAULT_LOWERING_REGISTRY,
+    OpLoweringRegistry,
+    OpShaderBinding,
+    resolve_shader_symbol,
+)
 from torch2vk.export.reflection import (
     TorchModuleReflection,
     instantiate_torch_module_on_meta,
     reflect_torch_module,
 )
-from torch2vk.export.torch_ops import TorchOpPattern, TensorFieldPattern
 from torch2vk.export.writer import (
     ExportCheckError,
     ExportWriteResult,
@@ -20,6 +26,9 @@ from torch2vk.export.writer import (
 __all__ = [
     "ExportCheckError",
     "ExportWriteResult",
+    "DEFAULT_LOWERING_REGISTRY",
+    "OpLoweringRegistry",
+    "OpShaderBinding",
     "TorchOpPattern",
     "RenderedFile",
     "TemplateRenderer",
@@ -30,6 +39,7 @@ __all__ = [
     "instantiate_torch_module_on_meta",
     "remove_stale_files",
     "reflect_torch_module",
+    "resolve_shader_symbol",
     "torch_ops_from_exported_program",
     "write_rendered_files",
 ]
