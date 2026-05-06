@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.export.lowering import resolve_frame_shader
+from torch2vk.export.lowering import resolve_shader_symbol
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
 from models.generated_qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
@@ -17,25 +17,25 @@ from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTextPrefill
 
 TEXT_PREFILL_TORCH_OPS = (
     Qwen3ASRTorchOp(
-        "prefill_inputs_embeds",
+        "aten.torch2vk.prefill_inputs_embeds.default",
         ("input_ids", "embed_tokens_weight", "audio_features"),
         ("inputs_embeds", "audio_scatter_mask"),
         "",
     ),
     Qwen3ASRTorchOp(
-        "text_decoder_layer_loop",
+        "aten.torch2vk.text_decoder_layer_loop.default",
         ("inputs_embeds", "rope_cos", "rope_sin", "layers"),
         ("hidden",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "rms_norm",
+        "aten.rms_norm.default",
         ("hidden", "norm_weight"),
         ("final_norm",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "lm_head",
+        "aten.torch2vk.text_linear.default",
         ("final_norm", "lm_head_weight"),
         ("logits",),
         "",
@@ -61,13 +61,11 @@ def run_generated_qwen3_asr_text_prefill(
         env["hidden"] = tensors.inputs_embeds
     with frame_scope:
         for step in TEXT_PREFILL_TORCH_OPS:
-            if step.target == "text_decoder_layer_loop":
+            if step.target == "aten.torch2vk.text_decoder_layer_loop.default":
                 raise NotImplementedError(
                     "generated_qwen3_asr.text_prefill text_decoder_layer_loop lowering is not implemented yet"
                 )
-            shader = resolve_frame_shader(
-                model="generated_qwen3_asr", frame="text_prefill", target=step.target
-            )
+            shader = resolve_shader_symbol(op=step)
             if shader == "QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32":
                 QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32(
                     rt,

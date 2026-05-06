@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.export.lowering import resolve_frame_shader
+from torch2vk.export.lowering import resolve_shader_symbol
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
 from models.generated_qwen3_asr.shaders.add_f32 import QWEN3_ASR_ADD_F32
@@ -33,73 +33,73 @@ from models.generated_qwen3_asr.tensors.audio_tower_layer import (
 
 AUDIO_TOWER_TORCH_OPS = (
     Qwen3ASRTorchOp(
-        "pad_feature",
+        "aten.torch2vk.pad_feature.default",
         ("input_features", "feature_lens"),
         ("padded_feature",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "conv2d_gelu",
+        "aten.torch2vk.conv2d_gelu.default",
         ("padded_feature", "conv2d1_weight", "conv2d1_bias"),
         ("conv2d1_gelu",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "conv2d_gelu",
+        "aten.torch2vk.conv2d_gelu.default",
         ("conv2d1_gelu", "conv2d2_weight", "conv2d2_bias"),
         ("conv2d2_gelu",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "conv2d_gelu",
+        "aten.torch2vk.conv2d_gelu.default",
         ("conv2d2_gelu", "conv2d3_weight", "conv2d3_bias"),
         ("conv2d3_gelu",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "conv_out",
+        "aten.torch2vk.conv_out.default",
         ("conv2d3_gelu", "conv_out_weight"),
         ("conv_out",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "add_position",
+        "aten.add.Tensor",
         ("conv_out",),
         ("conv_out_add_position",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "compact_after_cnn",
+        "aten.torch2vk.compact_after_cnn.default",
         ("conv_out_add_position", "feature_lens"),
         ("hidden_states",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "cu_seqlens",
+        "aten.torch2vk.cu_seqlens.default",
         ("feature_lens",),
         ("cu_seqlens",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "audio_encoder_layer_loop",
+        "aten.torch2vk.audio_encoder_layer_loop.default",
         ("hidden_states", "cu_seqlens", "layers"),
         ("hidden_states",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "layer_norm",
+        "aten.native_layer_norm.default",
         ("hidden_states", "ln_post_weight", "ln_post_bias"),
         ("ln_post",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "linear_gelu",
+        "aten.torch2vk.linear_gelu.default",
         ("ln_post", "proj1_weight", "proj1_bias"),
         ("proj1_gelu",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "linear",
+        "aten.linear.default",
         ("proj1_gelu", "proj2_weight", "proj2_bias"),
         ("last_hidden_state",),
         "",
@@ -108,67 +108,67 @@ AUDIO_TOWER_TORCH_OPS = (
 
 AUDIO_ENCODER_LAYER_TORCH_OPS = (
     Qwen3ASRTorchOp(
-        "layer_norm",
+        "aten.native_layer_norm.default",
         ("hidden_states", "self_attn_layer_norm_weight", "self_attn_layer_norm_bias"),
         ("self_attn_layer_norm",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "linear",
+        "aten.linear.default",
         ("self_attn_layer_norm", "q_proj_weight", "q_proj_bias"),
         ("q_proj",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "linear",
+        "aten.linear.default",
         ("self_attn_layer_norm", "k_proj_weight", "k_proj_bias"),
         ("k_proj",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "linear",
+        "aten.linear.default",
         ("self_attn_layer_norm", "v_proj_weight", "v_proj_bias"),
         ("v_proj",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "attention",
+        "aten.torch2vk.encoder_attention.default",
         ("q_proj", "k_proj", "v_proj", "cu_seqlens"),
         ("self_attn",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "linear",
+        "aten.linear.default",
         ("self_attn", "out_proj_weight", "out_proj_bias"),
         ("out_proj",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "residual_add",
+        "aten.add.Tensor",
         ("hidden_states", "out_proj"),
         ("self_attn_residual",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "layer_norm",
+        "aten.native_layer_norm.default",
         ("self_attn_residual", "final_layer_norm_weight", "final_layer_norm_bias"),
         ("final_layer_norm",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "linear_gelu",
+        "aten.torch2vk.linear_gelu.default",
         ("final_layer_norm", "fc1_weight", "fc1_bias"),
         ("fc1_gelu",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "linear",
+        "aten.linear.default",
         ("fc1_gelu", "fc2_weight", "fc2_bias"),
         ("fc2",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "residual_add",
+        "aten.add.Tensor",
         ("self_attn_residual", "fc2"),
         ("output",),
         "",
@@ -241,7 +241,7 @@ def _lower_audio_tower_op(
     tensors: GeneratedQwen3AsrAudioTowerTensors,
     env: dict[str, object],
 ) -> None:
-    if step.target == "audio_encoder_layer_loop":
+    if step.target == "aten.torch2vk.audio_encoder_layer_loop.default":
         hidden_states = _tensor(env, step.inputs[0])
         cu_seqlens = _tensor(env, step.inputs[1])
         for layer_tensors in tensors.layers:
@@ -256,9 +256,7 @@ def _lower_audio_tower_op(
         env[step.outputs[0]] = hidden_states
         return
 
-    shader = resolve_frame_shader(
-        model="generated_qwen3_asr", frame="audio_tower", target=step.target
-    )
+    shader = resolve_shader_symbol(op=step)
     if shader == "QWEN3_ASR_PAD_FEATURE_F32":
         QWEN3_ASR_PAD_FEATURE_F32(
             rt,
@@ -334,9 +332,7 @@ def _lower_audio_layer_op(
     *,
     env: dict[str, object],
 ) -> None:
-    shader = resolve_frame_shader(
-        model="generated_qwen3_asr", frame="audio_encoder_layer", target=step.target
-    )
+    shader = resolve_shader_symbol(op=step)
     if shader == "QWEN3_ASR_LAYER_NORM_F32":
         QWEN3_ASR_LAYER_NORM_F32(
             rt,
@@ -379,4 +375,3 @@ def _lower_audio_layer_op(
         )
     else:
         raise NotImplementedError(f"Unsupported generated audio encoder layer op: {step.target}")
-

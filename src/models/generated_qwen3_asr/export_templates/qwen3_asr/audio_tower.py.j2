@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.export.lowering import resolve_frame_shader
+from torch2vk.export.lowering import resolve_shader_symbol
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
 from models.generated_qwen3_asr.shaders.add_f32 import QWEN3_ASR_ADD_F32
@@ -118,7 +118,7 @@ def _lower_audio_tower_op(
     tensors: GeneratedQwen3AsrAudioTowerTensors,
     env: dict[str, object],
 ) -> None:
-    if step.target == "audio_encoder_layer_loop":
+    if step.target == "aten.torch2vk.audio_encoder_layer_loop.default":
         hidden_states = _tensor(env, step.inputs[0])
         cu_seqlens = _tensor(env, step.inputs[1])
         for layer_tensors in tensors.layers:
@@ -133,9 +133,7 @@ def _lower_audio_tower_op(
         env[step.outputs[0]] = hidden_states
         return
 
-    shader = resolve_frame_shader(
-        model="generated_qwen3_asr", frame="audio_tower", target=step.target
-    )
+    shader = resolve_shader_symbol(op=step)
     if shader == "QWEN3_ASR_PAD_FEATURE_F32":
         QWEN3_ASR_PAD_FEATURE_F32(
             rt,
@@ -211,9 +209,7 @@ def _lower_audio_layer_op(
     *,
     env: dict[str, object],
 ) -> None:
-    shader = resolve_frame_shader(
-        model="generated_qwen3_asr", frame="audio_encoder_layer", target=step.target
-    )
+    shader = resolve_shader_symbol(op=step)
     if shader == "QWEN3_ASR_LAYER_NORM_F32":
         QWEN3_ASR_LAYER_NORM_F32(
             rt,
@@ -256,4 +252,3 @@ def _lower_audio_layer_op(
         )
     else:
         raise NotImplementedError(f"Unsupported generated audio encoder layer op: {step.target}")
-

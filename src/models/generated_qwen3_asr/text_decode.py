@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.export.lowering import resolve_frame_shader
+from torch2vk.export.lowering import resolve_shader_symbol
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
 from models.generated_qwen3_asr.shaders.text_embed_lookup_f32 import QWEN3_ASR_TEXT_EMBED_LOOKUP_F32
@@ -18,25 +18,25 @@ from models.generated_qwen3_asr.tensors.text import (
 
 TEXT_DECODE_TORCH_OPS = (
     Qwen3ASRTorchOp(
-        "embed_lookup",
+        "aten.torch2vk.embed_lookup.default",
         ("input_ids", "embed_tokens_weight"),
         ("inputs_embeds",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "text_decoder_layer_loop",
+        "aten.torch2vk.text_decoder_layer_loop.default",
         ("inputs_embeds", "cache_position", "rope_cos", "rope_sin", "layers"),
         ("hidden",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "rms_norm",
+        "aten.rms_norm.default",
         ("hidden", "norm_weight"),
         ("final_norm",),
         "",
     ),
     Qwen3ASRTorchOp(
-        "lm_head_or_token_select",
+        "aten.torch2vk.text_linear.default",
         ("final_norm", "lm_head_weight"),
         ("logits",),
         "",
@@ -67,13 +67,11 @@ def run_generated_qwen3_asr_text_decode(
         env["hidden"] = tensors.inputs_embeds
     with frame_scope:
         for op in TEXT_DECODE_TORCH_OPS:
-            if op.target == "text_decoder_layer_loop":
+            if op.target == "aten.torch2vk.text_decoder_layer_loop.default":
                 raise NotImplementedError(
                     "generated_qwen3_asr.text_decode text_decoder_layer_loop lowering is not implemented yet"
                 )
-            shader = resolve_frame_shader(
-                model="generated_qwen3_asr", frame="text_decode", target=op.target
-            )
+            shader = resolve_shader_symbol(op=op)
             if shader == "QWEN3_ASR_TEXT_EMBED_LOOKUP_F32":
                 QWEN3_ASR_TEXT_EMBED_LOOKUP_F32(
                     rt,
