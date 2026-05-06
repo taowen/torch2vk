@@ -26,7 +26,7 @@ OMNIVOICE_ATEN_WHERE_F32 = ShaderVariant(
                 name="mask",
                 io_kind=IOKind.INPUT,
                 role="mask",
-                contract=TensorContract(dtype="uint32", shape=("B", "T", 1)),
+                contract=TensorContract(dtype="bool", shape=("B", "T", 1)),
             ),
             TensorFieldSpec(
                 name="x",
@@ -62,7 +62,7 @@ OMNIVOICE_ATEN_WHERE_F32 = ShaderVariant(
 layout(std430) buffer;
 
 layout(set = 0, binding = 0) buffer restrict readonly MaskBuffer {
-    uint mask[];
+    bool mask[];
 };
 
 layout(set = 0, binding = 1) buffer restrict readonly XBuffer {
@@ -92,9 +92,8 @@ void main() {
         return;
     }
     const uint out_idx = (batch * pc.T + token) * pc.H + h;
-    const bool take_x = mask[batch * pc.T + token] != 0u;
+    const bool take_x = mask[batch * pc.T + token];
     output_values[out_idx] = take_x ? x[out_idx] : y[out_idx];
 }
 """.lstrip(),
 )
-

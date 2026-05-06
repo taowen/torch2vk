@@ -207,10 +207,17 @@ def _lower_input_embeddings_op(
 
     shader = resolve_shader_symbol(op=op)
     if shader == "OMNIVOICE_ATEN_SELECT_INT_I64":
-        OMNIVOICE_ATEN_SELECT_INT_I64(rt, x=env[op.inputs[0]], output=env[op.outputs[0]])
+        OMNIVOICE_ATEN_SELECT_INT_I64(
+            rt,
+            x=env[op.inputs[0]],
+            output=env[op.outputs[0]],
+        )
     elif shader == "OMNIVOICE_ATEN_EMBEDDING_F32":
         OMNIVOICE_ATEN_EMBEDDING_F32(
-            rt, weight=env[op.inputs[0]], indices=env[op.inputs[1]], output=env[op.outputs[0]]
+            rt,
+            weight=env[op.inputs[0]],
+            indices=env[op.inputs[1]],
+            output=env[op.outputs[0]],
         )
     elif shader == "OMNIVOICE_ATEN_SHIFTED_IDS_I64":
         OMNIVOICE_ATEN_SHIFTED_IDS_I64(
@@ -222,7 +229,10 @@ def _lower_input_embeddings_op(
         )
     elif shader == "OMNIVOICE_ATEN_EMBEDDING_3D_F32":
         OMNIVOICE_ATEN_EMBEDDING_3D_F32(
-            rt, weight=env[op.inputs[0]], indices=env[op.inputs[1]], output=env[op.outputs[0]]
+            rt,
+            weight=env[op.inputs[0]],
+            indices=env[op.inputs[1]],
+            output=env[op.outputs[0]],
         )
     elif shader == "OMNIVOICE_ATEN_SUM_DIM1_F32":
         OMNIVOICE_ATEN_SUM_DIM1_F32(
@@ -239,9 +249,7 @@ def _lower_input_embeddings_op(
             output=env[op.outputs[0]],
         )
     else:
-        raise NotImplementedError(
-            f"Unsupported generated OmniVoice input embedding op: {op.target}"
-        )
+        raise NotImplementedError(f"Unsupported generated OmniVoice input embedding op: {op.target}")
     return env[op.outputs[0]]
 
 

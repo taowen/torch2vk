@@ -190,6 +190,7 @@ class TensorSpec:
 
 
 _DTYPE_NBYTES: dict[str, int] = {
+    "bool": 1,
     "float32": 4,
     "float64": 8,
     "float16": 2,

@@ -285,7 +285,7 @@ def _common_text_tensors(
             "int64",
             (batch_size, num_audio_codebook, sequence_length),
         ),
-        "audio_mask": _input(f"{prefix}.audio_mask", "uint32", (batch_size, sequence_length)),
+        "audio_mask": _input(f"{prefix}.audio_mask", "bool", (batch_size, sequence_length)),
         "attention_mask": _input(
             f"{prefix}.attention_mask", "uint32", (batch_size, sequence_length)
         ),
@@ -321,7 +321,7 @@ def _common_text_tensors(
             pytorch_probe=PyTorchProbe(kind="module_output", target="llm.embed_tokens"),
         ),
         "audio_mask_for_shift": _activation(
-            f"{prefix}.audio_mask_for_shift", "uint32", (batch_size, 1, sequence_length)
+            f"{prefix}.audio_mask_for_shift", "bool", (batch_size, 1, sequence_length)
         ),
         "masked_audio_ids": _activation(
             f"{prefix}.masked_audio_ids",
@@ -350,7 +350,7 @@ def _common_text_tensors(
             compare=ComparePolicy(kind="tensor", rtol=1e-4, atol=1e-4),
         ),
         "audio_mask_expanded": _activation(
-            f"{prefix}.audio_mask_expanded", "uint32", (batch_size, sequence_length, 1)
+            f"{prefix}.audio_mask_expanded", "bool", (batch_size, sequence_length, 1)
         ),
         "inputs_embeds": _activation(f"{prefix}.inputs_embeds", "float32", hidden_shape),
         "layers": (),

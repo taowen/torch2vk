@@ -16,7 +16,7 @@ from models.omnivoice.tensors.text import declare_omnivoice_text_tensors
 from torch2vk.runtime.session import RuntimeSession
 
 
-def test_generated_omnivoice_input_embeddings_first_two_ops_match_pytorch(
+def test_generated_omnivoice_input_embeddings_runs_full_chain_and_matches_pytorch(
     tmp_path: Path,
 ) -> None:
     model_dir = resolve_cached_model(REPO_ID)
@@ -36,7 +36,6 @@ def test_generated_omnivoice_input_embeddings_first_two_ops_match_pytorch(
         audio_vocab_size=config.audio_vocab_size,
     )
     audio_mask_bool = np.array([[False, True, False, True]], dtype=np.bool_)
-    audio_mask_u32 = np.array([[0, 1, 0, 1]], dtype=np.uint32)
     assert [op.target for op in INPUT_EMBEDDINGS_TORCH_OPS[:2]] == [
         "aten.select.int",
         "aten.embedding.default",
@@ -45,32 +44,30 @@ def test_generated_omnivoice_input_embeddings_first_two_ops_match_pytorch(
     with RuntimeSession.open(artifact_dir=tmp_path, model_dir=model_dir) as rt:
         rt.register_inputs({tensors.input_ids: input_ids, tensors.audio_mask: audio_mask_bool})
 
-        assert (
-            run_omnivoice_input_embeddings(
-                rt,
-                tensors,
-                max_ops=1,
-            )
-            is tensors.text_token_ids
-        )
-        assert [record.shader for record in rt.dispatch_records[-1:]] == [
+        assert run_omnivoice_input_embeddings(
+            rt,
+            tensors,
+            max_ops=3,
+            pytorch_compare=True,
+        ) is tensors.codebook_layer_offsets_view
+
+        assert [record.shader for record in rt.dispatch_records[-2:]] == [
             "omnivoice_aten_select_int_i64",
+            "omnivoice_aten_embedding_f32",
         ]
+        assert rt.compare_results
         assert len(rt.compare_results) == 1
         assert all(result.passed for result in rt.compare_results)
 
     with RuntimeSession.open(artifact_dir=tmp_path, model_dir=model_dir) as rt:
-        rt.register_inputs({tensors.input_ids: input_ids, tensors.audio_mask: audio_mask_u32})
+        rt.register_inputs({tensors.input_ids: input_ids, tensors.audio_mask: audio_mask_bool})
 
-        assert (
-            run_omnivoice_input_embeddings(
-                rt,
-                tensors,
-                max_ops=10,
-                pytorch_compare=False,
-            )
-            is tensors.inputs_embeds
-        )
+        assert run_omnivoice_input_embeddings(
+            rt,
+            tensors,
+            max_ops=None,
+            pytorch_compare=False,
+        ) is tensors.inputs_embeds
 
         assert [record.shader for record in rt.dispatch_records[-6:]] == [
             "omnivoice_aten_select_int_i64",

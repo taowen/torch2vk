@@ -63,7 +63,9 @@ def run_generated_qwen3_asr_text_decode(
         f"generated_qwen3_asr.text_decode.{step:04d}",
         pytorch_compare=pytorch_compare,
         pytorch_model_submodule="thinker",
-        pytorch_input_prefixes=("generated_qwen3_asr.text_decode",),
+        pytorch_input_prefixes=("qwen3_asr.text_decode", "generated_qwen3_asr.text_decode"),
+        pytorch_cache_policy="hf_dynamic",
+        pytorch_cache_namespace="qwen3_asr.text",
     )
     env: dict[str, object] = {field: getattr(tensors, field) for field in tensors.__dataclass_fields__}
     if "hidden" not in env:

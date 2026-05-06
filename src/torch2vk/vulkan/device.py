@@ -69,6 +69,7 @@ from .shader_execution_requirements import (
 
 
 _SPEC_DTYPE_TO_NUMPY: dict[str, np.dtype] = {
+    "bool": np.dtype("bool"),
     "float32": np.dtype("float32"),
     "float64": np.dtype("float64"),
     "float16": np.dtype("float16"),

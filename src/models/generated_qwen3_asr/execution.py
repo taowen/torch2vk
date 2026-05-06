@@ -5,10 +5,21 @@ from __future__ import annotations
 
 from typing import Literal
 
+import numpy as np
+
+from models.generated_qwen3_asr.text_decode import run_generated_qwen3_asr_text_decode
+from models.generated_qwen3_asr.text_prefill import run_generated_qwen3_asr_text_prefill
+from models.generated_qwen3_asr.token_select import run_generated_qwen3_asr_token_select
+from models.generated_qwen3_asr.token_store import run_generated_qwen3_asr_token_store
+from models.qwen3_asr.rope import precompute_qwen3_asr_mrope
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
-from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTextTensors
+from models.generated_qwen3_asr.tensors.text import (
+    GeneratedQwen3AsrTextDecodeTensors,
+    GeneratedQwen3AsrTextPrefillTensors,
+    GeneratedQwen3AsrTextTensors,
+)
 
 
 QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS = (151645, 151643)
@@ -25,9 +36,137 @@ def run_generated_qwen3_asr_greedy_decode_loop(
     pytorch_compare: bool = True,
     stop_on_eos: bool = False,
 ) -> LogicalTensor:
-    del rt, tensors, rope_theta, mrope_section, pytorch_compare, stop_on_eos
     if max_new_tokens <= 0:
         raise ValueError(f"max_new_tokens must be positive, got {max_new_tokens}")
-    raise NotImplementedError(
-        "Generated scaffold only: wire prefill/decode/token-select/token-store frames and RoPE inputs."
+    prefill = tensors.prefill
+    head_dim = prefill.rope_cos.concrete_shape[-1]
+
+    _initialize_token_store_state(rt, tensors)
+    _register_prefill_rope(rt, prefill, rope_theta=rope_theta, mrope_section=mrope_section)
+    run_generated_qwen3_asr_text_prefill(rt, prefill, pytorch_compare=pytorch_compare)
+    run_generated_qwen3_asr_token_select(rt, tensors.token_select, logits=prefill.logits)
+    _run_token_store_step(rt, tensors, token_index=0, stop_on_eos=stop_on_eos)
+    if stop_on_eos and _token_store_stopped(rt, tensors):
+        return tensors.token_store.generated_tokens
+
+    prompt_length = prefill.input_ids.concrete_shape[-1]
+    decode = tensors.decode
+    for step in range(max_new_tokens - 1):
+        next_token = rt.read_request_state(tensors.token_select.next_token)
+        _ensure_kv_cache_capacity(rt, tensors, required_length=prompt_length + step + 1)
+        _register_decode_rope(
+            rt,
+            decode,
+            cache_position=prompt_length + step,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            mrope_section=mrope_section,
+        )
+        rt.register_inputs({decode.input_ids: next_token.reshape(1, 1)})
+        if pytorch_compare:
+            run_generated_qwen3_asr_text_decode(rt, decode, step=step, pytorch_compare=True)
+            run_generated_qwen3_asr_token_select(rt, tensors.token_select, logits=decode.logits)
+        else:
+            run_generated_qwen3_asr_text_decode(
+                rt,
+                decode,
+                step=step,
+                pytorch_compare=False,
+                token_select=tensors.token_select,
+            )
+        _run_token_store_step(rt, tensors, token_index=step + 1, stop_on_eos=stop_on_eos)
+        if stop_on_eos and _token_store_stopped(rt, tensors):
+            break
+    return tensors.token_store.generated_tokens
+
+
+def _register_prefill_rope(
+    rt: RuntimeSession,
+    prefill: GeneratedQwen3AsrTextPrefillTensors,
+    *,
+    rope_theta: float,
+    mrope_section: tuple[int, ...],
+) -> None:
+    prompt_length = prefill.rope_cos.concrete_shape[1]
+    head_dim = prefill.rope_cos.concrete_shape[2]
+    position_ids = np.arange(prompt_length, dtype=np.int64)[np.newaxis, :]
+    position_ids_3d = np.broadcast_to(position_ids[np.newaxis, :, :], (3, 1, prompt_length)).copy()
+    cos, sin = precompute_qwen3_asr_mrope(
+        position_ids=position_ids_3d,
+        head_dim=head_dim,
+        rope_theta=rope_theta,
+        mrope_section=mrope_section,
     )
+    rt.register_inputs({prefill.rope_cos: cos, prefill.rope_sin: sin})
+
+
+def _register_decode_rope(
+    rt: RuntimeSession,
+    decode: GeneratedQwen3AsrTextDecodeTensors,
+    *,
+    cache_position: int,
+    head_dim: int,
+    rope_theta: float,
+    mrope_section: tuple[int, ...],
+) -> None:
+    position_ids_3d = np.full((3, 1, 1), cache_position, dtype=np.int64)
+    cos, sin = precompute_qwen3_asr_mrope(
+        position_ids=position_ids_3d,
+        head_dim=head_dim,
+        rope_theta=rope_theta,
+        mrope_section=mrope_section,
+    )
+    rt.register_inputs(
+        {
+            decode.cache_position: np.array([cache_position], dtype=np.int64),
+            decode.rope_cos: cos,
+            decode.rope_sin: sin,
+        }
+    )
+
+
+def _ensure_kv_cache_capacity(
+    rt: RuntimeSession,
+    tensors: GeneratedQwen3AsrTextTensors,
+    *,
+    required_length: int,
+) -> None:
+    for layer in tensors.decode.layers:
+        for cache in (layer.key_cache, layer.value_cache):
+            batch, heads, cache_length, head_dim = cache.concrete_shape
+            if cache_length < required_length:
+                rt.grow_request_state(cache, (batch, heads, required_length, head_dim))
+
+
+def _run_token_store_step(
+    rt: RuntimeSession,
+    tensors: GeneratedQwen3AsrTextTensors,
+    *,
+    token_index: int,
+    stop_on_eos: bool,
+) -> None:
+    rt.register_inputs(
+        {
+            tensors.token_store.token_index: np.array([token_index], dtype=np.int64),
+        }
+    )
+    run_generated_qwen3_asr_token_store(rt, tensors.token_store, stop_on_eos=stop_on_eos)
+
+
+def _token_store_stopped(rt: RuntimeSession, tensors: GeneratedQwen3AsrTextTensors) -> bool:
+    stopped = rt.read_request_state(tensors.token_store.stopped)
+    return bool(np.asarray(stopped).reshape(-1)[0])
+
+
+def _initialize_token_store_state(rt: RuntimeSession, tensors: GeneratedQwen3AsrTextTensors) -> None:
+    generated_tokens = tensors.token_store.generated_tokens
+    shape = generated_tokens.concrete_shape
+    values: dict[LogicalTensor, np.ndarray] = {
+        generated_tokens: np.zeros(shape, dtype=np.int64),
+        tensors.token_store.generated_length: np.array([0], dtype=np.uint32),
+        tensors.token_store.stopped: np.array([0], dtype=np.uint32),
+    }
+    for layer in tensors.prefill.layers:
+        values[layer.key_cache] = np.zeros(layer.key_cache.concrete_shape, dtype=np.float32)
+        values[layer.value_cache] = np.zeros(layer.value_cache.concrete_shape, dtype=np.float32)
+    rt.initialize_request_state(values)

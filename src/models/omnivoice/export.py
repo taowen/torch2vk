@@ -829,7 +829,7 @@ contract=ShaderContract(
             name="audio_mask",
             io_kind=IOKind.INPUT,
             role="audio_mask",
-            contract=TensorContract(dtype="uint32", shape=("B", "T")),
+            contract=TensorContract(dtype="bool", shape=("B", "T")),
         ),
         TensorFieldSpec(
             name="codebook_layer_offsets",
@@ -959,7 +959,7 @@ layout(set = 0, binding = 0) buffer restrict readonly InputIdsBuffer {
 };
 
 layout(set = 0, binding = 1) buffer restrict readonly AudioMaskBuffer {
-    uint audio_mask[];
+    bool audio_mask[];
 };
 
 layout(set = 0, binding = 2) buffer restrict readonly CodebookOffsetsBuffer {
@@ -991,7 +991,7 @@ void main() {
         return;
     }
 
-    const int64_t mask = audio_mask[batch * pc.T + token] != 0u ? int64_t(1) : int64_t(0);
+    const int64_t mask = audio_mask[batch * pc.T + token] ? int64_t(1) : int64_t(0);
     float acc = 0.0;
     for (uint codebook = 0u; codebook < pc.C; ++codebook) {
         const uint id_index = (batch * pc.C + codebook) * pc.T + token;
