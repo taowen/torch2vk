@@ -28,6 +28,11 @@ from models.generated_qwen3_asr.token_store import (
     TOKEN_STORE_TORCH_OPS,
     run_generated_qwen3_asr_token_store,
 )
+from models.generated_qwen3_asr.transcribe import (
+    GeneratedQwen3AsrRecognizer,
+    GeneratedQwen3AsrTranscription,
+    transcribe_wav_generated,
+)
 from models.generated_qwen3_asr.tensors import (
     AUDIO_ENCODER_LAYER_PARAMETER_FIELDS,
     AUDIO_TOWER_PARAMETER_FIELDS,
@@ -65,8 +70,10 @@ __all__ = [
     "GeneratedQwen3AsrTextLayerTensors",
     "GeneratedQwen3AsrTextPrefillTensors",
     "GeneratedQwen3AsrTextTensors",
+    "GeneratedQwen3AsrTranscription",
     "GeneratedQwen3AsrTokenSelectTensors",
     "GeneratedQwen3AsrTokenStoreTensors",
+    "GeneratedQwen3AsrRecognizer",
     "declare_generated_qwen3_asr_audio_encoder_layer_tensors",
     "declare_generated_qwen3_asr_audio_tower_tensors",
     "declare_generated_qwen3_asr_text_layer_tensors",
@@ -77,4 +84,5 @@ __all__ = [
     "run_generated_qwen3_asr_text_prefill",
     "run_generated_qwen3_asr_token_select",
     "run_generated_qwen3_asr_token_store",
+    "transcribe_wav_generated",
 ]

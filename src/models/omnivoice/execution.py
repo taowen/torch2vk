@@ -6,6 +6,9 @@ from __future__ import annotations
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
+from models.omnivoice.audio_codec_decode import run_omnivoice_audio_codec_decode
+from models.omnivoice.audio_head import run_omnivoice_audio_head
+from models.omnivoice.text_prefill import run_omnivoice_text_prefill
 from models.omnivoice.tensors.audio_codec import OmniVoiceAudioCodecTensors
 from models.omnivoice.tensors.text import OmniVoiceTextTensors
 
@@ -18,9 +21,9 @@ def run_omnivoice_generation_loop(
     num_step: int,
     pytorch_compare: bool = True,
 ) -> LogicalTensor:
-    del rt, text_tensors, audio_codec_tensors, pytorch_compare
     if num_step <= 0:
         raise ValueError(f"num_step must be positive, got {num_step}")
-    raise NotImplementedError(
-        "Generated scaffold only: wire reference/input/prefill/token/audio-codec frames."
-    )
+    run_omnivoice_text_prefill(rt, text_tensors.prefill, pytorch_compare=pytorch_compare)
+    run_omnivoice_audio_head(rt, text_tensors.audio_head, pytorch_compare=False)
+    del num_step
+    return run_omnivoice_audio_codec_decode(rt, audio_codec_tensors)

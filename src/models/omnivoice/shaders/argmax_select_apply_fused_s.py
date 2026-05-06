@@ -3,7 +3,20 @@
 
 from __future__ import annotations
 
-from torch2vk.runtime.shader import ShaderContract, ShaderVariant
+from torch2vk.runtime.shader import (
+    IOKind,
+    ParamsBufferFieldSpec,
+    ParamsBufferSpec,
+    PushConstantFieldSpec,
+    PushConstantSpec,
+    PushConstantType,
+    ShaderContract,
+    ShaderExecutionRequirements,
+    ShaderVariant,
+    TensorContract,
+    TensorFieldSpec,
+    ceil_div,
+)
 
 
 OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_S = ShaderVariant(
@@ -12,9 +25,113 @@ OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_S = ShaderVariant(
     contract=ShaderContract(
         class_name="OmniVoiceArgmaxSelectApplyFusedSProgram",
         shader_name="omnivoice_argmax_select_apply_fused_s",
-        fields=(),
-        dispatch=(1, 1, 1),
+        fields=(
+            TensorFieldSpec(
+                name="output_updated_ids",
+                io_kind=IOKind.OUTPUT,
+                role="output_updated_ids",
+                contract=TensorContract(
+                    dtype="int32",
+                    shape=("B", "C", "S"),
+                ),
+            ),
+            TensorFieldSpec(
+                name="output_selected_flat_index",
+                io_kind=IOKind.OUTPUT,
+                role="output_selected_flat_index",
+                contract=TensorContract(
+                    dtype="int32",
+                    shape=("B",),
+                ),
+            ),
+            TensorFieldSpec(
+                name="output_selected_score",
+                io_kind=IOKind.OUTPUT,
+                role="output_selected_score",
+                contract=TensorContract(
+                    dtype="float32",
+                    shape=("B",),
+                ),
+            ),
+            TensorFieldSpec(
+                name="output_selected_candidate_id",
+                io_kind=IOKind.OUTPUT,
+                role="output_selected_candidate_id",
+                contract=TensorContract(
+                    dtype="int32",
+                    shape=("B",),
+                ),
+            ),
+            TensorFieldSpec(
+                name="logits",
+                io_kind=IOKind.INPUT,
+                role="logits",
+                contract=TensorContract(
+                    dtype="float32",
+                    shape=("B", "C", "S", "V"),
+                ),
+            ),
+            TensorFieldSpec(
+                name="codebook_offsets",
+                io_kind=IOKind.INPUT,
+                role="codebook_offsets",
+                contract=TensorContract(
+                    dtype="int32",
+                    shape=("C",),
+                ),
+            ),
+            TensorFieldSpec(
+                name="penalty",
+                io_kind=IOKind.INPUT,
+                role="penalty",
+                contract=TensorContract(
+                    dtype="float32",
+                    shape=("B", "C"),
+                ),
+            ),
+            TensorFieldSpec(
+                name="current_ids",
+                io_kind=IOKind.INPUT,
+                role="current_ids",
+                contract=TensorContract(
+                    dtype="int32",
+                    shape=("B", "C", "S"),
+                ),
+            ),
+        ),
+        dispatch=(1, 1, "B"),
+        params_buffer=ParamsBufferSpec(
+            size=16,
+            fields=(
+                ParamsBufferFieldSpec(
+                    "steps",
+                    PushConstantType.UINT32,
+                    0,
+    "S",
+                ),
+                ParamsBufferFieldSpec(
+                    "codebooks",
+                    PushConstantType.UINT32,
+                    4,
+    "C",
+                ),
+                ParamsBufferFieldSpec(
+                    "batches",
+                    PushConstantType.UINT32,
+                    8,
+    "B",
+                ),
+                ParamsBufferFieldSpec(
+                    "vocab",
+                    PushConstantType.UINT32,
+                    12,
+    "V",
+                ),
+            ),
+            binding_index=8,
+        ),
     ),
+
     source="""
 #version 460
 
@@ -28,7 +145,7 @@ layout(set = 0, binding = 4) buffer restrict readonly LogitsBuffer { float t_log
 layout(set = 0, binding = 5) buffer restrict readonly CodebookOffsetsBuffer { int t_codebook_offsets[]; };
 layout(set = 0, binding = 6) buffer restrict readonly PenaltyBuffer { float t_penalty[]; };
 layout(set = 0, binding = 7) buffer restrict readonly CurrentIdsBuffer { int t_current_ids[]; };
-layout(set = 0, binding = 8) uniform restrict readonly sizes_UBO { ivec4 sizes; };
+layout(set = 0, binding = 8) buffer restrict readonly sizes_UBO { ivec4 sizes; };
 
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 

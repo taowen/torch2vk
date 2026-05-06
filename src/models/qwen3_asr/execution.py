@@ -15,7 +15,6 @@ from models.qwen3_asr.audio_tower import (
     run_qwen3_asr_audio_tower as run_qwen3_asr_audio_tower,
 )
 from models.qwen3_asr.pytorch.example import REPO_ID
-from models.qwen3_asr.rope import precompute_qwen3_asr_mrope
 from models.qwen3_asr.text_decode import run_qwen3_asr_text_decode
 from models.qwen3_asr.text_prefill import run_qwen3_asr_text_prefill
 from models.qwen3_asr.tensors.text import (
@@ -182,7 +181,19 @@ def run_qwen3_asr_greedy_decode_loop(
     _register_prefill_rope(rt, prefill, rope_theta=rope_theta, mrope_section=mrope_section)
     run_qwen3_asr_text_prefill(rt, prefill, pytorch_compare=pytorch_compare)
     run_qwen3_asr_token_select(rt, tensors.token_select, logits=prefill.logits)
-    _append_generated_token(rt, tensors)
+    generated_length = _replay_generated_length_tensor()
+    stopped = _replay_stopped_tensor()
+    token_index = _replay_token_index_tensor()
+    _initialize_replay_decode_control(rt, generated_length, stopped)
+    _append_generated_token(
+        rt,
+        tensors,
+        token_index_tensor=token_index,
+        token_index=0,
+        generated_length=generated_length,
+        stopped=stopped,
+        stop_on_eos=stop_on_eos,
+    )
     if stop_on_eos and _token_select_done(rt, tensors):
         return tensors.token_select.generated_tokens
 
@@ -209,9 +220,17 @@ def run_qwen3_asr_greedy_decode_loop(
                 decode,
                 step=step,
                 pytorch_compare=False,
-                token_select=tensors.token_select,
             )
-        _append_generated_token(rt, tensors)
+            run_qwen3_asr_token_select(rt, tensors.token_select, logits=decode.logits)
+        _append_generated_token(
+            rt,
+            tensors,
+            token_index_tensor=token_index,
+            token_index=step + 1,
+            generated_length=generated_length,
+            stopped=stopped,
+            stop_on_eos=stop_on_eos,
+        )
         if stop_on_eos and _token_select_done(rt, tensors):
             break
     return tensors.token_select.generated_tokens
@@ -224,17 +243,22 @@ def _register_prefill_rope(
     rope_theta: float,
     mrope_section: tuple[int, ...],
 ) -> None:
-    prompt_length = prefill.rope_cos.concrete_shape[1]
-    head_dim = prefill.rope_cos.concrete_shape[2]
-    position_ids = np.arange(prompt_length, dtype=np.int64)[np.newaxis, :]
-    position_ids_3d = np.broadcast_to(position_ids[np.newaxis, :, :], (3, 1, prompt_length)).copy()
-    cos, sin = precompute_qwen3_asr_mrope(
-        position_ids=position_ids_3d,
-        head_dim=head_dim,
-        rope_theta=rope_theta,
-        mrope_section=mrope_section,
+    _require_supported_mrope_section(mrope_section)
+    start_position = _rope_start_position_tensor()
+    rope_theta_tensor = _rope_theta_tensor()
+    rt.register_inputs(
+        {
+            start_position: np.array([0], dtype=np.int64),
+            rope_theta_tensor: np.array([rope_theta], dtype=np.float32),
+        }
     )
-    rt.register_inputs({prefill.rope_cos: cos, prefill.rope_sin: sin})
+    _run_qwen3_asr_rope_table(
+        rt,
+        start_position=start_position,
+        rope_theta=rope_theta_tensor,
+        rope_cos=prefill.rope_cos,
+        rope_sin=prefill.rope_sin,
+    )
 
 
 def _register_decode_rope(
@@ -246,19 +270,21 @@ def _register_decode_rope(
     rope_theta: float,
     mrope_section: tuple[int, ...],
 ) -> None:
-    position_ids_3d = np.full((3, 1, 1), cache_position, dtype=np.int64)
-    cos, sin = precompute_qwen3_asr_mrope(
-        position_ids=position_ids_3d,
-        head_dim=head_dim,
-        rope_theta=rope_theta,
-        mrope_section=mrope_section,
-    )
+    del head_dim
+    _require_supported_mrope_section(mrope_section)
+    rope_theta_tensor = _rope_theta_tensor()
     rt.register_inputs(
         {
             decode.cache_position: np.array([cache_position], dtype=np.int64),
-            decode.rope_cos: cos,
-            decode.rope_sin: sin,
+            rope_theta_tensor: np.array([rope_theta], dtype=np.float32),
         }
+    )
+    _run_qwen3_asr_rope_table(
+        rt,
+        start_position=decode.cache_position,
+        rope_theta=rope_theta_tensor,
+        rope_cos=decode.rope_cos,
+        rope_sin=decode.rope_sin,
     )
 
 
@@ -278,18 +304,27 @@ def _ensure_kv_cache_capacity(
 def _append_generated_token(
     rt: RuntimeSession,
     tensors: Qwen3AsrTextTensors,
+    *,
+    token_index_tensor: LogicalTensor,
+    token_index: int,
+    generated_length: LogicalTensor,
+    stopped: LogicalTensor,
+    stop_on_eos: bool,
 ) -> None:
     generated = tensors.token_select.generated_tokens
-    batch, length = generated.concrete_shape
-    next_token = rt.read_request_state(tensors.token_select.next_token).reshape(batch, 1)
-    previous = (
-        np.empty((batch, 0), dtype=np.int64)
-        if length == 0
-        else rt.read_request_state(generated)
+    batch = generated.concrete_shape[0]
+    rt.grow_request_state(generated, (batch, token_index + 1))
+    rt.register_inputs({token_index_tensor: np.array([token_index], dtype=np.int64)})
+    _run_qwen3_asr_token_store(
+        rt,
+        next_token=tensors.token_select.next_token,
+        token_index=token_index_tensor,
+        done=tensors.token_select.done,
+        generated_tokens=generated,
+        generated_length=generated_length,
+        stopped=stopped,
+        stop_on_eos=stop_on_eos,
     )
-    updated = np.ascontiguousarray(np.concatenate([previous, next_token], axis=1), dtype=np.int64)
-    rt.grow_request_state(generated, updated.shape)
-    rt.initialize_request_state({generated: updated})
 
 
 def _token_select_done(rt: RuntimeSession, tensors: Qwen3AsrTextTensors) -> bool:
@@ -478,6 +513,8 @@ def run_qwen3_asr_replay_decode_loop(
             rt,
             plan=cached_plan,
             decode=decode,
+            next_token=tensors.token_select.next_token,
+            tensors_by_name=tensors_by_name,
             replay_token_index=replay_token_index,
             prompt_length=prompt_length,
             head_dim=head_dim,
@@ -509,8 +546,8 @@ def run_qwen3_asr_replay_decode_loop(
         decode,
         step=0,
         pytorch_compare=False,
-        token_select=tensors.token_select,
     )
+    run_qwen3_asr_token_select(rt, tensors.token_select, logits=decode.logits)
     _run_qwen3_asr_token_store(
         rt,
         next_token=tensors.token_select.next_token,
@@ -550,8 +587,6 @@ def run_qwen3_asr_replay_decode_loop(
         variants=variants,
         tensors_by_name=tensors_by_name,
         dynamic_symbol_names=("S",),
-        token_feedback_source=tensors.token_select.next_token,
-        token_feedback_target=decode.input_ids,
     )
     if plan.readback_slots:
         plan.close()
@@ -562,6 +597,8 @@ def run_qwen3_asr_replay_decode_loop(
             rt,
             plan=plan,
             decode=decode,
+            next_token=tensors.token_select.next_token,
+            tensors_by_name=tensors_by_name,
             replay_token_index=replay_token_index,
             prompt_length=prompt_length,
             head_dim=head_dim,
@@ -672,6 +709,8 @@ def _run_qwen3_asr_decode_replay_steps(
     *,
     plan: "ReplayPlan",
     decode: Qwen3AsrTextDecodeTensors,
+    next_token: LogicalTensor,
+    tensors_by_name: Mapping[str, LogicalTensor],
     replay_token_index: LogicalTensor,
     prompt_length: int,
     head_dim: int,
@@ -682,28 +721,34 @@ def _run_qwen3_asr_decode_replay_steps(
     replay_stopped: LogicalTensor,
     stop_on_eos: bool,
 ) -> None:
-    from torch2vk.runtime.replay import execute_replay
+    from torch2vk.runtime.replay import execute_replay, stage_replay_step_inputs
 
+    del head_dim
+    _require_supported_mrope_section(mrope_section)
+    rope_theta_tensor = _rope_theta_tensor()
     for step in range(start_step, max_new_tokens - 1):
         cache_pos = prompt_length + step
-        pos_3d = np.full((3, 1, 1), cache_pos, dtype=np.int64)
-        cos_data, sin_data = precompute_qwen3_asr_mrope(
-            position_ids=pos_3d,
-            head_dim=head_dim,
-            rope_theta=rope_theta,
-            mrope_section=mrope_section,
-        )
-        _write_to_tensor_buffer(
+        next_token_value = rt.read_request_state(next_token)
+        token_index_value = np.array([step + 1], dtype=np.int64)
+        step_inputs = {
+            decode.input_ids: next_token_value.reshape(1, 1),
+            decode.cache_position: np.array([cache_pos], dtype=np.int64),
+            rope_theta_tensor: np.array([rope_theta], dtype=np.float32),
+            replay_token_index: token_index_value,
+        }
+        stage_replay_step_inputs(
             rt,
-            decode.cache_position,
-            np.array([cache_pos], dtype=np.int64),
+            plan=plan,
+            tensors_by_name=tensors_by_name,
+            inputs=step_inputs,
+            write_through=(decode.input_ids, decode.cache_position, replay_token_index),
         )
-        _write_to_tensor_buffer(rt, decode.rope_cos, cos_data)
-        _write_to_tensor_buffer(rt, decode.rope_sin, sin_data)
-        _write_to_tensor_buffer(
+        _run_qwen3_asr_rope_table(
             rt,
-            replay_token_index,
-            np.array([step + 1], dtype=np.int64),
+            start_position=decode.cache_position,
+            rope_theta=rope_theta_tensor,
+            rope_cos=decode.rope_cos,
+            rope_sin=decode.rope_sin,
         )
         execute_replay(plan, dynamic_symbols=_qwen3_asr_decode_dynamic_symbols(decode))
         if stop_on_eos and _replay_decode_stopped(rt, replay_stopped):
@@ -711,7 +756,7 @@ def _run_qwen3_asr_decode_replay_steps(
 
 
 def _qwen3_asr_decode_replay_namespace(stop_on_eos: bool) -> str:
-    return f"qwen3_asr_decode_step:stop_on_eos={int(stop_on_eos)}"
+    return f"qwen3_asr_decode_step:v5:stop_on_eos={int(stop_on_eos)}"
 
 
 def _qwen3_asr_decode_dynamic_symbols(
@@ -795,28 +840,51 @@ def _run_qwen3_asr_token_store(
         )
 
 
-def _write_to_tensor_buffer(
+def _run_qwen3_asr_rope_table(
     rt: RuntimeSession,
-    tensor: LogicalTensor,
-    data: np.ndarray,
+    *,
+    start_position: LogicalTensor,
+    rope_theta: LogicalTensor,
+    rope_cos: LogicalTensor,
+    rope_sin: LogicalTensor,
 ) -> None:
-    """Write numpy data into a materialized tensor's host-visible buffer."""
-    contiguous = np.ascontiguousarray(data, dtype=tensor.spec.dtype)
-    if tensor.buffer is None:
-        raise RuntimeError(f"Tensor {tensor.name} not materialized for replay write")
-    raw_bytes = memoryview(contiguous).cast("B")
-    if raw_bytes.nbytes > tensor.buffer.nbytes:
-        raise ValueError(
-            f"{tensor.name} replay write has {raw_bytes.nbytes} bytes, "
-            f"buffer only has {tensor.buffer.nbytes}"
+    from models.qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TABLE_F32
+
+    with rt.frame("qwen3_asr.rope_table"):
+        QWEN3_ASR_ROPE_TABLE_F32(
+            rt,
+            start_position=start_position,
+            rope_theta=rope_theta,
+            cos=rope_cos,
+            sin=rope_sin,
         )
-    tensor.buffer.allocation.buffer.write_bytes_at(
-        tensor.buffer.offset, raw_bytes
+
+
+def _rope_start_position_tensor() -> LogicalTensor:
+    return LogicalTensor(
+        name="qwen3_asr.rope.start_position",
+        spec=TensorSpec(dtype="int64", shape=(1,)),
+        role=TensorRole.INPUT,
+        memory=MemoryClass.HOST_INPUT,
+        lifetime=TensorLifetime.FRAME,
     )
-    rt.device.memory_manager.host_upload_ring.flush(
-        allocation=tensor.buffer.allocation,
-        size=raw_bytes.nbytes,
+
+
+def _rope_theta_tensor() -> LogicalTensor:
+    return LogicalTensor(
+        name="qwen3_asr.rope.theta",
+        spec=TensorSpec(dtype="float32", shape=(1,)),
+        role=TensorRole.INPUT,
+        memory=MemoryClass.HOST_INPUT,
+        lifetime=TensorLifetime.FRAME,
     )
+
+
+def _require_supported_mrope_section(mrope_section: tuple[int, ...]) -> None:
+    if tuple(mrope_section) != (24, 20, 20):
+        raise NotImplementedError(
+            f"qwen3_asr rope_table shader currently supports mrope_section=(24, 20, 20), got {mrope_section}"
+        )
 
 
 def _collect_decode_variants(out: dict[str, "ShaderVariant"]) -> None:

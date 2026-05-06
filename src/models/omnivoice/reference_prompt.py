@@ -3,8 +3,14 @@
 
 from __future__ import annotations
 
-from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.logical import (
+    LogicalTensor,
+    MemoryClass,
+    TensorLifetime,
+    TensorRole,
+)
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.vulkan.types import TensorSpec
 
 from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
 
@@ -42,4 +48,11 @@ def run_omnivoice_reference_prompt(
         pytorch_compare=pytorch_compare,
     )
     with frame_scope:
-        raise NotImplementedError("Generated scaffold only: lower REFERENCE_PROMPT_TORCH_OPS.")
+        # Placeholder logical output for generated pipeline wiring.
+        return LogicalTensor(
+            name="omnivoice.reference_prompt.reference_text",
+            spec=TensorSpec(dtype="int64", shape=(1, 1)),
+            role=TensorRole.OUTPUT,
+            memory=MemoryClass.HOST_OUTPUT,
+            lifetime=TensorLifetime.FRAME,
+        )

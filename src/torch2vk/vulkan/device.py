@@ -69,7 +69,7 @@ from .shader_execution_requirements import (
 
 
 _SPEC_DTYPE_TO_NUMPY: dict[str, np.dtype] = {
-    "bool": np.dtype("bool"),
+    "bool": np.dtype("uint32"),
     "float32": np.dtype("float32"),
     "float64": np.dtype("float64"),
     "float16": np.dtype("float16"),
@@ -106,6 +106,12 @@ def _spec_dtype_for_numpy(dtype: np.dtype) -> str:
         return _NUMPY_DTYPE_TO_SPEC[normalized]
     except KeyError as exc:
         raise ValueError(f"Unsupported numpy tensor dtype: {normalized}") from exc
+
+
+def _decode_spec_array(*, spec: TensorSpec, array: np.ndarray) -> np.ndarray:
+    if spec.dtype == "bool":
+        return np.asarray(array != 0, dtype=np.bool_)
+    return array
 
 
 def _numpy_spec(array: np.ndarray) -> TensorSpec:
@@ -414,10 +420,11 @@ class VulkanDevice:
         data = self.readback_tensor_bytes(slice, size=expected_nbytes)
         dtype = _numpy_dtype_for_spec(spec.dtype)
         shape = tuple(int(dim) for dim in spec.shape)
-        return np.frombuffer(data, dtype=dtype).copy().reshape(shape)
+        raw = np.frombuffer(data, dtype=dtype).copy().reshape(shape)
+        return _decode_spec_array(spec=spec, array=raw)
 
     def empty_tensor(self, *, spec: TensorSpec) -> np.ndarray:
-        dtype = _numpy_dtype_for_spec(spec.dtype)
+        dtype = np.dtype("bool") if spec.dtype == "bool" else _numpy_dtype_for_spec(spec.dtype)
         shape = tuple(int(dim) for dim in spec.shape)
         return np.empty(shape, dtype=dtype)
 

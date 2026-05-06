@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from torch2vk.runtime.shader import (
     IOKind,
+    ParamsBufferFieldSpec,
+    ParamsBufferSpec,
     PushConstantFieldSpec,
     PushConstantSpec,
     PushConstantType,

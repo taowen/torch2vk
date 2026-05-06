@@ -11,6 +11,7 @@ from models.generated_qwen3_asr.execution import (
     QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS,
     run_generated_qwen3_asr_greedy_decode_loop,
 )
+from models.generated_qwen3_asr.transcribe import transcribe_wav_generated
 from models.generated_qwen3_asr.export import load_qwen3_asr_export_config
 from models.generated_qwen3_asr.tensors.text import declare_generated_qwen3_asr_text_tensors
 from models.generated_qwen3_asr.tensors.audio_tower import (
@@ -18,6 +19,7 @@ from models.generated_qwen3_asr.tensors.audio_tower import (
 )
 from models.hf_cache import resolve_cached_model
 from models.qwen3_asr.execution import prepare_qwen3_asr_inputs
+from models.qwen3_asr.transcribe import transcribe_wav
 from models.qwen3_asr.pytorch.example import REPO_ID
 from torch2vk.runtime.session import RuntimeSession
 
@@ -84,8 +86,8 @@ def test_generated_qwen3_asr_audio_tower_runs_audio_tower_and_matches_pytorch(
         assert len(rt.compare_results) == 1
         assert all(result.passed for result in rt.compare_results)
 
-        max_new_tokens = 1
-        max_sequence_new_tokens = 2
+        max_new_tokens = 16
+        max_sequence_new_tokens = 16
         text_tensors = declare_generated_qwen3_asr_text_tensors(
             prompt_length=prepared.prompt_length,
             audio_tokens=tensors.last_hidden_state.concrete_shape[0],
@@ -144,3 +146,23 @@ def test_generated_qwen3_asr_audio_tower_runs_audio_tower_and_matches_pytorch(
             rt.read_request_state(text_tensors.token_store.generated_length)[0]
         )
         assert generated_length_no_compare == max_sequence_new_tokens
+
+    generated_text = transcribe_wav_generated(
+        _ASKNOT_WAV,
+        language="English",
+        max_new_tokens=32,
+        artifact_dir=tmp_path / "generated_transcribe",
+        model_dir=model_dir,
+        pytorch_compare=False,
+    )
+    reference_text = transcribe_wav(
+        _ASKNOT_WAV,
+        language="English",
+        max_new_tokens=32,
+        artifact_dir=tmp_path / "reference_transcribe",
+        model_dir=model_dir,
+        pytorch_compare=False,
+    )
+    generated_text_norm = generated_text.strip()
+    reference_text_norm = reference_text.strip()
+    assert generated_text_norm == reference_text_norm

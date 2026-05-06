@@ -5,12 +5,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.logical import (
+    LogicalTensor,
+    MemoryClass,
+    TensorLifetime,
+    TensorRole,
+    TensorSemantic,
+)
+from torch2vk.vulkan.types import TensorSpec
 
 from models.omnivoice.tensors.audio_codec_layer import OmniVoiceAudioCodecDecoderLayerTensors
+from models.omnivoice.tensors.audio_codec_layer import declare_omnivoice_audio_codec_decoder_layer_tensors
 
 
-AUDIO_CODEC_PARAMETER_FIELDS = {}
+AUDIO_CODEC_PARAMETER_FIELDS = {
+    "quantizer_embeddings": "audio_codec.quantizer.embed.weight",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +40,59 @@ def declare_omnivoice_audio_codec_tensors(
     audio_sample_length: int,
     num_audio_codebook: int = 8,
 ) -> OmniVoiceAudioCodecTensors:
-    raise NotImplementedError(
-        "Generated scaffold only: fill OmniVoice audio codec tensor declarations."
+    channels = 256
+    decoder_layers = tuple(
+        declare_omnivoice_audio_codec_decoder_layer_tensors(
+            layer=layer,
+            channel_count=channels,
+            sequence_length=audio_token_length,
+        )
+        for layer in range(5)
+    )
+    return OmniVoiceAudioCodecTensors(
+        audio_tokens=LogicalTensor(
+            name="omnivoice.audio_codec.audio_tokens",
+            spec=TensorSpec(dtype="int32", shape=(1, num_audio_codebook, audio_token_length)),
+            role=TensorRole.INPUT,
+            memory=MemoryClass.HOST_INPUT,
+            lifetime=TensorLifetime.FRAME,
+            semantic=TensorSemantic.TOKEN,
+        ),
+        quantizer_embeddings=LogicalTensor(
+            name="audio_codec.quantizer.embed.weight",
+            spec=TensorSpec(dtype="float32", shape=(num_audio_codebook * 1025, channels)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+        ),
+        decoder_input=LogicalTensor(
+            name="omnivoice.audio_codec.decoder_input",
+            spec=TensorSpec(dtype="float32", shape=(1, channels, audio_token_length)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+        ),
+        decoder_layers=decoder_layers,
+        decoder_hidden=LogicalTensor(
+            name="omnivoice.audio_codec.decoder_hidden",
+            spec=TensorSpec(dtype="float32", shape=(1, channels, audio_token_length)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+        ),
+        projected_waveform=LogicalTensor(
+            name="omnivoice.audio_codec.projected_waveform",
+            spec=TensorSpec(dtype="float32", shape=(1, audio_sample_length)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+        ),
+        audio_waveform=LogicalTensor(
+            name="omnivoice.audio_codec.audio_waveform",
+            spec=TensorSpec(dtype="float32", shape=(1, audio_sample_length)),
+            role=TensorRole.OUTPUT,
+            memory=MemoryClass.HOST_OUTPUT,
+            lifetime=TensorLifetime.FRAME,
+            semantic=TensorSemantic.WAVEFORM,
+        ),
     )

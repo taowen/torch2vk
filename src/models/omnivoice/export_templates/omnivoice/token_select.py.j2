@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
-from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.logical import (
+    LogicalTensor,
+    MemoryClass,
+    TensorLifetime,
+    TensorRole,
+)
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.vulkan.types import TensorSpec
 
 from models.omnivoice._frame import OmniVoiceTorchOp
 from models.omnivoice.shaders.argmax_select_apply_fused_l import (
@@ -42,6 +48,69 @@ def run_omnivoice_token_select(
     *,
     audio_mask_id: int = {{ defaults.audio_mask_id }},
 ) -> LogicalTensor:
-    del tensors, audio_mask_id
+    del audio_mask_id
+    batch_size = tensors.guided_logits.concrete_shape[0]
+    selected_flat_index = _scratch_int32("omnivoice.token_select.selected_flat_index", (batch_size,))
+    selected_score = _scratch_f32("omnivoice.token_select.selected_score", (batch_size,))
+    selected_candidate_id = _scratch_int32("omnivoice.token_select.selected_candidate_id", (batch_size,))
     with rt.frame("omnivoice.token_select"):
-        raise NotImplementedError("Generated scaffold only: lower TOKEN_SELECT_TORCH_OPS.")
+        OMNIVOICE_CODEBOOK_ARGMAX_F32(
+            rt,
+            output_ids=tensors.pred_tokens,
+            logits=tensors.guided_logits,
+            codebook_offsets=tensors.layer_ids,
+        )
+        OMNIVOICE_CODEBOOK_ARGMAX_SCORES_F32(
+            rt,
+            output_ids=tensors.pred_tokens,
+            output_scores=tensors.confidence_scores,
+            logits=tensors.guided_logits,
+            codebook_offsets=tensors.layer_ids,
+        )
+        codebooks = tensors.guided_logits.concrete_shape[1]
+        steps = tensors.guided_logits.concrete_shape[2]
+        if codebooks * steps <= 128:
+            OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_S(
+                rt,
+                output_updated_ids=tensors.updated_tokens,
+                output_selected_flat_index=selected_flat_index,
+                output_selected_score=selected_score,
+                output_selected_candidate_id=selected_candidate_id,
+                logits=tensors.guided_logits,
+                codebook_offsets=tensors.layer_ids,
+                penalty=tensors.position_scores,
+                current_ids=tensors.current_tokens,
+            )
+        else:
+            OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_L(
+                rt,
+                output_updated_ids=tensors.updated_tokens,
+                output_selected_flat_index=selected_flat_index,
+                output_selected_score=selected_score,
+                output_selected_candidate_id=selected_candidate_id,
+                logits=tensors.guided_logits,
+                codebook_offsets=tensors.layer_ids,
+                penalty=tensors.position_scores,
+                current_ids=tensors.current_tokens,
+            )
+    return tensors.updated_tokens
+
+
+def _scratch_int32(name: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype="int32", shape=shape),
+        role=TensorRole.SCRATCH,
+        memory=MemoryClass.OP_SCRATCH,
+        lifetime=TensorLifetime.OP,
+    )
+
+
+def _scratch_f32(name: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype="float32", shape=shape),
+        role=TensorRole.SCRATCH,
+        memory=MemoryClass.OP_SCRATCH,
+        lifetime=TensorLifetime.OP,
+    )

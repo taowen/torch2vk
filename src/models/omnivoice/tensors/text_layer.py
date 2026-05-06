@@ -5,7 +5,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.logical import (
+    LogicalTensor,
+    MemoryClass,
+    TensorLifetime,
+    TensorRole,
+    TensorSemantic,
+)
+from torch2vk.vulkan.types import TensorSpec
 
 
 TEXT_DECODER_LAYER_PARAMETER_FIELDS = {
@@ -71,6 +78,87 @@ def declare_omnivoice_text_layer_tensors(
     key_cache: LogicalTensor | None = None,
     value_cache: LogicalTensor | None = None,
 ) -> OmniVoiceTextLayerTensors:
-    raise NotImplementedError(
-        "Generated scaffold only: fill one OmniVoice text decoder layer tensor declaration."
+    q_width = num_attention_heads * head_dim
+    kv_width = num_key_value_heads * head_dim
+    hidden_shape = (1, sequence_length, hidden_size)
+    q_shape = (1, sequence_length, q_width)
+    kv_shape = (1, sequence_length, kv_width)
+    if key_cache is None:
+        key_cache = _state(
+            f"{frame_prefix}.layers.{layer}.key_cache",
+            "float32",
+            (1, num_key_value_heads, max_sequence_length, head_dim),
+        )
+    if value_cache is None:
+        value_cache = _state(
+            f"{frame_prefix}.layers.{layer}.value_cache",
+            "float32",
+            (1, num_key_value_heads, max_sequence_length, head_dim),
+        )
+    return OmniVoiceTextLayerTensors(
+        input_layernorm_weight=_weight(f"llm.layers.{layer}.input_layernorm.weight", (hidden_size,)),
+        post_attention_layernorm_weight=_weight(
+            f"llm.layers.{layer}.post_attention_layernorm.weight", (hidden_size,)
+        ),
+        q_norm_weight=_weight(f"llm.layers.{layer}.self_attn.q_norm.weight", (head_dim,)),
+        k_norm_weight=_weight(f"llm.layers.{layer}.self_attn.k_norm.weight", (head_dim,)),
+        q_proj_weight=_weight(f"llm.layers.{layer}.self_attn.q_proj.weight", (q_width, hidden_size)),
+        k_proj_weight=_weight(f"llm.layers.{layer}.self_attn.k_proj.weight", (kv_width, hidden_size)),
+        v_proj_weight=_weight(f"llm.layers.{layer}.self_attn.v_proj.weight", (kv_width, hidden_size)),
+        o_proj_weight=_weight(f"llm.layers.{layer}.self_attn.o_proj.weight", (hidden_size, q_width)),
+        gate_proj_weight=_weight(f"llm.layers.{layer}.mlp.gate_proj.weight", (intermediate_size, hidden_size)),
+        up_proj_weight=_weight(f"llm.layers.{layer}.mlp.up_proj.weight", (intermediate_size, hidden_size)),
+        down_proj_weight=_weight(f"llm.layers.{layer}.mlp.down_proj.weight", (hidden_size, intermediate_size)),
+        input_layernorm=_activation(f"{frame_prefix}.layers.{layer}.input_layernorm", hidden_shape),
+        q_proj=_activation(f"{frame_prefix}.layers.{layer}.q_proj", q_shape),
+        k_proj=_activation(f"{frame_prefix}.layers.{layer}.k_proj", kv_shape),
+        v_proj=_activation(f"{frame_prefix}.layers.{layer}.v_proj", kv_shape),
+        q_normed=_activation(f"{frame_prefix}.layers.{layer}.q_normed", q_shape),
+        k_normed=_activation(f"{frame_prefix}.layers.{layer}.k_normed", kv_shape),
+        q_roped=_activation(f"{frame_prefix}.layers.{layer}.q_roped", q_shape),
+        k_roped=_activation(f"{frame_prefix}.layers.{layer}.k_roped", kv_shape),
+        key_cache=key_cache,
+        value_cache=value_cache,
+        attention=_activation(f"{frame_prefix}.layers.{layer}.attention", hidden_shape),
+        o_proj=_activation(f"{frame_prefix}.layers.{layer}.o_proj", hidden_shape),
+        attn_residual=_activation(f"{frame_prefix}.layers.{layer}.attn_residual", hidden_shape),
+        post_attention_layernorm=_activation(
+            f"{frame_prefix}.layers.{layer}.post_attention_layernorm", hidden_shape
+        ),
+        gate_proj=_activation(f"{frame_prefix}.layers.{layer}.gate_proj", (1, sequence_length, intermediate_size)),
+        up_proj=_activation(f"{frame_prefix}.layers.{layer}.up_proj", (1, sequence_length, intermediate_size)),
+        swiglu=_activation(f"{frame_prefix}.layers.{layer}.swiglu", (1, sequence_length, intermediate_size)),
+        down_proj=_activation(f"{frame_prefix}.layers.{layer}.down_proj", hidden_shape),
+        output=_activation(f"{frame_prefix}.layers.{layer}.output", hidden_shape),
+    )
+
+
+def _weight(name: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype="float32", shape=shape),
+        role=TensorRole.WEIGHT,
+        memory=MemoryClass.MODEL_WEIGHT,
+        lifetime=TensorLifetime.MODEL,
+    )
+
+
+def _activation(name: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype="float32", shape=shape),
+        role=TensorRole.ACTIVATION,
+        memory=MemoryClass.FRAME_WORKSPACE,
+        lifetime=TensorLifetime.FRAME,
+    )
+
+
+def _state(name: str, dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype=dtype, shape=shape),
+        role=TensorRole.STATE,
+        memory=MemoryClass.REQUEST_STATE,
+        lifetime=TensorLifetime.REQUEST,
+        semantic=TensorSemantic.KV_CACHE,
     )

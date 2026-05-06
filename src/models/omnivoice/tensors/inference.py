@@ -5,7 +5,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.logical import (
+    LogicalTensor,
+    MemoryClass,
+    TensorLifetime,
+    TensorRole,
+)
+from torch2vk.vulkan.types import TensorSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +71,64 @@ def declare_omnivoice_iterative_decode_tensors(
     audio_vocab_size: int = 1025,
     num_audio_codebook: int = 8,
 ) -> OmniVoiceIterativeDecodeTensors:
-    raise NotImplementedError(
-        "Generated scaffold only: fill OmniVoice iterative generation tensor declarations."
+    logits_shape = (batch_size, num_audio_codebook, max_target_tokens, audio_vocab_size)
+    token_shape = (batch_size, num_audio_codebook, max_target_tokens)
+    return OmniVoiceIterativeDecodeTensors(
+        reference_prompt=None,
+        prepared_inputs=(),
+        c_lens=_input("omnivoice.decode.c_lens", "int32", (batch_size,)),
+        u_lens=_input("omnivoice.decode.u_lens", "int32", (batch_size,)),
+        target_lens=_input("omnivoice.decode.target_lens", "int32", (batch_size,)),
+        batch_input_ids=_input(
+            "omnivoice.decode.batch_input_ids",
+            "int64",
+            (batch_size, num_audio_codebook, max_condition_length + max_target_tokens),
+        ),
+        batch_audio_mask=_input(
+            "omnivoice.decode.batch_audio_mask",
+            "bool",
+            (batch_size, max_condition_length + max_target_tokens),
+        ),
+        batch_attention_mask=_input(
+            "omnivoice.decode.batch_attention_mask",
+            "uint32",
+            (batch_size, max_condition_length + max_target_tokens),
+        ),
+        tokens=_activation("omnivoice.decode.tokens", "int32", token_shape),
+        timesteps=_input("omnivoice.decode.timesteps", "int32", (num_step,)),
+        schedules=_input("omnivoice.decode.schedules", "float32", (batch_size, num_audio_codebook)),
+        layer_ids=_input("omnivoice.decode.layer_ids", "int32", (num_audio_codebook,)),
+        batch_logits=_activation("omnivoice.decode.batch_logits", "float32", logits_shape),
+        cond_logits=_activation("omnivoice.decode.cond_logits", "float32", logits_shape),
+        uncond_logits=_activation("omnivoice.decode.uncond_logits", "float32", logits_shape),
+        sample_tokens=_activation("omnivoice.decode.sample_tokens", "int32", token_shape),
+        topk_values=_activation("omnivoice.decode.topk_values", "float32", token_shape),
+        topk_indices=_activation("omnivoice.decode.topk_indices", "int32", token_shape),
+        flat_tokens=_activation("omnivoice.decode.flat_tokens", "int32", token_shape),
+        updated_sample_tokens=_activation("omnivoice.decode.updated_sample_tokens", "int32", token_shape),
+        updated_batch_input_ids=_activation(
+            "omnivoice.decode.updated_batch_input_ids",
+            "int64",
+            (batch_size, num_audio_codebook, max_condition_length + max_target_tokens),
+        ),
+    )
+
+
+def _input(name: str, dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype=dtype, shape=shape),
+        role=TensorRole.INPUT,
+        memory=MemoryClass.HOST_INPUT,
+        lifetime=TensorLifetime.FRAME,
+    )
+
+
+def _activation(name: str, dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype=dtype, shape=shape),
+        role=TensorRole.ACTIVATION,
+        memory=MemoryClass.FRAME_WORKSPACE,
+        lifetime=TensorLifetime.FRAME,
     )

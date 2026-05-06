@@ -8,6 +8,8 @@ from torch2vk.runtime.session import RuntimeSession
 
 from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
 from models.omnivoice.tensors.inference import OmniVoiceIterativeDecodeTensors
+from models.omnivoice.tensors.text import OmniVoiceTokenSelectTensors
+from models.omnivoice.token_select import run_omnivoice_token_select
 
 
 ITERATIVE_DECODE_TORCH_OPS = (
@@ -45,7 +47,6 @@ def run_omnivoice_iterative_decode(
     num_step: int,
     pytorch_compare: bool = True,
 ) -> LogicalTensor:
-    del tensors
     if num_step <= 0:
         raise ValueError(f"num_step must be positive, got {num_step}")
     frame_scope = omnivoice_frame(
@@ -54,4 +55,31 @@ def run_omnivoice_iterative_decode(
         pytorch_compare=pytorch_compare,
     )
     with frame_scope:
-        raise NotImplementedError("Generated scaffold only: lower ITERATIVE_DECODE_TORCH_OPS.")
+        token_tensors = OmniVoiceTokenSelectTensors(
+            cond_logits=tensors.cond_logits,
+            uncond_logits=tensors.uncond_logits,
+            c_log_probs=tensors.cond_logits,
+            u_log_probs=tensors.uncond_logits,
+            guided_logits=tensors.guided_logits,
+            log_probs=tensors.guided_logits,
+            masked_log_probs=tensors.guided_logits,
+            filtered_probs=tensors.guided_logits,
+            class_gumbel_uniform=tensors.guided_logits,
+            class_gumbel_noise=tensors.guided_logits,
+            class_sample_logits=tensors.guided_logits,
+            pred_tokens=tensors.flat_tokens,
+            confidence_scores=tensors.topk_values,
+            layer_ids=tensors.layer_ids,
+            position_scores=tensors.schedules,
+            position_gumbel_uniform=tensors.schedules,
+            position_gumbel_noise=tensors.schedules,
+            current_tokens=tensors.sample_tokens,
+            topk_values=tensors.topk_values,
+            topk_indices=tensors.topk_indices,
+            selected_positions=tensors.topk_indices,
+            updated_tokens=tensors.updated_sample_tokens,
+        )
+        output = tensors.sample_tokens
+        for _ in range(num_step):
+            output = run_omnivoice_token_select(rt, token_tensors)
+        return output

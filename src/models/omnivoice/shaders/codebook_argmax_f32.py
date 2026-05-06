@@ -3,7 +3,20 @@
 
 from __future__ import annotations
 
-from torch2vk.runtime.shader import ShaderContract, ShaderVariant
+from torch2vk.runtime.shader import (
+    IOKind,
+    ParamsBufferFieldSpec,
+    ParamsBufferSpec,
+    PushConstantFieldSpec,
+    PushConstantSpec,
+    PushConstantType,
+    ShaderContract,
+    ShaderExecutionRequirements,
+    ShaderVariant,
+    TensorContract,
+    TensorFieldSpec,
+    ceil_div,
+)
 
 
 OMNIVOICE_CODEBOOK_ARGMAX_F32 = ShaderVariant(
@@ -12,9 +25,68 @@ OMNIVOICE_CODEBOOK_ARGMAX_F32 = ShaderVariant(
     contract=ShaderContract(
         class_name="OmniVoiceCodebookArgmaxF32Program",
         shader_name="omnivoice_codebook_argmax_f32",
-        fields=(),
-        dispatch=(1, 1, 1),
+        fields=(
+            TensorFieldSpec(
+                name="output_ids",
+                io_kind=IOKind.OUTPUT,
+                role="output_ids",
+                contract=TensorContract(
+                    dtype="int32",
+                    shape=("B", "C", "S"),
+                ),
+            ),
+            TensorFieldSpec(
+                name="logits",
+                io_kind=IOKind.INPUT,
+                role="logits",
+                contract=TensorContract(
+                    dtype="float32",
+                    shape=("B", "C", "S", "V"),
+                ),
+            ),
+            TensorFieldSpec(
+                name="codebook_offsets",
+                io_kind=IOKind.INPUT,
+                role="codebook_offsets",
+                contract=TensorContract(
+                    dtype="int32",
+                    shape=("C",),
+                ),
+            ),
+        ),
+        dispatch=("C", "S", "B"),
+        params_buffer=ParamsBufferSpec(
+            size=16,
+            fields=(
+                ParamsBufferFieldSpec(
+                    "steps",
+                    PushConstantType.UINT32,
+                    0,
+    "S",
+                ),
+                ParamsBufferFieldSpec(
+                    "batches",
+                    PushConstantType.UINT32,
+                    4,
+    "B",
+                ),
+                ParamsBufferFieldSpec(
+                    "vocab",
+                    PushConstantType.UINT32,
+                    8,
+    "V",
+                ),
+                ParamsBufferFieldSpec(
+                    "codebooks",
+                    PushConstantType.UINT32,
+                    12,
+    "C",
+                ),
+            ),
+            binding_index=3,
+        ),
     ),
+
     source="""
 #version 460
 
@@ -32,7 +104,7 @@ layout(set = 0, binding = 2) buffer restrict readonly CodebookOffsetsBuffer {
     int t_codebook_offsets[];
 };
 
-layout(set = 0, binding = 3) uniform restrict readonly sizes_UBO {
+layout(set = 0, binding = 3) buffer restrict readonly sizes_UBO {
     ivec4 sizes;
 };
 

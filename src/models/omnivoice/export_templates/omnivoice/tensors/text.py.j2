@@ -368,13 +368,13 @@ def _declare_omnivoice_token_select_tensors(
     logits_shape = (batch_size, num_audio_codebook, sequence_length, audio_vocab_size)
     token_shape = (batch_size, num_audio_codebook, sequence_length)
     score_shape = (batch_size, num_audio_codebook, sequence_length)
-    position_shape = (batch_size, sequence_length)
+    position_shape = (batch_size, num_audio_codebook)
     return OmniVoiceTokenSelectTensors(
         cond_logits=_activation("omnivoice.token_select.cond_logits", "float32", logits_shape),
         uncond_logits=_activation("omnivoice.token_select.uncond_logits", "float32", logits_shape),
         c_log_probs=_activation("omnivoice.token_select.c_log_probs", "float32", logits_shape),
         u_log_probs=_activation("omnivoice.token_select.u_log_probs", "float32", logits_shape),
-        guided_logits=_activation("omnivoice.token_select.guided_logits", "float32", logits_shape),
+        guided_logits=_input("omnivoice.token_select.guided_logits", "float32", logits_shape),
         log_probs=_activation("omnivoice.token_select.log_probs", "float32", logits_shape),
         masked_log_probs=_activation(
             "omnivoice.token_select.masked_log_probs", "float32", logits_shape
@@ -389,33 +389,31 @@ def _declare_omnivoice_token_select_tensors(
         class_sample_logits=_activation(
             "omnivoice.token_select.class_sample_logits", "float32", logits_shape
         ),
-        pred_tokens=_activation("omnivoice.token_select.pred_tokens", "int64", token_shape),
+        pred_tokens=_activation("omnivoice.token_select.pred_tokens", "int32", token_shape),
         confidence_scores=_activation(
             "omnivoice.token_select.confidence_scores", "float32", score_shape
         ),
-        layer_ids=_input("omnivoice.token_select.layer_ids", "int64", (num_audio_codebook,)),
-        position_scores=_activation(
-            "omnivoice.token_select.position_scores", "float32", position_shape
-        ),
+        layer_ids=_input("omnivoice.token_select.layer_ids", "int32", (num_audio_codebook,)),
+        position_scores=_input("omnivoice.token_select.position_scores", "float32", position_shape),
         position_gumbel_uniform=_input(
             "omnivoice.token_select.position_gumbel_uniform", "float32", position_shape
         ),
         position_gumbel_noise=_activation(
             "omnivoice.token_select.position_gumbel_noise", "float32", position_shape
         ),
-        current_tokens=_input("omnivoice.token_select.current_tokens", "int64", token_shape),
+        current_tokens=_input("omnivoice.token_select.current_tokens", "int32", token_shape),
         topk_values=_activation(
             "omnivoice.token_select.topk_values", "float32", (batch_size, num_audio_codebook)
         ),
         topk_indices=_activation(
-            "omnivoice.token_select.topk_indices", "int64", (batch_size, num_audio_codebook)
+            "omnivoice.token_select.topk_indices", "int32", (batch_size, num_audio_codebook)
         ),
         selected_positions=_activation(
-            "omnivoice.token_select.selected_positions", "int64", (batch_size, num_audio_codebook)
+            "omnivoice.token_select.selected_positions", "int32", (batch_size, num_audio_codebook)
         ),
         updated_tokens=LogicalTensor(
             name="omnivoice.token_select.updated_tokens",
-            spec=TensorSpec(dtype="int64", shape=token_shape),
+            spec=TensorSpec(dtype="int32", shape=token_shape),
             role=TensorRole.OUTPUT,
             memory=MemoryClass.HOST_OUTPUT,
             lifetime=TensorLifetime.FRAME,

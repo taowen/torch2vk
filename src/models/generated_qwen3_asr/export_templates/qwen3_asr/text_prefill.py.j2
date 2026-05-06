@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.export.lowering import resolve_shader_symbol
 
@@ -38,12 +40,23 @@ def run_generated_qwen3_asr_text_prefill(
     *,
     pytorch_compare: bool = True,
 ) -> None:
+    initial_states = {}
+    for layer in tensors.layers:
+        for cache in (layer.key_cache, layer.value_cache):
+            if cache.buffer is None:
+                initial_states[cache] = np.zeros(cache.concrete_shape, dtype=np.float32)
+    if initial_states:
+        rt.initialize_request_state(initial_states)
+
     frame_scope = qwen3_asr_frame(
         rt,
         "generated_qwen3_asr.text_prefill",
         pytorch_compare=pytorch_compare,
         pytorch_model_submodule="thinker",
         pytorch_input_prefixes=("generated_qwen3_asr.text_prefill",),
+        pytorch_cache_policy="hf_dynamic",
+        pytorch_cache_namespace="qwen3_asr.text",
+        pytorch_reset_cache=True,
     )
     env: dict[str, object] = {field: getattr(tensors, field) for field in tensors.__dataclass_fields__}
     if "hidden" not in env:

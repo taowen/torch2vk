@@ -10,7 +10,7 @@ layout(set = 0, binding = 4) buffer restrict readonly LogitsBuffer { float t_log
 layout(set = 0, binding = 5) buffer restrict readonly CodebookOffsetsBuffer { int t_codebook_offsets[]; };
 layout(set = 0, binding = 6) buffer restrict readonly PenaltyBuffer { float t_penalty[]; };
 layout(set = 0, binding = 7) buffer restrict readonly CurrentIdsBuffer { int t_current_ids[]; };
-layout(set = 0, binding = 8) uniform restrict readonly sizes_UBO { ivec4 sizes; };
+layout(set = 0, binding = 8) buffer restrict readonly sizes_UBO { ivec4 sizes; };
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 

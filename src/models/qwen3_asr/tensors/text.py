@@ -142,8 +142,8 @@ def declare_qwen3_asr_text_tensors(
             pytorch_feature_attention_mask_shape,
         ),
         position_ids=_input("qwen3_asr.text_prefill.position_ids", "int64", (3, 1, prompt_length)),
-        rope_cos=_input("qwen3_asr.text_prefill.rope_cos", "float32", (1, prompt_length, head_dim)),
-        rope_sin=_input("qwen3_asr.text_prefill.rope_sin", "float32", (1, prompt_length, head_dim)),
+        rope_cos=_state("qwen3_asr.text_prefill.rope_cos", "float32", (1, prompt_length, head_dim)),
+        rope_sin=_state("qwen3_asr.text_prefill.rope_sin", "float32", (1, prompt_length, head_dim)),
         audio_features=prefill_audio_features,
         audio_scatter_mask=_activation(
             "qwen3_asr.text_prefill.audio_scatter_mask",
@@ -195,8 +195,8 @@ def declare_qwen3_asr_text_tensors(
         input_ids=_input("qwen3_asr.text_decode.input_ids", "int64", (1, 1)),
         attention_mask=_input("qwen3_asr.text_decode.attention_mask", "int64", (1, max_sequence_length)),
         position_ids=_input("qwen3_asr.text_decode.position_ids", "int64", (3, 1, 1)),
-        rope_cos=_input("qwen3_asr.text_decode.rope_cos", "float32", (1, 1, head_dim)),
-        rope_sin=_input("qwen3_asr.text_decode.rope_sin", "float32", (1, 1, head_dim)),
+        rope_cos=_state("qwen3_asr.text_decode.rope_cos", "float32", (1, 1, head_dim)),
+        rope_sin=_state("qwen3_asr.text_decode.rope_sin", "float32", (1, 1, head_dim)),
         cache_position=_input("qwen3_asr.text_decode.cache_position", "int64", (1,)),
         embed_tokens_weight=_weight("thinker.model.embed_tokens.weight", (vocab_size, hidden_size)),
         inputs_embeds=_activation("qwen3_asr.text_decode.inputs_embeds", "float32", (1, 1, hidden_size)),
@@ -297,7 +297,7 @@ def _state(
     dtype: str,
     shape: tuple[int, ...],
     *,
-    semantic: TensorSemantic,
+    semantic: TensorSemantic | None = None,
 ) -> LogicalTensor:
     return LogicalTensor(
         name=name,

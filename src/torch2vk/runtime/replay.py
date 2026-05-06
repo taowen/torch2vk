@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import numpy as np
 from vulkan import (
     VK_QUERY_RESULT_64_BIT,
     VK_QUERY_RESULT_WAIT_BIT,
@@ -39,6 +40,8 @@ from torch2vk.vulkan.compute_pipeline import (
 )
 
 if TYPE_CHECKING:
+    from torch2vk.runtime.logical import LogicalTensor
+    from torch2vk.runtime.session import RuntimeSession
     from torch2vk.vulkan.device import VulkanDevice
 
 
@@ -219,6 +222,49 @@ def execute_replay(
             slot.allocation.offset, slot.nbytes
         )
     return results
+
+
+def stage_replay_step_inputs(
+    rt: "RuntimeSession",
+    *,
+    plan: ReplayPlan,
+    tensors_by_name: Mapping[str, "LogicalTensor"],
+    inputs: Mapping["LogicalTensor", np.ndarray],
+    write_through: tuple["LogicalTensor", ...] = (),
+) -> None:
+    """Update replay step inputs and rebind plan descriptors to the latest buffers."""
+    rt.register_inputs(inputs)
+    for tensor in write_through:
+        value = inputs.get(tensor)
+        if value is None:
+            continue
+        if tensor.buffer is None:
+            rt._materialize_read(tensor)
+        _write_tensor_buffer(rt, tensor, value)
+    rt.rebind_replay_plan(plan, tensors_by_name=tensors_by_name)
+
+
+def _write_tensor_buffer(
+    rt: "RuntimeSession",
+    tensor: "LogicalTensor",
+    data: np.ndarray,
+) -> None:
+    contiguous = np.ascontiguousarray(data, dtype=tensor.spec.dtype)
+    if tensor.buffer is None:
+        raise RuntimeError(f"Tensor {tensor.name} not materialized for replay write")
+    raw_bytes = memoryview(contiguous).cast("B")
+    if raw_bytes.nbytes > tensor.buffer.nbytes:
+        raise ValueError(
+            f"{tensor.name} replay write has {raw_bytes.nbytes} bytes, "
+            f"buffer only has {tensor.buffer.nbytes}"
+        )
+    tensor.buffer.allocation.buffer.write_bytes_at(
+        tensor.buffer.offset, raw_bytes
+    )
+    rt.device.memory_manager.host_upload_ring.flush(
+        allocation=tensor.buffer.allocation,
+        size=raw_bytes.nbytes,
+    )
 
 
 def _write_indirect_dispatch_buffer(

@@ -31,6 +31,7 @@ def qwen3_asr_frame(
     pytorch_input_prefixes: tuple[str, ...] = (),
     pytorch_cache_policy: str = "none",
     pytorch_cache_namespace: str | None = None,
+    pytorch_reset_cache: bool = False,
 ):
     if not pytorch_compare:
         return rt.frame(name)
@@ -46,4 +47,5 @@ def qwen3_asr_frame(
         pytorch_input_prefixes=pytorch_input_prefixes,
         pytorch_cache_policy=pytorch_cache_policy,
         pytorch_cache_namespace=pytorch_cache_namespace,
+        pytorch_reset_cache=pytorch_reset_cache,
     )

@@ -14,7 +14,7 @@ layout(set = 0, binding = 2) buffer restrict readonly CodebookOffsetsBuffer {
     int t_codebook_offsets[];
 };
 
-layout(set = 0, binding = 3) uniform restrict readonly sizes_UBO {
+layout(set = 0, binding = 3) buffer restrict readonly sizes_UBO {
     ivec4 sizes;
 };
 

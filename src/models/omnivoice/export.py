@@ -20,6 +20,11 @@ from types import ModuleType
 from typing import Any
 
 from torch2vk.export.exported_program import export_torch_program, torch_ops_from_exported_program
+from torch2vk.export.contract_codegen import (
+    ParamsFieldDecl,
+    TensorFieldDecl,
+    render_shader_contract_variant_body,
+)
 from torch2vk.export.reflection import (
     TorchModuleReflection,
     instantiate_torch_module_on_meta,
@@ -566,21 +571,33 @@ def _shader_modules() -> tuple[ShaderModulePattern, ...]:
             "OMNIVOICE_CODEBOOK_ARGMAX_F32",
             "codebook_argmax_f32.glsl",
             family="omnivoice.token_select",
+            variant_body=_token_select_codebook_argmax_variant_body(),
         ),
         _single_shader_module(
             "OMNIVOICE_CODEBOOK_ARGMAX_SCORES_F32",
             "codebook_argmax_scores_f32.glsl",
             family="omnivoice.token_select",
+            variant_body=_token_select_codebook_argmax_scores_variant_body(),
         ),
         _single_shader_module(
             "OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_L",
             "argmax_select_apply_fused_l.glsl",
             family="omnivoice.token_select",
+            variant_body=_token_select_argmax_select_apply_variant_body(
+                shader_name="omnivoice_argmax_select_apply_fused_l",
+                class_name="OmniVoiceArgmaxSelectApplyFusedLProgram",
+                local_size_x=256,
+            ),
         ),
         _single_shader_module(
             "OMNIVOICE_ARGMAX_SELECT_APPLY_FUSED_S",
             "argmax_select_apply_fused_s.glsl",
             family="omnivoice.token_select",
+            variant_body=_token_select_argmax_select_apply_variant_body(
+                shader_name="omnivoice_argmax_select_apply_fused_s",
+                class_name="OmniVoiceArgmaxSelectApplyFusedSProgram",
+                local_size_x=128,
+            ),
         ),
         _single_shader_module(
             "OMNIVOICE_AUDIO_CODEC_DECODER_QUANTIZER_EMBED_SUM_F32",
@@ -863,6 +880,83 @@ contract=ShaderContract(
 ),
 execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
 """.lstrip()
+
+
+def _token_select_codebook_argmax_variant_body() -> str:
+    return render_shader_contract_variant_body(
+        class_name="OmniVoiceCodebookArgmaxF32Program",
+        shader_name="omnivoice_codebook_argmax_f32",
+        tensor_fields=(
+            TensorFieldDecl("output_ids", "OUTPUT", "output_ids", "int32", ("B", "C", "S")),
+            TensorFieldDecl("logits", "INPUT", "logits", "float32", ("B", "C", "S", "V")),
+            TensorFieldDecl("codebook_offsets", "INPUT", "codebook_offsets", "int32", ("C",)),
+        ),
+        dispatch=("C", "S", "B"),
+        params_fields=(
+            ParamsFieldDecl("steps", "UINT32", 0, "S"),
+            ParamsFieldDecl("batches", "UINT32", 4, "B"),
+            ParamsFieldDecl("vocab", "UINT32", 8, "V"),
+            ParamsFieldDecl("codebooks", "UINT32", 12, "C"),
+        ),
+        params_size=16,
+        params_binding_index=3,
+    )
+
+
+def _token_select_codebook_argmax_scores_variant_body() -> str:
+    return render_shader_contract_variant_body(
+        class_name="OmniVoiceCodebookArgmaxScoresF32Program",
+        shader_name="omnivoice_codebook_argmax_scores_f32",
+        tensor_fields=(
+            TensorFieldDecl("output_ids", "OUTPUT", "output_ids", "int32", ("B", "C", "S")),
+            TensorFieldDecl("output_scores", "OUTPUT", "output_scores", "float32", ("B", "C", "S")),
+            TensorFieldDecl("logits", "INPUT", "logits", "float32", ("B", "C", "S", "V")),
+            TensorFieldDecl("codebook_offsets", "INPUT", "codebook_offsets", "int32", ("C",)),
+        ),
+        dispatch=("C", "S", "B"),
+        params_fields=(
+            ParamsFieldDecl("steps", "UINT32", 0, "S"),
+            ParamsFieldDecl("batches", "UINT32", 4, "B"),
+            ParamsFieldDecl("vocab", "UINT32", 8, "V"),
+            ParamsFieldDecl("codebooks", "UINT32", 12, "C"),
+        ),
+        params_size=16,
+        params_binding_index=4,
+    )
+
+
+def _token_select_argmax_select_apply_variant_body(
+    *,
+    shader_name: str,
+    class_name: str,
+    local_size_x: int,
+) -> str:
+    del local_size_x
+    return render_shader_contract_variant_body(
+        class_name=class_name,
+        shader_name=shader_name,
+        tensor_fields=(
+            TensorFieldDecl("output_updated_ids", "OUTPUT", "output_updated_ids", "int32", ("B", "C", "S")),
+            TensorFieldDecl("output_selected_flat_index", "OUTPUT", "output_selected_flat_index", "int32", ("B",)),
+            TensorFieldDecl("output_selected_score", "OUTPUT", "output_selected_score", "float32", ("B",)),
+            TensorFieldDecl(
+                "output_selected_candidate_id", "OUTPUT", "output_selected_candidate_id", "int32", ("B",)
+            ),
+            TensorFieldDecl("logits", "INPUT", "logits", "float32", ("B", "C", "S", "V")),
+            TensorFieldDecl("codebook_offsets", "INPUT", "codebook_offsets", "int32", ("C",)),
+            TensorFieldDecl("penalty", "INPUT", "penalty", "float32", ("B", "C")),
+            TensorFieldDecl("current_ids", "INPUT", "current_ids", "int32", ("B", "C", "S")),
+        ),
+        dispatch=(1, 1, "B"),
+        params_fields=(
+            ParamsFieldDecl("steps", "UINT32", 0, "S"),
+            ParamsFieldDecl("codebooks", "UINT32", 4, "C"),
+            ParamsFieldDecl("batches", "UINT32", 8, "B"),
+            ParamsFieldDecl("vocab", "UINT32", 12, "V"),
+        ),
+        params_size=16,
+        params_binding_index=8,
+    )
 
 
 def _aten_select_int_i64_source() -> str:

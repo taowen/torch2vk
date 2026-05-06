@@ -5,10 +5,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.logical import (
+    LogicalTensor,
+    MemoryClass,
+    TensorLifetime,
+    TensorRole,
+)
+from torch2vk.vulkan.types import TensorSpec
 
 
-AUDIO_CODEC_DECODER_LAYER_PARAMETER_FIELDS = {}
+AUDIO_CODEC_DECODER_LAYER_PARAMETER_FIELDS = {
+    "conv1_weight": "conv1.weight",
+    "conv1_bias": "conv1.bias",
+    "conv7_weight": "conv7.weight",
+    "conv7_bias": "conv7.bias",
+    "deconv_weight": "deconv.weight",
+    "deconv_bias": "deconv.bias",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +44,47 @@ def declare_omnivoice_audio_codec_decoder_layer_tensors(
     channel_count: int,
     sequence_length: int,
 ) -> OmniVoiceAudioCodecDecoderLayerTensors:
-    raise NotImplementedError(
-        "Generated scaffold only: fill one OmniVoice audio codec decoder layer declaration."
+    return OmniVoiceAudioCodecDecoderLayerTensors(
+        conv1_weight=_weight(f"audio_codec.decoder.layers.{layer}.conv1.weight", (channel_count, channel_count)),
+        conv1_bias=_weight(f"audio_codec.decoder.layers.{layer}.conv1.bias", (channel_count,)),
+        conv7_weight=_weight(f"audio_codec.decoder.layers.{layer}.conv7.weight", (channel_count, channel_count, 7)),
+        conv7_bias=_weight(f"audio_codec.decoder.layers.{layer}.conv7.bias", (channel_count,)),
+        deconv_weight=_weight(f"audio_codec.decoder.layers.{layer}.deconv.weight", (channel_count, channel_count, 2)),
+        deconv_bias=_weight(f"audio_codec.decoder.layers.{layer}.deconv.bias", (channel_count,)),
+        decoder_hidden=_activation(
+            f"omnivoice.audio_codec.layer{layer}.decoder_hidden",
+            (1, channel_count, sequence_length),
+        ),
+        snake_activation=_activation(
+            f"omnivoice.audio_codec.layer{layer}.snake_activation",
+            (1, channel_count, sequence_length),
+        ),
+        decoder_residual=_activation(
+            f"omnivoice.audio_codec.layer{layer}.decoder_residual",
+            (1, channel_count, sequence_length),
+        ),
+        output=_activation(
+            f"omnivoice.audio_codec.layer{layer}.output",
+            (1, channel_count, sequence_length),
+        ),
+    )
+
+
+def _weight(name: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype="float32", shape=shape),
+        role=TensorRole.WEIGHT,
+        memory=MemoryClass.MODEL_WEIGHT,
+        lifetime=TensorLifetime.MODEL,
+    )
+
+
+def _activation(name: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype="float32", shape=shape),
+        role=TensorRole.ACTIVATION,
+        memory=MemoryClass.FRAME_WORKSPACE,
+        lifetime=TensorLifetime.FRAME,
     )

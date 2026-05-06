@@ -345,6 +345,7 @@ def _render_frame_files(
         renderer.render("qwen3_asr/token_select.py.j2", "token_select.py", **context),
         renderer.render("qwen3_asr/token_store.py.j2", "token_store.py", **context),
         renderer.render("qwen3_asr/execution.py.j2", "execution.py", **context),
+        renderer.render("qwen3_asr/transcribe.py.j2", "transcribe.py", **context),
     ]
 
 

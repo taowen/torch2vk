@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
 
-from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
+from models.omnivoice._frame import OmniVoiceTorchOp
+from models.omnivoice.input_embeddings import run_omnivoice_input_embeddings
 from models.omnivoice.tensors.text import OmniVoiceTextPrefillTensors
 
 
@@ -36,12 +37,10 @@ def run_omnivoice_text_prefill(
     tensors: OmniVoiceTextPrefillTensors,
     *,
     pytorch_compare: bool = True,
-) -> None:
-    del tensors
-    frame_scope = omnivoice_frame(
+):
+    return run_omnivoice_input_embeddings(
         rt,
-        "omnivoice.text_prefill",
+        tensors,
         pytorch_compare=pytorch_compare,
+        max_ops=None,
     )
-    with frame_scope:
-        raise NotImplementedError("Generated scaffold only: lower TEXT_PREFILL_TORCH_OPS.")

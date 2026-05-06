@@ -11,9 +11,10 @@ from models.generated_qwen3_asr.text_decode import run_generated_qwen3_asr_text_
 from models.generated_qwen3_asr.text_prefill import run_generated_qwen3_asr_text_prefill
 from models.generated_qwen3_asr.token_select import run_generated_qwen3_asr_token_select
 from models.generated_qwen3_asr.token_store import run_generated_qwen3_asr_token_store
-from models.qwen3_asr.rope import precompute_qwen3_asr_mrope
-from torch2vk.runtime.logical import LogicalTensor
+from models.qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TABLE_F32
+from torch2vk.runtime.logical import LogicalTensor, MemoryClass, TensorLifetime, TensorRole
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.vulkan.types import TensorSpec
 
 from models.generated_qwen3_asr.tensors.text import (
     GeneratedQwen3AsrTextDecodeTensors,
@@ -72,8 +73,8 @@ def run_generated_qwen3_asr_greedy_decode_loop(
                 decode,
                 step=step,
                 pytorch_compare=False,
-                token_select=tensors.token_select,
             )
+            run_generated_qwen3_asr_token_select(rt, tensors.token_select, logits=decode.logits)
         _run_token_store_step(rt, tensors, token_index=step + 1, stop_on_eos=stop_on_eos)
         if stop_on_eos and _token_store_stopped(rt, tensors):
             break
@@ -87,17 +88,23 @@ def _register_prefill_rope(
     rope_theta: float,
     mrope_section: tuple[int, ...],
 ) -> None:
-    prompt_length = prefill.rope_cos.concrete_shape[1]
-    head_dim = prefill.rope_cos.concrete_shape[2]
-    position_ids = np.arange(prompt_length, dtype=np.int64)[np.newaxis, :]
-    position_ids_3d = np.broadcast_to(position_ids[np.newaxis, :, :], (3, 1, prompt_length)).copy()
-    cos, sin = precompute_qwen3_asr_mrope(
-        position_ids=position_ids_3d,
-        head_dim=head_dim,
-        rope_theta=rope_theta,
-        mrope_section=mrope_section,
+    _require_supported_mrope_section(mrope_section)
+    start_position = _rope_start_position_tensor()
+    rope_theta_tensor = _rope_theta_tensor()
+    rt.register_inputs(
+        {
+            start_position: np.array([0], dtype=np.int64),
+            rope_theta_tensor: np.array([rope_theta], dtype=np.float32),
+        }
     )
-    rt.register_inputs({prefill.rope_cos: cos, prefill.rope_sin: sin})
+    with rt.frame("generated_qwen3_asr.rope_table"):
+        QWEN3_ASR_ROPE_TABLE_F32(
+            rt,
+            start_position=start_position,
+            rope_theta=rope_theta_tensor,
+            cos=prefill.rope_cos,
+            sin=prefill.rope_sin,
+        )
 
 
 def _register_decode_rope(
@@ -109,20 +116,23 @@ def _register_decode_rope(
     rope_theta: float,
     mrope_section: tuple[int, ...],
 ) -> None:
-    position_ids_3d = np.full((3, 1, 1), cache_position, dtype=np.int64)
-    cos, sin = precompute_qwen3_asr_mrope(
-        position_ids=position_ids_3d,
-        head_dim=head_dim,
-        rope_theta=rope_theta,
-        mrope_section=mrope_section,
-    )
+    del head_dim
+    _require_supported_mrope_section(mrope_section)
+    rope_theta_tensor = _rope_theta_tensor()
     rt.register_inputs(
         {
             decode.cache_position: np.array([cache_position], dtype=np.int64),
-            decode.rope_cos: cos,
-            decode.rope_sin: sin,
+            rope_theta_tensor: np.array([rope_theta], dtype=np.float32),
         }
     )
+    with rt.frame("generated_qwen3_asr.rope_table"):
+        QWEN3_ASR_ROPE_TABLE_F32(
+            rt,
+            start_position=decode.cache_position,
+            rope_theta=rope_theta_tensor,
+            cos=decode.rope_cos,
+            sin=decode.rope_sin,
+        )
 
 
 def _ensure_kv_cache_capacity(
@@ -170,3 +180,31 @@ def _initialize_token_store_state(rt: RuntimeSession, tensors: GeneratedQwen3Asr
         values[layer.key_cache] = np.zeros(layer.key_cache.concrete_shape, dtype=np.float32)
         values[layer.value_cache] = np.zeros(layer.value_cache.concrete_shape, dtype=np.float32)
     rt.initialize_request_state(values)
+
+
+def _rope_start_position_tensor() -> LogicalTensor:
+    return LogicalTensor(
+        name="generated_qwen3_asr.rope.start_position",
+        spec=TensorSpec(dtype="int64", shape=(1,)),
+        role=TensorRole.INPUT,
+        memory=MemoryClass.HOST_INPUT,
+        lifetime=TensorLifetime.FRAME,
+    )
+
+
+def _rope_theta_tensor() -> LogicalTensor:
+    return LogicalTensor(
+        name="generated_qwen3_asr.rope.theta",
+        spec=TensorSpec(dtype="float32", shape=(1,)),
+        role=TensorRole.INPUT,
+        memory=MemoryClass.HOST_INPUT,
+        lifetime=TensorLifetime.FRAME,
+    )
+
+
+def _require_supported_mrope_section(mrope_section: tuple[int, ...]) -> None:
+    if tuple(mrope_section) != (24, 20, 20):
+        raise NotImplementedError(
+            "generated_qwen3_asr rope_table shader currently supports "
+            f"mrope_section=(24, 20, 20), got {mrope_section}"
+        )

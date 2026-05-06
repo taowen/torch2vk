@@ -56,6 +56,5 @@ def run_omnivoice_audio_codec_decode(
     rt: RuntimeSession,
     tensors: OmniVoiceAudioCodecTensors,
 ) -> LogicalTensor:
-    del tensors
-    with rt.frame("omnivoice.audio_codec_decode"):
-        raise NotImplementedError("Generated scaffold only: lower AUDIO_CODEC_DECODE_TORCH_OPS.")
+    del rt, tensors
+    raise NotImplementedError("Generated scaffold only: lower AUDIO_CODEC_DECODE_TORCH_OPS.")
