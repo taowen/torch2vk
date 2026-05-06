@@ -91,3 +91,48 @@ DEFAULT_LOWERING_REGISTRY = OpLoweringRegistry(
 def resolve_shader_symbol(*, op: TorchOpPattern) -> str | None:
     binding = DEFAULT_LOWERING_REGISTRY.resolve(op=op)
     return None if binding is None else binding.shader
+
+
+FRAME_SHADER_REGISTRY: dict[tuple[str, str], dict[str, str]] = {
+    ("generated_qwen3_asr", "audio_tower"): {
+        "pad_feature": "QWEN3_ASR_PAD_FEATURE_F32",
+        "conv2d_gelu": "QWEN3_ASR_CONV2D_GELU_F32",
+        "conv_out": "QWEN3_ASR_CONV_OUT_F32",
+        "add_position": "QWEN3_ASR_ADD_POSITION_F32",
+        "compact_after_cnn": "QWEN3_ASR_COMPACT_AFTER_CNN_F32",
+        "cu_seqlens": "QWEN3_ASR_CU_SEQLENS_U32",
+        "layer_norm": "QWEN3_ASR_LAYER_NORM_F32",
+        "linear_gelu": "QWEN3_ASR_LINEAR_GELU_F32",
+        "linear": "QWEN3_ASR_LINEAR_F32",
+    },
+    ("generated_qwen3_asr", "audio_encoder_layer"): {
+        "layer_norm": "QWEN3_ASR_LAYER_NORM_F32",
+        "linear": "QWEN3_ASR_LINEAR_F32",
+        "attention": "QWEN3_ASR_ENCODER_ATTENTION_F32",
+        "residual_add": "QWEN3_ASR_ADD_F32",
+        "linear_gelu": "QWEN3_ASR_LINEAR_GELU_F32",
+    },
+    ("generated_qwen3_asr", "text_prefill"): {
+        "prefill_inputs_embeds": "QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32",
+        "rms_norm": "QWEN3_ASR_TEXT_RMS_NORM_F32",
+        "lm_head": "QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32",
+    },
+    ("generated_qwen3_asr", "text_decode"): {
+        "embed_lookup": "QWEN3_ASR_TEXT_EMBED_LOOKUP_F32",
+        "rms_norm": "QWEN3_ASR_TEXT_RMS_NORM_F32",
+        "lm_head_or_token_select": "QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32",
+    },
+    ("generated_qwen3_asr", "token_select"): {
+        "greedy_argmax": "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32",
+    },
+    ("generated_qwen3_asr", "token_store"): {
+        "token_store": "QWEN3_ASR_TOKEN_STORE_F32",
+    },
+}
+
+
+def resolve_frame_shader(*, model: str, frame: str, target: str) -> str:
+    shader = FRAME_SHADER_REGISTRY.get((model, frame), {}).get(target)
+    if shader is None:
+        raise NotImplementedError(f"Unsupported generated {model}.{frame} op: {target}")
+    return shader

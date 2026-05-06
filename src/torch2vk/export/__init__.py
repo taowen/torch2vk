@@ -4,8 +4,10 @@ from torch2vk.export.exported_program import export_torch_program, torch_ops_fro
 from torch2vk.export.ir import TorchOpPattern, TensorFieldPattern
 from torch2vk.export.lowering import (
     DEFAULT_LOWERING_REGISTRY,
+    FRAME_SHADER_REGISTRY,
     OpLoweringRegistry,
     OpShaderBinding,
+    resolve_frame_shader,
     resolve_shader_symbol,
 )
 from torch2vk.export.reflection import (
@@ -27,6 +29,7 @@ __all__ = [
     "ExportCheckError",
     "ExportWriteResult",
     "DEFAULT_LOWERING_REGISTRY",
+    "FRAME_SHADER_REGISTRY",
     "OpLoweringRegistry",
     "OpShaderBinding",
     "TorchOpPattern",
@@ -39,6 +42,7 @@ __all__ = [
     "instantiate_torch_module_on_meta",
     "remove_stale_files",
     "reflect_torch_module",
+    "resolve_frame_shader",
     "resolve_shader_symbol",
     "torch_ops_from_exported_program",
     "write_rendered_files",

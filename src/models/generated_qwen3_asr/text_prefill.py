@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.export.lowering import resolve_frame_shader
 
 from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp, qwen3_asr_frame
-from models.generated_qwen3_asr._lowering import resolve_local_shader
 from models.generated_qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
 from models.generated_qwen3_asr.shaders.text_prefill_inputs_embeds_f32 import (
     QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32,
@@ -65,10 +65,8 @@ def run_generated_qwen3_asr_text_prefill(
                 raise NotImplementedError(
                     "generated_qwen3_asr.text_prefill text_decoder_layer_loop lowering is not implemented yet"
                 )
-            shader = resolve_local_shader(
-                target=step.target,
-                mapping=_TEXT_PREFILL_SHADER_BY_TARGET,
-                frame="text_prefill",
+            shader = resolve_frame_shader(
+                model="generated_qwen3_asr", frame="text_prefill", target=step.target
             )
             if shader == "QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32":
                 QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32(
@@ -95,10 +93,3 @@ def run_generated_qwen3_asr_text_prefill(
                 )
             else:
                 raise NotImplementedError(f"Unsupported generated text_prefill op: {step.target}")
-
-
-_TEXT_PREFILL_SHADER_BY_TARGET = {
-    "prefill_inputs_embeds": "QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32",
-    "rms_norm": "QWEN3_ASR_TEXT_RMS_NORM_F32",
-    "lm_head": "QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32",
-}
