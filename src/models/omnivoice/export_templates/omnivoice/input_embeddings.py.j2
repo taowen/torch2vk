@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.export.frame_dispatch import dispatch_op
-from torch2vk.export.shaders import _EXPORT_SHADER_VARIANTS
+from torch2vk.exportv2 import dispatch_op
+from torch2vk.exportv2.shaders import _EXPORT_SHADER_VARIANTS
 
 from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
 from models.omnivoice.tensors.text import OmniVoiceTextPrefillTensors

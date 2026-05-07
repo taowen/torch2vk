@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.export.shaders import (
+from torch2vk.exportv2.shaders import (
     ADD_F32,
     ADD_POSITION_F32,
     COMPACT_AFTER_CNN_F32,
@@ -23,7 +24,7 @@ def run_generated_qwen3_asr_audio_tower(
     rt: RuntimeSession,
     tensors: GeneratedQwen3AsrAudioTowerTensors,
     **_kw,
-) -> None:
+) -> LogicalTensor:
     with rt.frame("generated_qwen3_asr.audio_tower"):
         PAD_FEATURE_F32(
             rt,

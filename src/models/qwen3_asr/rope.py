@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from torch2vk.export.rope import precompute_qwen3_asr_mrope as _precompute_qwen3_asr_mrope
+from torch2vk.exportv2 import precompute_qwen3_asr_mrope as _precompute_qwen3_asr_mrope
 
 
 def precompute_qwen3_asr_mrope(

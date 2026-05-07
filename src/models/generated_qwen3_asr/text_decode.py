@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.export.shaders import (
+from torch2vk.exportv2.shaders import (
     TEXT_ADD_3D_F32,
     TEXT_ATTENTION_DECODE_F32,
     TEXT_EMBED_LOOKUP_F32,

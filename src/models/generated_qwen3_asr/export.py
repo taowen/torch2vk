@@ -1,8 +1,8 @@
 """Regenerate the generated Qwen3-ASR scaffold package.
 
-This module owns the Qwen3-ASR-specific export recipe. The shared
-``torch2vk.export`` package intentionally stays generic: template rendering,
-file writes, and PyTorch module reflection only.
+This module owns the Qwen3-ASR-specific export recipe. PyTorch module
+reflection is the source of truth for parameter names, layer counts, and model
+dimensions; the recipe only names the frame boundaries and lowered op patterns.
 """
 
 from __future__ import annotations
@@ -19,41 +19,74 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-import torch2vk.export.shaders as export_shaders
-from torch2vk.export.reflection import (
-    TorchModuleReflection,
-    instantiate_torch_module_on_meta,
-    reflect_torch_module,
-)
-from torch2vk.export.torch_ops import TensorFieldPattern
-from torch2vk.export.logical_tensor_codegen import render_logical_tensor_helpers_file
-from torch2vk.export.package_codegen import PythonImportDecl, render_python_init_file
-from torch2vk.export.tensor_scaffold_codegen import (
-    LoweredOpContract,
-    TensorDataclassDecl,
-    TensorDataclassFieldDecl,
-    logical_tensor_dataclass_from_patterns,
-    render_parameter_fields_constant,
-    render_tensor_dataclass,
-    render_tensor_dataclasses,
-    tensor_scaffold_fields_from_lowered_ops,
-)
-from torch2vk.export.frame_dispatch_codegen import FrameSpec, render_frame_module
-from torch2vk.export.writer import (
+import torch2vk.exportv2.shaders as export_shaders
+from torch2vk.exportv2 import (
     ExportWriteResult,
+    FrameSpec,
+    PythonImportDecl,
     RenderedFile,
     TemplateRenderer,
-    format_python_source,
+    TensorDataclassDecl,
+    TensorDataclassFieldDecl,
+    TensorFieldPattern,
+    TorchModuleReflection,
+    instantiate_torch_module_on_meta,
+    logical_tensor_dataclass_from_patterns,
+    reflect_torch_module,
+    render_frame_module,
+    render_logical_tensor_helpers_file,
+    render_parameter_fields_constant,
+    render_python_init_file,
+    render_tensor_dataclass,
+    render_tensor_dataclasses,
     remove_stale_files,
+    shader_variants_from_module,
+    tensor_fields_from_reflected_static_nodes,
+    tensor_scaffold_fields_from_static_nodes,
     write_rendered_files,
 )
 from torch2vk.runtime.shader import ShaderVariant
 
 
 JsonObject = Mapping[str, object]
+Qwen3AsrNode = tuple[str, tuple[str, ...], tuple[str, ...]]
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _TEMPLATE_ROOT = _PACKAGE_DIR / "export_templates"
+_STALE_SHADER_FILES = tuple(
+    Path("shaders") / f"{module}.py"
+    for module in (
+        "__init__",
+        "add_f32",
+        "attention_f32",
+        "compact_after_cnn_f32",
+        "conv2d_gelu_f32",
+        "conv_out_add_position_f32",
+        "cu_seqlens_u32",
+        "layer_norm_f32",
+        "linear_f32",
+        "pad_feature_f32",
+        "rope_table_f32",
+        "text_add_3d_f32",
+        "text_attention_decode_f32",
+        "text_attention_prefill_f32",
+        "text_embed_lookup_f32",
+        "text_gate_up_swiglu_t1_f32",
+        "text_kv_cache_write_f32",
+        "text_linear_nobias_f32",
+        "text_linear_nobias_t1_f32",
+        "text_linear_nobias_t1_splitk4_f32",
+        "text_lm_head_select_t1_f32",
+        "text_prefill_inputs_embeds_f32",
+        "text_qk_norm_f32",
+        "text_qkv_proj_t1_f32",
+        "text_rms_norm_f32",
+        "text_rope_f32",
+        "text_swiglu_f32",
+        "token_select_f32",
+        "token_store_f32",
+    )
+)
 _STALE_FILES = (
     Path("frames.py"),
     Path("tensors.py"),
@@ -69,21 +102,17 @@ _STALE_FILES = (
     Path("tensors/exported/text_decoder_layer_prefill.py"),
     Path("tensors/exported/text_mlp.py"),
     Path("tensors/exported/text_rms_norm.py"),
+    *_STALE_SHADER_FILES,
 )
-_SOURCE_SHADER_DIR = _PACKAGE_DIR.parent / "qwen3_asr" / "shaders"
 
 
 @dataclass(frozen=True, slots=True)
-class Qwen3AsrExportConfig:
-    audio_num_mel_bins: int
+class Qwen3AsrModelLayout:
     audio_hidden_size: int
     audio_output_size: int
     audio_downsample_hidden_size: int
     audio_encoder_layers: int
-    audio_encoder_attention_heads: int
     audio_encoder_ffn_dim: int
-    audio_n_window: int
-    audio_n_window_infer: int
     text_hidden_size: int
     text_intermediate_size: int
     text_vocab_size: int
@@ -91,54 +120,40 @@ class Qwen3AsrExportConfig:
     text_num_attention_heads: int
     text_num_key_value_heads: int
     text_head_dim: int
+
+
+@dataclass(frozen=True, slots=True)
+class Qwen3AsrRuntimeConfig:
     text_rope_theta: float
     text_mrope_section: tuple[int, ...]
-    audio_token_id: int
     eos_token_ids: tuple[int, ...] = (151645, 151643)
 
+
+@dataclass(frozen=True, slots=True)
+class Qwen3AsrExportSpec:
+    layout: Qwen3AsrModelLayout
+    runtime: Qwen3AsrRuntimeConfig
+
     def to_template_defaults(self) -> dict[str, object]:
-        value = asdict(self)
-        value["text_mrope_section"] = tuple(self.text_mrope_section)
-        value["eos_token_ids"] = tuple(self.eos_token_ids)
+        value = asdict(self.layout)
+        value.update(asdict(self.runtime))
+        value["text_mrope_section"] = tuple(self.runtime.text_mrope_section)
+        value["eos_token_ids"] = tuple(self.runtime.eos_token_ids)
         return value
 
 
 @dataclass(frozen=True, slots=True)
-class ShaderModulePattern:
-    module: str
-    constants: tuple[str, ...]
-    source: str
+class Qwen3AsrInspectedModel:
+    spec: Qwen3AsrExportSpec
+    reflection: TorchModuleReflection
 
 
 def _op(
     target: str,
     inputs: tuple[str, ...],
     outputs: tuple[str, ...],
-    note: str = "",
-    **extra: object,
-) -> object:
-    return {
-        "target": target,
-        "inputs": inputs,
-        "outputs": outputs,
-        "note": note,
-        **extra,
-    }
-
-
-def _lowered_op_contracts(ops: Sequence[object]) -> tuple[LoweredOpContract, ...]:
-    contracts: list[LoweredOpContract] = []
-    for op in ops:
-        if not isinstance(op, Mapping):
-            raise TypeError(f"lowered op must be a mapping, got {type(op).__name__}")
-        contracts.append(
-            (
-                str(op["target"]),
-                tuple(str(item) for item in _expect_tuple(op["inputs"], "op.inputs")),
-                tuple(str(item) for item in _expect_tuple(op["outputs"], "op.outputs")),
-            )
-        )
-    return tuple(contracts)
+) -> Qwen3AsrNode:
+    return target, inputs, outputs
 
 
 def export_qwen3_asr_package(
@@ -146,16 +161,14 @@ def export_qwen3_asr_package(
     output_dir: str | Path = _PACKAGE_DIR,
     model_dir: str | Path | None = None,
     config_json: str | Path | None = None,
-    reflect_source: bool = True,
     check: bool = False,
     dry_run: bool = False,
 ) -> ExportWriteResult:
-    config = load_qwen3_asr_export_config(
+    inspected = inspect_qwen3_asr_export_source(
         model_dir=model_dir,
         config_json=config_json,
     )
-    reflection = reflect_qwen3_asr_source(config) if reflect_source else None
-    context = build_qwen3_asr_pattern_context(config=config, reflection=reflection)
+    context = build_qwen3_asr_pattern_context(inspected=inspected)
     renderer = TemplateRenderer(_TEMPLATE_ROOT)
     files = _render_qwen3_asr_files(renderer, context)
     result = write_rendered_files(files, output_dir, check=check, dry_run=dry_run)
@@ -163,23 +176,39 @@ def export_qwen3_asr_package(
     return result
 
 
-def load_qwen3_asr_export_config(
+def load_qwen3_asr_export_spec(
     *,
     model_dir: str | Path | None = None,
     config_json: str | Path | None = None,
-) -> Qwen3AsrExportConfig:
+) -> Qwen3AsrExportSpec:
+    return inspect_qwen3_asr_export_source(
+        model_dir=model_dir,
+        config_json=config_json,
+    ).spec
+
+
+def inspect_qwen3_asr_export_source(
+    *,
+    model_dir: str | Path | None = None,
+    config_json: str | Path | None = None,
+) -> Qwen3AsrInspectedModel:
     if config_json is not None:
         payload = _load_json(Path(config_json))
     elif model_dir is not None:
         payload = _load_json(Path(model_dir) / "config.json")
     else:
         payload = _source_default_config_payload()
-    return qwen3_asr_export_config_from_payload(payload)
+    source_config = qwen3_asr_source_config_from_payload(payload)
+    reflection = reflect_qwen3_asr_source_config(source_config)
+    spec = Qwen3AsrExportSpec(
+        layout=qwen3_asr_model_layout_from_reflection(reflection),
+        runtime=qwen3_asr_runtime_config_from_payload(payload),
+    )
+    return Qwen3AsrInspectedModel(spec=spec, reflection=reflection)
 
 
-def qwen3_asr_export_config_from_payload(payload: JsonObject) -> Qwen3AsrExportConfig:
+def qwen3_asr_runtime_config_from_payload(payload: JsonObject) -> Qwen3AsrRuntimeConfig:
     thinker_config = _expect_mapping(payload.get("thinker_config", payload), "thinker_config")
-    audio_config = _expect_mapping(thinker_config["audio_config"], "audio_config")
     text_config = _expect_mapping(thinker_config["text_config"], "text_config")
     rope_scaling = text_config.get("rope_scaling")
     mrope_section: tuple[int, ...] = (24, 20, 20)
@@ -188,30 +217,27 @@ def qwen3_asr_export_config_from_payload(payload: JsonObject) -> Qwen3AsrExportC
             rope_scaling.get("mrope_section", mrope_section),
             "rope_scaling.mrope_section",
         )
-    return Qwen3AsrExportConfig(
-        audio_num_mel_bins=_int_value(audio_config, "num_mel_bins"),
-        audio_hidden_size=_int_value(audio_config, "d_model"),
-        audio_output_size=_int_value(audio_config, "output_dim"),
-        audio_downsample_hidden_size=_int_value(audio_config, "downsample_hidden_size"),
-        audio_encoder_layers=_int_value(audio_config, "encoder_layers"),
-        audio_encoder_attention_heads=_int_value(audio_config, "encoder_attention_heads"),
-        audio_encoder_ffn_dim=_int_value(audio_config, "encoder_ffn_dim"),
-        audio_n_window=_int_value(audio_config, "n_window"),
-        audio_n_window_infer=_int_value(audio_config, "n_window_infer"),
-        text_hidden_size=_int_value(text_config, "hidden_size"),
-        text_intermediate_size=_int_value(text_config, "intermediate_size"),
-        text_vocab_size=_int_value(text_config, "vocab_size"),
-        text_decoder_layers=_int_value(text_config, "num_hidden_layers"),
-        text_num_attention_heads=_int_value(text_config, "num_attention_heads"),
-        text_num_key_value_heads=_int_value(text_config, "num_key_value_heads"),
-        text_head_dim=_int_value(text_config, "head_dim"),
+    return Qwen3AsrRuntimeConfig(
         text_rope_theta=_float_value(text_config, "rope_theta", 5_000_000.0),
         text_mrope_section=mrope_section,
-        audio_token_id=_int_value(thinker_config, "audio_token_id"),
     )
 
 
-def reflect_qwen3_asr_source(config: Qwen3AsrExportConfig) -> TorchModuleReflection:
+def qwen3_asr_source_config_from_payload(payload: JsonObject) -> Any:
+    from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRConfig
+
+    payload_dict = dict(payload)
+    thinker_config = dict(
+        _expect_mapping(payload_dict.get("thinker_config", payload_dict), "thinker_config")
+    )
+    text_config = dict(_expect_mapping(thinker_config["text_config"], "text_config"))
+    text_config["pad_token_id"] = text_config.get("pad_token_id")
+    thinker_config["text_config"] = text_config
+    payload_dict["thinker_config"] = thinker_config
+    return Qwen3ASRConfig(**payload_dict)
+
+
+def reflect_qwen3_asr_source_config(source_config: Any) -> TorchModuleReflection:
     from transformers.utils import logging as hf_logging
 
     stream = io.StringIO()
@@ -223,7 +249,6 @@ def reflect_qwen3_asr_source(config: Qwen3AsrExportConfig) -> TorchModuleReflect
                 Qwen3ASRForConditionalGeneration,
             )
 
-            source_config = qwen3_asr_source_config_from_export_config(config)
             model = instantiate_torch_module_on_meta(
                 lambda: Qwen3ASRForConditionalGeneration(source_config)
             )
@@ -232,50 +257,154 @@ def reflect_qwen3_asr_source(config: Qwen3AsrExportConfig) -> TorchModuleReflect
     return reflect_torch_module(model)
 
 
-def qwen3_asr_source_config_from_export_config(config: Qwen3AsrExportConfig) -> Any:
-    from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRConfig
-
-    return Qwen3ASRConfig(
-        thinker_config={
-            "audio_config": {
-                "num_mel_bins": config.audio_num_mel_bins,
-                "encoder_layers": config.audio_encoder_layers,
-                "encoder_attention_heads": config.audio_encoder_attention_heads,
-                "encoder_ffn_dim": config.audio_encoder_ffn_dim,
-                "d_model": config.audio_hidden_size,
-                "n_window": config.audio_n_window,
-                "output_dim": config.audio_output_size,
-                "n_window_infer": config.audio_n_window_infer,
-                "downsample_hidden_size": config.audio_downsample_hidden_size,
-            },
-            "text_config": {
-                "vocab_size": config.text_vocab_size,
-                "hidden_size": config.text_hidden_size,
-                "intermediate_size": config.text_intermediate_size,
-                "num_hidden_layers": config.text_decoder_layers,
-                "num_attention_heads": config.text_num_attention_heads,
-                "num_key_value_heads": config.text_num_key_value_heads,
-                "head_dim": config.text_head_dim,
-                "rope_theta": config.text_rope_theta,
-                "rope_scaling": {
-                    "rope_type": "default",
-                    "mrope_section": list(config.text_mrope_section),
-                },
-                "pad_token_id": None,
-            },
-            "audio_token_id": config.audio_token_id,
-        }
+def qwen3_asr_model_layout_from_reflection(
+    reflection: TorchModuleReflection,
+) -> Qwen3AsrModelLayout:
+    audio_encoder_layers = _indexed_parameter_count(
+        reflection,
+        "thinker.audio_tower.layers",
     )
+    text_decoder_layers = _indexed_parameter_count(
+        reflection,
+        "thinker.model.layers",
+    )
+    conv2d1_weight = _parameter_shape(
+        reflection,
+        "thinker.audio_tower.conv2d1.weight",
+        rank=4,
+    )
+    conv_out_weight = _parameter_shape(
+        reflection,
+        "thinker.audio_tower.conv_out.weight",
+        rank=2,
+    )
+    proj2_weight = _parameter_shape(
+        reflection,
+        "thinker.audio_tower.proj2.weight",
+        rank=2,
+    )
+    audio_fc1_weight = _parameter_shape(
+        reflection,
+        "thinker.audio_tower.layers.0.fc1.weight",
+        rank=2,
+    )
+    embed_tokens_weight = _parameter_shape(
+        reflection,
+        "thinker.model.embed_tokens.weight",
+        rank=2,
+    )
+    q_proj_weight = _parameter_shape(
+        reflection,
+        "thinker.model.layers.0.self_attn.q_proj.weight",
+        rank=2,
+    )
+    k_proj_weight = _parameter_shape(
+        reflection,
+        "thinker.model.layers.0.self_attn.k_proj.weight",
+        rank=2,
+    )
+    q_norm_weight = _parameter_shape(
+        reflection,
+        "thinker.model.layers.0.self_attn.q_norm.weight",
+        rank=1,
+    )
+    gate_proj_weight = _parameter_shape(
+        reflection,
+        "thinker.model.layers.0.mlp.gate_proj.weight",
+        rank=2,
+    )
+    lm_head_weight = _parameter_shape(
+        reflection,
+        "thinker.lm_head.weight",
+        rank=2,
+    )
+
+    text_vocab_size, text_hidden_size = embed_tokens_weight
+    if q_proj_weight[1] != text_hidden_size:
+        raise RuntimeError("text q_proj input dim does not match embed_tokens hidden dim")
+    if k_proj_weight[1] != text_hidden_size:
+        raise RuntimeError("text k_proj input dim does not match embed_tokens hidden dim")
+    if gate_proj_weight[1] != text_hidden_size:
+        raise RuntimeError("text gate_proj input dim does not match embed_tokens hidden dim")
+    if lm_head_weight != embed_tokens_weight:
+        raise RuntimeError("lm_head.weight shape must match embed_tokens.weight shape")
+
+    text_head_dim = q_norm_weight[0]
+    text_num_attention_heads = _checked_div(
+        q_proj_weight[0],
+        text_head_dim,
+        "q_proj output dim",
+    )
+    text_num_key_value_heads = _checked_div(
+        k_proj_weight[0],
+        text_head_dim,
+        "k_proj output dim",
+    )
+
+    return Qwen3AsrModelLayout(
+        audio_hidden_size=conv_out_weight[0],
+        audio_output_size=proj2_weight[0],
+        audio_downsample_hidden_size=conv2d1_weight[0],
+        audio_encoder_layers=audio_encoder_layers,
+        audio_encoder_ffn_dim=audio_fc1_weight[0],
+        text_hidden_size=text_hidden_size,
+        text_intermediate_size=gate_proj_weight[0],
+        text_vocab_size=text_vocab_size,
+        text_decoder_layers=text_decoder_layers,
+        text_num_attention_heads=text_num_attention_heads,
+        text_num_key_value_heads=text_num_key_value_heads,
+        text_head_dim=text_head_dim,
+    )
+
+
+def _parameter_shape(
+    reflection: TorchModuleReflection,
+    name: str,
+    *,
+    rank: int,
+) -> tuple[int, ...]:
+    shape = reflection.require_parameter(name)
+    if len(shape) != rank:
+        raise RuntimeError(f"{name} must have rank {rank}, got shape {shape}")
+    return shape
+
+
+def _indexed_parameter_count(
+    reflection: TorchModuleReflection,
+    prefix: str,
+) -> int:
+    marker = f"{prefix}."
+    indices: set[int] = set()
+    for parameter_name in reflection.parameter_shapes:
+        if not parameter_name.startswith(marker):
+            continue
+        index_part = parameter_name[len(marker) :].split(".", 1)[0]
+        if not index_part.isdecimal():
+            raise RuntimeError(f"{prefix} child index must be decimal, got {index_part!r}")
+        indices.add(int(index_part))
+    if not indices:
+        raise RuntimeError(f"reflected model is missing indexed parameters under {prefix!r}")
+    expected = set(range(max(indices) + 1))
+    if indices != expected:
+        raise RuntimeError(f"{prefix} layer indices are not contiguous: {sorted(indices)}")
+    return len(indices)
+
+
+def _checked_div(value: int, divisor: int, label: str) -> int:
+    if divisor <= 0:
+        raise RuntimeError(f"{label} divisor must be positive, got {divisor}")
+    quotient, remainder = divmod(value, divisor)
+    if remainder:
+        raise RuntimeError(f"{label}={value} is not divisible by {divisor}")
+    return quotient
 
 
 def build_qwen3_asr_pattern_context(
     *,
-    config: Qwen3AsrExportConfig,
-    reflection: TorchModuleReflection | None,
+    inspected: Qwen3AsrInspectedModel,
 ) -> dict[str, object]:
-    if reflection is not None:
-        _validate_reflected_source(config, reflection)
-
+    spec = inspected.spec
+    reflection = inspected.reflection
     shader_variants = _export_shader_variants()
     audio_layer_ops = _audio_layer_ops()
     text_layer_ops = _text_layer_ops()
@@ -284,42 +413,50 @@ def build_qwen3_asr_pattern_context(
     text_decode_ops = _text_decode_ops()
     token_select_ops = _token_select_ops()
     token_store_ops = _token_store_ops()
-    audio_layer_fields = tensor_scaffold_fields_from_lowered_ops(
-        ops=_lowered_op_contracts(audio_layer_ops),
+    audio_layer_fields = tensor_fields_from_reflected_static_nodes(
+        reflection=reflection,
+        module_prefix="thinker.audio_tower.layers.0",
+        nodes=audio_layer_ops,
         shader_variants=shader_variants,
-        parameter_sources=_audio_layer_parameter_sources(),
+        relative_parameter_sources=True,
         external_fields=("hidden_states", "cu_seqlens"),
     )
-    text_layer_fields = tensor_scaffold_fields_from_lowered_ops(
-        ops=_lowered_op_contracts(text_layer_ops),
+    text_layer_fields = tensor_fields_from_reflected_static_nodes(
+        reflection=reflection,
+        module_prefix="thinker.model.layers.0",
+        nodes=text_layer_ops,
         shader_variants=shader_variants,
-        parameter_sources=_text_layer_parameter_sources(),
+        relative_parameter_sources=True,
         external_fields=("hidden", "rope_cos", "rope_sin", "cache_position"),
         role_overrides={"key_cache": "state", "value_cache": "state"},
     )
-    audio_tower_fields = tensor_scaffold_fields_from_lowered_ops(
-        ops=_lowered_op_contracts(audio_tower_ops),
+    audio_tower_fields = tensor_fields_from_reflected_static_nodes(
+        reflection=reflection,
+        module_prefix="thinker.audio_tower",
+        nodes=audio_tower_ops,
         shader_variants=shader_variants,
-        parameter_sources=_audio_tower_parameter_sources(),
+        relative_parameter_sources=True,
         extra_fields=(TensorFieldPattern("layers"),),
         role_overrides={"last_hidden_state": "output"},
     )
     text_prefill_fields = _text_prefill_fields(
-        ops=_lowered_op_contracts(text_prefill_ops),
+        nodes=text_prefill_ops,
         shader_variants=shader_variants,
+        reflection=reflection,
     )
     text_decode_fields = _text_decode_fields(
-        ops=_lowered_op_contracts(text_decode_ops),
+        nodes=text_decode_ops,
         shader_variants=shader_variants,
+        reflection=reflection,
     )
-    token_select_fields = tensor_scaffold_fields_from_lowered_ops(
-        ops=_lowered_op_contracts(token_select_ops),
+    token_select_fields = tensor_scaffold_fields_from_static_nodes(
+        token_select_ops,
         shader_variants=shader_variants,
         external_fields=("logits",),
         role_overrides={"next_token": "output", "done": "output"},
     )
-    token_store_fields = tensor_scaffold_fields_from_lowered_ops(
-        ops=_lowered_op_contracts(token_store_ops),
+    token_store_fields = tensor_scaffold_fields_from_static_nodes(
+        token_store_ops,
         shader_variants=shader_variants,
         role_overrides={
             "generated_tokens": "state",
@@ -328,8 +465,8 @@ def build_qwen3_asr_pattern_context(
         },
     )
     return {
-        "config": config,
-        "defaults": config.to_template_defaults(),
+        "spec": spec,
+        "defaults": spec.to_template_defaults(),
         "audio_layer_fields": audio_layer_fields,
         "text_layer_fields": text_layer_fields,
         "audio_tower_fields": audio_tower_fields,
@@ -383,7 +520,6 @@ def build_qwen3_asr_pattern_context(
         "text_decode_ops": text_decode_ops,
         "token_select_ops": token_select_ops,
         "token_store_ops": token_store_ops,
-        "shader_modules": _shader_modules(),
     }
 
 
@@ -397,11 +533,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--model-dir", type=Path, default=None)
     parser.add_argument("--config-json", type=Path, default=None)
-    parser.add_argument(
-        "--no-reflect",
-        action="store_true",
-        help="Skip PyTorch meta-device reflection and render from config/op declarations only.",
-    )
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
@@ -410,7 +541,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         output_dir=args.output_dir,
         model_dir=args.model_dir,
         config_json=args.config_json,
-        reflect_source=not args.no_reflect,
         check=args.check,
         dry_run=args.dry_run,
     )
@@ -430,7 +560,6 @@ def _render_qwen3_asr_files(
         renderer.render("qwen3_asr/__init__.py.j2", "__init__.py", **context),
     ]
     files.extend(_render_tensor_files(renderer, context))
-    files.extend(_render_shader_files(renderer, context))
     files.extend(_render_frame_files(renderer, context))
     return files
 
@@ -506,30 +635,6 @@ def _render_tensor_package_init_file() -> RenderedFile:
     )
 
 
-def _render_shader_files(
-    renderer: TemplateRenderer,
-    context: dict[str, object],
-) -> list[RenderedFile]:
-    files = [
-        renderer.render("qwen3_asr/shaders/__init__.py.j2", "shaders/__init__.py", **context),
-    ]
-    shader_modules = context["shader_modules"]
-    if not isinstance(shader_modules, tuple):
-        raise TypeError("shader_modules must be a tuple")
-    for module in shader_modules:
-        if not isinstance(module, ShaderModulePattern):
-            raise TypeError(f"shader_modules entry must be ShaderModulePattern, got {type(module)}")
-        files.append(
-            renderer.render(
-                "qwen3_asr/shaders/shader_module.py.j2",
-                f"shaders/{module.module}.py",
-                module=module,
-                **context,
-            )
-        )
-    return files
-
-
 def _render_frame_files(
     renderer: TemplateRenderer,
     context: dict[str, object],
@@ -553,10 +658,11 @@ def _audio_tower_frame_spec() -> FrameSpec:
         frame_name="generated_qwen3_asr.audio_tower",
         tensors_class="GeneratedQwen3AsrAudioTowerTensors",
         tensors_import="models.generated_qwen3_asr.tensors.audio_tower",
-        ops=_audio_tower_ops(),
+        shader_import="torch2vk.exportv2.shaders",
+        nodes=_audio_tower_ops(),
         return_expr="tensors.last_hidden_state",
         layer_loop_target="aten.torch2vk.audio_encoder_layer_loop.default",
-        layer_ops=_audio_layer_ops(),
+        layer_nodes=_audio_layer_ops(),
         layer_state_field="hidden_states",
         layer_state_init="tensors.hidden_states",
         layer_external_fields={"cu_seqlens": "tensors.cu_seqlens"},
@@ -570,9 +676,10 @@ def _text_prefill_frame_spec() -> FrameSpec:
         frame_name="generated_qwen3_asr.text_prefill",
         tensors_class="GeneratedQwen3AsrTextPrefillTensors",
         tensors_import="models.generated_qwen3_asr.tensors.text",
-        ops=_text_prefill_ops(),
+        shader_import="torch2vk.exportv2.shaders",
+        nodes=_text_prefill_ops(),
         layer_loop_target="aten.torch2vk.text_decoder_layer_loop.default",
-        layer_ops=_text_layer_ops(),
+        layer_nodes=_text_layer_ops(),
         layer_state_field="hidden",
         layer_state_init="tensors.inputs_embeds",
         layer_external_fields={"rope_cos": "tensors.rope_cos", "rope_sin": "tensors.rope_sin"},
@@ -586,9 +693,10 @@ def _text_decode_frame_spec() -> FrameSpec:
         frame_name="generated_qwen3_asr.text_decode",
         tensors_class="GeneratedQwen3AsrTextDecodeTensors",
         tensors_import="models.generated_qwen3_asr.tensors.text",
-        ops=_text_decode_ops(),
+        shader_import="torch2vk.exportv2.shaders",
+        nodes=_text_decode_ops(),
         layer_loop_target="aten.torch2vk.text_decoder_layer_loop.default",
-        layer_ops=_text_layer_ops_decode(),
+        layer_nodes=_text_layer_ops_decode(),
         layer_state_field="hidden",
         layer_state_init="tensors.inputs_embeds",
         layer_external_fields={
@@ -598,93 +706,6 @@ def _text_decode_frame_spec() -> FrameSpec:
         },
         extra_params="    **_kw,",
     )
-
-
-def _validate_reflected_source(
-    config: Qwen3AsrExportConfig,
-    reflection: TorchModuleReflection,
-) -> None:
-    reflection.require_module_type("thinker.audio_tower")
-    reflection.require_module_type("thinker.model")
-    if config.audio_encoder_layers:
-        reflection.require_parameter("thinker.audio_tower.layers.0.self_attn.q_proj.weight")
-        reflection.require_parameter("thinker.audio_tower.layers.0.self_attn.q_proj.bias")
-        reflection.require_parameter("thinker.audio_tower.layers.0.fc1.weight")
-    if config.text_decoder_layers:
-        reflection.require_parameter("thinker.model.layers.0.self_attn.q_proj.weight")
-        reflection.require_parameter("thinker.model.layers.0.self_attn.q_norm.weight")
-        reflection.require_parameter("thinker.model.layers.0.self_attn.k_norm.weight")
-        reflection.require_parameter("thinker.model.layers.0.mlp.down_proj.weight")
-    reflection.require_parameter("thinker.audio_tower.conv2d1.weight")
-    reflection.require_parameter("thinker.audio_tower.conv_out.weight")
-    reflection.require_parameter("thinker.audio_tower.proj1.weight")
-    reflection.require_parameter("thinker.audio_tower.proj2.weight")
-    reflection.require_parameter("thinker.model.embed_tokens.weight")
-    reflection.require_parameter("thinker.model.norm.weight")
-    reflection.require_parameter("thinker.lm_head.weight")
-
-
-def _audio_layer_parameter_sources() -> dict[str, str]:
-    return {
-        "self_attn_layer_norm_weight": "self_attn_layer_norm.weight",
-        "self_attn_layer_norm_bias": "self_attn_layer_norm.bias",
-        "q_proj_weight": "self_attn.q_proj.weight",
-        "q_proj_bias": "self_attn.q_proj.bias",
-        "k_proj_weight": "self_attn.k_proj.weight",
-        "k_proj_bias": "self_attn.k_proj.bias",
-        "v_proj_weight": "self_attn.v_proj.weight",
-        "v_proj_bias": "self_attn.v_proj.bias",
-        "out_proj_weight": "self_attn.out_proj.weight",
-        "out_proj_bias": "self_attn.out_proj.bias",
-        "final_layer_norm_weight": "final_layer_norm.weight",
-        "final_layer_norm_bias": "final_layer_norm.bias",
-        "fc1_weight": "fc1.weight",
-        "fc1_bias": "fc1.bias",
-        "fc2_weight": "fc2.weight",
-        "fc2_bias": "fc2.bias",
-    }
-
-
-def _text_layer_parameter_sources() -> dict[str, str]:
-    return {
-        "input_layernorm_weight": "input_layernorm.weight",
-        "post_attention_layernorm_weight": "post_attention_layernorm.weight",
-        "q_norm_weight": "self_attn.q_norm.weight",
-        "k_norm_weight": "self_attn.k_norm.weight",
-        "q_proj_weight": "self_attn.q_proj.weight",
-        "k_proj_weight": "self_attn.k_proj.weight",
-        "v_proj_weight": "self_attn.v_proj.weight",
-        "o_proj_weight": "self_attn.o_proj.weight",
-        "gate_proj_weight": "mlp.gate_proj.weight",
-        "up_proj_weight": "mlp.up_proj.weight",
-        "down_proj_weight": "mlp.down_proj.weight",
-    }
-
-
-def _audio_tower_parameter_sources() -> dict[str, str]:
-    return {
-        "conv2d1_weight": "conv2d1.weight",
-        "conv2d1_bias": "conv2d1.bias",
-        "conv2d2_weight": "conv2d2.weight",
-        "conv2d2_bias": "conv2d2.bias",
-        "conv2d3_weight": "conv2d3.weight",
-        "conv2d3_bias": "conv2d3.bias",
-        "conv_out_weight": "conv_out.weight",
-        "ln_post_weight": "ln_post.weight",
-        "ln_post_bias": "ln_post.bias",
-        "proj1_weight": "proj1.weight",
-        "proj1_bias": "proj1.bias",
-        "proj2_weight": "proj2.weight",
-        "proj2_bias": "proj2.bias",
-    }
-
-
-def _text_parameter_sources() -> dict[str, str]:
-    return {
-        "embed_tokens_weight": "thinker.model.embed_tokens.weight",
-        "norm_weight": "thinker.model.norm.weight",
-        "lm_head_weight": "thinker.lm_head.weight",
-    }
 
 
 def _text_frame_fields() -> tuple[TensorFieldPattern, ...]:
@@ -698,13 +719,16 @@ def _text_frame_fields() -> tuple[TensorFieldPattern, ...]:
 
 def _text_prefill_fields(
     *,
-    ops: Sequence[LoweredOpContract],
+    nodes: Sequence[Qwen3AsrNode],
     shader_variants: Mapping[str, ShaderVariant],
+    reflection: TorchModuleReflection,
 ) -> tuple[TensorFieldPattern, ...]:
-    fields = tensor_scaffold_fields_from_lowered_ops(
-        ops=ops,
+    return tensor_fields_from_reflected_static_nodes(
+        reflection=reflection,
+        module_prefix="thinker",
+        nodes=nodes,
         shader_variants=shader_variants,
-        parameter_sources=_text_parameter_sources(),
+        relative_parameter_sources=False,
         extra_fields=(
             TensorFieldPattern("attention_mask", dtype="int64", role="input"),
             TensorFieldPattern("input_features", dtype="float32", role="input"),
@@ -722,10 +746,7 @@ def _text_prefill_fields(
             "logits": "output",
         },
         include_unresolved_ops=False,
-    )
-    return _ordered_tensor_fields(
-        fields,
-        (
+        field_order=(
             "input_ids",
             "attention_mask",
             "input_features",
@@ -748,13 +769,16 @@ def _text_prefill_fields(
 
 def _text_decode_fields(
     *,
-    ops: Sequence[LoweredOpContract],
+    nodes: Sequence[Qwen3AsrNode],
     shader_variants: Mapping[str, ShaderVariant],
+    reflection: TorchModuleReflection,
 ) -> tuple[TensorFieldPattern, ...]:
-    fields = tensor_scaffold_fields_from_lowered_ops(
-        ops=ops,
+    return tensor_fields_from_reflected_static_nodes(
+        reflection=reflection,
+        module_prefix="thinker",
+        nodes=nodes,
         shader_variants=shader_variants,
-        parameter_sources=_text_parameter_sources(),
+        relative_parameter_sources=False,
         extra_fields=(
             TensorFieldPattern("attention_mask", dtype="int64", role="input"),
             TensorFieldPattern("position_ids", dtype="int64", role="input"),
@@ -770,10 +794,7 @@ def _text_decode_fields(
             "logits": "output",
         },
         include_unresolved_ops=False,
-    )
-    return _ordered_tensor_fields(
-        fields,
-        (
+        field_order=(
             "input_ids",
             "attention_mask",
             "position_ids",
@@ -790,16 +811,6 @@ def _text_decode_fields(
             "logits",
         ),
     )
-
-
-def _ordered_tensor_fields(
-    fields: Sequence[TensorFieldPattern],
-    order: Sequence[str],
-) -> tuple[TensorFieldPattern, ...]:
-    by_name = {field.field: field for field in fields}
-    ordered = [by_name.pop(name) for name in order if name in by_name]
-    ordered.extend(by_name.values())
-    return tuple(ordered)
 
 
 def _text_tensor_dataclasses(
@@ -846,7 +857,7 @@ def _text_tensor_dataclasses(
     )
 
 
-def _audio_tower_ops() -> tuple[object, ...]:
+def _audio_tower_ops() -> tuple[Qwen3AsrNode, ...]:
     return (
         _op(
             "aten.torch2vk.pad_feature.default",
@@ -869,7 +880,7 @@ def _audio_tower_ops() -> tuple[object, ...]:
             ("conv2d3_gelu",),
         ),
         _op("aten.torch2vk.conv_out.default", ("conv2d3_gelu", "conv_out_weight"), ("conv_out",)),
-        _op("aten.add.Tensor", ("conv_out",), ("conv_out_add_position",), name="add_position"),
+        _op("aten.add.Tensor", ("conv_out",), ("conv_out_add_position",)),
         _op(
             "aten.torch2vk.compact_after_cnn.default",
             ("conv_out_add_position", "feature_lens"),
@@ -899,7 +910,7 @@ def _audio_tower_ops() -> tuple[object, ...]:
     )
 
 
-def _audio_layer_ops() -> tuple[object, ...]:
+def _audio_layer_ops() -> tuple[Qwen3AsrNode, ...]:
     return (
         _op(
             "aten.native_layer_norm.default",
@@ -929,12 +940,7 @@ def _audio_layer_ops() -> tuple[object, ...]:
         _op(
             "aten.linear.default", ("self_attn", "out_proj_weight", "out_proj_bias"), ("out_proj",)
         ),
-        _op(
-            "aten.add.Tensor",
-            ("hidden_states", "out_proj"),
-            ("self_attn_residual",),
-            name="residual_add",
-        ),
+        _op("aten.add.Tensor", ("hidden_states", "out_proj"), ("self_attn_residual",)),
         _op(
             "aten.native_layer_norm.default",
             ("self_attn_residual", "final_layer_norm_weight", "final_layer_norm_bias"),
@@ -946,16 +952,11 @@ def _audio_layer_ops() -> tuple[object, ...]:
             ("fc1_gelu",),
         ),
         _op("aten.linear.default", ("fc1_gelu", "fc2_weight", "fc2_bias"), ("fc2",)),
-        _op(
-            "aten.add.Tensor",
-            ("self_attn_residual", "fc2"),
-            ("output",),
-            name="residual_add",
-        ),
+        _op("aten.add.Tensor", ("self_attn_residual", "fc2"), ("output",)),
     )
 
 
-def _text_layer_ops() -> tuple[object, ...]:
+def _text_layer_ops() -> tuple[Qwen3AsrNode, ...]:
     return (
         _op(
             "aten.rms_norm.default",
@@ -1050,7 +1051,7 @@ def _text_layer_ops() -> tuple[object, ...]:
     )
 
 
-def _text_layer_ops_decode() -> tuple[object, ...]:
+def _text_layer_ops_decode() -> tuple[Qwen3AsrNode, ...]:
     """Text decoder layer ops for decode phase (includes cache_position)."""
     return (
         _op("aten.rms_norm.default", ("hidden", "input_layernorm_weight"), ("input_layernorm",)),
@@ -1078,7 +1079,9 @@ def _text_layer_ops_decode() -> tuple[object, ...]:
             ("attn_residual", "post_attention_layernorm_weight"),
             ("post_attention_layernorm",),
         ),
-        _op("aten.linear.default", ("post_attention_layernorm", "gate_proj_weight"), ("gate_proj",)),
+        _op(
+            "aten.linear.default", ("post_attention_layernorm", "gate_proj_weight"), ("gate_proj",)
+        ),
         _op("aten.linear.default", ("post_attention_layernorm", "up_proj_weight"), ("up_proj",)),
         _op("aten.torch2vk.text_swiglu.default", ("gate_proj", "up_proj"), ("swiglu",)),
         _op("aten.linear.default", ("swiglu", "down_proj_weight"), ("down_proj",)),
@@ -1086,7 +1089,7 @@ def _text_layer_ops_decode() -> tuple[object, ...]:
     )
 
 
-def _text_prefill_ops() -> tuple[object, ...]:
+def _text_prefill_ops() -> tuple[Qwen3AsrNode, ...]:
     return (
         _op(
             "aten.torch2vk.prefill_inputs_embeds.default",
@@ -1103,7 +1106,7 @@ def _text_prefill_ops() -> tuple[object, ...]:
     )
 
 
-def _text_decode_ops() -> tuple[object, ...]:
+def _text_decode_ops() -> tuple[Qwen3AsrNode, ...]:
     return (
         _op(
             "aten.embedding.default",
@@ -1120,7 +1123,7 @@ def _text_decode_ops() -> tuple[object, ...]:
     )
 
 
-def _token_select_ops() -> tuple[object, ...]:
+def _token_select_ops() -> tuple[Qwen3AsrNode, ...]:
     return (
         _op(
             "aten.torch2vk.greedy_argmax.default",
@@ -1130,7 +1133,7 @@ def _token_select_ops() -> tuple[object, ...]:
     )
 
 
-def _token_store_ops() -> tuple[object, ...]:
+def _token_store_ops() -> tuple[Qwen3AsrNode, ...]:
     return (
         _op(
             "aten.torch2vk.token_store.default",
@@ -1141,51 +1144,7 @@ def _token_store_ops() -> tuple[object, ...]:
 
 
 def _export_shader_variants() -> dict[str, ShaderVariant]:
-    return {
-        name: value
-        for name in export_shaders.__all__
-        if isinstance(value := getattr(export_shaders, name), ShaderVariant)
-    }
-
-
-def _shader_modules() -> tuple[ShaderModulePattern, ...]:
-    modules: list[ShaderModulePattern] = []
-    for path in sorted(_SOURCE_SHADER_DIR.glob("*.py")):
-        if path.name == "__init__.py":
-            continue
-        modules.append(
-            ShaderModulePattern(
-                module=path.stem,
-                constants=_source_shader_constants(path),
-                source=format_python_source(
-                    path.read_text(encoding="utf-8").rstrip() + "\n",
-                    filename=_PACKAGE_DIR / "shaders" / path.name,
-                ),
-            )
-        )
-    return tuple(modules)
-
-
-def _source_shader_constants(path: Path) -> tuple[str, ...]:
-    module = _load_source_shader_module(path)
-    constants = tuple(
-        name
-        for name, value in vars(module).items()
-        if name.startswith("QWEN3_ASR_") and isinstance(value, ShaderVariant)
-    )
-    if not constants:
-        raise ValueError(f"{path} does not define any QWEN3_ASR_* ShaderVariant constants")
-    return constants
-
-
-def _load_source_shader_module(path: Path) -> ModuleType:
-    module_name = f"_torch2vk_qwen3_asr_shader_{path.stem}"
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load Qwen3-ASR shader module from {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return shader_variants_from_module(export_shaders)
 
 
 def _source_default_config_payload() -> JsonObject:
@@ -1223,13 +1182,6 @@ def _expect_mapping(value: object, name: str) -> JsonObject:
 def _expect_tuple(value: object, name: str) -> tuple[object, ...]:
     if not isinstance(value, tuple):
         raise TypeError(f"{name} must be a tuple, got {type(value).__name__}")
-    return value
-
-
-def _int_value(config: JsonObject, key: str) -> int:
-    value = config[key]
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(f"{key} must be an int, got {type(value).__name__}")
     return value
 
 

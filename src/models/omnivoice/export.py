@@ -1,6 +1,6 @@
 """Regenerate OmniVoice Vulkan adapter scaffold files.
 
-OmniVoice-specific export knowledge lives here. The shared ``torch2vk.export``
+OmniVoice-specific export knowledge lives here. The shared ``torch2vk.exportv2``
 package only provides generic template rendering, generated-file writes, and
 PyTorch module reflection.
 """
@@ -17,38 +17,38 @@ import json
 import os
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import TypeAlias, TypeGuard
 
-import torch2vk.export.shaders as export_shaders
-from torch2vk.export.exported_program import export_torch_program, iter_fx_call_function_nodes
-from torch2vk.export.graph import input_names, mapped_node_name
-from torch2vk.export.contract_codegen import (
+import torch
+from torch import nn
+import torch2vk.exportv2.shaders as export_shaders
+from torch2vk.exportv2 import (
+    ExportWriteResult,
+    ExportedProgramLike,
+    FxNodeLike,
     ParamsFieldDecl,
-    TensorFieldDecl,
-    render_shader_contract_variant_body,
-)
-from torch2vk.export.logical_tensor_codegen import render_logical_tensor_helpers_file
-from torch2vk.export.protocols import FxNodeLike
-from torch2vk.export.reflection import (
-    TorchModuleReflection,
-    instantiate_torch_module_on_meta,
-    reflect_torch_module,
-)
-from torch2vk.export.tensor_scaffold_codegen import (
-    LoweredOpContract,
+    RenderedFile,
+    StaticNode,
+    TemplateRenderer,
     TensorDataclassDecl,
     TensorDataclassFieldDecl,
+    TensorFieldDecl,
+    TensorFieldPattern,
+    TorchModuleReflection,
+    export_torch_program,
+    input_names,
+    instantiate_torch_module_on_meta,
+    iter_fx_call_function_nodes,
     logical_tensor_dataclass_from_patterns,
+    mapped_node_name,
+    order_tensor_fields,
+    reflect_torch_module,
+    render_logical_tensor_helpers_file,
     render_parameter_fields_constant,
+    render_shader_contract_variant_body,
     render_tensor_dataclass,
     render_tensor_dataclasses,
-    tensor_scaffold_fields_from_lowered_ops,
-)
-from torch2vk.export.torch_ops import TensorFieldPattern
-from torch2vk.export.writer import (
-    ExportWriteResult,
-    RenderedFile,
-    TemplateRenderer,
+    tensor_scaffold_fields_from_static_nodes,
     remove_stale_files,
     write_rendered_files,
 )
@@ -56,6 +56,16 @@ from torch2vk.runtime.shader import ShaderVariant
 
 
 JsonObject = Mapping[str, object]
+SerializableFxValue: TypeAlias = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | tuple["SerializableFxValue", ...]
+    | list["SerializableFxValue"]
+    | dict[str, "SerializableFxValue"]
+)
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _TEMPLATE_ROOT = _PACKAGE_DIR / "export_templates"
@@ -108,9 +118,31 @@ class ShaderModulePattern:
     variants: tuple[ShaderPattern, ...]
 
 
-def _op(target: str, inputs: tuple[str, ...], outputs: tuple[str, ...], note: str = "", **extra: object) -> object:
-    from types import SimpleNamespace
-    return SimpleNamespace(target=target, inputs=inputs, outputs=outputs, note=note, **extra)
+@dataclass(frozen=True, slots=True)
+class OmniVoiceOpPattern:
+    target: str
+    inputs: tuple[str, ...]
+    outputs: tuple[str, ...]
+    note: str = ""
+    name: str = ""
+    op: str = "call_function"
+    args: tuple[SerializableFxValue, ...] = ()
+    kwargs: tuple[tuple[str, SerializableFxValue], ...] = ()
+    shape: tuple[int, ...] | None = None
+    dtype: str | None = None
+
+
+def _op(
+    target: str,
+    inputs: tuple[str, ...],
+    outputs: tuple[str, ...],
+    note: str = "",
+) -> OmniVoiceOpPattern:
+    return OmniVoiceOpPattern(target=target, inputs=inputs, outputs=outputs, note=note)
+
+
+def _node(target: str, inputs: tuple[str, ...], outputs: tuple[str, ...]) -> StaticNode:
+    return target, inputs, outputs
 
 
 def export_omnivoice_package(
@@ -171,7 +203,7 @@ def reflect_omnivoice_source(config: OmniVoiceExportConfig) -> TorchModuleReflec
     return reflect_torch_module(model)
 
 
-def omnivoice_source_config_from_export_config(config: OmniVoiceExportConfig) -> Any:
+def omnivoice_source_config_from_export_config(config: OmniVoiceExportConfig) -> object:
     OmniVoiceConfig = _load_source_model_module().OmniVoiceConfig
     return OmniVoiceConfig(
         audio_vocab_size=config.audio_vocab_size,
@@ -200,21 +232,20 @@ def build_omnivoice_pattern_context(
     shader_variants = _export_shader_variants()
     input_embedding_nodes = _input_embeddings_fx_nodes(config)
     input_embedding_ops = _input_embeddings_ops_from_nodes(input_embedding_nodes)
-    input_embedding_contracts = _lowered_op_contracts(input_embedding_ops)
-    text_layer_ops = _text_layer_ops()
-    text_layer_fields = tensor_scaffold_fields_from_lowered_ops(
-        ops=_lowered_op_contracts(text_layer_ops),
+    input_embedding_static_nodes = _static_nodes_from_ops(input_embedding_ops)
+    text_layer_fields = tensor_scaffold_fields_from_static_nodes(
+        nodes=_text_layer_nodes(),
         shader_variants=shader_variants,
         parameter_sources=_text_layer_parameter_sources(),
         external_fields=("hidden", "rope_cos", "rope_sin", "cache_position"),
         role_overrides={"key_cache": "state", "value_cache": "state"},
     )
     text_prefill_fields = _text_prefill_fields(
-        ops=input_embedding_contracts,
+        nodes=input_embedding_static_nodes,
         shader_variants=shader_variants,
     )
     text_decode_fields = _text_decode_fields(
-        ops=input_embedding_contracts,
+        nodes=input_embedding_static_nodes,
         shader_variants=shader_variants,
     )
     audio_codec_fields = _audio_codec_fields(config)
@@ -481,9 +512,9 @@ def _input_embedding_name_map() -> dict[str, str]:
     }
 
 
-def _input_embeddings_ops_from_nodes(nodes: Sequence[FxNodeLike]) -> tuple[object, ...]:
+def _input_embeddings_ops_from_nodes(nodes: Sequence[FxNodeLike]) -> tuple[OmniVoiceOpPattern, ...]:
     names = _input_embedding_name_map()
-    ops: list[object] = []
+    ops: list[OmniVoiceOpPattern] = []
     for node in nodes:
         output = mapped_node_name(node, names)
         target = str(getattr(node, "target"))
@@ -492,13 +523,15 @@ def _input_embeddings_ops_from_nodes(nodes: Sequence[FxNodeLike]) -> tuple[objec
             target = "aten.torch2vk.shifted_ids.default"
             inputs = ("input_ids", "audio_mask", "codebook_layer_offsets_view")
         ops.append(
-            _op(
+            OmniVoiceOpPattern(
                 target=target,
                 inputs=inputs,
                 outputs=(output,),
-                name=str(getattr(node, "name")),
-                op=str(getattr(node, "op")),
-                args=tuple(_serializable_fx_value(value, names) for value in getattr(node, "args", ())),
+                name=node.name,
+                op=node.op,
+                args=tuple(
+                    _serializable_fx_value(value, names) for value in getattr(node, "args", ())
+                ),
                 kwargs=tuple(
                     (str(key), _serializable_fx_value(value, names))
                     for key, value in getattr(node, "kwargs", {}).items()
@@ -510,10 +543,7 @@ def _input_embeddings_ops_from_nodes(nodes: Sequence[FxNodeLike]) -> tuple[objec
     return tuple(ops)
 
 
-def _export_input_embeddings_program(config: OmniVoiceExportConfig) -> object:
-    import torch
-    from torch import nn
-
+def _export_input_embeddings_program(config: OmniVoiceExportConfig) -> ExportedProgramLike:
     class InputEmbeddingsModule(nn.Module):
         def __init__(self) -> None:
             super().__init__()
@@ -538,9 +568,7 @@ def _export_input_embeddings_program(config: OmniVoiceExportConfig) -> object:
                 self.codebook_layer_offsets,
                 [1, -1, 1],
             )
-            shifted_ids = (
-                input_ids * audio_mask.unsqueeze(1)
-            ) + codebook_layer_offsets
+            shifted_ids = (input_ids * audio_mask.unsqueeze(1)) + codebook_layer_offsets
             audio_embeds = self.audio_embeddings(shifted_ids).sum(dim=1)
             return torch.where(audio_mask.unsqueeze(-1), audio_embeds, text_embeds)
 
@@ -559,11 +587,11 @@ def _export_input_embeddings_program(config: OmniVoiceExportConfig) -> object:
 
 def _text_prefill_fields(
     *,
-    ops: Sequence[LoweredOpContract],
+    nodes: Sequence[StaticNode],
     shader_variants: Mapping[str, ShaderVariant],
 ) -> tuple[TensorFieldPattern, ...]:
-    fields = _common_text_fields(ops=ops, shader_variants=shader_variants)
-    return _ordered_tensor_fields(
+    fields = _common_text_fields(nodes=nodes, shader_variants=shader_variants)
+    return order_tensor_fields(
         fields,
         (
             "input_ids",
@@ -594,15 +622,15 @@ def _text_prefill_fields(
 
 def _text_decode_fields(
     *,
-    ops: Sequence[LoweredOpContract],
+    nodes: Sequence[StaticNode],
     shader_variants: Mapping[str, ShaderVariant],
 ) -> tuple[TensorFieldPattern, ...]:
     fields = _common_text_fields(
-        ops=ops,
+        nodes=nodes,
         shader_variants=shader_variants,
         extra_fields=(TensorFieldPattern("cache_position", dtype="int64", role="input"),),
     )
-    return _ordered_tensor_fields(
+    return order_tensor_fields(
         fields,
         (
             "input_ids",
@@ -634,12 +662,12 @@ def _text_decode_fields(
 
 def _common_text_fields(
     *,
-    ops: Sequence[LoweredOpContract],
+    nodes: Sequence[StaticNode],
     shader_variants: Mapping[str, ShaderVariant],
     extra_fields: Sequence[TensorFieldPattern] = (),
 ) -> tuple[TensorFieldPattern, ...]:
-    return tensor_scaffold_fields_from_lowered_ops(
-        ops=ops,
+    return tensor_scaffold_fields_from_static_nodes(
+        nodes=nodes,
         shader_variants=shader_variants,
         parameter_sources=_text_parameter_sources(),
         extra_fields=(
@@ -666,16 +694,6 @@ def _text_parameter_sources() -> dict[str, str]:
         for field in _text_parameter_fields()
         if field.source_parameter is not None
     }
-
-
-def _ordered_tensor_fields(
-    fields: Sequence[TensorFieldPattern],
-    order: Sequence[str],
-) -> tuple[TensorFieldPattern, ...]:
-    by_name = {field.field: field for field in fields}
-    ordered = [by_name.pop(name) for name in order if name in by_name]
-    ordered.extend(by_name.values())
-    return tuple(ordered)
 
 
 def _text_tensor_dataclasses(
@@ -761,56 +779,51 @@ def _text_tensor_dataclasses(
     )
 
 
-def _text_layer_ops() -> tuple[object, ...]:
+def _text_layer_nodes() -> tuple[StaticNode, ...]:
     return (
-        _op("aten.rms_norm.default", ("hidden", "input_layernorm_weight"), ("input_layernorm",)),
-        _op("aten.linear.default", ("input_layernorm", "q_proj_weight"), ("q_proj",)),
-        _op("aten.linear.default", ("input_layernorm", "k_proj_weight"), ("k_proj",)),
-        _op("aten.linear.default", ("input_layernorm", "v_proj_weight"), ("v_proj",)),
-        _op("aten.torch2vk.text_qk_norm.default", ("q_proj", "q_norm_weight"), ("q_normed",)),
-        _op("aten.torch2vk.text_qk_norm.default", ("k_proj", "k_norm_weight"), ("k_normed",)),
-        _op("aten.torch2vk.text_rope.default", ("q_normed", "rope_cos", "rope_sin"), ("q_roped",)),
-        _op("aten.torch2vk.text_rope.default", ("k_normed", "rope_cos", "rope_sin"), ("k_roped",)),
-        _op(
+        _node("aten.rms_norm.default", ("hidden", "input_layernorm_weight"), ("input_layernorm",)),
+        _node("aten.linear.default", ("input_layernorm", "q_proj_weight"), ("q_proj",)),
+        _node("aten.linear.default", ("input_layernorm", "k_proj_weight"), ("k_proj",)),
+        _node("aten.linear.default", ("input_layernorm", "v_proj_weight"), ("v_proj",)),
+        _node("aten.torch2vk.text_qk_norm.default", ("q_proj", "q_norm_weight"), ("q_normed",)),
+        _node("aten.torch2vk.text_qk_norm.default", ("k_proj", "k_norm_weight"), ("k_normed",)),
+        _node(
+            "aten.torch2vk.text_rope.default", ("q_normed", "rope_cos", "rope_sin"), ("q_roped",)
+        ),
+        _node(
+            "aten.torch2vk.text_rope.default", ("k_normed", "rope_cos", "rope_sin"), ("k_roped",)
+        ),
+        _node(
             "aten.torch2vk.text_kv_cache_write.default",
             ("k_roped", "v_proj", "key_cache", "value_cache"),
             ("key_cache", "value_cache"),
         ),
-        _op(
+        _node(
             "aten.torch2vk.text_attention.default",
             ("q_roped", "key_cache", "value_cache"),
             ("attention",),
         ),
-        _op("aten.linear.default", ("attention", "o_proj_weight"), ("o_proj",)),
-        _op("aten.add.Tensor", ("hidden", "o_proj"), ("attn_residual",)),
-        _op(
+        _node("aten.linear.default", ("attention", "o_proj_weight"), ("o_proj",)),
+        _node("aten.add.Tensor", ("hidden", "o_proj"), ("attn_residual",)),
+        _node(
             "aten.rms_norm.default",
             ("attn_residual", "post_attention_layernorm_weight"),
             ("post_attention_layernorm",),
         ),
-        _op(
+        _node(
             "aten.linear.default",
             ("post_attention_layernorm", "gate_proj_weight"),
             ("gate_proj",),
         ),
-        _op("aten.linear.default", ("post_attention_layernorm", "up_proj_weight"), ("up_proj",)),
-        _op("aten.torch2vk.text_swiglu.default", ("gate_proj", "up_proj"), ("swiglu",)),
-        _op("aten.linear.default", ("swiglu", "down_proj_weight"), ("down_proj",)),
-        _op("aten.add.Tensor", ("attn_residual", "down_proj"), ("output",)),
+        _node("aten.linear.default", ("post_attention_layernorm", "up_proj_weight"), ("up_proj",)),
+        _node("aten.torch2vk.text_swiglu.default", ("gate_proj", "up_proj"), ("swiglu",)),
+        _node("aten.linear.default", ("swiglu", "down_proj_weight"), ("down_proj",)),
+        _node("aten.add.Tensor", ("attn_residual", "down_proj"), ("output",)),
     )
 
 
-def _lowered_op_contracts(ops: Sequence[object]) -> tuple[LoweredOpContract, ...]:
-    contracts: list[LoweredOpContract] = []
-    for op in ops:
-        contracts.append(
-            (
-                str(getattr(op, "target")),
-                tuple(str(item) for item in getattr(op, "inputs")),
-                tuple(str(item) for item in getattr(op, "outputs")),
-            )
-        )
-    return tuple(contracts)
+def _static_nodes_from_ops(ops: Sequence[OmniVoiceOpPattern]) -> tuple[StaticNode, ...]:
+    return tuple(_node(op.target, op.inputs, op.outputs) for op in ops)
 
 
 def _export_shader_variants() -> dict[str, ShaderVariant]:
@@ -846,23 +859,25 @@ def _fx_node_tensor_meta(node: FxNodeLike) -> object | None:
     return meta.get("tensor_meta")
 
 
-def _serializable_fx_value(value: object, names: Mapping[str, str]) -> object:
+def _serializable_fx_value(value: object, names: Mapping[str, str]) -> SerializableFxValue:
     if _is_fx_node_like(value):
         return mapped_node_name(value, names)
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
     if isinstance(value, tuple):
         return tuple(_serializable_fx_value(item, names) for item in value)
     if isinstance(value, list):
         return [_serializable_fx_value(item, names) for item in value]
     if isinstance(value, dict):
-        return {key: _serializable_fx_value(item, names) for key, item in value.items()}
-    return value
+        return {str(key): _serializable_fx_value(item, names) for key, item in value.items()}
+    return str(value)
 
 
-def _is_fx_node_like(value: object) -> bool:
+def _is_fx_node_like(value: object) -> TypeGuard[FxNodeLike]:
     return hasattr(value, "op") and hasattr(value, "target") and hasattr(value, "name")
 
 
-def _text_prefill_ops() -> tuple[object, ...]:
+def _text_prefill_ops() -> tuple[OmniVoiceOpPattern, ...]:
     return (
         _op("input_embeddings", ("input_ids", "audio_mask"), ("inputs_embeds",)),
         _op("llm_layer_loop", ("inputs_embeds", "attention_mask"), ("hidden_states",)),
@@ -870,59 +885,43 @@ def _text_prefill_ops() -> tuple[object, ...]:
     )
 
 
-def _audio_head_ops() -> tuple[object, ...]:
+def _audio_head_ops() -> tuple[OmniVoiceOpPattern, ...]:
     return (
-        _op(
-            "audio_head_projection", ("hidden_states", "audio_heads_weight"), ("audio_logits",)
-        ),
+        _op("audio_head_projection", ("hidden_states", "audio_heads_weight"), ("audio_logits",)),
         _op("reshape_codebooks", ("audio_logits",), ("audio_logits",)),
     )
 
 
-def _token_select_ops() -> tuple[object, ...]:
+def _token_select_ops() -> tuple[OmniVoiceOpPattern, ...]:
     return (
-        _op(
-            "classifier_free_guidance", ("cond_logits", "uncond_logits"), ("guided_logits",)
-        ),
+        _op("classifier_free_guidance", ("cond_logits", "uncond_logits"), ("guided_logits",)),
         _op("mask_forbidden_ids", ("guided_logits",), ("guided_logits",)),
-        _op(
-            "codebook_argmax", ("guided_logits",), ("pred_tokens", "confidence_scores")
-        ),
-        _op(
-            "select_positions", ("confidence_scores", "current_tokens"), ("selected_positions",)
-        ),
-        _op(
-            "apply_selected_tokens", ("pred_tokens", "selected_positions"), ("updated_tokens",)
-        ),
+        _op("codebook_argmax", ("guided_logits",), ("pred_tokens", "confidence_scores")),
+        _op("select_positions", ("confidence_scores", "current_tokens"), ("selected_positions",)),
+        _op("apply_selected_tokens", ("pred_tokens", "selected_positions"), ("updated_tokens",)),
     )
 
 
-def _iterative_decode_ops() -> tuple[object, ...]:
+def _iterative_decode_ops() -> tuple[OmniVoiceOpPattern, ...]:
     return (
         _op("initialize_masked_tokens", ("target_lens",), ("tokens",)),
-        _op(
-            "for_each_decode_step", ("batch_input_ids", "batch_audio_mask"), ("audio_logits",)
-        ),
+        _op("for_each_decode_step", ("batch_input_ids", "batch_audio_mask"), ("audio_logits",)),
         _op("token_select", ("audio_logits", "tokens"), ("tokens",)),
         _op("update_conditioned_inputs", ("tokens",), ("batch_input_ids",)),
     )
 
 
-def _audio_codec_decode_ops() -> tuple[object, ...]:
+def _audio_codec_decode_ops() -> tuple[OmniVoiceOpPattern, ...]:
     return (
-        _op(
-            "quantizer_embed_sum", ("audio_tokens", "quantizer_embeddings"), ("decoder_hidden",)
-        ),
+        _op("quantizer_embed_sum", ("audio_tokens", "quantizer_embeddings"), ("decoder_hidden",)),
         _op("decoder_conv_stack", ("decoder_hidden",), ("decoder_hidden",)),
         _op("project_out", ("decoder_hidden",), ("audio_waveform",)),
     )
 
 
-def _reference_prompt_ops() -> tuple[object, ...]:
+def _reference_prompt_ops() -> tuple[OmniVoiceOpPattern, ...]:
     return (
-        _op(
-            "load_or_resample_reference_audio", ("ref_audio",), ("reference_waveform",)
-        ),
+        _op("load_or_resample_reference_audio", ("ref_audio",), ("reference_waveform",)),
         _op("audio_tokenizer_encode", ("reference_waveform",), ("reference_tokens",)),
         _op("normalize_reference_text", ("ref_text",), ("reference_text",)),
     )
@@ -1346,11 +1345,25 @@ def _token_select_argmax_select_apply_variant_body(
         class_name=class_name,
         shader_name=shader_name,
         tensor_fields=(
-            TensorFieldDecl("output_updated_ids", "OUTPUT", "output_updated_ids", "int32", ("B", "C", "S")),
-            TensorFieldDecl("output_selected_flat_index", "OUTPUT", "output_selected_flat_index", "int32", ("B",)),
-            TensorFieldDecl("output_selected_score", "OUTPUT", "output_selected_score", "float32", ("B",)),
             TensorFieldDecl(
-                "output_selected_candidate_id", "OUTPUT", "output_selected_candidate_id", "int32", ("B",)
+                "output_updated_ids", "OUTPUT", "output_updated_ids", "int32", ("B", "C", "S")
+            ),
+            TensorFieldDecl(
+                "output_selected_flat_index",
+                "OUTPUT",
+                "output_selected_flat_index",
+                "int32",
+                ("B",),
+            ),
+            TensorFieldDecl(
+                "output_selected_score", "OUTPUT", "output_selected_score", "float32", ("B",)
+            ),
+            TensorFieldDecl(
+                "output_selected_candidate_id",
+                "OUTPUT",
+                "output_selected_candidate_id",
+                "int32",
+                ("B",),
             ),
             TensorFieldDecl("logits", "INPUT", "logits", "float32", ("B", "C", "S", "V")),
             TensorFieldDecl("codebook_offsets", "INPUT", "codebook_offsets", "int32", ("C",)),

@@ -9,11 +9,12 @@ import numpy as np
 
 from models.generated_qwen3_asr.audio_tower import run_generated_qwen3_asr_audio_tower
 from models.generated_qwen3_asr.execution import (
-    QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS,
     run_generated_qwen3_asr_greedy_decode_loop,
 )
-from models.generated_qwen3_asr.export import load_qwen3_asr_export_config
-from models.generated_qwen3_asr.tensors.audio_tower import declare_generated_qwen3_asr_audio_tower_tensors
+from models.generated_qwen3_asr.export import load_qwen3_asr_export_spec
+from models.generated_qwen3_asr.tensors.audio_tower import (
+    declare_generated_qwen3_asr_audio_tower_tensors,
+)
 from models.generated_qwen3_asr.tensors.text import declare_generated_qwen3_asr_text_tensors
 from models.hf_cache import resolve_cached_model
 from models.qwen3_asr.execution import prepare_qwen3_asr_inputs
@@ -40,7 +41,7 @@ class GeneratedQwen3AsrRecognizer:
     ) -> None:
         self._rt = rt
         self._model_dir = model_dir
-        self._config = load_qwen3_asr_export_config(model_dir=model_dir)
+        self._spec = load_qwen3_asr_export_spec(model_dir=model_dir)
         self._pytorch_compare = pytorch_compare
         self._closed = False
 
@@ -118,27 +119,28 @@ class GeneratedQwen3AsrRecognizer:
             dtype=np.float32,
         )
         feature_lens = np.array([audio_feature_len], dtype=np.int64)
-        config = self._config
+        layout = self._spec.layout
+        runtime = self._spec.runtime
 
         audio_tensors = declare_generated_qwen3_asr_audio_tower_tensors(
             input_features_shape=input_features.shape,
-            hidden_size=config.audio_hidden_size,
-            output_size=config.audio_output_size,
-            downsample_hidden_size=config.audio_downsample_hidden_size,
-            encoder_layers=config.audio_encoder_layers,
-            encoder_ffn_dim=config.audio_encoder_ffn_dim,
+            hidden_size=layout.audio_hidden_size,
+            output_size=layout.audio_output_size,
+            downsample_hidden_size=layout.audio_downsample_hidden_size,
+            encoder_layers=layout.audio_encoder_layers,
+            encoder_ffn_dim=layout.audio_encoder_ffn_dim,
         )
         text_tensors = declare_generated_qwen3_asr_text_tensors(
             prompt_length=prepared.prompt_length,
             audio_tokens=audio_tensors.last_hidden_state.concrete_shape[0],
             max_sequence_length=prepared.prompt_length + max_new_tokens,
-            hidden_size=config.text_hidden_size,
-            intermediate_size=config.text_intermediate_size,
-            vocab_size=config.text_vocab_size,
-            decoder_layers=config.text_decoder_layers,
-            num_attention_heads=config.text_num_attention_heads,
-            num_key_value_heads=config.text_num_key_value_heads,
-            head_dim=config.text_head_dim,
+            hidden_size=layout.text_hidden_size,
+            intermediate_size=layout.text_intermediate_size,
+            vocab_size=layout.text_vocab_size,
+            decoder_layers=layout.text_decoder_layers,
+            num_attention_heads=layout.text_num_attention_heads,
+            num_key_value_heads=layout.text_num_key_value_heads,
+            head_dim=layout.text_head_dim,
             audio_features=audio_tensors.last_hidden_state,
             pytorch_input_features_shape=prepared.input_features.shape,
             pytorch_feature_attention_mask_shape=prepared.feature_attention_mask.shape,
@@ -152,14 +154,18 @@ class GeneratedQwen3AsrRecognizer:
         run_generated_qwen3_asr_audio_tower(
             self._rt, audio_tensors, pytorch_compare=compare, max_ops=None
         )
+        prefill_input_features = text_tensors.prefill.input_features
+        prefill_feature_attention_mask = text_tensors.prefill.feature_attention_mask
+        if prefill_input_features is None or prefill_feature_attention_mask is None:
+            raise RuntimeError("Generated Qwen3-ASR text tensors are missing prefill audio inputs")
         self._rt.register_inputs(
             {
                 text_tensors.prefill.input_ids: prepared.input_ids,
                 text_tensors.prefill.attention_mask: prepared.attention_mask,
-                text_tensors.prefill.input_features: prepared.input_features,
-                text_tensors.prefill.feature_attention_mask: prepared.feature_attention_mask,
+                prefill_input_features: prepared.input_features,
+                prefill_feature_attention_mask: prepared.feature_attention_mask,
                 text_tensors.token_select.eos_token_ids: np.array(
-                    QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS, dtype=np.int64
+                    runtime.eos_token_ids, dtype=np.int64
                 ),
             }
         )
@@ -167,12 +173,14 @@ class GeneratedQwen3AsrRecognizer:
             self._rt,
             text_tensors,
             max_new_tokens=max_new_tokens,
-            rope_theta=config.text_rope_theta,
-            mrope_section=config.text_mrope_section,
+            rope_theta=runtime.text_rope_theta,
+            mrope_section=runtime.text_mrope_section,
             pytorch_compare=compare,
             stop_on_eos=True,
         )
-        generated_length = int(self._rt.read_request_state(text_tensors.token_store.generated_length)[0])
+        generated_length = int(
+            self._rt.read_request_state(text_tensors.token_store.generated_length)[0]
+        )
         generated_buffer = self._rt.read_request_state(generated).reshape(-1)
         if generated_length <= 0:
             tokens = tuple()
