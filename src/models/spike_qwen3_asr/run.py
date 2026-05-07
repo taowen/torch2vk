@@ -322,8 +322,9 @@ def main() -> int:
             print(f"  [{status}] {r.frame}: max_abs={r.max_abs:.6f}")
 
     rt.close()
-    return 0
+    return text
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    result = main()
+    raise SystemExit(0 if result else 1)
