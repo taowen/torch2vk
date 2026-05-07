@@ -7,7 +7,6 @@ from dataclasses import dataclass
 
 from torch.fx import Node
 
-from torch2vk.export.graph import node_input_names
 from torch2vk.export.shaders import (
     make_add_variant,
     make_argmax_variant,

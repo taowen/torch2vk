@@ -41,7 +41,7 @@ DECODE_LAYER_EXPORT_SLICE_F32_31 = ShaderVariant(
                 PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 512, dynamic=False),
                 PushConstantFieldSpec('IN_STRIDE', PushConstantType.UINT32, 4, 128, dynamic=False),
                 PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 8, 64, dynamic=False),
-                PushConstantFieldSpec('OFFSET', PushConstantType.UINT32, 12, 0, dynamic=False),
+                PushConstantFieldSpec('OFFSET', PushConstantType.UINT32, 12, 64, dynamic=False),
             ),
         ),
         params_buffer=None,

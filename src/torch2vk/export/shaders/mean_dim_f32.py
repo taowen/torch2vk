@@ -14,7 +14,6 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
-    mul,
 )
 
 _SOURCE = """\

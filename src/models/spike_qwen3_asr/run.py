@@ -183,7 +183,11 @@ def main() -> str:
         "spike.audio.conv2d3",
         bindings={"x": conv2d2_t.gelu},
     )
-    conv_out_t = at_tensors.create_conv_out("spike.audio.conv_out")
+    conv_out_t = at_tensors.create_conv_out(
+        "spike.audio.conv_out",
+        bindings={"x": conv2d3_t.gelu},
+        request_state_outputs={at_tensors.CONV_OUT_OUTPUT},
+    )
 
     # Encoder layers (layered)
     encoder_layer_ts = []
@@ -239,6 +243,7 @@ def main() -> str:
     )
     lm_head_t = text_tensors.create_lm_head(
         "spike.text.lm_head",
+        bindings={"input": text_norm_t.mul_1},
         request_state_outputs={text_tensors.LM_HEAD_OUTPUT},
     )
 
@@ -320,19 +325,9 @@ def main() -> str:
         dispatch.run_conv2d1(rt, conv2d1_t)
         dispatch.run_conv2d2(rt, conv2d2_t)
         dispatch.run_conv2d3(rt, conv2d3_t)
-        conv3_out = _readback_materialized(rt, conv2d3_t.gelu)
-
-    # Reshape + conv_out
-    b, c, f, t_dim = conv3_out.shape
-    reshaped = conv3_out.transpose(0, 3, 1, 2).reshape(b, t_dim, c * f)
-    conv_out_input = reshaped.reshape(b * t_dim, c * f)
-    print(f"  conv_out ({conv_out_input.shape})...")
-    rt._inputs.clear()
-    rt.register_inputs({conv_out_t.input: conv_out_input})
-    with rt.frame("spike.audio.conv_out"):
         dispatch.run_conv_out(rt, conv_out_t)
-        conv_out_result = _readback_materialized(rt, conv_out_t.linear)
-    conv_out_result = conv_out_result.reshape(b, t_dim, ac.d_model)
+    conv_out_result = _readback_materialized(rt, conv_out_t.linear)
+    b, t_dim, _ = conv_out_result.shape
 
     # Positional embedding + compact
     pos_emb = _compute_positional_embedding(t_dim, ac.d_model)
@@ -427,14 +422,9 @@ def main() -> str:
             if layer_idx % 7 == 6:
                 print(f"    layer {layer_idx} done")
         dispatch.run_text_norm(rt, text_norm_t)
-        normed = _readback_materialized(rt, text_norm_t.mul_1)
+        dispatch.run_lm_head(rt, lm_head_t)
 
     print("  lm_head + token_select...")
-    last_hidden = normed[:, -1:, :]
-    rt._inputs.clear()
-    rt.register_inputs({lm_head_t.input: last_hidden})
-    with rt.frame("spike.text.lm_head"):
-        dispatch.run_lm_head(rt, lm_head_t)
     logits_t = lm_head_t.linear
     _require_gpu_output(logits_t)
 

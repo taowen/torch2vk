@@ -1,4 +1,4 @@
-"""Generated shader: decode_layer_export_cat_f32_33."""
+"""Generated shader: decode_layer_export_cat_f32_32."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-DECODE_LAYER_EXPORT_CAT_F32_33 = ShaderVariant(
-    name='decode_layer_export_cat_f32_33',
+DECODE_LAYER_EXPORT_CAT_F32_32 = ShaderVariant(
+    name='decode_layer_export_cat_f32_32',
     family='export',
     contract=ShaderContract(
         class_name='ExportCatProgram',
-        shader_name='decode_layer_export_cat_f32_33',
+        shader_name='decode_layer_export_cat_f32_32',
         fields=(
             TensorFieldSpec(
                 name='a',

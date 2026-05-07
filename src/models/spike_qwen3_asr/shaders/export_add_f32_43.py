@@ -1,4 +1,4 @@
-"""Generated shader: export_mul_broadcast_inner_30."""
+"""Generated shader: export_add_f32_43."""
 
 from __future__ import annotations
 
@@ -16,42 +16,40 @@ from torch2vk.runtime.shader import (
 )
 
 
-EXPORT_MUL_BROADCAST_INNER_30 = ShaderVariant(
-    name='export_mul_broadcast_inner_30',
+EXPORT_ADD_F32_43 = ShaderVariant(
+    name='export_add_f32_43',
     family='export',
     contract=ShaderContract(
-        class_name='ExportMulBroadcastInnerProgram',
-        shader_name='export_mul_broadcast_inner_30',
+        class_name='ExportAddF32Program',
+        shader_name='export_add_f32_43',
         fields=(
             TensorFieldSpec(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H', 'D',)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H',)),
             ),
             TensorFieldSpec(
                 name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=(1, 1, 'H', 'D',)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H', 'D',)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
-            size=12,
+            size=4,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('T', 'H'), 'D'), dynamic=False),
-                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, 19328, dynamic=False),
-                PushConstantFieldSpec('REPEAT', PushConstantType.UINT32, 8, 8, dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('T', 'H'), dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(mul(mul('T', 'H'), 'D'), 256), 1, 1),
+        dispatch=(ceil_div(mul('T', 'H'), 256), 1, 1),
     ),
     execution_requirements=None,
     source="""\
@@ -60,14 +58,11 @@ layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
-layout(push_constant) uniform PushConstants { uint N; uint STRIDE; uint REPEAT; } pc;
+layout(push_constant) uniform PushConstants { uint N; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) {
-        uint y_idx = (idx / pc.STRIDE) / pc.REPEAT * pc.STRIDE + idx % pc.STRIDE;
-        output_values[idx] = x[idx] * y[y_idx];
-    }
+    if (idx < pc.N) { output_values[idx] = x[idx] + y[idx]; }
 }
 """,
 )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import math
 
 from torch.fx import Node
@@ -17,25 +18,20 @@ from torch2vk.runtime.shader import (
     ceil_div,
 )
 
-_SOURCE_TRANSPOSE_12_4D = """\
+_SOURCE_TEMPLATE = """\
 #version 450
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
 layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
-layout(push_constant) uniform PushConstants { uint N; uint D1; uint D2; uint D3; } pc;
+layout(push_constant) uniform PushConstants { uint N; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
     if (idx < pc.N) {
-        // output layout: (B, D2, D1, D3) — transposed dims 1 and 2
-        uint d3 = idx % pc.D3;
-        uint rem = idx / pc.D3;
-        uint d1 = rem % pc.D1;
-        rem = rem / pc.D1;
-        uint d2 = rem % pc.D2;
-        uint b = rem / pc.D2;
-        // input layout: (B, D1, D2, D3)
-        uint in_idx = ((b * pc.D1 + d1) * pc.D2 + d2) * pc.D3 + d3;
+        uint rem = idx;
+__DECODE_OUTPUT_COORDS__
+        uint in_idx = 0u;
+__ENCODE_INPUT_INDEX__
         output_values[idx] = x[in_idx];
     }
 }
@@ -51,45 +47,81 @@ def make_transpose_variant(node: Node) -> ShaderVariant | None:
     dim0 = int(node.args[1]) if len(node.args) > 1 and isinstance(node.args[1], int) else 0
     dim1 = int(node.args[2]) if len(node.args) > 2 and isinstance(node.args[2], int) else 1
 
+    rank = len(in_shape)
+    if dim0 < 0:
+        dim0 += rank
+    if dim1 < 0:
+        dim1 += rank
+    if not (0 <= dim0 < rank and 0 <= dim1 < rank):
+        return None
     if dim0 > dim1:
         dim0, dim1 = dim1, dim0
 
     n_total = math.prod(out_shape)
 
-    if len(in_shape) == 4 and dim0 == 1 and dim1 == 2:
-        d1 = in_shape[1]
-        d2 = in_shape[2]
-        d3 = in_shape[3]
-    else:
-        d1 = in_shape[dim0]
-        d2 = in_shape[dim1]
-        d3 = 1
-        for d in in_shape[dim1 + 1:]:
-            d3 *= d
-
     in_contract = tuple(f"I{i}" for i in range(len(in_shape)))
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
+    shader_name = _shader_name(in_shape, out_shape, dim0, dim1)
 
     return ShaderVariant(
-        name="export_transpose_f32",
+        name=shader_name,
         family="export",
         contract=ShaderContract(
             class_name="ExportTransposeProgram",
-            shader_name="export_transpose_f32",
+            shader_name=shader_name,
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
             ),
             push_constants=PushConstantSpec(
-                size=16,
+                size=4,
                 fields=(
                     PushConstantFieldSpec("N", PushConstantType.UINT32, 0, n_total),
-                    PushConstantFieldSpec("D1", PushConstantType.UINT32, 4, d1),
-                    PushConstantFieldSpec("D2", PushConstantType.UINT32, 8, d2),
-                    PushConstantFieldSpec("D3", PushConstantType.UINT32, 12, d3),
                 ),
             ),
             dispatch=(ceil_div(n_total, 256), 1, 1),
         ),
-        source=_SOURCE_TRANSPOSE_12_4D,
+        source=_transpose_source(in_shape, out_shape, dim0, dim1),
     )
+
+
+def _shader_name(
+    in_shape: tuple[int, ...],
+    out_shape: tuple[int, ...],
+    dim0: int,
+    dim1: int,
+) -> str:
+    payload = f"{in_shape}->{out_shape}:{dim0}:{dim1}".encode()
+    digest = hashlib.sha1(payload).hexdigest()[:10]
+    return f"export_transpose_f32_{digest}"
+
+
+def _transpose_source(
+    in_shape: tuple[int, ...],
+    out_shape: tuple[int, ...],
+    dim0: int,
+    dim1: int,
+) -> str:
+    decode_lines: list[str] = []
+    for index in reversed(range(len(out_shape))):
+        decode_lines.append(f"        uint c{index} = rem % {out_shape[index]}u;")
+        decode_lines.append(f"        rem = rem / {out_shape[index]}u;")
+
+    encode_lines: list[str] = []
+    for index, dim in enumerate(in_shape):
+        coord = _input_coord_name(index, dim0, dim1)
+        encode_lines.append(f"        in_idx = in_idx * {dim}u + {coord};")
+
+    return (
+        _SOURCE_TEMPLATE
+        .replace("__DECODE_OUTPUT_COORDS__", "\n".join(decode_lines))
+        .replace("__ENCODE_INPUT_INDEX__", "\n".join(encode_lines))
+    )
+
+
+def _input_coord_name(index: int, dim0: int, dim1: int) -> str:
+    if index == dim0:
+        return f"c{dim1}"
+    if index == dim1:
+        return f"c{dim0}"
+    return f"c{index}"

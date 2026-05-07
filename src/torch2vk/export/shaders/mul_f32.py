@@ -19,7 +19,6 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
-    mul,
 )
 
 _SAME_SOURCE = """\

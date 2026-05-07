@@ -1,4 +1,4 @@
-"""Generated shader: decode_layer_export_mul_broadcast_inner_30."""
+"""Generated shader: export_mul_broadcast_inner_29."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-DECODE_LAYER_EXPORT_MUL_BROADCAST_INNER_30 = ShaderVariant(
-    name='decode_layer_export_mul_broadcast_inner_30',
+EXPORT_MUL_BROADCAST_INNER_29 = ShaderVariant(
+    name='export_mul_broadcast_inner_29',
     family='export',
     contract=ShaderContract(
         class_name='ExportMulBroadcastInnerProgram',
-        shader_name='decode_layer_export_mul_broadcast_inner_30',
+        shader_name='export_mul_broadcast_inner_29',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -33,7 +33,7 @@ DECODE_LAYER_EXPORT_MUL_BROADCAST_INNER_30 = ShaderVariant(
                 name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=(1, 1, 1, 'D',)),
+                contract=TensorContract(dtype='float32', shape=(1, 1, 'H', 'D',)),
             ),
             TensorFieldSpec(
                 name='output',
@@ -46,7 +46,7 @@ DECODE_LAYER_EXPORT_MUL_BROADCAST_INNER_30 = ShaderVariant(
             size=12,
             fields=(
                 PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('T', 'H'), 'D'), dynamic=False),
-                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, 128, dynamic=False),
+                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, 19328, dynamic=False),
                 PushConstantFieldSpec('REPEAT', PushConstantType.UINT32, 8, 8, dynamic=False),
             ),
         ),

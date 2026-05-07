@@ -1,4 +1,4 @@
-"""Generated shader: decode_layer_export_slice_f32_26."""
+"""Generated shader: export_slice_f32_25."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-DECODE_LAYER_EXPORT_SLICE_F32_26 = ShaderVariant(
-    name='decode_layer_export_slice_f32_26',
+EXPORT_SLICE_F32_25 = ShaderVariant(
+    name='export_slice_f32_25',
     family='export',
     contract=ShaderContract(
         class_name='ExportSliceProgram',
-        shader_name='decode_layer_export_slice_f32_26',
+        shader_name='export_slice_f32_25',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -38,14 +38,14 @@ DECODE_LAYER_EXPORT_SLICE_F32_26 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=16,
             fields=(
-                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 1024, dynamic=False),
+                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 154624, dynamic=False),
                 PushConstantFieldSpec('IN_STRIDE', PushConstantType.UINT32, 4, 128, dynamic=False),
                 PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 8, 64, dynamic=False),
                 PushConstantFieldSpec('OFFSET', PushConstantType.UINT32, 12, 64, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(1024, 256), 1, 1),
+        dispatch=(ceil_div(154624, 256), 1, 1),
     ),
     execution_requirements=None,
     source="""\

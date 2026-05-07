@@ -67,7 +67,11 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
 
     normalized_shape_arg = node.args[1] if len(node.args) > 1 else None
     if isinstance(normalized_shape_arg, (list, tuple)):
-        cols = math.prod(int(d) for d in normalized_shape_arg)
+        normalized_dims = [d for d in normalized_shape_arg if isinstance(d, int)]
+        if len(normalized_dims) == len(normalized_shape_arg):
+            cols = math.prod(normalized_dims)
+        else:
+            cols = in_shape[-1]
     elif isinstance(normalized_shape_arg, int):
         cols = normalized_shape_arg
     else:
@@ -78,11 +82,12 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
     eps_val = 1e-5
     if len(node.args) > 4 and isinstance(node.args[4], (int, float)):
         eps_val = float(node.args[4])
-    elif "eps" in node.kwargs:
-        eps_val = float(node.kwargs["eps"])
+    else:
+        eps_arg = node.kwargs.get("eps")
+        if isinstance(eps_arg, (int, float)):
+            eps_val = float(eps_arg)
 
     in_contract = tuple(f"I{i}" for i in range(len(in_shape)))
-    w_contract = tuple(f"W{i}" for i in range(1,))  # 1D weight
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
 
     return ShaderVariant(

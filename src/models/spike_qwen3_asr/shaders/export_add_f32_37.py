@@ -1,4 +1,4 @@
-"""Generated shader: export_add_f32_44."""
+"""Generated shader: export_add_f32_37."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-EXPORT_ADD_F32_44 = ShaderVariant(
-    name='export_add_f32_44',
+EXPORT_ADD_F32_37 = ShaderVariant(
+    name='export_add_f32_37',
     family='export',
     contract=ShaderContract(
         class_name='ExportAddF32Program',
-        shader_name='export_add_f32_44',
+        shader_name='export_add_f32_37',
         fields=(
             TensorFieldSpec(
                 name='x',

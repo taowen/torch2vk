@@ -4,7 +4,7 @@ import math
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import node_input_shape
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,

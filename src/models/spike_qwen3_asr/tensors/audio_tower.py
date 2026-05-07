@@ -262,7 +262,9 @@ def create_conv2d3(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
 @dataclass(frozen=True, slots=True)
 class ConvOutTensors:
     p_weight: LogicalTensor
-    input: LogicalTensor
+    x: LogicalTensor
+    reshape: LogicalTensor
+    transpose: LogicalTensor
     linear: LogicalTensor
 
 
@@ -270,7 +272,7 @@ CONV_OUT_OUTPUT: str = 'linear'
 
 
 def create_conv_out(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> ConvOutTensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'input', 'linear')))
+    _validate_bindings(bindings, frozenset(('p_weight', 'x', 'reshape', 'transpose', 'linear')))
     _validate_request_state_outputs(request_state_outputs, frozenset(('linear',)))
     return ConvOutTensors(
         p_weight=_bind_tensor(
@@ -285,16 +287,40 @@ def create_conv_out(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None
             request_state='p_weight' in request_state_outputs,
             ),
         ),
-        input=_bind_tensor(
+        x=_bind_tensor(
             bindings,
-            'input',
+            'x',
             _declare_tensor(
-            name=f"{prefix}.input",
-            spec=TensorSpec(dtype='float32', shape=(143, 7680)),
+            name=f"{prefix}.x",
+            spec=TensorSpec(dtype='float32', shape=(11, 480, 16, 13)),
             role=TensorRole.INPUT,
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
-            request_state='input' in request_state_outputs,
+            request_state='x' in request_state_outputs,
+            ),
+        ),
+        reshape=_bind_tensor(
+            bindings,
+            'reshape',
+            _declare_tensor(
+            name=f"{prefix}.reshape",
+            spec=TensorSpec(dtype='float32', shape=(11, 7680, 13)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='reshape' in request_state_outputs,
+            ),
+        ),
+        transpose=_bind_tensor(
+            bindings,
+            'transpose',
+            _declare_tensor(
+            name=f"{prefix}.transpose",
+            spec=TensorSpec(dtype='float32', shape=(11, 13, 7680)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='transpose' in request_state_outputs,
             ),
         ),
         linear=_bind_tensor(
@@ -302,7 +328,7 @@ def create_conv_out(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None
             'linear',
             _declare_tensor(
             name=f"{prefix}.linear",
-            spec=TensorSpec(dtype='float32', shape=(143, 896)),
+            spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,

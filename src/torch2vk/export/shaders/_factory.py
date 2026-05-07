@@ -7,7 +7,6 @@ from torch.fx import Node
 from torch2vk.runtime.shader import (
     ExprDim,
     IOKind,
-    MulExpr,
     PushConstantFieldSpec,
     PushConstantSpec,
     PushConstantType,

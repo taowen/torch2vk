@@ -73,11 +73,15 @@ def make_conv2d_variant(node: Node) -> ShaderVariant | None:
     if len(node.args) >= 4:
         s = node.args[3]
         if isinstance(s, (list, tuple)) and len(s) == 2:
-            stride = (int(s[0]), int(s[1]))
+            s0, s1 = s
+            if isinstance(s0, int) and isinstance(s1, int):
+                stride = (s0, s1)
     if len(node.args) >= 5:
         p = node.args[4]
         if isinstance(p, (list, tuple)) and len(p) == 2:
-            padding = (int(p[0]), int(p[1]))
+            p0, p1 = p
+            if isinstance(p0, int) and isinstance(p1, int):
+                padding = (p0, p1)
 
     has_bias = len(node.args) >= 3 and isinstance(node.args[2], Node)
 

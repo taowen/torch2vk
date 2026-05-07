@@ -1,4 +1,4 @@
-"""Generated shader: export_transpose_f32_23."""
+"""Generated shader: export_transpose_f32_48d16b9b88."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-EXPORT_TRANSPOSE_F32_23 = ShaderVariant(
-    name='export_transpose_f32_23',
+EXPORT_TRANSPOSE_F32_48D16B9B88 = ShaderVariant(
+    name='export_transpose_f32_48d16b9b88',
     family='export',
     contract=ShaderContract(
         class_name='ExportTransposeProgram',
-        shader_name='export_transpose_f32_23',
+        shader_name='export_transpose_f32_48d16b9b88',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -36,16 +36,13 @@ EXPORT_TRANSPOSE_F32_23 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=16,
+            size=4,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, 154624, dynamic=False),
-                PushConstantFieldSpec('D1', PushConstantType.UINT32, 4, 151, dynamic=False),
-                PushConstantFieldSpec('D2', PushConstantType.UINT32, 8, 8, dynamic=False),
-                PushConstantFieldSpec('D3', PushConstantType.UINT32, 12, 128, dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, 119168, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(154624, 256), 1, 1),
+        dispatch=(ceil_div(119168, 256), 1, 1),
     ),
     execution_requirements=None,
     source="""\
@@ -53,20 +50,25 @@ EXPORT_TRANSPOSE_F32_23 = ShaderVariant(
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
 layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
-layout(push_constant) uniform PushConstants { uint N; uint D1; uint D2; uint D3; } pc;
+layout(push_constant) uniform PushConstants { uint N; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
     if (idx < pc.N) {
-        // output layout: (B, D2, D1, D3) — transposed dims 1 and 2
-        uint d3 = idx % pc.D3;
-        uint rem = idx / pc.D3;
-        uint d1 = rem % pc.D1;
-        rem = rem / pc.D1;
-        uint d2 = rem % pc.D2;
-        uint b = rem / pc.D2;
-        // input layout: (B, D1, D2, D3)
-        uint in_idx = ((b * pc.D1 + d1) * pc.D2 + d2) * pc.D3 + d3;
+        uint rem = idx;
+        uint c3 = rem % 64u;
+        rem = rem / 64u;
+        uint c2 = rem % 14u;
+        rem = rem / 14u;
+        uint c1 = rem % 133u;
+        rem = rem / 133u;
+        uint c0 = rem % 1u;
+        rem = rem / 1u;
+        uint in_idx = 0u;
+        in_idx = in_idx * 1u + c0;
+        in_idx = in_idx * 14u + c2;
+        in_idx = in_idx * 133u + c1;
+        in_idx = in_idx * 64u + c3;
         output_values[idx] = x[in_idx];
     }
 }

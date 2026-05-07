@@ -1,4 +1,4 @@
-"""Generated shader: export_linear_nobias_f32_37."""
+"""Generated shader: export_linear_nobias_f32_36."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-EXPORT_LINEAR_NOBIAS_F32_37 = ShaderVariant(
-    name='export_linear_nobias_f32_37',
+EXPORT_LINEAR_NOBIAS_F32_36 = ShaderVariant(
+    name='export_linear_nobias_f32_36',
     family='export',
     contract=ShaderContract(
         class_name='ExportLinearNobiasProgram',
-        shader_name='export_linear_nobias_f32_37',
+        shader_name='export_linear_nobias_f32_36',
         fields=(
             TensorFieldSpec(
                 name='x',

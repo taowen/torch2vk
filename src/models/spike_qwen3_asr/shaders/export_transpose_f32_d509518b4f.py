@@ -1,4 +1,4 @@
-"""Generated shader: export_slice_f32_26."""
+"""Generated shader: export_transpose_f32_d509518b4f."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-EXPORT_SLICE_F32_26 = ShaderVariant(
-    name='export_slice_f32_26',
+EXPORT_TRANSPOSE_F32_D509518B4F = ShaderVariant(
+    name='export_transpose_f32_d509518b4f',
     family='export',
     contract=ShaderContract(
-        class_name='ExportSliceProgram',
-        shader_name='export_slice_f32_26',
+        class_name='ExportTransposeProgram',
+        shader_name='export_transpose_f32_d509518b4f',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -36,16 +36,13 @@ EXPORT_SLICE_F32_26 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=16,
+            size=4,
             fields=(
-                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 154624, dynamic=False),
-                PushConstantFieldSpec('IN_STRIDE', PushConstantType.UINT32, 4, 128, dynamic=False),
-                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 8, 64, dynamic=False),
-                PushConstantFieldSpec('OFFSET', PushConstantType.UINT32, 12, 64, dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, 1024, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(154624, 256), 1, 1),
+        dispatch=(ceil_div(1024, 256), 1, 1),
     ),
     execution_requirements=None,
     source="""\
@@ -53,14 +50,26 @@ EXPORT_SLICE_F32_26 = ShaderVariant(
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
 layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
-layout(push_constant) uniform PushConstants { uint N_OUT; uint IN_STRIDE; uint OUT_STRIDE; uint OFFSET; } pc;
+layout(push_constant) uniform PushConstants { uint N; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N_OUT) {
-        uint row = idx / pc.OUT_STRIDE;
-        uint col = idx % pc.OUT_STRIDE;
-        output_values[idx] = x[row * pc.IN_STRIDE + pc.OFFSET + col];
+    if (idx < pc.N) {
+        uint rem = idx;
+        uint c3 = rem % 128u;
+        rem = rem / 128u;
+        uint c2 = rem % 1u;
+        rem = rem / 1u;
+        uint c1 = rem % 8u;
+        rem = rem / 8u;
+        uint c0 = rem % 1u;
+        rem = rem / 1u;
+        uint in_idx = 0u;
+        in_idx = in_idx * 1u + c0;
+        in_idx = in_idx * 1u + c2;
+        in_idx = in_idx * 8u + c1;
+        in_idx = in_idx * 128u + c3;
+        output_values[idx] = x[in_idx];
     }
 }
 """,

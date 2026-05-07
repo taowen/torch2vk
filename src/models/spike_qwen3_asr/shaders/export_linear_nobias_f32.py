@@ -26,7 +26,7 @@ EXPORT_LINEAR_NOBIAS_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('X0', 'X1',)),
+                contract=TensorContract(dtype='float32', shape=('X0', 'X1', 'X2',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -38,7 +38,7 @@ EXPORT_LINEAR_NOBIAS_F32 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('Y0', 'Y1',)),
+                contract=TensorContract(dtype='float32', shape=('Y0', 'Y1', 'Y2',)),
             ),
         ),
         push_constants=PushConstantSpec(

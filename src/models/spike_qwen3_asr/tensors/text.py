@@ -248,7 +248,7 @@ def create_lm_head(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             'input',
             _declare_tensor(
             name=f"{prefix}.input",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+            spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
             role=TensorRole.INPUT,
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
@@ -260,7 +260,7 @@ def create_lm_head(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             'linear',
             _declare_tensor(
             name=f"{prefix}.linear",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 151936)),
+            spec=TensorSpec(dtype='float32', shape=(1, 151, 151936)),
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,

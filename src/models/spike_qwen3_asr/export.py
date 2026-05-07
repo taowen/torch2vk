@@ -516,6 +516,8 @@ def _generate_dispatch_file(plans: dict[str, dict]) -> str:
     lines.append("        dst.buffer = src.buffer")
     lines.append("        dst.descriptor_nbytes = src.descriptor_nbytes")
     lines.append("        dst.version = src.version")
+    lines.append("        dst.writer = src.writer")
+    lines.append("    rt._current_frame().written_tensors.append(dst)")
     lines.append("")
     return "\n".join(lines)
 
@@ -812,7 +814,6 @@ def _load_model_and_shapes():
         "conv2d1_out": (chunk_num, 480, h1, w1),
         "conv2d2_out": (chunk_num, 480, h2, w2),
         "conv2d3_out": (chunk_num, 480, h3, w3),
-        "conv_out_in": (chunk_num * w3, 480 * h3),
         "enc_seq_len": enc_seq_len,
         "cu_seqlens_len": cu_seqlens_len,
         "d_model": ac.d_model,
@@ -889,6 +890,15 @@ def main() -> int:
         def forward(self, x):
             return self._act(torch.nn.functional.linear(x, self.weight, self.bias))
 
+    class _ConvOutFromCnn(torch.nn.Module):
+        def __init__(self, linear):
+            super().__init__()
+            self.weight = linear.weight
+        def forward(self, x):
+            b, c, f, t = x.shape
+            x = x.reshape(b, c * f, t).transpose(1, 2)
+            return torch.nn.functional.linear(x, self.weight, None)
+
     export_and_plan("run_conv2d1", _ConvGelu(at.conv2d1).float(),
                     args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),),
                     weight_prefix="thinker.audio_tower.conv2d1.")
@@ -898,8 +908,8 @@ def main() -> int:
     export_and_plan("run_conv2d3", _ConvGelu(at.conv2d3).float(),
                     args=(torch.zeros(*shapes["conv2d2_out"], device="meta"),),
                     weight_prefix="thinker.audio_tower.conv2d3.")
-    export_and_plan("run_conv_out", at.conv_out.float(),
-                    args=(torch.zeros(*shapes["conv_out_in"], device="meta"),),
+    export_and_plan("run_conv_out", _ConvOutFromCnn(at.conv_out).float(),
+                    args=(torch.zeros(*shapes["conv2d3_out"], device="meta"),),
                     weight_prefix="thinker.audio_tower.conv_out.")
     enc_seq = shapes["enc_seq_len"]
     export_and_plan("run_encoder_layer", at.layers[0].float(),
@@ -935,7 +945,7 @@ def main() -> int:
                     args=(torch.zeros(1, pl, hs, device="meta"),),
                     weight_prefix="thinker.model.norm.")
     export_and_plan("run_lm_head", model.thinker.lm_head.float(),
-                    args=(torch.zeros(1, 1, hs, device="meta"),),
+                    args=(torch.zeros(1, pl, hs, device="meta"),),
                     weight_prefix="thinker.lm_head.")
 
     # Decode-step variants (seq_len=1)

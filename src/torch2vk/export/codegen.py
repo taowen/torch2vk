@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import torch
 from torch.export import ExportedProgram
 from torch.export.graph_signature import ExportGraphSignature, InputKind
 from torch.fx import Graph, Node
@@ -134,6 +133,8 @@ def _generate_dispatch_function(
     lines.append("        dst.buffer = src.buffer")
     lines.append("        dst.descriptor_nbytes = src.descriptor_nbytes")
     lines.append("        dst.version = src.version")
+    lines.append("        dst.writer = src.writer")
+    lines.append("    rt._current_frame().written_tensors.append(dst)")
 
     return lines
 
