@@ -18,8 +18,9 @@ from typing import Any, Protocol, cast
 import torch
 
 from models.hf_cache import resolve_cached_model
-from models.omnivoice.pytorch.example import DEFAULT_OUTPUT_WAV as OMNIVOICE_OUTPUT_WAV
 from models.quiet import configure_quiet_runtime, suppress_output
+
+_DEFAULT_TEST_WAV = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "qwen3_asr_asknot.wav"
 
 REPO_ID = "Qwen/Qwen3-ASR-0.6B"
 
@@ -58,12 +59,11 @@ class Qwen3AsrTranscript:
 
 
 def default_audio_path() -> Path:
-    if not OMNIVOICE_OUTPUT_WAV.is_file():
+    if not _DEFAULT_TEST_WAV.is_file():
         raise FileNotFoundError(
-            "OmniVoice wav is missing. Generate it first with: "
-            "uv run python -m models.omnivoice.pytorch.example"
+            f"Test wav is missing at {_DEFAULT_TEST_WAV}"
         )
-    return OMNIVOICE_OUTPUT_WAV
+    return _DEFAULT_TEST_WAV
 
 
 def run_inference(
