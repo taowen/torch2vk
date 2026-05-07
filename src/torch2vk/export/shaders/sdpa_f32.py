@@ -22,36 +22,38 @@ layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint NH; uint NK; uint T; uint S; uint D; } pc;
-layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
-shared float scores[1024];
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint head = gl_WorkGroupID.x;
     const uint row = gl_WorkGroupID.y;
-    const uint tid = gl_LocalInvocationID.x;
     if (head >= pc.NH || row >= pc.T) { return; }
     const uint kv_head = head * pc.NK / pc.NH;
     const float scale = inversesqrt(float(pc.D));
-    for (uint col = tid; col < pc.S; col += 128u) {
+    float max_score = -1.0e38;
+    for (uint col = 0u; col <= row && col < pc.S; ++col) {
         float dot = 0.0;
         for (uint d = 0u; d < pc.D; ++d) {
             dot += q[(head * pc.T + row) * pc.D + d] * k[(kv_head * pc.S + col) * pc.D + d];
         }
-        scores[col] = (col <= row) ? dot * scale : -1.0e38;
+        max_score = max(max_score, dot * scale);
     }
-    barrier();
-    float max_score = -1.0e38;
-    for (uint col = 0u; col < pc.S; ++col) { max_score = max(max_score, scores[col]); }
     float sum_exp = 0.0;
-    for (uint col = 0u; col < pc.S; ++col) {
-        scores[col] = exp(scores[col] - max_score);
-        sum_exp += scores[col];
+    for (uint col = 0u; col <= row && col < pc.S; ++col) {
+        float dot = 0.0;
+        for (uint d = 0u; d < pc.D; ++d) {
+            dot += q[(head * pc.T + row) * pc.D + d] * k[(kv_head * pc.S + col) * pc.D + d];
+        }
+        sum_exp += exp(dot * scale - max_score);
     }
-    for (uint col = 0u; col < pc.S; ++col) { scores[col] /= sum_exp; }
-    barrier();
-    for (uint d = tid; d < pc.D; d += 128u) {
+    for (uint d = 0u; d < pc.D; ++d) {
         float acc = 0.0;
-        for (uint col = 0u; col < pc.S; ++col) {
-            acc += scores[col] * v[(kv_head * pc.S + col) * pc.D + d];
+        for (uint col = 0u; col <= row && col < pc.S; ++col) {
+            float dot = 0.0;
+            for (uint dd = 0u; dd < pc.D; ++dd) {
+                dot += q[(head * pc.T + row) * pc.D + dd] * k[(kv_head * pc.S + col) * pc.D + dd];
+            }
+            float w = exp(dot * scale - max_score) / sum_exp;
+            acc += w * v[(kv_head * pc.S + col) * pc.D + d];
         }
         output_values[(head * pc.T + row) * pc.D + d] = acc;
     }
@@ -66,36 +68,86 @@ layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint NH; uint NK; uint T; uint S; uint D; } pc;
-layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
-shared float scores[1024];
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint head = gl_WorkGroupID.x;
     const uint row = gl_WorkGroupID.y;
-    const uint tid = gl_LocalInvocationID.x;
     if (head >= pc.NH || row >= pc.T) { return; }
     const uint kv_head = head * pc.NK / pc.NH;
     const float scale = inversesqrt(float(pc.D));
-    for (uint col = tid; col < pc.S; col += 128u) {
+    float max_score = -1.0e38;
+    for (uint col = 0u; col < pc.S; ++col) {
         float dot = 0.0;
         for (uint d = 0u; d < pc.D; ++d) {
             dot += q[(head * pc.T + row) * pc.D + d] * k[(kv_head * pc.S + col) * pc.D + d];
         }
-        scores[col] = dot * scale;
+        max_score = max(max_score, dot * scale);
     }
-    barrier();
-    float max_score = -1.0e38;
-    for (uint col = 0u; col < pc.S; ++col) { max_score = max(max_score, scores[col]); }
     float sum_exp = 0.0;
     for (uint col = 0u; col < pc.S; ++col) {
-        scores[col] = exp(scores[col] - max_score);
-        sum_exp += scores[col];
+        float dot = 0.0;
+        for (uint d = 0u; d < pc.D; ++d) {
+            dot += q[(head * pc.T + row) * pc.D + d] * k[(kv_head * pc.S + col) * pc.D + d];
+        }
+        sum_exp += exp(dot * scale - max_score);
     }
-    for (uint col = 0u; col < pc.S; ++col) { scores[col] /= sum_exp; }
-    barrier();
-    for (uint d = tid; d < pc.D; d += 128u) {
+    for (uint d = 0u; d < pc.D; ++d) {
         float acc = 0.0;
         for (uint col = 0u; col < pc.S; ++col) {
-            acc += scores[col] * v[(kv_head * pc.S + col) * pc.D + d];
+            float dot = 0.0;
+            for (uint dd = 0u; dd < pc.D; ++dd) {
+                dot += q[(head * pc.T + row) * pc.D + dd] * k[(kv_head * pc.S + col) * pc.D + dd];
+            }
+            float w = exp(dot * scale - max_score) / sum_exp;
+            acc += w * v[(kv_head * pc.S + col) * pc.D + d];
+        }
+        output_values[(head * pc.T + row) * pc.D + d] = acc;
+    }
+}
+"""
+
+_SOURCE_MASKED = """\
+#version 450
+layout(std430) buffer;
+layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float q[]; };
+layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
+layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
+layout(set = 0, binding = 3) buffer restrict readonly MaskBuffer { float mask[]; };
+layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(push_constant) uniform PushConstants { uint NH; uint NK; uint T; uint S; uint D; } pc;
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+void main() {
+    const uint head = gl_WorkGroupID.x;
+    const uint row = gl_WorkGroupID.y;
+    if (head >= pc.NH || row >= pc.T) { return; }
+    const uint kv_head = head * pc.NK / pc.NH;
+    const float scale = inversesqrt(float(pc.D));
+    float max_score = -1.0e38;
+    for (uint col = 0u; col < pc.S; ++col) {
+        float dot = 0.0;
+        for (uint d = 0u; d < pc.D; ++d) {
+            dot += q[(head * pc.T + row) * pc.D + d] * k[(kv_head * pc.S + col) * pc.D + d];
+        }
+        float s = dot * scale + mask[row * pc.S + col];
+        max_score = max(max_score, s);
+    }
+    float sum_exp = 0.0;
+    for (uint col = 0u; col < pc.S; ++col) {
+        float dot = 0.0;
+        for (uint d = 0u; d < pc.D; ++d) {
+            dot += q[(head * pc.T + row) * pc.D + d] * k[(kv_head * pc.S + col) * pc.D + d];
+        }
+        sum_exp += exp(dot * scale + mask[row * pc.S + col] - max_score);
+    }
+    for (uint d = 0u; d < pc.D; ++d) {
+        float acc = 0.0;
+        for (uint col = 0u; col < pc.S; ++col) {
+            float dot = 0.0;
+            for (uint dd = 0u; dd < pc.D; ++dd) {
+                dot += q[(head * pc.T + row) * pc.D + dd] * k[(kv_head * pc.S + col) * pc.D + dd];
+            }
+            float w = exp(dot * scale + mask[row * pc.S + col] - max_score) / sum_exp;
+            acc += w * v[(kv_head * pc.S + col) * pc.D + d];
         }
         output_values[(head * pc.T + row) * pc.D + d] = acc;
     }
@@ -107,6 +159,16 @@ def _is_causal(node: Node) -> bool:
     if len(node.args) >= 6 and isinstance(node.args[5], bool):
         return node.args[5]
     return False
+
+
+def _has_mask(node: Node) -> bool:
+    if len(node.args) < 4:
+        return False
+    mask_arg = node.args[3]
+    if not isinstance(mask_arg, Node):
+        return False
+    tm = mask_arg.meta.get("tensor_meta")
+    return tm is not None
 
 
 def make_sdpa_variant(node: Node) -> ShaderVariant | None:
@@ -129,8 +191,35 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
     d = q_shape[len(q_shape) - 1]
 
     causal = _is_causal(node)
-    source = _SOURCE_CAUSAL if causal else _SOURCE_NONCAUSAL
-    shader_name = "export_sdpa_causal_f32" if causal else "export_sdpa_f32"
+    masked = _has_mask(node)
+
+    if causal:
+        source = _SOURCE_CAUSAL
+        shader_name = "export_sdpa_causal_f32"
+    elif masked:
+        source = _SOURCE_MASKED
+        shader_name = "export_sdpa_masked_f32"
+    else:
+        source = _SOURCE_NONCAUSAL
+        shader_name = "export_sdpa_f32"
+
+    if masked:
+        mask_shape = node_input_shape(node, 3)
+        mask_contract = tuple(f"M{i}" for i in range(len(mask_shape)))
+        fields = (
+            TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=q_contract)),
+            TensorFieldSpec("k", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=k_contract)),
+            TensorFieldSpec("v", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=v_contract)),
+            TensorFieldSpec("mask", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=mask_contract)),
+            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+        )
+    else:
+        fields = (
+            TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=q_contract)),
+            TensorFieldSpec("k", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=k_contract)),
+            TensorFieldSpec("v", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=v_contract)),
+            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+        )
 
     return ShaderVariant(
         name=shader_name,
@@ -138,12 +227,7 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
         contract=ShaderContract(
             class_name="ExportSdpaProgram",
             shader_name=shader_name,
-            fields=(
-                TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=q_contract)),
-                TensorFieldSpec("k", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=k_contract)),
-                TensorFieldSpec("v", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=v_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
-            ),
+            fields=fields,
             push_constants=PushConstantSpec(
                 size=20,
                 fields=(

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -248,6 +249,7 @@ def _generate_shader_file(variant: ShaderVariant) -> str:
 
 
 def _generate_dispatch_function(plan: dict, function_name: str) -> str:
+    class_name = _plan_to_class_name(function_name)
     ops = plan["ops"]
     shader_imports = {}
     for op in ops:
@@ -255,13 +257,13 @@ def _generate_dispatch_function(plan: dict, function_name: str) -> str:
             shader_imports[op["shader"]] = op["shader"].upper()
 
     lines = []
-    lines.append(f"def {function_name}(rt, tensors):")
+    lines.append(f"def {function_name}(rt: RuntimeSession, tensors: {class_name}) -> None:")
     for op in ops:
         if op["type"] == "alias":
-            lines.append(f"    _alias(rt, tensors[{op['src']!r}], tensors[{op['dst']!r}])")
+            lines.append(f"    _alias(rt, tensors.{op['src']}, tensors.{op['dst']})")
         elif op["type"] == "dispatch":
             const = shader_imports[op["shader"]]
-            args = ", ".join(f"{k}=tensors[{v!r}]" for k, v in op["bindings"].items())
+            args = ", ".join(f"{k}=tensors.{v}" for k, v in op["bindings"].items())
             lines.append(f"    {const}(rt, {args})")
     lines.append("")
     return "\n".join(lines), shader_imports
@@ -276,12 +278,22 @@ def _generate_dispatch_file(plans: dict[str, dict]) -> str:
         function_sources.append(source)
         all_shader_imports.update(imports)
 
+    # Group tensor class imports by file
+    tensor_imports: dict[str, list[str]] = {}
+    for func_name in plans:
+        target_file = PLAN_TO_FILE.get(func_name, "misc")
+        class_name = _plan_to_class_name(func_name)
+        tensor_imports.setdefault(target_file, []).append(class_name)
+
     lines = ['"""Generated dispatch functions for all submodules."""', ""]
     lines.append("from __future__ import annotations")
     lines.append("")
     for shader_name in sorted(all_shader_imports):
         const_name = all_shader_imports[shader_name]
         lines.append(f"from models.spike_qwen3_asr.shaders.{shader_name} import {const_name}")
+    for target_file in sorted(tensor_imports):
+        classes = ", ".join(sorted(tensor_imports[target_file]))
+        lines.append(f"from models.spike_qwen3_asr.tensors.{target_file} import {classes}")
     lines.append("from torch2vk.runtime.logical import LogicalTensor")
     lines.append("from torch2vk.runtime.session import RuntimeSession")
     lines.append("")
@@ -297,6 +309,146 @@ def _generate_dispatch_file(plans: dict[str, dict]) -> str:
     lines.append("        dst.version = src.version")
     lines.append("")
     return "\n".join(lines)
+
+
+# ==============================================================
+# Tensor file generation
+# ==============================================================
+
+PLAN_TO_FILE: dict[str, str] = {
+    "run_conv2d1": "audio_tower",
+    "run_conv2d2": "audio_tower",
+    "run_conv2d3": "audio_tower",
+    "run_conv_out": "audio_tower",
+    "run_ln_post": "audio_tower",
+    "run_proj1": "audio_tower",
+    "run_proj2": "audio_tower",
+    "run_encoder_layer": "encoder_layer",
+    "run_embed_tokens": "text",
+    "run_text_norm": "text",
+    "run_lm_head": "text",
+    "run_text_layer": "text_layer",
+    "run_decode_embed": "decode",
+    "run_decode_norm": "decode",
+    "run_decode_lm_head": "decode",
+    "run_decode_layer": "decode_layer",
+}
+
+
+def _plan_to_class_name(plan_name: str) -> str:
+    base = plan_name.removeprefix("run_")
+    parts = base.split("_")
+    return "".join(p.capitalize() for p in parts) + "Tensors"
+
+
+def _make_weight_map_template(param_map: dict[str, str]) -> dict[str, str]:
+    result = {}
+    for field_name, safetensors_key in param_map.items():
+        template = re.sub(r"\.layers\.(\d+)\.", ".layers.{i}.", safetensors_key)
+        result[field_name] = template
+    return result
+
+
+def _generate_tensor_class(plan_name: str, plan: dict) -> str:
+    class_name = _plan_to_class_name(plan_name)
+    func_name = plan_name.removeprefix("run_")
+    weight_map = _make_weight_map_template(plan["param_map"])
+    output_name = plan["output"]
+
+    # Collect fields in order: parameters, user_inputs, intermediates
+    fields_lines = []
+    for name, meta in plan["tensors"].items():
+        fields_lines.append(f"    {name}: LogicalTensor")
+
+    # WEIGHT_MAP constant
+    wm_prefix = func_name.upper()
+    wm_lines = []
+    for field_name, template in weight_map.items():
+        wm_lines.append(f"    {field_name!r}: {template!r},")
+
+    # create() function body
+    create_args = []
+    for name, meta in plan["tensors"].items():
+        shape = tuple(meta["shape"])
+        dtype = "int32" if meta["dtype"] in ("int64", "int32") else "float32"
+        kind = meta["kind"]
+
+        if kind == "parameter":
+            role, memory, lifetime = "TensorRole.INPUT", "MemoryClass.HOST_INPUT", "TensorLifetime.FRAME"
+        elif kind == "user_input":
+            role, memory, lifetime = "TensorRole.INPUT", "MemoryClass.HOST_INPUT", "TensorLifetime.FRAME"
+        else:
+            role, memory, lifetime = "TensorRole.ACTIVATION", "MemoryClass.FRAME_WORKSPACE", "TensorLifetime.FRAME"
+
+        extra = ""
+        if name == output_name:
+            extra = (
+                "\n            compare=ComparePolicy(kind=\"tensor\", rtol=3e-3, atol=3e-2),"
+                "\n            pytorch_probe=PyTorchProbe(kind=\"module_output\", target=\"\", index=0),"
+            )
+
+        create_args.append(
+            f"        {name}=LogicalTensor(\n"
+            f"            name=f\"{{prefix}}.{name}\",\n"
+            f"            spec=TensorSpec(dtype={dtype!r}, shape={shape}),\n"
+            f"            role={role}, memory={memory}, lifetime={lifetime},{extra}\n"
+            f"        ),"
+        )
+
+    lines = []
+    lines.append(f"@dataclass(frozen=True, slots=True)")
+    lines.append(f"class {class_name}:")
+    lines.extend(fields_lines)
+    lines.append("")
+    lines.append("")
+    lines.append(f"{wm_prefix}_WEIGHT_MAP: dict[str, str] = {{")
+    lines.extend(wm_lines)
+    lines.append("}")
+    lines.append("")
+    lines.append(f"{wm_prefix}_OUTPUT: str = {output_name!r}")
+    lines.append("")
+    lines.append("")
+    lines.append(f"def create_{func_name}(prefix: str) -> {class_name}:")
+    lines.append(f"    return {class_name}(")
+    lines.extend(create_args)
+    lines.append(f"    )")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _generate_tensors_files(all_plans: dict[str, dict]) -> dict[str, str]:
+    """Generate tensors/ file contents grouped by PLAN_TO_FILE mapping."""
+    file_contents: dict[str, list[str]] = {}
+
+    for plan_name, plan in all_plans.items():
+        target_file = PLAN_TO_FILE.get(plan_name, "misc")
+        if target_file not in file_contents:
+            file_contents[target_file] = [
+                f'"""Generated tensor declarations."""',
+                "",
+                "from __future__ import annotations",
+                "",
+                "from dataclasses import dataclass",
+                "",
+                "from torch2vk.runtime.logical import (",
+                "    ComparePolicy,",
+                "    LogicalTensor,",
+                "    MemoryClass,",
+                "    PyTorchProbe,",
+                "    TensorLifetime,",
+                "    TensorRole,",
+                ")",
+                "from torch2vk.vulkan.types import TensorSpec",
+                "",
+                "",
+            ]
+        file_contents[target_file].append(_generate_tensor_class(plan_name, plan))
+        file_contents[target_file].append("")
+
+    result = {}
+    for filename, lines in file_contents.items():
+        result[filename] = "\n".join(lines)
+    return result
 
 
 # ==============================================================
@@ -438,9 +590,11 @@ def main() -> int:
     export_and_plan("run_conv_out", at.conv_out.float(),
                     args=(torch.zeros(*shapes["conv_out_in"], device="meta"),),
                     weight_prefix="thinker.audio_tower.conv_out.")
+    enc_seq = shapes["enc_seq_len"]
     export_and_plan("run_encoder_layer", at.layers[0].float(),
-                    args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),
+                    args=(torch.zeros(enc_seq, shapes["d_model"], device="meta"),
                           torch.zeros(shapes["cu_seqlens_len"], dtype=torch.int32, device="meta")),
+                    kwargs={"attention_mask": torch.zeros(1, 1, enc_seq, enc_seq, device="meta")},
                     weight_prefix="thinker.audio_tower.layers.0.")
     export_and_plan("run_ln_post", at.ln_post.float(),
                     args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
@@ -506,35 +660,30 @@ def main() -> int:
     (output_dir / "dispatch.py").write_text(dispatch_source)
     print(f"  dispatch.py written ({len(all_plans)} functions)")
 
-    # Write tensors/__init__.py (just re-export)
-    (tensors_dir / "__init__.py").write_text('"""Generated tensor declarations."""\n')
+    # Write tensors/
+    # Clean existing .py files in tensors/
+    for f in tensors_dir.glob("*.py"):
+        f.unlink()
+    tensor_files = _generate_tensors_files(all_plans)
+    for filename, content in tensor_files.items():
+        (tensors_dir / f"{filename}.py").write_text(content)
+    # Write tensors/__init__.py with re-exports
+    init_lines = ['"""Generated tensor declarations."""', ""]
+    for filename in sorted(tensor_files):
+        # Collect all class names from this file's plans
+        classes = [_plan_to_class_name(pn) for pn, _ in all_plans.items() if PLAN_TO_FILE.get(pn) == filename]
+        for cls in classes:
+            init_lines.append(f"from models.spike_qwen3_asr.tensors.{filename} import {cls}  # noqa: F401")
+    init_lines.append("")
+    (tensors_dir / "__init__.py").write_text("\n".join(init_lines))
+    print(f"  tensors/ written ({len(tensor_files)} files)")
 
-    # Write shapes.json for run.py to use
-    (output_dir / "shapes.json").write_text(json.dumps(shapes, indent=2))
-    print(f"  shapes.json written")
-
-    # Write plan metadata for run.py (tensor info per submodule)
-    plans_meta = {}
-    for name, plan in all_plans.items():
-        plans_meta[name] = {
-            "tensors": plan["tensors"],
-            "user_inputs": plan["user_inputs"],
-            "param_map": plan["param_map"],
-            "output": plan["output"],
-        }
-    (output_dir / "plans.json").write_text(json.dumps(plans_meta, indent=2))
-    print(f"  plans.json written")
-
-    # Clean up old generated file
-    old_file = output_dir / "generated_text_layer.py"
-    if old_file.exists():
-        old_file.unlink()
-        print("  deleted generated_text_layer.py (obsolete)")
-
-    # Clean up old tensors/text_layer.py
-    old_tensors = tensors_dir / "text_layer.py"
-    if old_tensors.exists():
-        old_tensors.unlink()
+    # Clean up obsolete files
+    for obsolete in ["plans.json", "shapes.json", "generated_text_layer.py"]:
+        f = output_dir / obsolete
+        if f.exists():
+            f.unlink()
+            print(f"  deleted {obsolete}")
 
     print("\nDone!")
     return 0

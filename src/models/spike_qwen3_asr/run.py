@@ -11,99 +11,50 @@ import os
 from pathlib import Path
 
 import numpy as np
+import torch
 from safetensors import safe_open
 
 from models.hf_cache import resolve_cached_model
 from models.qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.qwen3_asr.pytorch.example import REPO_ID
 from models.spike_qwen3_asr import dispatch
-from torch2vk.runtime.logical import LogicalTensor, MemoryClass, TensorLifetime, TensorRole
+from models.spike_qwen3_asr.tensors import audio_tower as at_tensors
+from models.spike_qwen3_asr.tensors import decode as decode_tensors
+from models.spike_qwen3_asr.tensors import decode_layer as decode_layer_tensors
+from models.spike_qwen3_asr.tensors import encoder_layer as enc_tensors
+from models.spike_qwen3_asr.tensors import text as text_tensors
+from models.spike_qwen3_asr.tensors import text_layer as text_layer_tensors
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.vulkan.types import TensorSpec
 
 
-def _build_tensors(plan_meta: dict) -> dict[str, LogicalTensor]:
-    tensors = {}
-    for name, meta in plan_meta["tensors"].items():
-        shape = tuple(meta["shape"])
-        dtype = "int32" if meta["dtype"] in ("int64", "int32") else "float32"
-        if meta["kind"] == "parameter":
-            role, memory, lifetime = TensorRole.INPUT, MemoryClass.HOST_INPUT, TensorLifetime.FRAME
-        elif meta["kind"] == "user_input":
-            role, memory, lifetime = TensorRole.INPUT, MemoryClass.HOST_INPUT, TensorLifetime.FRAME
-        else:
-            role, memory, lifetime = TensorRole.ACTIVATION, MemoryClass.FRAME_WORKSPACE, TensorLifetime.FRAME
-        tensors[name] = LogicalTensor(name=name, spec=TensorSpec(dtype=dtype, shape=shape), role=role, memory=memory, lifetime=lifetime)
-    return tensors
-
-
-def _run_submodule(
-    rt: RuntimeSession,
-    dispatch_fn,
-    plan_meta: dict,
-    weights_handle,
-    weight_prefix: str,
-    user_inputs: dict[str, np.ndarray],
-    frame_name: str,
-) -> np.ndarray:
+def _run(rt, dispatch_fn, tensors_obj, weight_map, output_field, weights, layer_idx, user_inputs, frame_name,
+         *, pytorch_model_submodule=None, pytorch_args=(), pytorch_kwargs=None):
     rt._inputs.clear()
-    tensors = _build_tensors(plan_meta)
+    for field, key_tmpl in weight_map.items():
+        key = key_tmpl.format(i=layer_idx)
+        rt.register_inputs({getattr(tensors_obj, field): weights.get_tensor(key).float().numpy()})
+    for field, data in user_inputs.items():
+        rt.register_inputs({getattr(tensors_obj, field): data})
 
-    weight_map = {}
-    for tensor_name, safetensors_key in plan_meta["param_map"].items():
-        weight_map[tensors[tensor_name]] = weights_handle.get_tensor(safetensors_key).float().numpy()
-    rt.register_inputs(weight_map)
+    frame_kw = {}
+    if pytorch_model_submodule is not None:
+        from qwen_asr.core.transformers_backend.modeling_qwen3_asr import Qwen3ASRForConditionalGeneration
+        frame_kw["pytorch_model_class"] = Qwen3ASRForConditionalGeneration
+        frame_kw["pytorch_model_submodule"] = pytorch_model_submodule.format(i=layer_idx)
+        if pytorch_args:
+            frame_kw["pytorch_args"] = tuple(getattr(tensors_obj, f) for f in pytorch_args)
+        if pytorch_kwargs:
+            resolved_kwargs = {}
+            for k, v in pytorch_kwargs.items():
+                if isinstance(v, tuple):
+                    resolved_kwargs[k] = tuple(getattr(tensors_obj, f) for f in v)
+                else:
+                    resolved_kwargs[k] = getattr(tensors_obj, v)
+            frame_kw["pytorch_kwargs"] = resolved_kwargs
 
-    input_map = {}
-    for name, data in user_inputs.items():
-        if name in tensors:
-            input_map[tensors[name]] = data
-    rt.register_inputs(input_map)
-
-    with rt.frame(frame_name):
-        dispatch_fn(rt, tensors)
-        output_t = tensors[plan_meta["output"]]
-        return rt.device.readback_tensor(spec=output_t.spec, slice=output_t.buffer)
-
-
-def _run_submodule_reprefix(
-    rt: RuntimeSession,
-    dispatch_fn,
-    plan_meta: dict,
-    weights_handle,
-    actual_weight_prefix: str,
-    user_inputs: dict[str, np.ndarray],
-    frame_name: str,
-) -> np.ndarray:
-    """Like _run_submodule but remaps weight keys to a different layer prefix."""
-    rt._inputs.clear()
-    tensors = _build_tensors(plan_meta)
-
-    # Find the common prefix in the stored param_map (e.g. "thinker.audio_tower.layers.0.")
-    first_key = next(iter(plan_meta["param_map"].values()))
-    # The stored prefix is everything up to and including the layer index dot
-    # e.g. "thinker.model.layers.0." or "thinker.audio_tower.layers.0."
-    stored_prefix = first_key[:len(actual_weight_prefix)]
-    # Find the actual stored prefix by finding common prefix of all keys
-    for key in plan_meta["param_map"].values():
-        while not key.startswith(stored_prefix):
-            stored_prefix = stored_prefix[:-1]
-
-    weight_map = {}
-    for tensor_name, original_key in plan_meta["param_map"].items():
-        actual_key = actual_weight_prefix + original_key[len(stored_prefix):]
-        weight_map[tensors[tensor_name]] = weights_handle.get_tensor(actual_key).float().numpy()
-    rt.register_inputs(weight_map)
-
-    input_map = {}
-    for name, data in user_inputs.items():
-        if name in tensors:
-            input_map[tensors[name]] = data
-    rt.register_inputs(input_map)
-
-    with rt.frame(frame_name):
-        dispatch_fn(rt, tensors)
-        output_t = tensors[plan_meta["output"]]
+    with rt.frame(frame_name, **frame_kw):
+        dispatch_fn(rt, tensors_obj)
+        output_t = getattr(tensors_obj, output_field)
         return rt.device.readback_tensor(spec=output_t.spec, slice=output_t.buffer)
 
 
@@ -149,20 +100,16 @@ def main() -> int:
         print(f"ERROR: Test wav not found at {wav_path}")
         return 1
 
-    # Load plans metadata
-    spike_dir = Path(__file__).parent
-    plans = json.loads((spike_dir / "plans.json").read_text())
-
     print("Preparing inputs...")
     model_dir = resolve_cached_model(REPO_ID)
-    config_payload = json.loads((Path(model_dir) / "config.json").read_text())
+    config_payload = (Path(model_dir) / "config.json").read_text()
 
     devnull = open(os.devnull, "w")
     stdout_fd, stderr_fd = os.dup(1), os.dup(2)
     os.dup2(devnull.fileno(), 1); os.dup2(devnull.fileno(), 2)
     try:
         from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRConfig
-        config = Qwen3ASRConfig(**config_payload)
+        config = Qwen3ASRConfig(**json.loads(config_payload))
     finally:
         os.dup2(stdout_fd, 1); os.dup2(stderr_fd, 2)
         os.close(stdout_fd); os.close(stderr_fd); devnull.close()
@@ -201,33 +148,29 @@ def main() -> int:
 
     # Conv layers
     print(f"  conv2d1 ({padded_feature.shape})...")
-    conv1_out = _gelu_numpy(_run_submodule(
-        rt, dispatch.run_conv2d1, plans["run_conv2d1"], weights,
-        "thinker.audio_tower.conv2d1.", {plans["run_conv2d1"]["user_inputs"][0]: padded_feature}, "spike.audio.conv2d1"))
+    t = at_tensors.create_conv2d1("spike.audio.conv2d1")
+    conv1_out = _gelu_numpy(_run(rt, dispatch.run_conv2d1, t, at_tensors.CONV2D1_WEIGHT_MAP, at_tensors.CONV2D1_OUTPUT, weights, 0, {"input": padded_feature}, "spike.audio.conv2d1"))
 
     print(f"  conv2d2 ({conv1_out.shape})...")
-    conv2_out = _gelu_numpy(_run_submodule(
-        rt, dispatch.run_conv2d2, plans["run_conv2d2"], weights,
-        "thinker.audio_tower.conv2d2.", {plans["run_conv2d2"]["user_inputs"][0]: conv1_out}, "spike.audio.conv2d2"))
+    t = at_tensors.create_conv2d2("spike.audio.conv2d2")
+    conv2_out = _gelu_numpy(_run(rt, dispatch.run_conv2d2, t, at_tensors.CONV2D2_WEIGHT_MAP, at_tensors.CONV2D2_OUTPUT, weights, 0, {"input": conv1_out}, "spike.audio.conv2d2"))
 
     print(f"  conv2d3 ({conv2_out.shape})...")
-    conv3_out = _gelu_numpy(_run_submodule(
-        rt, dispatch.run_conv2d3, plans["run_conv2d3"], weights,
-        "thinker.audio_tower.conv2d3.", {plans["run_conv2d3"]["user_inputs"][0]: conv2_out}, "spike.audio.conv2d3"))
+    t = at_tensors.create_conv2d3("spike.audio.conv2d3")
+    conv3_out = _gelu_numpy(_run(rt, dispatch.run_conv2d3, t, at_tensors.CONV2D3_WEIGHT_MAP, at_tensors.CONV2D3_OUTPUT, weights, 0, {"input": conv2_out}, "spike.audio.conv2d3"))
 
     # Reshape + conv_out
-    b, c, f, t = conv3_out.shape
-    reshaped = conv3_out.transpose(0, 3, 1, 2).reshape(b, t, c * f)
-    conv_out_input = reshaped.reshape(b * t, c * f)
+    b, c, f, t_dim = conv3_out.shape
+    reshaped = conv3_out.transpose(0, 3, 1, 2).reshape(b, t_dim, c * f)
+    conv_out_input = reshaped.reshape(b * t_dim, c * f)
     print(f"  conv_out ({conv_out_input.shape})...")
-    conv_out_result = _run_submodule(
-        rt, dispatch.run_conv_out, plans["run_conv_out"], weights,
-        "thinker.audio_tower.conv_out.", {plans["run_conv_out"]["user_inputs"][0]: conv_out_input}, "spike.audio.conv_out")
-    conv_out_result = conv_out_result.reshape(b, t, ac.d_model)
+    t = at_tensors.create_conv_out("spike.audio.conv_out")
+    conv_out_result = _run(rt, dispatch.run_conv_out, t, at_tensors.CONV_OUT_WEIGHT_MAP, at_tensors.CONV_OUT_OUTPUT, weights, 0, {"input": conv_out_input}, "spike.audio.conv_out")
+    conv_out_result = conv_out_result.reshape(b, t_dim, ac.d_model)
 
     # Positional embedding + compact
-    pos_emb = _compute_positional_embedding(t, ac.d_model)
-    padded_embed = conv_out_result + pos_emb[None, :t, :]
+    pos_emb = _compute_positional_embedding(t_dim, ac.d_model)
+    padded_embed = conv_out_result + pos_emb[None, :t_dim, :]
 
     feature_lens_after_cnn = _get_feat_extract_output_lengths(chunk_lengths)
     valid_positions = []
@@ -250,20 +193,17 @@ def main() -> int:
             cu_chunk_lens += [rem]
     cu_seqlens = np.cumsum(cu_chunk_lens, dtype=np.int32)
 
+    # Build block-diagonal attention mask from cu_seqlens
+    seq_len = hidden_states.shape[0]
+    attention_mask = np.full((1, 1, seq_len, seq_len), -np.finfo(np.float32).max, dtype=np.float32)
+    for i in range(1, len(cu_seqlens)):
+        s, e = int(cu_seqlens[i - 1]), int(cu_seqlens[i])
+        attention_mask[0, 0, s:e, s:e] = 0.0
+
     # Encoder layers
-    enc_plan = plans["run_encoder_layer"]
-    enc_user_inputs = enc_plan["user_inputs"]
     for layer_idx in range(ac.encoder_layers):
-        enc_inputs = {}
-        for name in enc_user_inputs:
-            t_meta = enc_plan["tensors"][name]
-            if t_meta["dtype"] in ("int64", "int32"):
-                enc_inputs[name] = cu_seqlens
-            else:
-                enc_inputs[name] = hidden_states
-        hidden_states = _run_submodule_reprefix(
-            rt, dispatch.run_encoder_layer, enc_plan, weights,
-            f"thinker.audio_tower.layers.{layer_idx}.", enc_inputs, f"spike.audio.enc.{layer_idx}")
+        t = enc_tensors.create_encoder_layer(f"spike.audio.enc.{layer_idx}")
+        hidden_states = _run(rt, dispatch.run_encoder_layer, t, enc_tensors.ENCODER_LAYER_WEIGHT_MAP, enc_tensors.ENCODER_LAYER_OUTPUT, weights, layer_idx, {"hidden_states": hidden_states, "cu_seqlens": cu_seqlens, "attention_mask": attention_mask}, f"spike.audio.enc.{layer_idx}")
         if layer_idx == 0:
             print(f"    layer 0: max={hidden_states.max():.4f}")
         if layer_idx % 6 == 5:
@@ -271,19 +211,16 @@ def main() -> int:
 
     # ln_post, proj1, proj2
     print("  ln_post...")
-    hidden_states = _run_submodule(
-        rt, dispatch.run_ln_post, plans["run_ln_post"], weights,
-        "thinker.audio_tower.ln_post.", {plans["run_ln_post"]["user_inputs"][0]: hidden_states}, "spike.audio.ln_post")
+    t = at_tensors.create_ln_post("spike.audio.ln_post")
+    hidden_states = _run(rt, dispatch.run_ln_post, t, at_tensors.LN_POST_WEIGHT_MAP, at_tensors.LN_POST_OUTPUT, weights, 0, {"input": hidden_states}, "spike.audio.ln_post")
 
     print("  proj1 + gelu...")
-    hidden_states = _gelu_numpy(_run_submodule(
-        rt, dispatch.run_proj1, plans["run_proj1"], weights,
-        "thinker.audio_tower.proj1.", {plans["run_proj1"]["user_inputs"][0]: hidden_states}, "spike.audio.proj1"))
+    t = at_tensors.create_proj1("spike.audio.proj1")
+    hidden_states = _gelu_numpy(_run(rt, dispatch.run_proj1, t, at_tensors.PROJ1_WEIGHT_MAP, at_tensors.PROJ1_OUTPUT, weights, 0, {"input": hidden_states}, "spike.audio.proj1"))
 
     print("  proj2...")
-    audio_hidden = _run_submodule(
-        rt, dispatch.run_proj2, plans["run_proj2"], weights,
-        "thinker.audio_tower.proj2.", {plans["run_proj2"]["user_inputs"][0]: hidden_states}, "spike.audio.proj2")
+    t = at_tensors.create_proj2("spike.audio.proj2")
+    audio_hidden = _run(rt, dispatch.run_proj2, t, at_tensors.PROJ2_WEIGHT_MAP, at_tensors.PROJ2_OUTPUT, weights, 0, {"input": hidden_states}, "spike.audio.proj2")
     print(f"  Audio tower output: {audio_hidden.shape}")
 
     # === Text Prefill ===
@@ -291,10 +228,8 @@ def main() -> int:
     prompt_length = prepared.prompt_length
 
     print("  embed_tokens...")
-    embedded = _run_submodule(
-        rt, dispatch.run_embed_tokens, plans["run_embed_tokens"], weights,
-        "thinker.model.embed_tokens.", {plans["run_embed_tokens"]["user_inputs"][0]: prepared.input_ids.astype(np.int32)},
-        "spike.text.embed")
+    t = text_tensors.create_embed_tokens("spike.text.embed")
+    embedded = _run(rt, dispatch.run_embed_tokens, t, text_tensors.EMBED_TOKENS_WEIGHT_MAP, text_tensors.EMBED_TOKENS_OUTPUT, weights, 0, {"input": prepared.input_ids.astype(np.int32)}, "spike.text.embed")
 
     # Inject audio
     ids_flat = prepared.input_ids.flatten()
@@ -308,37 +243,30 @@ def main() -> int:
     rope_cos, rope_sin = _compute_rope(prompt_length, tc.head_dim)
 
     # Decoder layers
-    text_plan = plans["run_text_layer"]
-    text_user_inputs = text_plan["user_inputs"]
     hidden_states = embedded
     print(f"  Decoder layers × {tc.num_hidden_layers}...")
     for layer_idx in range(tc.num_hidden_layers):
-        user_inputs = {}
-        for name in text_user_inputs:
-            if "hidden" in name:
-                user_inputs[name] = hidden_states
-            elif "position_embeddings_0" in name:
-                user_inputs[name] = rope_cos
-            elif "position_embeddings_1" in name:
-                user_inputs[name] = rope_sin
-        hidden_states = _run_submodule_reprefix(
-            rt, dispatch.run_text_layer, text_plan, weights,
-            f"thinker.model.layers.{layer_idx}.", user_inputs, f"spike.text.layer.{layer_idx}")
+        t = text_layer_tensors.create_text_layer(f"spike.text.layer.{layer_idx}")
+        hidden_states = _run(
+            rt, dispatch.run_text_layer, t,
+            text_layer_tensors.TEXT_LAYER_WEIGHT_MAP, text_layer_tensors.TEXT_LAYER_OUTPUT,
+            weights, layer_idx,
+            {"hidden_states": hidden_states, "position_embeddings_0": rope_cos, "position_embeddings_1": rope_sin},
+            f"spike.text.layer.{layer_idx}",
+        )
         if layer_idx == 0:
             print(f"    layer 0: max={hidden_states.max():.4f}")
         if layer_idx % 7 == 6:
             print(f"    layer {layer_idx} done")
 
     print("  final_norm...")
-    normed = _run_submodule(
-        rt, dispatch.run_text_norm, plans["run_text_norm"], weights,
-        "thinker.model.norm.", {plans["run_text_norm"]["user_inputs"][0]: hidden_states}, "spike.text.norm")
+    t = text_tensors.create_text_norm("spike.text.norm")
+    normed = _run(rt, dispatch.run_text_norm, t, text_tensors.TEXT_NORM_WEIGHT_MAP, text_tensors.TEXT_NORM_OUTPUT, weights, 0, {"hidden_states": hidden_states}, "spike.text.norm")
 
     print("  lm_head...")
     last_hidden = normed[:, -1:, :]
-    logits = _run_submodule(
-        rt, dispatch.run_lm_head, plans["run_lm_head"], weights,
-        "thinker.lm_head.", {plans["run_lm_head"]["user_inputs"][0]: last_hidden}, "spike.text.lm_head")
+    t = text_tensors.create_lm_head("spike.text.lm_head")
+    logits = _run(rt, dispatch.run_lm_head, t, text_tensors.LM_HEAD_WEIGHT_MAP, text_tensors.LM_HEAD_OUTPUT, weights, 0, {"input": last_hidden}, "spike.text.lm_head")
     first_token = int(np.argmax(logits[0, -1, :]))
     print(f"  First token: {first_token}")
 
@@ -348,9 +276,6 @@ def main() -> int:
     eos_token_ids = {151645, 151643}
     generated_tokens = [first_token]
 
-    decode_plan = plans["run_decode_layer"]
-    decode_user_inputs = decode_plan["user_inputs"]
-
     for step in range(max_new_tokens - 1):
         if generated_tokens[-1] in eos_token_ids:
             print(f"  EOS at step {step}")
@@ -359,32 +284,20 @@ def main() -> int:
         cache_pos = prompt_length + step
         token_input = np.array([[generated_tokens[-1]]], dtype=np.int32)
 
-        hidden = _run_submodule(
-            rt, dispatch.run_decode_embed, plans["run_decode_embed"], weights,
-            "thinker.model.embed_tokens.", {plans["run_decode_embed"]["user_inputs"][0]: token_input},
-            "spike.decode.embed")
+        t = decode_tensors.create_decode_embed(f"spike.decode.embed.{step}")
+        hidden = _run(rt, dispatch.run_decode_embed, t, decode_tensors.DECODE_EMBED_WEIGHT_MAP, decode_tensors.DECODE_EMBED_OUTPUT, weights, 0, {"input": token_input}, f"spike.decode.embed.{step}")
 
         rope_cos, rope_sin = _compute_rope(1, tc.head_dim, start_pos=cache_pos)
 
         for layer_idx in range(tc.num_hidden_layers):
-            user_inputs = {}
-            for name in decode_user_inputs:
-                if "hidden" in name:
-                    user_inputs[name] = hidden
-                elif "position_embeddings_0" in name:
-                    user_inputs[name] = rope_cos
-                elif "position_embeddings_1" in name:
-                    user_inputs[name] = rope_sin
-            hidden = _run_submodule_reprefix(
-                rt, dispatch.run_decode_layer, decode_plan, weights,
-                f"thinker.model.layers.{layer_idx}.", user_inputs, f"spike.decode.layer.{layer_idx}")
+            t = decode_layer_tensors.create_decode_layer(f"spike.decode.layer.{step}.{layer_idx}")
+            hidden = _run(rt, dispatch.run_decode_layer, t, decode_layer_tensors.DECODE_LAYER_WEIGHT_MAP, decode_layer_tensors.DECODE_LAYER_OUTPUT, weights, layer_idx, {"hidden_states": hidden, "position_embeddings_0": rope_cos, "position_embeddings_1": rope_sin}, f"spike.decode.layer.{step}.{layer_idx}")
 
-        normed = _run_submodule(
-            rt, dispatch.run_decode_norm, plans["run_decode_norm"], weights,
-            "thinker.model.norm.", {plans["run_decode_norm"]["user_inputs"][0]: hidden}, "spike.decode.norm")
-        logits = _run_submodule(
-            rt, dispatch.run_decode_lm_head, plans["run_decode_lm_head"], weights,
-            "thinker.lm_head.", {plans["run_decode_lm_head"]["user_inputs"][0]: normed}, "spike.decode.lm_head")
+        t = decode_tensors.create_decode_norm(f"spike.decode.norm.{step}")
+        normed = _run(rt, dispatch.run_decode_norm, t, decode_tensors.DECODE_NORM_WEIGHT_MAP, decode_tensors.DECODE_NORM_OUTPUT, weights, 0, {"hidden_states": hidden}, f"spike.decode.norm.{step}")
+
+        t = decode_tensors.create_decode_lm_head(f"spike.decode.lm_head.{step}")
+        logits = _run(rt, dispatch.run_decode_lm_head, t, decode_tensors.DECODE_LM_HEAD_WEIGHT_MAP, decode_tensors.DECODE_LM_HEAD_OUTPUT, weights, 0, {"input": normed}, f"spike.decode.lm_head.{step}")
         next_token = int(np.argmax(logits[0, -1, :]))
         generated_tokens.append(next_token)
 
@@ -400,6 +313,13 @@ def main() -> int:
         clean_up_tokenization_spaces=False,
     )[0]
     print(f"Transcription: {text}")
+
+    # Print comparison results
+    if rt.compare_results:
+        print(f"\n=== PyTorch Comparison ===")
+        for r in rt.compare_results:
+            status = "PASS" if r.passed else "FAIL"
+            print(f"  [{status}] {r.frame}: max_abs={r.max_abs:.6f}")
 
     rt.close()
     return 0

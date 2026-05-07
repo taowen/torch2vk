@@ -22,7 +22,6 @@ from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_inner_34 i
 from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_last import DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST  # noqa: F401
 from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_last_11 import DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST_11  # noqa: F401
 from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_last_19 import DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST_19  # noqa: F401
-from models.spike_qwen3_asr.shaders.decode_layer_export_sdpa_f32 import DECODE_LAYER_EXPORT_SDPA_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.decode_layer_export_slice_f32 import DECODE_LAYER_EXPORT_SLICE_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.decode_layer_export_slice_f32_26 import DECODE_LAYER_EXPORT_SLICE_F32_26  # noqa: F401
 from models.spike_qwen3_asr.shaders.decode_layer_export_slice_f32_31 import DECODE_LAYER_EXPORT_SLICE_F32_31  # noqa: F401
@@ -78,6 +77,7 @@ from models.spike_qwen3_asr.shaders.export_rsqrt_f32_10 import EXPORT_RSQRT_F32_
 from models.spike_qwen3_asr.shaders.export_rsqrt_f32_18 import EXPORT_RSQRT_F32_18  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_sdpa_causal_f32 import EXPORT_SDPA_CAUSAL_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_sdpa_f32 import EXPORT_SDPA_F32  # noqa: F401
+from models.spike_qwen3_asr.shaders.export_sdpa_masked_f32 import EXPORT_SDPA_MASKED_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_silu_f32 import EXPORT_SILU_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_slice_f32 import EXPORT_SLICE_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_slice_f32_26 import EXPORT_SLICE_F32_26  # noqa: F401

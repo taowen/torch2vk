@@ -49,14 +49,14 @@ EXPORT_SDPA_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=20,
             fields=(
-                PushConstantFieldSpec('NH', PushConstantType.UINT32, 0, 14),
-                PushConstantFieldSpec('NK', PushConstantType.UINT32, 4, 14),
-                PushConstantFieldSpec('T', PushConstantType.UINT32, 8, 133),
-                PushConstantFieldSpec('S', PushConstantType.UINT32, 12, 133),
-                PushConstantFieldSpec('D', PushConstantType.UINT32, 16, 64),
+                PushConstantFieldSpec('NH', PushConstantType.UINT32, 0, 16),
+                PushConstantFieldSpec('NK', PushConstantType.UINT32, 4, 8),
+                PushConstantFieldSpec('T', PushConstantType.UINT32, 8, 1),
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 12, 1),
+                PushConstantFieldSpec('D', PushConstantType.UINT32, 16, 128),
             ),
         ),
-        dispatch=(14, 133, 1),
+        dispatch=(16, 1, 1),
     ),
     source="""\
 #version 450
@@ -66,36 +66,38 @@ layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint NH; uint NK; uint T; uint S; uint D; } pc;
-layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
-shared float scores[1024];
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint head = gl_WorkGroupID.x;
     const uint row = gl_WorkGroupID.y;
-    const uint tid = gl_LocalInvocationID.x;
     if (head >= pc.NH || row >= pc.T) { return; }
     const uint kv_head = head * pc.NK / pc.NH;
     const float scale = inversesqrt(float(pc.D));
-    for (uint col = tid; col < pc.S; col += 128u) {
+    float max_score = -1.0e38;
+    for (uint col = 0u; col < pc.S; ++col) {
         float dot = 0.0;
         for (uint d = 0u; d < pc.D; ++d) {
             dot += q[(head * pc.T + row) * pc.D + d] * k[(kv_head * pc.S + col) * pc.D + d];
         }
-        scores[col] = dot * scale;
+        max_score = max(max_score, dot * scale);
     }
-    barrier();
-    float max_score = -1.0e38;
-    for (uint col = 0u; col < pc.S; ++col) { max_score = max(max_score, scores[col]); }
     float sum_exp = 0.0;
     for (uint col = 0u; col < pc.S; ++col) {
-        scores[col] = exp(scores[col] - max_score);
-        sum_exp += scores[col];
+        float dot = 0.0;
+        for (uint d = 0u; d < pc.D; ++d) {
+            dot += q[(head * pc.T + row) * pc.D + d] * k[(kv_head * pc.S + col) * pc.D + d];
+        }
+        sum_exp += exp(dot * scale - max_score);
     }
-    for (uint col = 0u; col < pc.S; ++col) { scores[col] /= sum_exp; }
-    barrier();
-    for (uint d = tid; d < pc.D; d += 128u) {
+    for (uint d = 0u; d < pc.D; ++d) {
         float acc = 0.0;
         for (uint col = 0u; col < pc.S; ++col) {
-            acc += scores[col] * v[(kv_head * pc.S + col) * pc.D + d];
+            float dot = 0.0;
+            for (uint dd = 0u; dd < pc.D; ++dd) {
+                dot += q[(head * pc.T + row) * pc.D + dd] * k[(kv_head * pc.S + col) * pc.D + dd];
+            }
+            float w = exp(dot * scale - max_score) / sum_exp;
+            acc += w * v[(kv_head * pc.S + col) * pc.D + d];
         }
         output_values[(head * pc.T + row) * pc.D + d] = acc;
     }

@@ -874,8 +874,9 @@ class _PyTorchDebugRunner:
     ) -> tuple[tuple[object, ...], dict[str, object]]:
         parameter_names = _pytorch_forward_parameter_names(model)
         if frame.pytorch_args or frame.pytorch_kwargs:
+            device = self._pytorch_model_device(model)
             kwargs = {
-                key: self._resolve_pytorch_value(value)
+                key: self._to_device(self._resolve_pytorch_value(value), device)
                 for key, value in frame.pytorch_kwargs.items()
             }
             self._configure_pytorch_cache_kwargs(
@@ -885,7 +886,7 @@ class _PyTorchDebugRunner:
                 kwargs=kwargs,
                 cache_overrides={} if cache_overrides is None else cache_overrides,
             )
-            return tuple(self._resolve_pytorch_value(value) for value in frame.pytorch_args), kwargs
+            return tuple(self._to_device(self._resolve_pytorch_value(value), device) for value in frame.pytorch_args), kwargs
         kwargs = self._infer_pytorch_kwargs(
             frame=frame,
             model=model,
@@ -976,6 +977,10 @@ class _PyTorchDebugRunner:
                     f"{value.name} is used as a PyTorch input but was not registered"
                 ) from exc
             return self._as_pytorch_input(registered)
+        if isinstance(value, tuple):
+            return tuple(self._resolve_pytorch_value(v) for v in value)
+        if isinstance(value, list):
+            return [self._resolve_pytorch_value(v) for v in value]
         return self._as_pytorch_input(value)
 
     def _as_pytorch_input(self, value: object) -> object:
@@ -985,6 +990,17 @@ class _PyTorchDebugRunner:
             return value
         if isinstance(value, np.ndarray):
             return torch.from_numpy(np.ascontiguousarray(value))
+        return value
+
+    def _to_device(self, value: object, device: "torch.device") -> object:
+        import torch
+
+        if isinstance(value, torch.Tensor):
+            return value.to(device)
+        if isinstance(value, tuple):
+            return tuple(self._to_device(v, device) for v in value)
+        if isinstance(value, list):
+            return [self._to_device(v, device) for v in value]
         return value
 
     def _load_pytorch_model(self, model_class: object) -> object | None:
