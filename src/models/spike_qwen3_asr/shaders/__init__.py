@@ -33,6 +33,7 @@ from models.spike_qwen3_asr.shaders.decode_layer_export_transpose_f32_36 import 
 from models.spike_qwen3_asr.shaders.decode_lm_head_export_linear_nobias_f32 import DECODE_LM_HEAD_EXPORT_LINEAR_NOBIAS_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.decode_norm_export_mean_dim_f32 import DECODE_NORM_EXPORT_MEAN_DIM_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.decode_norm_export_mul_broadcast_last import DECODE_NORM_EXPORT_MUL_BROADCAST_LAST  # noqa: F401
+from models.spike_qwen3_asr.shaders.encoder_layer_export_gelu_f32 import ENCODER_LAYER_EXPORT_GELU_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_add_f32 import EXPORT_ADD_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_add_f32_38 import EXPORT_ADD_F32_38  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_add_f32_44 import EXPORT_ADD_F32_44  # noqa: F401
@@ -89,6 +90,7 @@ from models.spike_qwen3_asr.shaders.export_transpose_f32_23 import EXPORT_TRANSP
 from models.spike_qwen3_asr.shaders.export_transpose_f32_36 import EXPORT_TRANSPOSE_F32_36  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_transpose_f32_4 import EXPORT_TRANSPOSE_F32_4  # noqa: F401
 from models.spike_qwen3_asr.shaders.lm_head_export_linear_nobias_f32 import LM_HEAD_EXPORT_LINEAR_NOBIAS_F32  # noqa: F401
+from models.spike_qwen3_asr.shaders.proj1_export_gelu_f32 import PROJ1_EXPORT_GELU_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.proj2_export_linear_bias_f32 import PROJ2_EXPORT_LINEAR_BIAS_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.text_layer_export_add_f32 import TEXT_LAYER_EXPORT_ADD_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.text_layer_export_linear_nobias_f32 import TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32  # noqa: F401

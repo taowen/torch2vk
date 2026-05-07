@@ -341,30 +341,18 @@ def _plan_to_class_name(plan_name: str) -> str:
     return "".join(p.capitalize() for p in parts) + "Tensors"
 
 
-def _make_weight_map_template(param_map: dict[str, str]) -> dict[str, str]:
-    result = {}
-    for field_name, safetensors_key in param_map.items():
-        template = re.sub(r"\.layers\.(\d+)\.", ".layers.{i}.", safetensors_key)
-        result[field_name] = template
-    return result
-
-
 def _generate_tensor_class(plan_name: str, plan: dict) -> str:
     class_name = _plan_to_class_name(plan_name)
     func_name = plan_name.removeprefix("run_")
-    weight_map = _make_weight_map_template(plan["param_map"])
     output_name = plan["output"]
+
+    # Determine if this is a layered submodule (param_map keys contain .layers.N.)
+    is_layered = any(re.search(r"\.layers\.\d+\.", v) for v in plan["param_map"].values())
 
     # Collect fields in order: parameters, user_inputs, intermediates
     fields_lines = []
     for name, meta in plan["tensors"].items():
         fields_lines.append(f"    {name}: LogicalTensor")
-
-    # WEIGHT_MAP constant
-    wm_prefix = func_name.upper()
-    wm_lines = []
-    for field_name, template in weight_map.items():
-        wm_lines.append(f"    {field_name!r}: {template!r},")
 
     # create() function body
     create_args = []
@@ -374,11 +362,20 @@ def _generate_tensor_class(plan_name: str, plan: dict) -> str:
         kind = meta["kind"]
 
         if kind == "parameter":
-            role, memory, lifetime = "TensorRole.INPUT", "MemoryClass.HOST_INPUT", "TensorLifetime.FRAME"
+            role, memory, lifetime = "TensorRole.WEIGHT", "MemoryClass.MODEL_WEIGHT", "TensorLifetime.MODEL"
+            safetensors_key = plan["param_map"][name]
+            if is_layered:
+                # Replace .layers.N. with .layers.{layer_idx}. for the f-string
+                name_template = re.sub(r"\.layers\.(\d+)\.", ".layers.{layer_idx}.", safetensors_key)
+                name_expr = f'f"{name_template}"'
+            else:
+                name_expr = f'"{safetensors_key}"'
         elif kind == "user_input":
             role, memory, lifetime = "TensorRole.INPUT", "MemoryClass.HOST_INPUT", "TensorLifetime.FRAME"
+            name_expr = f'f"{{prefix}}.{name}"'
         else:
             role, memory, lifetime = "TensorRole.ACTIVATION", "MemoryClass.FRAME_WORKSPACE", "TensorLifetime.FRAME"
+            name_expr = f'f"{{prefix}}.{name}"'
 
         extra = ""
         if name == output_name:
@@ -389,11 +386,17 @@ def _generate_tensor_class(plan_name: str, plan: dict) -> str:
 
         create_args.append(
             f"        {name}=LogicalTensor(\n"
-            f"            name=f\"{{prefix}}.{name}\",\n"
+            f"            name={name_expr},\n"
             f"            spec=TensorSpec(dtype={dtype!r}, shape={shape}),\n"
             f"            role={role}, memory={memory}, lifetime={lifetime},{extra}\n"
             f"        ),"
         )
+
+    # Function signature: layered submodules get layer_idx parameter
+    if is_layered:
+        sig = f"def create_{func_name}(prefix: str, layer_idx: int) -> {class_name}:"
+    else:
+        sig = f"def create_{func_name}(prefix: str) -> {class_name}:"
 
     lines = []
     lines.append(f"@dataclass(frozen=True, slots=True)")
@@ -401,14 +404,10 @@ def _generate_tensor_class(plan_name: str, plan: dict) -> str:
     lines.extend(fields_lines)
     lines.append("")
     lines.append("")
-    lines.append(f"{wm_prefix}_WEIGHT_MAP: dict[str, str] = {{")
-    lines.extend(wm_lines)
-    lines.append("}")
-    lines.append("")
-    lines.append(f"{wm_prefix}_OUTPUT: str = {output_name!r}")
+    lines.append(f"{func_name.upper()}_OUTPUT: str = {output_name!r}")
     lines.append("")
     lines.append("")
-    lines.append(f"def create_{func_name}(prefix: str) -> {class_name}:")
+    lines.append(sig)
     lines.append(f"    return {class_name}(")
     lines.extend(create_args)
     lines.append(f"    )")
@@ -578,13 +577,35 @@ def main() -> int:
 
     # Audio tower
     nc = shapes["num_chunks"]
-    export_and_plan("run_conv2d1", at.conv2d1.float(),
+
+    class _ConvGelu(torch.nn.Module):
+        def __init__(self, conv):
+            super().__init__()
+            self.weight = conv.weight
+            self.bias = conv.bias
+            self._stride = conv.stride
+            self._padding = conv.padding
+        def forward(self, x):
+            return torch.nn.functional.gelu(
+                torch.nn.functional.conv2d(x, self.weight, self.bias, stride=self._stride, padding=self._padding)
+            )
+
+    class _LinearAct(torch.nn.Module):
+        def __init__(self, linear, act):
+            super().__init__()
+            self.weight = linear.weight
+            self.bias = linear.bias
+            self._act = act
+        def forward(self, x):
+            return self._act(torch.nn.functional.linear(x, self.weight, self.bias))
+
+    export_and_plan("run_conv2d1", _ConvGelu(at.conv2d1).float(),
                     args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),),
                     weight_prefix="thinker.audio_tower.conv2d1.")
-    export_and_plan("run_conv2d2", at.conv2d2.float(),
+    export_and_plan("run_conv2d2", _ConvGelu(at.conv2d2).float(),
                     args=(torch.zeros(*shapes["conv2d1_out"], device="meta"),),
                     weight_prefix="thinker.audio_tower.conv2d2.")
-    export_and_plan("run_conv2d3", at.conv2d3.float(),
+    export_and_plan("run_conv2d3", _ConvGelu(at.conv2d3).float(),
                     args=(torch.zeros(*shapes["conv2d2_out"], device="meta"),),
                     weight_prefix="thinker.audio_tower.conv2d3.")
     export_and_plan("run_conv_out", at.conv_out.float(),
@@ -599,7 +620,7 @@ def main() -> int:
     export_and_plan("run_ln_post", at.ln_post.float(),
                     args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
                     weight_prefix="thinker.audio_tower.ln_post.")
-    export_and_plan("run_proj1", at.proj1.float(),
+    export_and_plan("run_proj1", _LinearAct(at.proj1, at.act).float(),
                     args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
                     weight_prefix="thinker.audio_tower.proj1.")
     export_and_plan("run_proj2", at.proj2.float(),

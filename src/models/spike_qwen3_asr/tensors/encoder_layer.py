@@ -66,109 +66,90 @@ class EncoderLayerTensors:
     add_1: LogicalTensor
 
 
-ENCODER_LAYER_WEIGHT_MAP: dict[str, str] = {
-    'p_attn_k_proj_weight': 'thinker.audio_tower.layers.{i}.self_attn.k_proj.weight',
-    'p_attn_k_proj_bias': 'thinker.audio_tower.layers.{i}.self_attn.k_proj.bias',
-    'p_attn_v_proj_weight': 'thinker.audio_tower.layers.{i}.self_attn.v_proj.weight',
-    'p_attn_v_proj_bias': 'thinker.audio_tower.layers.{i}.self_attn.v_proj.bias',
-    'p_attn_q_proj_weight': 'thinker.audio_tower.layers.{i}.self_attn.q_proj.weight',
-    'p_attn_q_proj_bias': 'thinker.audio_tower.layers.{i}.self_attn.q_proj.bias',
-    'p_attn_out_proj_weight': 'thinker.audio_tower.layers.{i}.self_attn.out_proj.weight',
-    'p_attn_out_proj_bias': 'thinker.audio_tower.layers.{i}.self_attn.out_proj.bias',
-    'p_attn_layer_norm_weight': 'thinker.audio_tower.layers.{i}.self_attn_layer_norm.weight',
-    'p_attn_layer_norm_bias': 'thinker.audio_tower.layers.{i}.self_attn_layer_norm.bias',
-    'p_fc1_weight': 'thinker.audio_tower.layers.{i}.fc1.weight',
-    'p_fc1_bias': 'thinker.audio_tower.layers.{i}.fc1.bias',
-    'p_fc2_weight': 'thinker.audio_tower.layers.{i}.fc2.weight',
-    'p_fc2_bias': 'thinker.audio_tower.layers.{i}.fc2.bias',
-    'p_final_layer_norm_weight': 'thinker.audio_tower.layers.{i}.final_layer_norm.weight',
-    'p_final_layer_norm_bias': 'thinker.audio_tower.layers.{i}.final_layer_norm.bias',
-}
-
 ENCODER_LAYER_OUTPUT: str = 'add_1'
 
 
-def create_encoder_layer(prefix: str) -> EncoderLayerTensors:
+def create_encoder_layer(prefix: str, layer_idx: int) -> EncoderLayerTensors:
     return EncoderLayerTensors(
         p_attn_k_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_k_proj_weight",
+            name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.k_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(896, 896)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_k_proj_bias=LogicalTensor(
-            name=f"{prefix}.p_attn_k_proj_bias",
+            name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.k_proj.bias",
             spec=TensorSpec(dtype='float32', shape=(896,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_v_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_v_proj_weight",
+            name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.v_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(896, 896)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_v_proj_bias=LogicalTensor(
-            name=f"{prefix}.p_attn_v_proj_bias",
+            name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.v_proj.bias",
             spec=TensorSpec(dtype='float32', shape=(896,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_q_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_q_proj_weight",
+            name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.q_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(896, 896)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_q_proj_bias=LogicalTensor(
-            name=f"{prefix}.p_attn_q_proj_bias",
+            name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.q_proj.bias",
             spec=TensorSpec(dtype='float32', shape=(896,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_out_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_out_proj_weight",
+            name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.out_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(896, 896)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_out_proj_bias=LogicalTensor(
-            name=f"{prefix}.p_attn_out_proj_bias",
+            name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.out_proj.bias",
             spec=TensorSpec(dtype='float32', shape=(896,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_layer_norm_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_layer_norm_weight",
+            name=f"thinker.audio_tower.layers.{layer_idx}.self_attn_layer_norm.weight",
             spec=TensorSpec(dtype='float32', shape=(896,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_layer_norm_bias=LogicalTensor(
-            name=f"{prefix}.p_attn_layer_norm_bias",
+            name=f"thinker.audio_tower.layers.{layer_idx}.self_attn_layer_norm.bias",
             spec=TensorSpec(dtype='float32', shape=(896,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_fc1_weight=LogicalTensor(
-            name=f"{prefix}.p_fc1_weight",
+            name=f"thinker.audio_tower.layers.{layer_idx}.fc1.weight",
             spec=TensorSpec(dtype='float32', shape=(3584, 896)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_fc1_bias=LogicalTensor(
-            name=f"{prefix}.p_fc1_bias",
+            name=f"thinker.audio_tower.layers.{layer_idx}.fc1.bias",
             spec=TensorSpec(dtype='float32', shape=(3584,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_fc2_weight=LogicalTensor(
-            name=f"{prefix}.p_fc2_weight",
+            name=f"thinker.audio_tower.layers.{layer_idx}.fc2.weight",
             spec=TensorSpec(dtype='float32', shape=(896, 3584)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_fc2_bias=LogicalTensor(
-            name=f"{prefix}.p_fc2_bias",
+            name=f"thinker.audio_tower.layers.{layer_idx}.fc2.bias",
             spec=TensorSpec(dtype='float32', shape=(896,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_final_layer_norm_weight=LogicalTensor(
-            name=f"{prefix}.p_final_layer_norm_weight",
+            name=f"thinker.audio_tower.layers.{layer_idx}.final_layer_norm.weight",
             spec=TensorSpec(dtype='float32', shape=(896,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_final_layer_norm_bias=LogicalTensor(
-            name=f"{prefix}.p_final_layer_norm_bias",
+            name=f"thinker.audio_tower.layers.{layer_idx}.final_layer_norm.bias",
             spec=TensorSpec(dtype='float32', shape=(896,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         hidden_states=LogicalTensor(
             name=f"{prefix}.hidden_states",

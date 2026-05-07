@@ -35,6 +35,7 @@ from models.spike_qwen3_asr.shaders.decode_layer_export_transpose_f32_36 import 
 from models.spike_qwen3_asr.shaders.decode_lm_head_export_linear_nobias_f32 import DECODE_LM_HEAD_EXPORT_LINEAR_NOBIAS_F32
 from models.spike_qwen3_asr.shaders.decode_norm_export_mean_dim_f32 import DECODE_NORM_EXPORT_MEAN_DIM_F32
 from models.spike_qwen3_asr.shaders.decode_norm_export_mul_broadcast_last import DECODE_NORM_EXPORT_MUL_BROADCAST_LAST
+from models.spike_qwen3_asr.shaders.encoder_layer_export_gelu_f32 import ENCODER_LAYER_EXPORT_GELU_F32
 from models.spike_qwen3_asr.shaders.export_add_f32 import EXPORT_ADD_F32
 from models.spike_qwen3_asr.shaders.export_add_f32_38 import EXPORT_ADD_F32_38
 from models.spike_qwen3_asr.shaders.export_add_f32_44 import EXPORT_ADD_F32_44
@@ -91,6 +92,7 @@ from models.spike_qwen3_asr.shaders.export_transpose_f32_23 import EXPORT_TRANSP
 from models.spike_qwen3_asr.shaders.export_transpose_f32_36 import EXPORT_TRANSPOSE_F32_36
 from models.spike_qwen3_asr.shaders.export_transpose_f32_4 import EXPORT_TRANSPOSE_F32_4
 from models.spike_qwen3_asr.shaders.lm_head_export_linear_nobias_f32 import LM_HEAD_EXPORT_LINEAR_NOBIAS_F32
+from models.spike_qwen3_asr.shaders.proj1_export_gelu_f32 import PROJ1_EXPORT_GELU_F32
 from models.spike_qwen3_asr.shaders.proj2_export_linear_bias_f32 import PROJ2_EXPORT_LINEAR_BIAS_F32
 from models.spike_qwen3_asr.shaders.text_layer_export_add_f32 import TEXT_LAYER_EXPORT_ADD_F32
 from models.spike_qwen3_asr.shaders.text_layer_export_linear_nobias_f32 import TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32
@@ -106,15 +108,18 @@ from torch2vk.runtime.session import RuntimeSession
 
 
 def run_conv2d1(rt: RuntimeSession, tensors: Conv2d1Tensors) -> None:
-    EXPORT_CONV2D_F32(rt, x=tensors.input, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.conv2d)
+    EXPORT_CONV2D_F32(rt, x=tensors.x, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.conv2d)
+    EXPORT_GELU_F32(rt, x=tensors.conv2d, output=tensors.gelu)
 
 
 def run_conv2d2(rt: RuntimeSession, tensors: Conv2d2Tensors) -> None:
-    CONV2D2_EXPORT_CONV2D_F32(rt, x=tensors.input, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.conv2d)
+    CONV2D2_EXPORT_CONV2D_F32(rt, x=tensors.x, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.conv2d)
+    EXPORT_GELU_F32(rt, x=tensors.conv2d, output=tensors.gelu)
 
 
 def run_conv2d3(rt: RuntimeSession, tensors: Conv2d3Tensors) -> None:
-    CONV2D3_EXPORT_CONV2D_F32(rt, x=tensors.input, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.conv2d)
+    CONV2D3_EXPORT_CONV2D_F32(rt, x=tensors.x, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.conv2d)
+    EXPORT_GELU_F32(rt, x=tensors.conv2d, output=tensors.gelu)
 
 
 def run_conv_out(rt: RuntimeSession, tensors: ConvOutTensors) -> None:
@@ -143,7 +148,7 @@ def run_encoder_layer(rt: RuntimeSession, tensors: EncoderLayerTensors) -> None:
     EXPORT_ADD_F32(rt, x=tensors.hidden_states, y=tensors.linear_3, output=tensors.add)
     EXPORT_LAYER_NORM_F32(rt, x=tensors.add, weight=tensors.p_final_layer_norm_weight, bias=tensors.p_final_layer_norm_bias, output=tensors.layer_norm_1)
     EXPORT_LINEAR_BIAS_F32_6(rt, x=tensors.layer_norm_1, weight=tensors.p_fc1_weight, bias=tensors.p_fc1_bias, output=tensors.linear_4)
-    EXPORT_GELU_F32(rt, x=tensors.linear_4, output=tensors.gelu)
+    ENCODER_LAYER_EXPORT_GELU_F32(rt, x=tensors.linear_4, output=tensors.gelu)
     EXPORT_LINEAR_BIAS_F32_8(rt, x=tensors.gelu, weight=tensors.p_fc2_weight, bias=tensors.p_fc2_bias, output=tensors.linear_5)
     EXPORT_ADD_F32(rt, x=tensors.add, y=tensors.linear_5, output=tensors.add_1)
 
@@ -153,7 +158,8 @@ def run_ln_post(rt: RuntimeSession, tensors: LnPostTensors) -> None:
 
 
 def run_proj1(rt: RuntimeSession, tensors: Proj1Tensors) -> None:
-    EXPORT_LINEAR_BIAS_F32(rt, x=tensors.input, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.linear)
+    EXPORT_LINEAR_BIAS_F32(rt, x=tensors.x, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.linear)
+    PROJ1_EXPORT_GELU_F32(rt, x=tensors.linear, output=tensors.gelu)
 
 
 def run_proj2(rt: RuntimeSession, tensors: Proj2Tensors) -> None:

@@ -22,19 +22,15 @@ class DecodeEmbedTensors:
     embedding: LogicalTensor
 
 
-DECODE_EMBED_WEIGHT_MAP: dict[str, str] = {
-    'p_weight': 'thinker.model.embed_tokens.weight',
-}
-
 DECODE_EMBED_OUTPUT: str = 'embedding'
 
 
 def create_decode_embed(prefix: str) -> DecodeEmbedTensors:
     return DecodeEmbedTensors(
         p_weight=LogicalTensor(
-            name=f"{prefix}.p_weight",
+            name="thinker.model.embed_tokens.weight",
             spec=TensorSpec(dtype='float32', shape=(151936, 1024)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         input=LogicalTensor(
             name=f"{prefix}.input",
@@ -65,19 +61,15 @@ class DecodeNormTensors:
     mul_1: LogicalTensor
 
 
-DECODE_NORM_WEIGHT_MAP: dict[str, str] = {
-    'p_weight': 'thinker.model.norm.weight',
-}
-
 DECODE_NORM_OUTPUT: str = 'mul_1'
 
 
 def create_decode_norm(prefix: str) -> DecodeNormTensors:
     return DecodeNormTensors(
         p_weight=LogicalTensor(
-            name=f"{prefix}.p_weight",
+            name="thinker.model.norm.weight",
             spec=TensorSpec(dtype='float32', shape=(1024,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         hidden_states=LogicalTensor(
             name=f"{prefix}.hidden_states",
@@ -136,19 +128,15 @@ class DecodeLmHeadTensors:
     linear: LogicalTensor
 
 
-DECODE_LM_HEAD_WEIGHT_MAP: dict[str, str] = {
-    'p_weight': 'thinker.lm_head.weight',
-}
-
 DECODE_LM_HEAD_OUTPUT: str = 'linear'
 
 
 def create_decode_lm_head(prefix: str) -> DecodeLmHeadTensors:
     return DecodeLmHeadTensors(
         p_weight=LogicalTensor(
-            name=f"{prefix}.p_weight",
+            name="thinker.lm_head.weight",
             spec=TensorSpec(dtype='float32', shape=(151936, 1024)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         input=LogicalTensor(
             name=f"{prefix}.input",

@@ -1,4 +1,4 @@
-"""Generated shader: export_gelu_f32."""
+"""Generated shader: proj1_export_gelu_f32."""
 
 from __future__ import annotations
 
@@ -16,33 +16,33 @@ from torch2vk.runtime.shader import (
 )
 
 
-EXPORT_GELU_F32 = ShaderVariant(
-    name='export_gelu_f32',
+PROJ1_EXPORT_GELU_F32 = ShaderVariant(
+    name='proj1_export_gelu_f32',
     family='export',
     contract=ShaderContract(
         class_name='ExportGeluF32Program',
-        shader_name='export_gelu_f32',
+        shader_name='proj1_export_gelu_f32',
         fields=(
             TensorFieldSpec(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('B', 'T', 'H', 'D',)),
+                contract=TensorContract(dtype='float32', shape=('B', 'T',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('B', 'T', 'H', 'D',)),
+                contract=TensorContract(dtype='float32', shape=('B', 'T',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=4,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul(mul('B', 'T'), 'H'), 'D')),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('B', 'T')),
             ),
         ),
-        dispatch=(ceil_div(mul(mul(mul('B', 'T'), 'H'), 'D'), 256), 1, 1),
+        dispatch=(ceil_div(mul('B', 'T'), 256), 1, 1),
     ),
     source="""\
 #version 450

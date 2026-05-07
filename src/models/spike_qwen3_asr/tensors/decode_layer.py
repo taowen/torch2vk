@@ -101,79 +101,65 @@ class DecodeLayerTensors:
     add_7: LogicalTensor
 
 
-DECODE_LAYER_WEIGHT_MAP: dict[str, str] = {
-    'p_attn_q_proj_weight': 'thinker.model.layers.{i}.self_attn.q_proj.weight',
-    'p_attn_k_proj_weight': 'thinker.model.layers.{i}.self_attn.k_proj.weight',
-    'p_attn_v_proj_weight': 'thinker.model.layers.{i}.self_attn.v_proj.weight',
-    'p_attn_o_proj_weight': 'thinker.model.layers.{i}.self_attn.o_proj.weight',
-    'p_attn_q_norm_weight': 'thinker.model.layers.{i}.self_attn.q_norm.weight',
-    'p_attn_k_norm_weight': 'thinker.model.layers.{i}.self_attn.k_norm.weight',
-    'p_mlp_gate_proj_weight': 'thinker.model.layers.{i}.mlp.gate_proj.weight',
-    'p_mlp_up_proj_weight': 'thinker.model.layers.{i}.mlp.up_proj.weight',
-    'p_mlp_down_proj_weight': 'thinker.model.layers.{i}.mlp.down_proj.weight',
-    'p_input_layernorm_weight': 'thinker.model.layers.{i}.input_layernorm.weight',
-    'p_post_attention_layernorm_weight': 'thinker.model.layers.{i}.post_attention_layernorm.weight',
-}
-
 DECODE_LAYER_OUTPUT: str = 'add_7'
 
 
-def create_decode_layer(prefix: str) -> DecodeLayerTensors:
+def create_decode_layer(prefix: str, layer_idx: int) -> DecodeLayerTensors:
     return DecodeLayerTensors(
         p_attn_q_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_q_proj_weight",
+            name=f"thinker.model.layers.{layer_idx}.self_attn.q_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(2048, 1024)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_k_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_k_proj_weight",
+            name=f"thinker.model.layers.{layer_idx}.self_attn.k_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(1024, 1024)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_v_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_v_proj_weight",
+            name=f"thinker.model.layers.{layer_idx}.self_attn.v_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(1024, 1024)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_o_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_o_proj_weight",
+            name=f"thinker.model.layers.{layer_idx}.self_attn.o_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(1024, 2048)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_q_norm_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_q_norm_weight",
+            name=f"thinker.model.layers.{layer_idx}.self_attn.q_norm.weight",
             spec=TensorSpec(dtype='float32', shape=(128,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_attn_k_norm_weight=LogicalTensor(
-            name=f"{prefix}.p_attn_k_norm_weight",
+            name=f"thinker.model.layers.{layer_idx}.self_attn.k_norm.weight",
             spec=TensorSpec(dtype='float32', shape=(128,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_mlp_gate_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_mlp_gate_proj_weight",
+            name=f"thinker.model.layers.{layer_idx}.mlp.gate_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(3072, 1024)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_mlp_up_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_mlp_up_proj_weight",
+            name=f"thinker.model.layers.{layer_idx}.mlp.up_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(3072, 1024)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_mlp_down_proj_weight=LogicalTensor(
-            name=f"{prefix}.p_mlp_down_proj_weight",
+            name=f"thinker.model.layers.{layer_idx}.mlp.down_proj.weight",
             spec=TensorSpec(dtype='float32', shape=(1024, 3072)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_input_layernorm_weight=LogicalTensor(
-            name=f"{prefix}.p_input_layernorm_weight",
+            name=f"thinker.model.layers.{layer_idx}.input_layernorm.weight",
             spec=TensorSpec(dtype='float32', shape=(1024,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         p_post_attention_layernorm_weight=LogicalTensor(
-            name=f"{prefix}.p_post_attention_layernorm_weight",
+            name=f"thinker.model.layers.{layer_idx}.post_attention_layernorm.weight",
             spec=TensorSpec(dtype='float32', shape=(1024,)),
-            role=TensorRole.INPUT, memory=MemoryClass.HOST_INPUT, lifetime=TensorLifetime.FRAME,
+            role=TensorRole.WEIGHT, memory=MemoryClass.MODEL_WEIGHT, lifetime=TensorLifetime.MODEL,
         ),
         hidden_states=LogicalTensor(
             name=f"{prefix}.hidden_states",
