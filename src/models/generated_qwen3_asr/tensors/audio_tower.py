@@ -41,7 +41,7 @@ AUDIO_TOWER_PARAMETER_FIELDS = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class GeneratedQwen3AsrAudioTowerTensors:
     input_features: LogicalTensor
     feature_lens: LogicalTensor

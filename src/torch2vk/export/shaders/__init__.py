@@ -41,6 +41,7 @@ from torch2vk.export.shaders.text_rope_f32 import TEXT_ROPE_F32
 from torch2vk.export.shaders.text_swiglu_f32 import TEXT_SWIGLU_F32
 from torch2vk.export.shaders.text_gate_up_swiglu_t1_f32 import TEXT_GATE_UP_SWIGLU_T1_F32
 from torch2vk.export.shaders.token_select_greedy_f32 import TOKEN_SELECT_GREEDY_F32
+from torch2vk.export.shaders.rope_table_f32 import ROPE_TABLE_F32
 from torch2vk.export.shaders.token_store_f32 import TOKEN_STORE_EOS_F32, TOKEN_STORE_F32
 
 __all__ = [
@@ -80,6 +81,16 @@ __all__ = [
     "TEXT_GATE_UP_SWIGLU_T1_F32",
     "TEXT_EMBED_LOOKUP_F32",
     "TOKEN_SELECT_GREEDY_F32",
+    "ROPE_TABLE_F32",
     "TOKEN_STORE_F32",
     "TOKEN_STORE_EOS_F32",
 ]
+
+from torch2vk.runtime.shader import ShaderVariant as _ShaderVariant
+
+_EXPORT_SHADER_VARIANTS: dict[str, _ShaderVariant] = {
+    name: value
+    for name in __all__
+    if isinstance(value := globals()[name], _ShaderVariant)
+}
+

@@ -33,7 +33,7 @@ TEXT_DECODER_LAYER_PARAMETER_FIELDS = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class GeneratedQwen3AsrTextLayerTensors:
     input_layernorm_weight: LogicalTensor
     input_layernorm: LogicalTensor

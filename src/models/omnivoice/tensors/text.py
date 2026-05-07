@@ -29,7 +29,7 @@ TEXT_PARAMETER_FIELDS = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class OmniVoiceTextPrefillTensors:
     input_ids: LogicalTensor
     audio_mask: LogicalTensor
@@ -55,7 +55,7 @@ class OmniVoiceTextPrefillTensors:
     hidden_states: LogicalTensor
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class OmniVoiceTextDecodeTensors:
     input_ids: LogicalTensor
     audio_mask: LogicalTensor
@@ -82,7 +82,7 @@ class OmniVoiceTextDecodeTensors:
     hidden_states: LogicalTensor
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class OmniVoiceAudioHeadTensors:
     hidden_states: LogicalTensor
     audio_heads_weight: LogicalTensor
@@ -91,7 +91,7 @@ class OmniVoiceAudioHeadTensors:
     audio_logits: LogicalTensor
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class OmniVoiceTokenSelectTensors:
     cond_logits: LogicalTensor
     uncond_logits: LogicalTensor
@@ -117,7 +117,7 @@ class OmniVoiceTokenSelectTensors:
     updated_tokens: LogicalTensor
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class OmniVoiceTrainingLossTensors:
     labels: LogicalTensor
     logits_for_loss: LogicalTensor
@@ -130,7 +130,7 @@ class OmniVoiceTrainingLossTensors:
     loss: LogicalTensor
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class OmniVoiceTextTensors:
     prefill: OmniVoiceTextPrefillTensors
     decode: OmniVoiceTextDecodeTensors

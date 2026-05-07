@@ -81,9 +81,8 @@ DEFAULT_LOWERING_REGISTRY = OpLoweringRegistry(
             match=_match_second_input("text_token_ids"),
         ),
         OpShaderBinding(
-            target="aten.add.Tensor",
+            target="aten.torch2vk.shifted_ids.default",
             shader="ATEN_SHIFTED_IDS_I64",
-            match=_match_second_input("codebook_layer_offsets_view"),
         ),
         OpShaderBinding(
             target="aten.embedding.default",
@@ -143,7 +142,8 @@ DEFAULT_LOWERING_REGISTRY = OpLoweringRegistry(
         OpShaderBinding(
             target="aten.add.Tensor",
             shader="ADD_F32",
-            match=lambda inputs: len(inputs) == 2 and inputs[1] in {"out_proj", "fc2"},
+            match=lambda inputs: len(inputs) == 2
+            and any(inputs[1].endswith(s) for s in ("out_proj", "fc2", ".out_proj", ".fc2")),
         ),
         OpShaderBinding(
             target="aten.torch2vk.prefill_inputs_embeds.default",
@@ -192,7 +192,8 @@ DEFAULT_LOWERING_REGISTRY = OpLoweringRegistry(
         OpShaderBinding(
             target="aten.add.Tensor",
             shader="TEXT_ADD_3D_F32",
-            match=lambda inputs: len(inputs) == 2 and inputs[1] in {"o_proj", "down_proj"},
+            match=lambda inputs: len(inputs) == 2
+            and any(inputs[1].endswith(s) for s in ("o_proj", "down_proj", ".o_proj", ".down_proj")),
         ),
         OpShaderBinding(
             target="aten.torch2vk.text_swiglu.default",
@@ -205,6 +206,10 @@ DEFAULT_LOWERING_REGISTRY = OpLoweringRegistry(
         OpShaderBinding(
             target="aten.torch2vk.token_store.default",
             shader="TOKEN_STORE_F32",
+        ),
+        OpShaderBinding(
+            target="aten.torch2vk.rope_table.default",
+            shader="ROPE_TABLE_F32",
         ),
     )
 )

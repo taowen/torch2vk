@@ -37,7 +37,7 @@ AUDIO_ENCODER_LAYER_PARAMETER_FIELDS = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class GeneratedQwen3AsrAudioEncoderLayerTensors:
     self_attn_layer_norm_weight: LogicalTensor
     self_attn_layer_norm_bias: LogicalTensor

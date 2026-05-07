@@ -5,21 +5,9 @@ from __future__ import annotations
 
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.export.lowering import resolve_shader_symbol
 from torch2vk.export.shaders import TOKEN_SELECT_GREEDY_F32
 
-from models.generated_qwen3_asr._frame import Qwen3ASRTorchOp
 from models.generated_qwen3_asr.tensors.text import GeneratedQwen3AsrTokenSelectTensors
-
-
-TOKEN_SELECT_TORCH_OPS = (
-    Qwen3ASRTorchOp(
-        "aten.torch2vk.greedy_argmax.default",
-        ("logits", "eos_token_ids"),
-        ("next_token", "done"),
-        "",
-    ),
-)
 
 
 def run_generated_qwen3_asr_token_select(
@@ -28,23 +16,12 @@ def run_generated_qwen3_asr_token_select(
     *,
     logits: LogicalTensor,
 ) -> LogicalTensor:
-    env = {
-        "logits": logits,
-        "eos_token_ids": tensors.eos_token_ids,
-        "next_token": tensors.next_token,
-        "done": tensors.done,
-    }
     with rt.frame("generated_qwen3_asr.token_select"):
-        for step in TOKEN_SELECT_TORCH_OPS:
-            shader = resolve_shader_symbol(op=step)
-            if shader == "TOKEN_SELECT_GREEDY_F32":
-                TOKEN_SELECT_GREEDY_F32(
-                    rt,
-                    logits=env[step.inputs[0]],
-                    eos_token_ids=env[step.inputs[1]],
-                    next_token=env[step.outputs[0]],
-                    done=env[step.outputs[1]],
-                )
-            else:
-                raise NotImplementedError(f"Unsupported generated token_select op: {step.target}")
+        TOKEN_SELECT_GREEDY_F32(
+            rt,
+            logits=logits,
+            eos_token_ids=tensors.eos_token_ids,
+            next_token=tensors.next_token,
+            done=tensors.done,
+        )
     return tensors.next_token

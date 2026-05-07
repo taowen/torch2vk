@@ -5,17 +5,10 @@ from __future__ import annotations
 
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.export.lowering import resolve_shader_symbol
+from torch2vk.export.frame_dispatch import dispatch_op
+from torch2vk.export.shaders import _EXPORT_SHADER_VARIANTS
 
 from models.omnivoice._frame import OmniVoiceTorchOp, omnivoice_frame
-from torch2vk.export.shaders import (
-    ATEN_EMBEDDING_3D_F32,
-    ATEN_EMBEDDING_F32,
-    ATEN_SELECT_INT_I64,
-    ATEN_SHIFTED_IDS_I64,
-    ATEN_SUM_DIM1_F32,
-    ATEN_WHERE_F32,
-)
 from models.omnivoice.tensors.text import OmniVoiceTextPrefillTensors
 
 
@@ -81,8 +74,8 @@ INPUT_EMBEDDINGS_TORCH_OPS = (
         dtype="int64",
     ),
     OmniVoiceTorchOp(
-        target="aten.add.Tensor",
-        inputs=("masked_audio_ids", "codebook_layer_offsets_view"),
+        target="aten.torch2vk.shifted_ids.default",
+        inputs=("input_ids", "audio_mask", "codebook_layer_offsets_view"),
         outputs=("shifted_ids",),
         note="",
         name="add",
@@ -142,15 +135,6 @@ INPUT_EMBEDDINGS_TORCH_OPS = (
     ),
 )
 
-INPUT_EMBEDDINGS_SHADERS = (
-    ATEN_SELECT_INT_I64,
-    ATEN_EMBEDDING_F32,
-    ATEN_SHIFTED_IDS_I64,
-    ATEN_EMBEDDING_3D_F32,
-    ATEN_SUM_DIM1_F32,
-    ATEN_WHERE_F32,
-)
-
 
 def run_omnivoice_input_embeddings(
     rt: RuntimeSession,
@@ -207,51 +191,7 @@ def _lower_input_embeddings_op(
         _alias_tensor(rt, src=env[op.inputs[0]], dst=env[op.outputs[0]])
         return env[op.outputs[0]]
 
-    shader = resolve_shader_symbol(op=op)
-    if shader == "ATEN_SELECT_INT_I64":
-        ATEN_SELECT_INT_I64(
-            rt,
-            x=env[op.inputs[0]],
-            output=env[op.outputs[0]],
-        )
-    elif shader == "ATEN_EMBEDDING_F32":
-        ATEN_EMBEDDING_F32(
-            rt,
-            weight=env[op.inputs[0]],
-            indices=env[op.inputs[1]],
-            output=env[op.outputs[0]],
-        )
-    elif shader == "ATEN_SHIFTED_IDS_I64":
-        ATEN_SHIFTED_IDS_I64(
-            rt,
-            input_ids=env["input_ids"],
-            audio_mask=env["audio_mask"],
-            codebook_layer_offsets=env["codebook_layer_offsets_view"],
-            output=env[op.outputs[0]],
-        )
-    elif shader == "ATEN_EMBEDDING_3D_F32":
-        ATEN_EMBEDDING_3D_F32(
-            rt,
-            weight=env[op.inputs[0]],
-            indices=env[op.inputs[1]],
-            output=env[op.outputs[0]],
-        )
-    elif shader == "ATEN_SUM_DIM1_F32":
-        ATEN_SUM_DIM1_F32(
-            rt,
-            x=env[op.inputs[0]],
-            output=env[op.outputs[0]],
-        )
-    elif shader == "ATEN_WHERE_F32":
-        ATEN_WHERE_F32(
-            rt,
-            mask=env[op.inputs[0]],
-            x=env[op.inputs[1]],
-            y=env[op.inputs[2]],
-            output=env[op.outputs[0]],
-        )
-    else:
-        raise NotImplementedError(f"Unsupported generated OmniVoice input embedding op: {op.target}")
+    dispatch_op(rt, op, env, _EXPORT_SHADER_VARIANTS)
     return env[op.outputs[0]]
 
 

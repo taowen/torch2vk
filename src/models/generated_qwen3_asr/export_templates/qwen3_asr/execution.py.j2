@@ -11,7 +11,7 @@ from models.generated_qwen3_asr.text_prefill import run_generated_qwen3_asr_text
 from models.generated_qwen3_asr.token_select import run_generated_qwen3_asr_token_select
 from models.generated_qwen3_asr.token_store import run_generated_qwen3_asr_token_store
 from models.qwen3_asr.execution import run_qwen3_asr_replay_decode_loop
-from models.qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TABLE_F32
+from torch2vk.export.shaders import ROPE_TABLE_F32
 from torch2vk.runtime.logical import LogicalTensor, MemoryClass, TensorLifetime, TensorRole
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.vulkan.types import TensorSpec
@@ -119,7 +119,7 @@ def _register_prefill_rope(
         }
     )
     with rt.frame("generated_qwen3_asr.rope_table"):
-        QWEN3_ASR_ROPE_TABLE_F32(
+        ROPE_TABLE_F32(
             rt,
             start_position=start_position,
             rope_theta=rope_theta_tensor,
@@ -147,7 +147,7 @@ def _register_decode_rope(
         }
     )
     with rt.frame("generated_qwen3_asr.rope_table"):
-        QWEN3_ASR_ROPE_TABLE_F32(
+        ROPE_TABLE_F32(
             rt,
             start_position=decode.cache_position,
             rope_theta=rope_theta_tensor,

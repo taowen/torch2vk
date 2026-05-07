@@ -38,6 +38,7 @@ from torch2vk.export.tensor_scaffold_codegen import (
     render_tensor_dataclasses,
     tensor_scaffold_fields_from_lowered_ops,
 )
+from torch2vk.export.frame_dispatch_codegen import FrameSpec, render_frame_module
 from torch2vk.export.writer import (
     ExportWriteResult,
     RenderedFile,
@@ -376,6 +377,8 @@ def build_qwen3_asr_pattern_context(
         "text_frame_fields": _text_frame_fields(),
         "audio_tower_ops": audio_tower_ops,
         "audio_layer_ops": audio_layer_ops,
+        "text_layer_ops": text_layer_ops,
+        "text_layer_ops_decode": _text_layer_ops_decode(),
         "text_prefill_ops": text_prefill_ops,
         "text_decode_ops": text_decode_ops,
         "token_select_ops": token_select_ops,
@@ -531,16 +534,70 @@ def _render_frame_files(
     renderer: TemplateRenderer,
     context: dict[str, object],
 ) -> list[RenderedFile]:
+    shader_variants = _export_shader_variants()
     return [
         renderer.render("qwen3_asr/_frame.py.j2", "_frame.py", **context),
-        renderer.render("qwen3_asr/audio_tower.py.j2", "audio_tower.py", **context),
-        renderer.render("qwen3_asr/text_prefill.py.j2", "text_prefill.py", **context),
-        renderer.render("qwen3_asr/text_decode.py.j2", "text_decode.py", **context),
+        render_frame_module(_audio_tower_frame_spec(), shader_variants),
+        render_frame_module(_text_prefill_frame_spec(), shader_variants),
+        render_frame_module(_text_decode_frame_spec(), shader_variants),
         renderer.render("qwen3_asr/token_select.py.j2", "token_select.py", **context),
         renderer.render("qwen3_asr/token_store.py.j2", "token_store.py", **context),
         renderer.render("qwen3_asr/execution.py.j2", "execution.py", **context),
         renderer.render("qwen3_asr/transcribe.py.j2", "transcribe.py", **context),
     ]
+
+
+def _audio_tower_frame_spec() -> FrameSpec:
+    return FrameSpec(
+        function_name="run_generated_qwen3_asr_audio_tower",
+        frame_name="generated_qwen3_asr.audio_tower",
+        tensors_class="GeneratedQwen3AsrAudioTowerTensors",
+        tensors_import="models.generated_qwen3_asr.tensors.audio_tower",
+        ops=_audio_tower_ops(),
+        return_expr="tensors.last_hidden_state",
+        layer_loop_target="aten.torch2vk.audio_encoder_layer_loop.default",
+        layer_ops=_audio_layer_ops(),
+        layer_state_field="hidden_states",
+        layer_state_init="tensors.hidden_states",
+        layer_external_fields={"cu_seqlens": "tensors.cu_seqlens"},
+        extra_params="    **_kw,",
+    )
+
+
+def _text_prefill_frame_spec() -> FrameSpec:
+    return FrameSpec(
+        function_name="run_generated_qwen3_asr_text_prefill",
+        frame_name="generated_qwen3_asr.text_prefill",
+        tensors_class="GeneratedQwen3AsrTextPrefillTensors",
+        tensors_import="models.generated_qwen3_asr.tensors.text",
+        ops=_text_prefill_ops(),
+        layer_loop_target="aten.torch2vk.text_decoder_layer_loop.default",
+        layer_ops=_text_layer_ops(),
+        layer_state_field="hidden",
+        layer_state_init="tensors.inputs_embeds",
+        layer_external_fields={"rope_cos": "tensors.rope_cos", "rope_sin": "tensors.rope_sin"},
+        extra_params="    **_kw,",
+    )
+
+
+def _text_decode_frame_spec() -> FrameSpec:
+    return FrameSpec(
+        function_name="run_generated_qwen3_asr_text_decode",
+        frame_name="generated_qwen3_asr.text_decode",
+        tensors_class="GeneratedQwen3AsrTextDecodeTensors",
+        tensors_import="models.generated_qwen3_asr.tensors.text",
+        ops=_text_decode_ops(),
+        layer_loop_target="aten.torch2vk.text_decoder_layer_loop.default",
+        layer_ops=_text_layer_ops_decode(),
+        layer_state_field="hidden",
+        layer_state_init="tensors.inputs_embeds",
+        layer_external_fields={
+            "rope_cos": "tensors.rope_cos",
+            "rope_sin": "tensors.rope_sin",
+            "cache_position": "tensors.cache_position",
+        },
+        extra_params="    **_kw,",
+    )
 
 
 def _validate_reflected_source(
@@ -993,12 +1050,48 @@ def _text_layer_ops() -> tuple[object, ...]:
     )
 
 
+def _text_layer_ops_decode() -> tuple[object, ...]:
+    """Text decoder layer ops for decode phase (includes cache_position)."""
+    return (
+        _op("aten.rms_norm.default", ("hidden", "input_layernorm_weight"), ("input_layernorm",)),
+        _op("aten.linear.default", ("input_layernorm", "q_proj_weight"), ("q_proj",)),
+        _op("aten.linear.default", ("input_layernorm", "k_proj_weight"), ("k_proj",)),
+        _op("aten.linear.default", ("input_layernorm", "v_proj_weight"), ("v_proj",)),
+        _op("aten.torch2vk.text_qk_norm.default", ("q_proj", "q_norm_weight"), ("q_normed",)),
+        _op("aten.torch2vk.text_qk_norm.default", ("k_proj", "k_norm_weight"), ("k_normed",)),
+        _op("aten.torch2vk.text_rope.default", ("q_normed", "rope_cos", "rope_sin"), ("q_roped",)),
+        _op("aten.torch2vk.text_rope.default", ("k_normed", "rope_cos", "rope_sin"), ("k_roped",)),
+        _op(
+            "aten.torch2vk.text_kv_cache_write.default",
+            ("k_roped", "v_proj", "cache_position", "key_cache", "value_cache"),
+            ("key_cache", "value_cache"),
+        ),
+        _op(
+            "aten.torch2vk.text_attention.default",
+            ("q_roped", "key_cache", "value_cache", "cache_position"),
+            ("attention",),
+        ),
+        _op("aten.linear.default", ("attention", "o_proj_weight"), ("o_proj",)),
+        _op("aten.add.Tensor", ("hidden", "o_proj"), ("attn_residual",)),
+        _op(
+            "aten.rms_norm.default",
+            ("attn_residual", "post_attention_layernorm_weight"),
+            ("post_attention_layernorm",),
+        ),
+        _op("aten.linear.default", ("post_attention_layernorm", "gate_proj_weight"), ("gate_proj",)),
+        _op("aten.linear.default", ("post_attention_layernorm", "up_proj_weight"), ("up_proj",)),
+        _op("aten.torch2vk.text_swiglu.default", ("gate_proj", "up_proj"), ("swiglu",)),
+        _op("aten.linear.default", ("swiglu", "down_proj_weight"), ("down_proj",)),
+        _op("aten.add.Tensor", ("attn_residual", "down_proj"), ("output",)),
+    )
+
+
 def _text_prefill_ops() -> tuple[object, ...]:
     return (
         _op(
             "aten.torch2vk.prefill_inputs_embeds.default",
             ("input_ids", "embed_tokens_weight", "audio_features"),
-            ("inputs_embeds", "audio_scatter_mask"),
+            ("audio_scatter_mask", "inputs_embeds"),
         ),
         _op(
             "aten.torch2vk.text_decoder_layer_loop.default",

@@ -178,7 +178,7 @@ def render_tensor_dtype_constant(
 
 def render_tensor_dataclass(declaration: TensorDataclassDecl) -> str:
     lines = [
-        "@dataclass(frozen=True, slots=True)",
+        "@dataclass",
         f"class {declaration.class_name}:",
     ]
     if declaration.fields:

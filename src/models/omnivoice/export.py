@@ -486,10 +486,15 @@ def _input_embeddings_ops_from_nodes(nodes: Sequence[FxNodeLike]) -> tuple[objec
     ops: list[object] = []
     for node in nodes:
         output = mapped_node_name(node, names)
+        target = str(getattr(node, "target"))
+        inputs = input_names(getattr(node, "args", ()), getattr(node, "kwargs", {}), names)
+        if output == "shifted_ids" and target == "aten.add.Tensor":
+            target = "aten.torch2vk.shifted_ids.default"
+            inputs = ("input_ids", "audio_mask", "codebook_layer_offsets_view")
         ops.append(
             _op(
-                target=str(getattr(node, "target")),
-                inputs=input_names(getattr(node, "args", ()), getattr(node, "kwargs", {}), names),
+                target=target,
+                inputs=inputs,
                 outputs=(output,),
                 name=str(getattr(node, "name")),
                 op=str(getattr(node, "op")),

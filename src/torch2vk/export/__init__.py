@@ -36,6 +36,11 @@ from torch2vk.export.reflection import (
     instantiate_torch_module_on_meta,
     reflect_torch_module,
 )
+from torch2vk.export.frame_dispatch_codegen import (
+    FrameSpec,
+    render_dispatch_body,
+    render_frame_module,
+)
 from torch2vk.export.rope import precompute_qwen3_asr_mrope
 from torch2vk.export.tensor_scaffold_codegen import (
     LoweredOpContract,
@@ -62,6 +67,9 @@ __all__ = [
     "ExportCheckError",
     "ExportWriteResult",
     "DEFAULT_LOWERING_REGISTRY",
+    "FrameSpec",
+    "render_dispatch_body",
+    "render_frame_module",
     "OpLoweringRegistry",
     "ParamsFieldDecl",
     "OpShaderBinding",

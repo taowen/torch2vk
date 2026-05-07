@@ -32,7 +32,7 @@ TEXT_DECODER_LAYER_PARAMETER_FIELDS = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class OmniVoiceTextLayerTensors:
     input_layernorm_weight: LogicalTensor
     input_layernorm: LogicalTensor

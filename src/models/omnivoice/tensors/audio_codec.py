@@ -29,7 +29,7 @@ AUDIO_CODEC_PARAMETER_FIELDS = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class OmniVoiceAudioCodecTensors:
     audio_tokens: LogicalTensor
     quantizer_embed0: LogicalTensor

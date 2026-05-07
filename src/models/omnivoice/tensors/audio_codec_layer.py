@@ -23,7 +23,7 @@ AUDIO_CODEC_DECODER_LAYER_PARAMETER_FIELDS = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class OmniVoiceAudioCodecDecoderLayerTensors:
     conv1_weight: LogicalTensor
     conv1_bias: LogicalTensor

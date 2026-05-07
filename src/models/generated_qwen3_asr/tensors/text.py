@@ -27,7 +27,7 @@ from models.generated_qwen3_asr.tensors.text_layer import (
 )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class GeneratedQwen3AsrTextPrefillTensors:
     input_ids: LogicalTensor
     attention_mask: LogicalTensor
@@ -47,7 +47,7 @@ class GeneratedQwen3AsrTextPrefillTensors:
     logits: LogicalTensor
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class GeneratedQwen3AsrTextDecodeTensors:
     input_ids: LogicalTensor
     attention_mask: LogicalTensor
@@ -65,14 +65,14 @@ class GeneratedQwen3AsrTextDecodeTensors:
     logits: LogicalTensor
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class GeneratedQwen3AsrTokenSelectTensors:
     eos_token_ids: LogicalTensor
     next_token: LogicalTensor
     done: LogicalTensor
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class GeneratedQwen3AsrTokenStoreTensors:
     next_token: LogicalTensor
     token_index: LogicalTensor
@@ -82,7 +82,7 @@ class GeneratedQwen3AsrTokenStoreTensors:
     stopped: LogicalTensor
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class GeneratedQwen3AsrTextTensors:
     prefill: GeneratedQwen3AsrTextPrefillTensors
     decode: GeneratedQwen3AsrTextDecodeTensors
