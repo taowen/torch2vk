@@ -1,0 +1,2634 @@
+{
+  "run_conv2d1": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          480,
+          1,
+          3,
+          3
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_bias": {
+        "shape": [
+          480
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          11,
+          1,
+          128,
+          100
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "conv2d": {
+        "shape": [
+          11,
+          480,
+          64,
+          50
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.audio_tower.conv2d1.weight",
+      "p_bias": "thinker.audio_tower.conv2d1.bias"
+    },
+    "output": "conv2d"
+  },
+  "run_conv2d2": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          480,
+          480,
+          3,
+          3
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_bias": {
+        "shape": [
+          480
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          11,
+          480,
+          64,
+          50
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "conv2d": {
+        "shape": [
+          11,
+          480,
+          32,
+          25
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.audio_tower.conv2d2.weight",
+      "p_bias": "thinker.audio_tower.conv2d2.bias"
+    },
+    "output": "conv2d"
+  },
+  "run_conv2d3": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          480,
+          480,
+          3,
+          3
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_bias": {
+        "shape": [
+          480
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          11,
+          480,
+          32,
+          25
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "conv2d": {
+        "shape": [
+          11,
+          480,
+          16,
+          13
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.audio_tower.conv2d3.weight",
+      "p_bias": "thinker.audio_tower.conv2d3.bias"
+    },
+    "output": "conv2d"
+  },
+  "run_conv_out": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          896,
+          7680
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          143,
+          7680
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "linear": {
+        "shape": [
+          143,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.audio_tower.conv_out.weight"
+    },
+    "output": "linear"
+  },
+  "run_encoder_layer": {
+    "tensors": {
+      "p_attn_k_proj_weight": {
+        "shape": [
+          896,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_attn_k_proj_bias": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_attn_v_proj_weight": {
+        "shape": [
+          896,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_attn_v_proj_bias": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_attn_q_proj_weight": {
+        "shape": [
+          896,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_attn_q_proj_bias": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_attn_out_proj_weight": {
+        "shape": [
+          896,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_attn_out_proj_bias": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_attn_layer_norm_weight": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_attn_layer_norm_bias": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_fc1_weight": {
+        "shape": [
+          3584,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_fc1_bias": {
+        "shape": [
+          3584
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_fc2_weight": {
+        "shape": [
+          896,
+          3584
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_fc2_bias": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_final_layer_norm_weight": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_final_layer_norm_bias": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "hidden_states": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "cu_seqlens": {
+        "shape": [
+          3
+        ],
+        "dtype": "int32",
+        "kind": "user_input"
+      },
+      "layer_norm": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "reshape": {
+        "shape": [
+          133,
+          14,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_1": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "reshape_1": {
+        "shape": [
+          133,
+          14,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_2": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "reshape_2": {
+        "shape": [
+          133,
+          14,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose": {
+        "shape": [
+          14,
+          133,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "unsqueeze": {
+        "shape": [
+          1,
+          14,
+          133,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose_1": {
+        "shape": [
+          14,
+          133,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "unsqueeze_1": {
+        "shape": [
+          1,
+          14,
+          133,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose_2": {
+        "shape": [
+          14,
+          133,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "unsqueeze_2": {
+        "shape": [
+          1,
+          14,
+          133,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "slice_1": {
+        "shape": [
+          2
+        ],
+        "dtype": "int32",
+        "kind": "intermediate"
+      },
+      "slice_2": {
+        "shape": [
+          2
+        ],
+        "dtype": "int32",
+        "kind": "intermediate"
+      },
+      "sub": {
+        "shape": [
+          2
+        ],
+        "dtype": "int32",
+        "kind": "intermediate"
+      },
+      "max_1": {
+        "shape": [],
+        "dtype": "int32",
+        "kind": "intermediate"
+      },
+      "scaled_dot_product_attention": {
+        "shape": [
+          1,
+          14,
+          133,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose_3": {
+        "shape": [
+          1,
+          133,
+          14,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "contiguous": {
+        "shape": [
+          1,
+          133,
+          14,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "reshape_3": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_3": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "layer_norm_1": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_4": {
+        "shape": [
+          133,
+          3584
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "gelu": {
+        "shape": [
+          133,
+          3584
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_5": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_1": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "hidden_states",
+      "cu_seqlens"
+    ],
+    "param_map": {
+      "p_attn_k_proj_weight": "thinker.audio_tower.layers.0.self_attn.k_proj.weight",
+      "p_attn_k_proj_bias": "thinker.audio_tower.layers.0.self_attn.k_proj.bias",
+      "p_attn_v_proj_weight": "thinker.audio_tower.layers.0.self_attn.v_proj.weight",
+      "p_attn_v_proj_bias": "thinker.audio_tower.layers.0.self_attn.v_proj.bias",
+      "p_attn_q_proj_weight": "thinker.audio_tower.layers.0.self_attn.q_proj.weight",
+      "p_attn_q_proj_bias": "thinker.audio_tower.layers.0.self_attn.q_proj.bias",
+      "p_attn_out_proj_weight": "thinker.audio_tower.layers.0.self_attn.out_proj.weight",
+      "p_attn_out_proj_bias": "thinker.audio_tower.layers.0.self_attn.out_proj.bias",
+      "p_attn_layer_norm_weight": "thinker.audio_tower.layers.0.self_attn_layer_norm.weight",
+      "p_attn_layer_norm_bias": "thinker.audio_tower.layers.0.self_attn_layer_norm.bias",
+      "p_fc1_weight": "thinker.audio_tower.layers.0.fc1.weight",
+      "p_fc1_bias": "thinker.audio_tower.layers.0.fc1.bias",
+      "p_fc2_weight": "thinker.audio_tower.layers.0.fc2.weight",
+      "p_fc2_bias": "thinker.audio_tower.layers.0.fc2.bias",
+      "p_final_layer_norm_weight": "thinker.audio_tower.layers.0.final_layer_norm.weight",
+      "p_final_layer_norm_bias": "thinker.audio_tower.layers.0.final_layer_norm.bias"
+    },
+    "output": "add_1"
+  },
+  "run_ln_post": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_bias": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "layer_norm": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.audio_tower.ln_post.weight",
+      "p_bias": "thinker.audio_tower.ln_post.bias"
+    },
+    "output": "layer_norm"
+  },
+  "run_proj1": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          896,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_bias": {
+        "shape": [
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "linear": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.audio_tower.proj1.weight",
+      "p_bias": "thinker.audio_tower.proj1.bias"
+    },
+    "output": "linear"
+  },
+  "run_proj2": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          1024,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "p_bias": {
+        "shape": [
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          133,
+          896
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "linear": {
+        "shape": [
+          133,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.audio_tower.proj2.weight",
+      "p_bias": "thinker.audio_tower.proj2.bias"
+    },
+    "output": "linear"
+  },
+  "run_embed_tokens": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          151936,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          1,
+          151
+        ],
+        "dtype": "int64",
+        "kind": "user_input"
+      },
+      "embedding": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.model.embed_tokens.weight"
+    },
+    "output": "embedding"
+  },
+  "run_text_layer": {
+    "tensors": {
+      "p_attn_q_proj_weight": {
+        "shape": [
+          2048,
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_attn_k_proj_weight": {
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_attn_v_proj_weight": {
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_attn_o_proj_weight": {
+        "shape": [
+          1024,
+          2048
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_attn_q_norm_weight": {
+        "shape": [
+          128
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_attn_k_norm_weight": {
+        "shape": [
+          128
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_mlp_gate_proj_weight": {
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_mlp_up_proj_weight": {
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_mlp_down_proj_weight": {
+        "shape": [
+          1024,
+          3072
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_input_layernorm_weight": {
+        "shape": [
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_post_attention_layernorm_weight": {
+        "shape": [
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "hidden_states": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "position_embeddings_0": {
+        "shape": [
+          1,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "position_embeddings_1": {
+        "shape": [
+          1,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "to": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "pow_1": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mean": {
+        "shape": [
+          1,
+          151,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add": {
+        "shape": [
+          1,
+          151,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "rsqrt": {
+        "shape": [
+          1,
+          151,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_1": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_1": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear": {
+        "shape": [
+          1,
+          151,
+          2048
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "view": {
+        "shape": [
+          1,
+          151,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_2": {
+        "shape": [
+          1,
+          151,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "pow_2": {
+        "shape": [
+          1,
+          151,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mean_1": {
+        "shape": [
+          1,
+          151,
+          16,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_1": {
+        "shape": [
+          1,
+          151,
+          16,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "rsqrt_1": {
+        "shape": [
+          1,
+          151,
+          16,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_2": {
+        "shape": [
+          1,
+          151,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_3": {
+        "shape": [
+          1,
+          151,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_3": {
+        "shape": [
+          1,
+          151,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose": {
+        "shape": [
+          1,
+          16,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_1": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "view_1": {
+        "shape": [
+          1,
+          151,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_4": {
+        "shape": [
+          1,
+          151,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "pow_3": {
+        "shape": [
+          1,
+          151,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mean_2": {
+        "shape": [
+          1,
+          151,
+          8,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_2": {
+        "shape": [
+          1,
+          151,
+          8,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "rsqrt_2": {
+        "shape": [
+          1,
+          151,
+          8,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_4": {
+        "shape": [
+          1,
+          151,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_5": {
+        "shape": [
+          1,
+          151,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_5": {
+        "shape": [
+          1,
+          151,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose_1": {
+        "shape": [
+          1,
+          8,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_2": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "view_2": {
+        "shape": [
+          1,
+          151,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose_2": {
+        "shape": [
+          1,
+          8,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "unsqueeze": {
+        "shape": [
+          1,
+          1,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "unsqueeze_1": {
+        "shape": [
+          1,
+          1,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_6": {
+        "shape": [
+          1,
+          16,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "slice_1": {
+        "shape": [
+          1,
+          16,
+          151,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "slice_2": {
+        "shape": [
+          1,
+          16,
+          151,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "neg": {
+        "shape": [
+          1,
+          16,
+          151,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "cat": {
+        "shape": [
+          1,
+          16,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_7": {
+        "shape": [
+          1,
+          16,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_3": {
+        "shape": [
+          1,
+          16,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_8": {
+        "shape": [
+          1,
+          8,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "slice_3": {
+        "shape": [
+          1,
+          8,
+          151,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "slice_4": {
+        "shape": [
+          1,
+          8,
+          151,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "neg_1": {
+        "shape": [
+          1,
+          8,
+          151,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "cat_1": {
+        "shape": [
+          1,
+          8,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_9": {
+        "shape": [
+          1,
+          8,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_4": {
+        "shape": [
+          1,
+          8,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "scaled_dot_product_attention": {
+        "shape": [
+          1,
+          16,
+          151,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose_3": {
+        "shape": [
+          1,
+          151,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "contiguous": {
+        "shape": [
+          1,
+          151,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "reshape": {
+        "shape": [
+          1,
+          151,
+          2048
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_3": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_5": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_6": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "pow_4": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mean_3": {
+        "shape": [
+          1,
+          151,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_6": {
+        "shape": [
+          1,
+          151,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "rsqrt_3": {
+        "shape": [
+          1,
+          151,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_10": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_7": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_11": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_4": {
+        "shape": [
+          1,
+          151,
+          3072
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "silu": {
+        "shape": [
+          1,
+          151,
+          3072
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_5": {
+        "shape": [
+          1,
+          151,
+          3072
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_12": {
+        "shape": [
+          1,
+          151,
+          3072
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_6": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_7": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "hidden_states",
+      "position_embeddings_0",
+      "position_embeddings_1"
+    ],
+    "param_map": {
+      "p_attn_q_proj_weight": "thinker.model.layers.0.self_attn.q_proj.weight",
+      "p_attn_k_proj_weight": "thinker.model.layers.0.self_attn.k_proj.weight",
+      "p_attn_v_proj_weight": "thinker.model.layers.0.self_attn.v_proj.weight",
+      "p_attn_o_proj_weight": "thinker.model.layers.0.self_attn.o_proj.weight",
+      "p_attn_q_norm_weight": "thinker.model.layers.0.self_attn.q_norm.weight",
+      "p_attn_k_norm_weight": "thinker.model.layers.0.self_attn.k_norm.weight",
+      "p_mlp_gate_proj_weight": "thinker.model.layers.0.mlp.gate_proj.weight",
+      "p_mlp_up_proj_weight": "thinker.model.layers.0.mlp.up_proj.weight",
+      "p_mlp_down_proj_weight": "thinker.model.layers.0.mlp.down_proj.weight",
+      "p_input_layernorm_weight": "thinker.model.layers.0.input_layernorm.weight",
+      "p_post_attention_layernorm_weight": "thinker.model.layers.0.post_attention_layernorm.weight"
+    },
+    "output": "add_7"
+  },
+  "run_text_norm": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "hidden_states": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "to": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "pow_1": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mean": {
+        "shape": [
+          1,
+          151,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add": {
+        "shape": [
+          1,
+          151,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "rsqrt": {
+        "shape": [
+          1,
+          151,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_1": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_1": {
+        "shape": [
+          1,
+          151,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "hidden_states"
+    ],
+    "param_map": {
+      "p_weight": "thinker.model.norm.weight"
+    },
+    "output": "mul_1"
+  },
+  "run_lm_head": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          151936,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "linear": {
+        "shape": [
+          1,
+          1,
+          151936
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.lm_head.weight"
+    },
+    "output": "linear"
+  },
+  "run_decode_embed": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          151936,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          1,
+          1
+        ],
+        "dtype": "int64",
+        "kind": "user_input"
+      },
+      "embedding": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.model.embed_tokens.weight"
+    },
+    "output": "embedding"
+  },
+  "run_decode_layer": {
+    "tensors": {
+      "p_attn_q_proj_weight": {
+        "shape": [
+          2048,
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_attn_k_proj_weight": {
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_attn_v_proj_weight": {
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_attn_o_proj_weight": {
+        "shape": [
+          1024,
+          2048
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_attn_q_norm_weight": {
+        "shape": [
+          128
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_attn_k_norm_weight": {
+        "shape": [
+          128
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_mlp_gate_proj_weight": {
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_mlp_up_proj_weight": {
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_mlp_down_proj_weight": {
+        "shape": [
+          1024,
+          3072
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_input_layernorm_weight": {
+        "shape": [
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "p_post_attention_layernorm_weight": {
+        "shape": [
+          1024
+        ],
+        "dtype": "bfloat16",
+        "kind": "parameter"
+      },
+      "hidden_states": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "position_embeddings_0": {
+        "shape": [
+          1,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "position_embeddings_1": {
+        "shape": [
+          1,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "to": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "pow_1": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mean": {
+        "shape": [
+          1,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add": {
+        "shape": [
+          1,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "rsqrt": {
+        "shape": [
+          1,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_1": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_1": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear": {
+        "shape": [
+          1,
+          1,
+          2048
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "view": {
+        "shape": [
+          1,
+          1,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_2": {
+        "shape": [
+          1,
+          1,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "pow_2": {
+        "shape": [
+          1,
+          1,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mean_1": {
+        "shape": [
+          1,
+          1,
+          16,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_1": {
+        "shape": [
+          1,
+          1,
+          16,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "rsqrt_1": {
+        "shape": [
+          1,
+          1,
+          16,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_2": {
+        "shape": [
+          1,
+          1,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_3": {
+        "shape": [
+          1,
+          1,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_3": {
+        "shape": [
+          1,
+          1,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose": {
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_1": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "view_1": {
+        "shape": [
+          1,
+          1,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_4": {
+        "shape": [
+          1,
+          1,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "pow_3": {
+        "shape": [
+          1,
+          1,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mean_2": {
+        "shape": [
+          1,
+          1,
+          8,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_2": {
+        "shape": [
+          1,
+          1,
+          8,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "rsqrt_2": {
+        "shape": [
+          1,
+          1,
+          8,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_4": {
+        "shape": [
+          1,
+          1,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_5": {
+        "shape": [
+          1,
+          1,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_5": {
+        "shape": [
+          1,
+          1,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose_1": {
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_2": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "view_2": {
+        "shape": [
+          1,
+          1,
+          8,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose_2": {
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "unsqueeze": {
+        "shape": [
+          1,
+          1,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "unsqueeze_1": {
+        "shape": [
+          1,
+          1,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_6": {
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "slice_1": {
+        "shape": [
+          1,
+          16,
+          1,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "slice_2": {
+        "shape": [
+          1,
+          16,
+          1,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "neg": {
+        "shape": [
+          1,
+          16,
+          1,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "cat": {
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_7": {
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_3": {
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_8": {
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "slice_3": {
+        "shape": [
+          1,
+          8,
+          1,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "slice_4": {
+        "shape": [
+          1,
+          8,
+          1,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "neg_1": {
+        "shape": [
+          1,
+          8,
+          1,
+          64
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "cat_1": {
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_9": {
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_4": {
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "scaled_dot_product_attention": {
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "transpose_3": {
+        "shape": [
+          1,
+          1,
+          16,
+          128
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "reshape": {
+        "shape": [
+          1,
+          1,
+          2048
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_3": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_5": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_6": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "pow_4": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mean_3": {
+        "shape": [
+          1,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_6": {
+        "shape": [
+          1,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "rsqrt_3": {
+        "shape": [
+          1,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_10": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_7": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_11": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_4": {
+        "shape": [
+          1,
+          1,
+          3072
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "silu": {
+        "shape": [
+          1,
+          1,
+          3072
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_5": {
+        "shape": [
+          1,
+          1,
+          3072
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_12": {
+        "shape": [
+          1,
+          1,
+          3072
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "linear_6": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add_7": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "hidden_states",
+      "position_embeddings_0",
+      "position_embeddings_1"
+    ],
+    "param_map": {
+      "p_attn_q_proj_weight": "thinker.model.layers.0.self_attn.q_proj.weight",
+      "p_attn_k_proj_weight": "thinker.model.layers.0.self_attn.k_proj.weight",
+      "p_attn_v_proj_weight": "thinker.model.layers.0.self_attn.v_proj.weight",
+      "p_attn_o_proj_weight": "thinker.model.layers.0.self_attn.o_proj.weight",
+      "p_attn_q_norm_weight": "thinker.model.layers.0.self_attn.q_norm.weight",
+      "p_attn_k_norm_weight": "thinker.model.layers.0.self_attn.k_norm.weight",
+      "p_mlp_gate_proj_weight": "thinker.model.layers.0.mlp.gate_proj.weight",
+      "p_mlp_up_proj_weight": "thinker.model.layers.0.mlp.up_proj.weight",
+      "p_mlp_down_proj_weight": "thinker.model.layers.0.mlp.down_proj.weight",
+      "p_input_layernorm_weight": "thinker.model.layers.0.input_layernorm.weight",
+      "p_post_attention_layernorm_weight": "thinker.model.layers.0.post_attention_layernorm.weight"
+    },
+    "output": "add_7"
+  },
+  "run_decode_norm": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "hidden_states": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "to": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "pow_1": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mean": {
+        "shape": [
+          1,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "add": {
+        "shape": [
+          1,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "rsqrt": {
+        "shape": [
+          1,
+          1,
+          1
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "to_1": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      },
+      "mul_1": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "hidden_states"
+    ],
+    "param_map": {
+      "p_weight": "thinker.model.norm.weight"
+    },
+    "output": "mul_1"
+  },
+  "run_decode_lm_head": {
+    "tensors": {
+      "p_weight": {
+        "shape": [
+          151936,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "parameter"
+      },
+      "input": {
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "float32",
+        "kind": "user_input"
+      },
+      "linear": {
+        "shape": [
+          1,
+          1,
+          151936
+        ],
+        "dtype": "float32",
+        "kind": "intermediate"
+      }
+    },
+    "user_inputs": [
+      "input"
+    ],
+    "param_map": {
+      "p_weight": "thinker.lm_head.weight"
+    },
+    "output": "linear"
+  }
+}

@@ -1,4 +1,11 @@
-"""Export qwen3_asr text decoder layer using only torch2vk.export (no exportv2)."""
+"""Export all spike_qwen3_asr submodules → shaders/, tensors/, dispatch.py.
+
+Generates Python source files for the full ASR pipeline (audio tower + text).
+Shapes are computed from the test fixture (tests/fixtures/qwen3_asr_asknot.wav).
+
+Run from project root:
+    .venv/bin/python -m models.spike_qwen3_asr.export
+"""
 
 from __future__ import annotations
 
@@ -6,75 +13,530 @@ import json
 import os
 from pathlib import Path
 
+import numpy as np
 import torch
+from torch.export import ExportedProgram
+from torch.export.graph_signature import InputKind
 
 from models.hf_cache import resolve_cached_model
+from models.qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.qwen3_asr.pytorch.example import REPO_ID
-from torch2vk.export import export_submodule, generate_dispatch_source
+from torch2vk.export import export_submodule
+from torch2vk.export.graph import SKIP_OPS, is_alias_op, node_input_names
+from torch2vk.export.registry import DEFAULT_REGISTRY
+from torch2vk.runtime.shader import (
+    AddExpr,
+    CeilDivExpr,
+    IOKind,
+    MulExpr,
+    ShaderContract,
+    ShaderVariant,
+)
 
 
-def _load_model():
+# ==============================================================
+# Plan extraction from ExportedProgram
+# ==============================================================
+
+def _rename_variant(variant: ShaderVariant, new_name: str) -> ShaderVariant:
+    new_contract = ShaderContract(
+        class_name=variant.contract.class_name,
+        shader_name=new_name,
+        fields=variant.contract.fields,
+        dispatch=variant.contract.dispatch,
+        push_constants=variant.contract.push_constants,
+        params_buffer=variant.contract.params_buffer,
+    )
+    return ShaderVariant(
+        name=new_name,
+        family=variant.family,
+        contract=new_contract,
+        source=variant.source,
+    )
+
+
+def _extract_plan(prog: ExportedProgram, weight_prefix: str) -> dict:
+    graph = prog.graph_module.graph
+    sig = prog.graph_signature
+
+    tensors = {}
+    user_inputs = []
+    param_map = {}
+
+    for spec in sig.input_specs:
+        for node in graph.nodes:
+            if node.name == spec.arg.name:
+                tm = node.meta.get("tensor_meta")
+                if tm:
+                    shape = tuple(int(d) for d in tm.shape)
+                    dtype = str(tm.dtype).removeprefix("torch.")
+                    is_param = spec.kind in (InputKind.PARAMETER, InputKind.BUFFER)
+                    tensors[spec.arg.name] = {
+                        "shape": list(shape),
+                        "dtype": dtype,
+                        "kind": "parameter" if is_param else "user_input",
+                    }
+                    if is_param:
+                        param_map[spec.arg.name] = f"{weight_prefix}{spec.target}"
+                    else:
+                        user_inputs.append(spec.arg.name)
+                break
+
+    for node in graph.nodes:
+        if node.op == "call_function" and node.name not in tensors:
+            if str(node.target) in SKIP_OPS:
+                continue
+            tm = node.meta.get("tensor_meta")
+            if tm:
+                shape = tuple(int(d) for d in tm.shape)
+                dtype = str(tm.dtype).removeprefix("torch.")
+                tensors[node.name] = {"shape": list(shape), "dtype": dtype, "kind": "intermediate"}
+
+    ops = []
+    shader_variants = {}
+
+    for node in graph.nodes:
+        if node.op != "call_function":
+            continue
+        target = str(node.target)
+        if target in SKIP_OPS:
+            continue
+        # Skip non-float32 compute (e.g. int32 cu_seqlens indexing)
+        tm = node.meta.get("tensor_meta")
+        if tm and str(tm.dtype) != "torch.float32":
+            continue
+        if is_alias_op(node):
+            inputs = node_input_names(node)
+            src = inputs[0] if inputs else None
+            if src and src in tensors and node.name in tensors:
+                ops.append({"type": "alias", "src": src, "dst": node.name})
+            continue
+        variant = DEFAULT_REGISTRY.resolve(node)
+        if variant is None:
+            ops.append({"type": "unsupported", "target": target, "name": node.name})
+            continue
+        shader_key = variant.name
+        if shader_key in shader_variants and shader_variants[shader_key].contract != variant.contract:
+            # Same op name but different shape contract within one submodule
+            suffix = f"_{len(shader_variants)}"
+            shader_key = f"{variant.name}{suffix}"
+            variant = _rename_variant(variant, shader_key)
+        if shader_key not in shader_variants:
+            shader_variants[shader_key] = variant
+        inputs = node_input_names(node)
+        input_fields = [f for f in variant.contract.fields if f.io_kind == IOKind.INPUT]
+        output_fields = [f for f in variant.contract.fields if f.io_kind in (IOKind.OUTPUT, IOKind.INOUT)]
+        bindings = {}
+        for i, field in enumerate(input_fields):
+            if i < len(inputs) and inputs[i] in tensors:
+                bindings[field.name] = inputs[i]
+        for field in output_fields:
+            bindings[field.name] = node.name
+        ops.append({"type": "dispatch", "shader": shader_key, "output_tensor": node.name, "bindings": bindings})
+
+    output_name = None
+    for op in reversed(ops):
+        if op["type"] == "dispatch":
+            output_name = op["output_tensor"]
+            break
+
+    return {
+        "tensors": tensors,
+        "user_inputs": user_inputs,
+        "param_map": param_map,
+        "output": output_name,
+        "ops": ops,
+        "shader_variants": shader_variants,
+    }
+
+
+# ==============================================================
+# Source code generation
+# ==============================================================
+
+def _expr_to_source(expr) -> str:
+    if isinstance(expr, int):
+        return repr(expr)
+    if isinstance(expr, str):
+        return repr(expr)
+    if isinstance(expr, CeilDivExpr):
+        return f"ceil_div({_expr_to_source(expr.lhs)}, {_expr_to_source(expr.rhs)})"
+    if isinstance(expr, MulExpr):
+        return f"mul({_expr_to_source(expr.lhs)}, {_expr_to_source(expr.rhs)})"
+    if isinstance(expr, AddExpr):
+        return f"add({_expr_to_source(expr.lhs)}, {_expr_to_source(expr.rhs)})"
+    raise TypeError(f"Unknown expr type: {type(expr)}")
+
+
+def _shape_to_source(shape: tuple) -> str:
+    return f"({', '.join(_expr_to_source(d) for d in shape)},)"
+
+
+def _generate_shader_file(variant: ShaderVariant) -> str:
+    contract = variant.contract
+    const_name = variant.name.upper()
+
+    needed = {"IOKind", "ShaderContract", "ShaderVariant", "TensorContract", "TensorFieldSpec"}
+    if contract.push_constants:
+        needed.update({"PushConstantFieldSpec", "PushConstantSpec", "PushConstantType"})
+
+    def _check(expr):
+        if isinstance(expr, CeilDivExpr):
+            needed.add("ceil_div"); _check(expr.lhs); _check(expr.rhs)
+        elif isinstance(expr, MulExpr):
+            needed.add("mul"); _check(expr.lhs); _check(expr.rhs)
+        elif isinstance(expr, AddExpr):
+            needed.add("add"); _check(expr.lhs); _check(expr.rhs)
+
+    for d in contract.dispatch:
+        _check(d)
+    if contract.push_constants:
+        for f in contract.push_constants.fields:
+            _check(f.value)
+
+    imports = ["from __future__ import annotations", "", "from torch2vk.runtime.shader import ("]
+    for name in sorted(needed):
+        imports.append(f"    {name},")
+    imports.append(")")
+
+    fields_lines = []
+    for f in contract.fields:
+        fields_lines.append(f"            TensorFieldSpec(")
+        fields_lines.append(f"                name={f.name!r},")
+        fields_lines.append(f"                io_kind=IOKind.{f.io_kind.name},")
+        fields_lines.append(f"                role={f.role!r},")
+        fields_lines.append(f"                contract=TensorContract(dtype={f.contract.dtype!r}, shape={_shape_to_source(f.contract.shape)}),")
+        fields_lines.append(f"            ),")
+
+    pc_source = "None"
+    if contract.push_constants:
+        pc_fields = []
+        for pf in contract.push_constants.fields:
+            val = repr(pf.value) if isinstance(pf.value, (int, float)) else _expr_to_source(pf.value)
+            pc_fields.append(f"                PushConstantFieldSpec({pf.name!r}, PushConstantType.{pf.dtype.name}, {pf.offset}, {val}),")
+        pc_source = (
+            f"PushConstantSpec(\n"
+            f"            size={contract.push_constants.size},\n"
+            f"            fields=(\n" + "\n".join(pc_fields) + "\n"
+            f"            ),\n"
+            f"        )"
+        )
+
+    dispatch_source = f"({', '.join(_expr_to_source(d) for d in contract.dispatch)})"
+    glsl = variant.source.lstrip("\n")
+
+    lines = [f'"""Generated shader: {variant.name}."""', ""]
+    lines.extend(imports)
+    lines.append("")
+    lines.append("")
+    lines.append(f"{const_name} = ShaderVariant(")
+    lines.append(f"    name={variant.name!r},")
+    lines.append(f"    family={variant.family!r},")
+    lines.append(f"    contract=ShaderContract(")
+    lines.append(f"        class_name={contract.class_name!r},")
+    lines.append(f"        shader_name={contract.shader_name!r},")
+    lines.append(f"        fields=(")
+    lines.extend(fields_lines)
+    lines.append(f"        ),")
+    lines.append(f"        push_constants={pc_source},")
+    lines.append(f"        dispatch={dispatch_source},")
+    lines.append(f"    ),")
+    lines.append(f'    source="""\\\n{glsl}""",')
+    lines.append(f")")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _generate_dispatch_function(plan: dict, function_name: str) -> str:
+    ops = plan["ops"]
+    shader_imports = {}
+    for op in ops:
+        if op["type"] == "dispatch":
+            shader_imports[op["shader"]] = op["shader"].upper()
+
+    lines = []
+    lines.append(f"def {function_name}(rt, tensors):")
+    for op in ops:
+        if op["type"] == "alias":
+            lines.append(f"    _alias(rt, tensors[{op['src']!r}], tensors[{op['dst']!r}])")
+        elif op["type"] == "dispatch":
+            const = shader_imports[op["shader"]]
+            args = ", ".join(f"{k}=tensors[{v!r}]" for k, v in op["bindings"].items())
+            lines.append(f"    {const}(rt, {args})")
+    lines.append("")
+    return "\n".join(lines), shader_imports
+
+
+def _generate_dispatch_file(plans: dict[str, dict]) -> str:
+    all_shader_imports = {}
+    function_sources = []
+
+    for func_name, plan in plans.items():
+        source, imports = _generate_dispatch_function(plan, func_name)
+        function_sources.append(source)
+        all_shader_imports.update(imports)
+
+    lines = ['"""Generated dispatch functions for all submodules."""', ""]
+    lines.append("from __future__ import annotations")
+    lines.append("")
+    for shader_name in sorted(all_shader_imports):
+        const_name = all_shader_imports[shader_name]
+        lines.append(f"from models.spike_qwen3_asr.shaders.{shader_name} import {const_name}")
+    lines.append("from torch2vk.runtime.logical import LogicalTensor")
+    lines.append("from torch2vk.runtime.session import RuntimeSession")
+    lines.append("")
+    lines.append("")
+    for source in function_sources:
+        lines.append(source)
+        lines.append("")
+    lines.append("def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:")
+    lines.append("    rt._materialize_read(src)")
+    lines.append("    with dst.runtime_write_scope():")
+    lines.append("        dst.buffer = src.buffer")
+    lines.append("        dst.descriptor_nbytes = src.descriptor_nbytes")
+    lines.append("        dst.version = src.version")
+    lines.append("")
+    return "\n".join(lines)
+
+
+# ==============================================================
+# Model loading + shape computation
+# ==============================================================
+
+def _load_model_and_shapes():
     model_dir = resolve_cached_model(REPO_ID)
-    config_path = Path(model_dir) / "config.json"
-    payload = json.loads(config_path.read_text())
+    payload = json.loads((Path(model_dir) / "config.json").read_text())
 
     with open(os.devnull, "w") as devnull:
-        stdout_fd = os.dup(1)
-        stderr_fd = os.dup(2)
+        stdout_fd, stderr_fd = os.dup(1), os.dup(2)
         os.dup2(devnull.fileno(), 1)
         os.dup2(devnull.fileno(), 2)
         try:
-            from qwen_asr.core.transformers_backend.configuration_qwen3_asr import (
-                Qwen3ASRConfig,
-            )
-            from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
-                Qwen3ASRForConditionalGeneration,
-            )
+            from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRConfig
+            from qwen_asr.core.transformers_backend.modeling_qwen3_asr import Qwen3ASRForConditionalGeneration
 
-            source_config = Qwen3ASRConfig(**payload)
+            config = Qwen3ASRConfig(**payload)
             with torch.device("meta"):
-                model = Qwen3ASRForConditionalGeneration(source_config)
+                model = Qwen3ASRForConditionalGeneration(config)
         finally:
             os.dup2(stdout_fd, 1)
             os.dup2(stderr_fd, 2)
             os.close(stdout_fd)
             os.close(stderr_fd)
 
-    return model, source_config
+    _, prepared = prepare_qwen3_asr_inputs(model_dir=model_dir, wav="tests/fixtures/qwen3_asr_asknot.wav")
+    ac = config.thinker_config.audio_config
+    tc = config.thinker_config.text_config
+
+    feat_len = prepared.audio_feature_length
+    n_window = 50
+    chunk_num = int(np.ceil(feat_len / (n_window * 2)))
+    chunk_lengths = np.full(chunk_num, n_window * 2, dtype=np.int64)
+    remainder = feat_len % (n_window * 2)
+    if remainder != 0:
+        chunk_lengths[-1] = remainder
+    max_chunk_len = int(chunk_lengths.max())
+
+    def conv_out_size(in_size, kernel, stride, padding):
+        return (in_size + 2 * padding - kernel) // stride + 1
+
+    h, w = ac.num_mel_bins, max_chunk_len
+    h1, w1 = conv_out_size(h, 3, 2, 1), conv_out_size(w, 3, 2, 1)
+    h2, w2 = conv_out_size(h1, 3, 2, 1), conv_out_size(w1, 3, 2, 1)
+    h3, w3 = conv_out_size(h2, 3, 2, 1), conv_out_size(w2, 3, 2, 1)
+
+    def get_feat_extract_output_lengths(input_lengths):
+        leave = input_lengths % 100
+        feat = (leave - 1) // 2 + 1
+        return ((feat - 1) // 2 + 1 - 1) // 2 + 1 + (input_lengths // 100) * 13
+
+    feature_lens_after_cnn = get_feat_extract_output_lengths(chunk_lengths)
+    enc_seq_len = int(feature_lens_after_cnn.sum())
+
+    n_window_infer = 800
+    aftercnn_lens = get_feat_extract_output_lengths(np.array([feat_len], dtype=np.int64))
+    window_aftercnn = int(feature_lens_after_cnn.max()) * (n_window_infer // (n_window * 2))
+    cu_chunk_lens = [0]
+    for cnn_len in aftercnn_lens:
+        cnn_len = int(cnn_len)
+        cu_chunk_lens += [window_aftercnn] * (cnn_len // window_aftercnn)
+        rem = cnn_len % window_aftercnn
+        if rem != 0:
+            cu_chunk_lens += [rem]
+    cu_seqlens_len = len(np.cumsum(cu_chunk_lens, dtype=np.int32))
+
+    shapes = {
+        "num_chunks": chunk_num,
+        "max_chunk_len": max_chunk_len,
+        "conv2d1_out": (chunk_num, 480, h1, w1),
+        "conv2d2_out": (chunk_num, 480, h2, w2),
+        "conv2d3_out": (chunk_num, 480, h3, w3),
+        "conv_out_in": (chunk_num * w3, 480 * h3),
+        "enc_seq_len": enc_seq_len,
+        "cu_seqlens_len": cu_seqlens_len,
+        "d_model": ac.d_model,
+        "prompt_length": prepared.prompt_length,
+        "hidden_size": tc.hidden_size,
+        "head_dim": tc.head_dim,
+    }
+    return model, config, shapes
 
 
-def export_text_layer() -> str:
-    model, source_config = _load_model()
-    text_config = source_config.thinker_config.text_config
-    layer = model.thinker.model.layers[0]
-
-    hidden_size = text_config.hidden_size
-    head_dim = text_config.head_dim
-    seq_len = 4
-
-    hidden_states = torch.zeros((1, seq_len, hidden_size), device="meta")
-    cos = torch.zeros((1, seq_len, head_dim), device="meta")
-    sin = torch.zeros((1, seq_len, head_dim), device="meta")
-
-    prog = export_submodule(
-        layer,
-        args=(hidden_states,),
-        kwargs={"position_embeddings": (cos, sin)},
-    )
-
-    return generate_dispatch_source(
-        prog,
-        class_name="Qwen3AsrTextLayerTensors",
-        function_name="run_text_layer",
-    )
-
+# ==============================================================
+# Main
+# ==============================================================
 
 def main() -> int:
-    source = export_text_layer()
-    out_path = Path(__file__).parent / "generated_text_layer.py"
-    out_path.write_text(source)
-    print(f"Generated: {out_path}")
-    print(source)
+    output_dir = Path(__file__).parent
+    shaders_dir = output_dir / "shaders"
+    shaders_dir.mkdir(exist_ok=True)
+    tensors_dir = output_dir / "tensors"
+    tensors_dir.mkdir(exist_ok=True)
+
+    print("Loading model and computing shapes...")
+    model, config, shapes = _load_model_and_shapes()
+    ac = config.thinker_config.audio_config
+    tc = config.thinker_config.text_config
+    at = model.thinker.audio_tower
+
+    all_shader_variants = {}
+    all_plans = {}
+
+    def export_and_plan(name, module, args, kwargs=None, weight_prefix=""):
+        prog = export_submodule(module, args=args, kwargs=kwargs)
+        plan = _extract_plan(prog, weight_prefix)
+        # Merge shader variants globally; rename on conflict to keep them unique
+        for shader_key, variant in list(plan["shader_variants"].items()):
+            if shader_key in all_shader_variants:
+                if all_shader_variants[shader_key].contract == variant.contract:
+                    continue
+                # Conflict: same name, different contract. Prefix with plan name.
+                new_key = f"{name}_{shader_key}".replace("run_", "")
+                variant = _rename_variant(variant, new_key)
+                for op in plan["ops"]:
+                    if op.get("shader") == shader_key:
+                        op["shader"] = new_key
+                del plan["shader_variants"][shader_key]
+                plan["shader_variants"][new_key] = variant
+                shader_key = new_key
+            all_shader_variants[shader_key] = variant
+        all_plans[name] = plan
+        n_ops = sum(1 for op in plan["ops"] if op["type"] == "dispatch")
+        print(f"  {name}: {n_ops} ops, {len(plan['shader_variants'])} shaders")
+
+    # Audio tower
+    nc = shapes["num_chunks"]
+    export_and_plan("run_conv2d1", at.conv2d1.float(),
+                    args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),),
+                    weight_prefix="thinker.audio_tower.conv2d1.")
+    export_and_plan("run_conv2d2", at.conv2d2.float(),
+                    args=(torch.zeros(*shapes["conv2d1_out"], device="meta"),),
+                    weight_prefix="thinker.audio_tower.conv2d2.")
+    export_and_plan("run_conv2d3", at.conv2d3.float(),
+                    args=(torch.zeros(*shapes["conv2d2_out"], device="meta"),),
+                    weight_prefix="thinker.audio_tower.conv2d3.")
+    export_and_plan("run_conv_out", at.conv_out.float(),
+                    args=(torch.zeros(*shapes["conv_out_in"], device="meta"),),
+                    weight_prefix="thinker.audio_tower.conv_out.")
+    export_and_plan("run_encoder_layer", at.layers[0].float(),
+                    args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),
+                          torch.zeros(shapes["cu_seqlens_len"], dtype=torch.int32, device="meta")),
+                    weight_prefix="thinker.audio_tower.layers.0.")
+    export_and_plan("run_ln_post", at.ln_post.float(),
+                    args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
+                    weight_prefix="thinker.audio_tower.ln_post.")
+    export_and_plan("run_proj1", at.proj1.float(),
+                    args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
+                    weight_prefix="thinker.audio_tower.proj1.")
+    export_and_plan("run_proj2", at.proj2.float(),
+                    args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
+                    weight_prefix="thinker.audio_tower.proj2.")
+
+    # Text pipeline
+    pl = shapes["prompt_length"]
+    hs = shapes["hidden_size"]
+    hd = shapes["head_dim"]
+    export_and_plan("run_embed_tokens", model.thinker.model.embed_tokens.float(),
+                    args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
+                    weight_prefix="thinker.model.embed_tokens.")
+    export_and_plan("run_text_layer", model.thinker.model.layers[0],
+                    args=(torch.zeros(1, pl, hs, device="meta"),),
+                    kwargs={"position_embeddings": (
+                        torch.zeros(1, pl, hd, device="meta"),
+                        torch.zeros(1, pl, hd, device="meta"),
+                    )},
+                    weight_prefix="thinker.model.layers.0.")
+    export_and_plan("run_text_norm", model.thinker.model.norm.float(),
+                    args=(torch.zeros(1, pl, hs, device="meta"),),
+                    weight_prefix="thinker.model.norm.")
+    export_and_plan("run_lm_head", model.thinker.lm_head.float(),
+                    args=(torch.zeros(1, 1, hs, device="meta"),),
+                    weight_prefix="thinker.lm_head.")
+
+    # Decode-step variants (seq_len=1)
+    export_and_plan("run_decode_embed", model.thinker.model.embed_tokens.float(),
+                    args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
+                    weight_prefix="thinker.model.embed_tokens.")
+    export_and_plan("run_decode_layer", model.thinker.model.layers[0],
+                    args=(torch.zeros(1, 1, hs, device="meta"),),
+                    kwargs={"position_embeddings": (
+                        torch.zeros(1, 1, hd, device="meta"),
+                        torch.zeros(1, 1, hd, device="meta"),
+                    )},
+                    weight_prefix="thinker.model.layers.0.")
+    export_and_plan("run_decode_norm", model.thinker.model.norm.float(),
+                    args=(torch.zeros(1, 1, hs, device="meta"),),
+                    weight_prefix="thinker.model.norm.")
+    export_and_plan("run_decode_lm_head", model.thinker.lm_head.float(),
+                    args=(torch.zeros(1, 1, hs, device="meta"),),
+                    weight_prefix="thinker.lm_head.")
+
+    # Write shaders/
+    for shader_name, variant in all_shader_variants.items():
+        (shaders_dir / f"{shader_name}.py").write_text(_generate_shader_file(variant))
+    init_lines = ['"""Generated shader index."""', ""]
+    for shader_name in sorted(all_shader_variants):
+        init_lines.append(f"from models.spike_qwen3_asr.shaders.{shader_name} import {shader_name.upper()}  # noqa: F401")
+    init_lines.append("")
+    (shaders_dir / "__init__.py").write_text("\n".join(init_lines))
+    print(f"\n  {len(all_shader_variants)} shader files written")
+
+    # Write dispatch.py
+    dispatch_source = _generate_dispatch_file(all_plans)
+    (output_dir / "dispatch.py").write_text(dispatch_source)
+    print(f"  dispatch.py written ({len(all_plans)} functions)")
+
+    # Write tensors/__init__.py (just re-export)
+    (tensors_dir / "__init__.py").write_text('"""Generated tensor declarations."""\n')
+
+    # Write shapes.json for run.py to use
+    (output_dir / "shapes.json").write_text(json.dumps(shapes, indent=2))
+    print(f"  shapes.json written")
+
+    # Write plan metadata for run.py (tensor info per submodule)
+    plans_meta = {}
+    for name, plan in all_plans.items():
+        plans_meta[name] = {
+            "tensors": plan["tensors"],
+            "user_inputs": plan["user_inputs"],
+            "param_map": plan["param_map"],
+            "output": plan["output"],
+        }
+    (output_dir / "plans.json").write_text(json.dumps(plans_meta, indent=2))
+    print(f"  plans.json written")
+
+    # Clean up old generated file
+    old_file = output_dir / "generated_text_layer.py"
+    if old_file.exists():
+        old_file.unlink()
+        print("  deleted generated_text_layer.py (obsolete)")
+
+    # Clean up old tensors/text_layer.py
+    old_tensors = tensors_dir / "text_layer.py"
+    if old_tensors.exists():
+        old_tensors.unlink()
+
+    print("\nDone!")
     return 0
 
 
