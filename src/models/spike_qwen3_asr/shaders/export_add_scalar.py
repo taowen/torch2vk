@@ -39,12 +39,14 @@ EXPORT_ADD_SCALAR = ShaderVariant(
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('T', 'H')),
-                PushConstantFieldSpec('scalar', PushConstantType.FLOAT32, 4, 1e-06),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('T', 'H'), dynamic=False),
+                PushConstantFieldSpec('scalar', PushConstantType.FLOAT32, 4, 1e-06, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(mul('T', 'H'), 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

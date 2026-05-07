@@ -44,13 +44,15 @@ LM_HEAD_EXPORT_LINEAR_NOBIAS_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 1),
-                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 1024),
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 151936),
+                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 1, dynamic=False),
+                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 1024, dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 151936, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(1, 16), ceil_div(151936, 16), 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 #extension GL_EXT_control_flow_attributes : enable

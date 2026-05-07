@@ -49,8 +49,8 @@ from models.spike_qwen3_asr.shaders.export_embedding_f32 import EXPORT_EMBEDDING
 from models.spike_qwen3_asr.shaders.export_gelu_f32 import EXPORT_GELU_F32
 from models.spike_qwen3_asr.shaders.export_layer_norm_f32 import EXPORT_LAYER_NORM_F32
 from models.spike_qwen3_asr.shaders.export_linear_bias_f32 import EXPORT_LINEAR_BIAS_F32
-from models.spike_qwen3_asr.shaders.export_linear_bias_f32_6 import EXPORT_LINEAR_BIAS_F32_6
-from models.spike_qwen3_asr.shaders.export_linear_bias_f32_8 import EXPORT_LINEAR_BIAS_F32_8
+from models.spike_qwen3_asr.shaders.export_linear_bias_f32_10 import EXPORT_LINEAR_BIAS_F32_10
+from models.spike_qwen3_asr.shaders.export_linear_bias_f32_12 import EXPORT_LINEAR_BIAS_F32_12
 from models.spike_qwen3_asr.shaders.export_linear_nobias_f32 import EXPORT_LINEAR_NOBIAS_F32
 from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_14 import EXPORT_LINEAR_NOBIAS_F32_14
 from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_22 import EXPORT_LINEAR_NOBIAS_F32_22
@@ -90,7 +90,7 @@ from models.spike_qwen3_asr.shaders.export_transpose_f32 import EXPORT_TRANSPOSE
 from models.spike_qwen3_asr.shaders.export_transpose_f32_21 import EXPORT_TRANSPOSE_F32_21
 from models.spike_qwen3_asr.shaders.export_transpose_f32_23 import EXPORT_TRANSPOSE_F32_23
 from models.spike_qwen3_asr.shaders.export_transpose_f32_36 import EXPORT_TRANSPOSE_F32_36
-from models.spike_qwen3_asr.shaders.export_transpose_f32_4 import EXPORT_TRANSPOSE_F32_4
+from models.spike_qwen3_asr.shaders.export_transpose_f32_8 import EXPORT_TRANSPOSE_F32_8
 from models.spike_qwen3_asr.shaders.lm_head_export_linear_nobias_f32 import LM_HEAD_EXPORT_LINEAR_NOBIAS_F32
 from models.spike_qwen3_asr.shaders.proj1_export_gelu_f32 import PROJ1_EXPORT_GELU_F32
 from models.spike_qwen3_asr.shaders.proj2_export_linear_bias_f32 import PROJ2_EXPORT_LINEAR_BIAS_F32
@@ -141,15 +141,15 @@ def run_encoder_layer(rt: RuntimeSession, tensors: EncoderLayerTensors) -> None:
     EXPORT_TRANSPOSE_F32(rt, x=tensors.reshape_2, output=tensors.transpose_2)
     _alias(rt, tensors.transpose_2, tensors.unsqueeze_2)
     EXPORT_SDPA_MASKED_F32(rt, q=tensors.unsqueeze, k=tensors.unsqueeze_1, v=tensors.unsqueeze_2, mask=tensors.attention_mask, output=tensors.scaled_dot_product_attention)
-    EXPORT_TRANSPOSE_F32_4(rt, x=tensors.scaled_dot_product_attention, output=tensors.transpose_3)
+    EXPORT_TRANSPOSE_F32_8(rt, x=tensors.scaled_dot_product_attention, output=tensors.transpose_3)
     _alias(rt, tensors.transpose_3, tensors.contiguous)
     _alias(rt, tensors.contiguous, tensors.reshape_3)
     EXPORT_LINEAR_BIAS_F32(rt, x=tensors.reshape_3, weight=tensors.p_attn_out_proj_weight, bias=tensors.p_attn_out_proj_bias, output=tensors.linear_3)
     EXPORT_ADD_F32(rt, x=tensors.hidden_states, y=tensors.linear_3, output=tensors.add)
     EXPORT_LAYER_NORM_F32(rt, x=tensors.add, weight=tensors.p_final_layer_norm_weight, bias=tensors.p_final_layer_norm_bias, output=tensors.layer_norm_1)
-    EXPORT_LINEAR_BIAS_F32_6(rt, x=tensors.layer_norm_1, weight=tensors.p_fc1_weight, bias=tensors.p_fc1_bias, output=tensors.linear_4)
+    EXPORT_LINEAR_BIAS_F32_10(rt, x=tensors.layer_norm_1, weight=tensors.p_fc1_weight, bias=tensors.p_fc1_bias, output=tensors.linear_4)
     ENCODER_LAYER_EXPORT_GELU_F32(rt, x=tensors.linear_4, output=tensors.gelu)
-    EXPORT_LINEAR_BIAS_F32_8(rt, x=tensors.gelu, weight=tensors.p_fc2_weight, bias=tensors.p_fc2_bias, output=tensors.linear_5)
+    EXPORT_LINEAR_BIAS_F32_12(rt, x=tensors.gelu, weight=tensors.p_fc2_weight, bias=tensors.p_fc2_bias, output=tensors.linear_5)
     EXPORT_ADD_F32(rt, x=tensors.add, y=tensors.linear_5, output=tensors.add_1)
 
 

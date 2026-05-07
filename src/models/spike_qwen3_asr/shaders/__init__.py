@@ -47,8 +47,8 @@ from models.spike_qwen3_asr.shaders.export_embedding_f32 import EXPORT_EMBEDDING
 from models.spike_qwen3_asr.shaders.export_gelu_f32 import EXPORT_GELU_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_layer_norm_f32 import EXPORT_LAYER_NORM_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_linear_bias_f32 import EXPORT_LINEAR_BIAS_F32  # noqa: F401
-from models.spike_qwen3_asr.shaders.export_linear_bias_f32_6 import EXPORT_LINEAR_BIAS_F32_6  # noqa: F401
-from models.spike_qwen3_asr.shaders.export_linear_bias_f32_8 import EXPORT_LINEAR_BIAS_F32_8  # noqa: F401
+from models.spike_qwen3_asr.shaders.export_linear_bias_f32_10 import EXPORT_LINEAR_BIAS_F32_10  # noqa: F401
+from models.spike_qwen3_asr.shaders.export_linear_bias_f32_12 import EXPORT_LINEAR_BIAS_F32_12  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_linear_nobias_f32 import EXPORT_LINEAR_NOBIAS_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_14 import EXPORT_LINEAR_NOBIAS_F32_14  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_22 import EXPORT_LINEAR_NOBIAS_F32_22  # noqa: F401
@@ -88,7 +88,7 @@ from models.spike_qwen3_asr.shaders.export_transpose_f32 import EXPORT_TRANSPOSE
 from models.spike_qwen3_asr.shaders.export_transpose_f32_21 import EXPORT_TRANSPOSE_F32_21  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_transpose_f32_23 import EXPORT_TRANSPOSE_F32_23  # noqa: F401
 from models.spike_qwen3_asr.shaders.export_transpose_f32_36 import EXPORT_TRANSPOSE_F32_36  # noqa: F401
-from models.spike_qwen3_asr.shaders.export_transpose_f32_4 import EXPORT_TRANSPOSE_F32_4  # noqa: F401
+from models.spike_qwen3_asr.shaders.export_transpose_f32_8 import EXPORT_TRANSPOSE_F32_8  # noqa: F401
 from models.spike_qwen3_asr.shaders.lm_head_export_linear_nobias_f32 import LM_HEAD_EXPORT_LINEAR_NOBIAS_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.proj1_export_gelu_f32 import PROJ1_EXPORT_GELU_F32  # noqa: F401
 from models.spike_qwen3_asr.shaders.proj2_export_linear_bias_f32 import PROJ2_EXPORT_LINEAR_BIAS_F32  # noqa: F401

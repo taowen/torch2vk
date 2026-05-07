@@ -45,12 +45,14 @@ EXPORT_MUL_BROADCAST_LAST_11 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('T', 'H'), 'D')),
-                PushConstantFieldSpec('H', PushConstantType.UINT32, 4, 'D'),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('T', 'H'), 'D'), dynamic=False),
+                PushConstantFieldSpec('H', PushConstantType.UINT32, 4, 'D', dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(mul(mul('T', 'H'), 'D'), 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

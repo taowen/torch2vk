@@ -1,4 +1,4 @@
-"""Generated shader: export_transpose_f32_6."""
+"""Generated shader: export_transpose_f32_8."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-EXPORT_TRANSPOSE_F32_6 = ShaderVariant(
-    name='export_transpose_f32_6',
+EXPORT_TRANSPOSE_F32_8 = ShaderVariant(
+    name='export_transpose_f32_8',
     family='export',
     contract=ShaderContract(
         class_name='ExportTransposeProgram',
-        shader_name='export_transpose_f32_6',
+        shader_name='export_transpose_f32_8',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -38,14 +38,16 @@ EXPORT_TRANSPOSE_F32_6 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=16,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, 119168),
-                PushConstantFieldSpec('D1', PushConstantType.UINT32, 4, 14),
-                PushConstantFieldSpec('D2', PushConstantType.UINT32, 8, 133),
-                PushConstantFieldSpec('D3', PushConstantType.UINT32, 12, 64),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, 119168, dynamic=False),
+                PushConstantFieldSpec('D1', PushConstantType.UINT32, 4, 14, dynamic=False),
+                PushConstantFieldSpec('D2', PushConstantType.UINT32, 8, 133, dynamic=False),
+                PushConstantFieldSpec('D3', PushConstantType.UINT32, 12, 64, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(119168, 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

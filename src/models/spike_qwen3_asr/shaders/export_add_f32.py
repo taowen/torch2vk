@@ -45,11 +45,13 @@ EXPORT_ADD_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=4,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('B', 'T')),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('B', 'T'), dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(mul('B', 'T'), 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

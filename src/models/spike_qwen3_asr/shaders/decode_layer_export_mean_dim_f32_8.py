@@ -37,12 +37,14 @@ DECODE_LAYER_EXPORT_MEAN_DIM_F32_8 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 16),
-                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 128),
+                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 16, dynamic=False),
+                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 128, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(16, 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

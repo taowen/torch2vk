@@ -38,14 +38,16 @@ EXPORT_TRANSPOSE_F32_21 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=16,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, 154624),
-                PushConstantFieldSpec('D1', PushConstantType.UINT32, 4, 151),
-                PushConstantFieldSpec('D2', PushConstantType.UINT32, 8, 8),
-                PushConstantFieldSpec('D3', PushConstantType.UINT32, 12, 128),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, 154624, dynamic=False),
+                PushConstantFieldSpec('D1', PushConstantType.UINT32, 4, 151, dynamic=False),
+                PushConstantFieldSpec('D2', PushConstantType.UINT32, 8, 8, dynamic=False),
+                PushConstantFieldSpec('D3', PushConstantType.UINT32, 12, 128, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(154624, 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

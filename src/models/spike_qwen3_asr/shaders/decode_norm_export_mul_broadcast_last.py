@@ -45,12 +45,14 @@ DECODE_NORM_EXPORT_MUL_BROADCAST_LAST = ShaderVariant(
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('T', 'H')),
-                PushConstantFieldSpec('H', PushConstantType.UINT32, 4, 'H'),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('T', 'H'), dynamic=False),
+                PushConstantFieldSpec('H', PushConstantType.UINT32, 4, 'H', dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(mul('T', 'H'), 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

@@ -37,12 +37,14 @@ DECODE_NORM_EXPORT_MEAN_DIM_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 1),
-                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 1024),
+                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 1, dynamic=False),
+                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 1024, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(1, 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

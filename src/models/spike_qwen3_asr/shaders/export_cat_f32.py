@@ -44,14 +44,16 @@ EXPORT_CAT_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=16,
             fields=(
-                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 309248),
-                PushConstantFieldSpec('A_STRIDE', PushConstantType.UINT32, 4, 64),
-                PushConstantFieldSpec('B_STRIDE', PushConstantType.UINT32, 8, 64),
-                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 12, 128),
+                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 309248, dynamic=False),
+                PushConstantFieldSpec('A_STRIDE', PushConstantType.UINT32, 4, 64, dynamic=False),
+                PushConstantFieldSpec('B_STRIDE', PushConstantType.UINT32, 8, 64, dynamic=False),
+                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 12, 128, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(309248, 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

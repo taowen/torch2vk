@@ -49,13 +49,15 @@ EXPORT_LAYER_NORM_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 133),
-                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 896),
-                PushConstantFieldSpec('eps', PushConstantType.FLOAT32, 8, 1e-05),
+                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 133, dynamic=False),
+                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 896, dynamic=False),
+                PushConstantFieldSpec('eps', PushConstantType.FLOAT32, 8, 1e-05, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(133, 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

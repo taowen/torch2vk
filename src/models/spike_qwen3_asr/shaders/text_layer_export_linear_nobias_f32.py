@@ -44,13 +44,15 @@ TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 151),
-                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 1024),
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 2048),
+                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 151, dynamic=False),
+                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 1024, dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 2048, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(151, 16), ceil_div(2048, 16), 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 #extension GL_EXT_control_flow_attributes : enable

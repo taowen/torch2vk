@@ -38,14 +38,16 @@ DECODE_LAYER_EXPORT_SLICE_F32_32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=16,
             fields=(
-                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 512),
-                PushConstantFieldSpec('IN_STRIDE', PushConstantType.UINT32, 4, 128),
-                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 8, 64),
-                PushConstantFieldSpec('OFFSET', PushConstantType.UINT32, 12, 64),
+                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 512, dynamic=False),
+                PushConstantFieldSpec('IN_STRIDE', PushConstantType.UINT32, 4, 128, dynamic=False),
+                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 8, 64, dynamic=False),
+                PushConstantFieldSpec('OFFSET', PushConstantType.UINT32, 12, 64, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(512, 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

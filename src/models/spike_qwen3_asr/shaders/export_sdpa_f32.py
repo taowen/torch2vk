@@ -49,15 +49,17 @@ EXPORT_SDPA_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=20,
             fields=(
-                PushConstantFieldSpec('NH', PushConstantType.UINT32, 0, 16),
-                PushConstantFieldSpec('NK', PushConstantType.UINT32, 4, 8),
-                PushConstantFieldSpec('T', PushConstantType.UINT32, 8, 1),
-                PushConstantFieldSpec('S', PushConstantType.UINT32, 12, 1),
-                PushConstantFieldSpec('D', PushConstantType.UINT32, 16, 128),
+                PushConstantFieldSpec('NH', PushConstantType.UINT32, 0, 16, dynamic=False),
+                PushConstantFieldSpec('NK', PushConstantType.UINT32, 4, 8, dynamic=False),
+                PushConstantFieldSpec('T', PushConstantType.UINT32, 8, 1, dynamic=False),
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 12, 1, dynamic=False),
+                PushConstantFieldSpec('D', PushConstantType.UINT32, 16, 128, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(16, 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

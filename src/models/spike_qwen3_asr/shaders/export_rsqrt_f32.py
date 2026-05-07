@@ -39,11 +39,13 @@ EXPORT_RSQRT_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=4,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('T', 'H')),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('T', 'H'), dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(mul('T', 'H'), 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

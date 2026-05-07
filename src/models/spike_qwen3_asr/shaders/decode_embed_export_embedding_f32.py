@@ -44,12 +44,14 @@ DECODE_EMBED_EXPORT_EMBEDDING_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('num_indices', PushConstantType.UINT32, 0, 1),
-                PushConstantFieldSpec('embedding_dim', PushConstantType.UINT32, 4, 1024),
+                PushConstantFieldSpec('num_indices', PushConstantType.UINT32, 0, 1, dynamic=False),
+                PushConstantFieldSpec('embedding_dim', PushConstantType.UINT32, 4, 1024, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(1024, 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

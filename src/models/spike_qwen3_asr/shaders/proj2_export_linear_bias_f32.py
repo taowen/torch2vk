@@ -50,13 +50,15 @@ PROJ2_EXPORT_LINEAR_BIAS_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 133),
-                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 896),
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 1024),
+                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 133, dynamic=False),
+                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 896, dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 1024, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(133, 16), ceil_div(1024, 16), 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 #extension GL_EXT_control_flow_attributes : enable

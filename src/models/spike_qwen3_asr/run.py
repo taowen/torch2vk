@@ -13,11 +13,13 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRConfig
 from safetensors import safe_open
 
 from models.hf_cache import resolve_cached_model
 from models.qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.qwen3_asr.pytorch.example import REPO_ID
+from models.qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.spike_qwen3_asr import dispatch
 from models.spike_qwen3_asr.tensors import audio_tower as at_tensors
 from models.spike_qwen3_asr.tensors import decode as decode_tensors
@@ -25,7 +27,13 @@ from models.spike_qwen3_asr.tensors import decode_layer as decode_layer_tensors
 from models.spike_qwen3_asr.tensors import encoder_layer as enc_tensors
 from models.spike_qwen3_asr.tensors import text as text_tensors
 from models.spike_qwen3_asr.tensors import text_layer as text_layer_tensors
-from torch2vk.runtime.logical import LogicalTensor, TensorRole
+from torch2vk.runtime.logical import (
+    LogicalTensor,
+    MemoryClass,
+    TensorLifetime,
+    TensorRole,
+    TensorSpec,
+)
 from torch2vk.runtime.session import RuntimeSession
 
 
@@ -47,32 +55,56 @@ def _materialize_weights(rt: RuntimeSession, tensors_obj, weights) -> None:
         rt._model_allocations.append(alloc)
 
 
-def _run(rt, dispatch_fn, tensors_obj, output_field, user_inputs, frame_name,
-         *, pytorch_model_submodule=None, pytorch_args=(), pytorch_kwargs=None):
-    rt._inputs.clear()
-    for field, data in user_inputs.items():
-        rt.register_inputs({getattr(tensors_obj, field): data})
+def _readback_materialized(rt: RuntimeSession, tensor: LogicalTensor) -> np.ndarray:
+    if tensor.buffer is None:
+        raise RuntimeError(f"{tensor.name} is not materialized on GPU")
+    return rt.readback(tensor)
 
-    frame_kw = {}
-    if pytorch_model_submodule is not None:
-        from qwen_asr.core.transformers_backend.modeling_qwen3_asr import Qwen3ASRForConditionalGeneration
-        frame_kw["pytorch_model_class"] = Qwen3ASRForConditionalGeneration
-        frame_kw["pytorch_model_submodule"] = pytorch_model_submodule
-        if pytorch_args:
-            frame_kw["pytorch_args"] = tuple(getattr(tensors_obj, f) for f in pytorch_args)
-        if pytorch_kwargs:
-            resolved_kwargs = {}
-            for k, v in pytorch_kwargs.items():
-                if isinstance(v, tuple):
-                    resolved_kwargs[k] = tuple(getattr(tensors_obj, f) for f in v)
-                else:
-                    resolved_kwargs[k] = getattr(tensors_obj, v)
-            frame_kw["pytorch_kwargs"] = resolved_kwargs
 
-    with rt.frame(frame_name, **frame_kw):
-        dispatch_fn(rt, tensors_obj)
-        output_t = getattr(tensors_obj, output_field)
-        return rt.device.readback_tensor(spec=output_t.spec, slice=output_t.buffer)
+def _require_gpu_output(tensor: LogicalTensor) -> None:
+    if tensor.buffer is None:
+        raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
+
+
+def _host_input_tensor(name: str, dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype=dtype, shape=shape),
+        role=TensorRole.INPUT,
+        memory=MemoryClass.HOST_INPUT,
+        lifetime=TensorLifetime.FRAME,
+    )
+
+
+def _request_output_tensor(name: str, dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype=dtype, shape=shape),
+        role=TensorRole.OUTPUT,
+        memory=MemoryClass.REQUEST_STATE,
+        lifetime=TensorLifetime.REQUEST,
+    )
+
+
+def _run_token_select(
+    rt: RuntimeSession,
+    *,
+    logits: LogicalTensor,
+    eos_token_ids: LogicalTensor,
+    next_token: LogicalTensor,
+    done: LogicalTensor,
+    frame_name: str,
+) -> int:
+    with rt.frame(frame_name):
+        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
+            rt,
+            logits=logits,
+            eos_token_ids=eos_token_ids,
+            next_token=next_token,
+            done=done,
+        )
+    _require_gpu_output(next_token)
+    return int(rt.read_request_state(next_token).reshape(-1)[0])
 
 
 # ==============================================================
@@ -120,13 +152,16 @@ def main() -> str:
 
     devnull = open(os.devnull, "w")
     stdout_fd, stderr_fd = os.dup(1), os.dup(2)
-    os.dup2(devnull.fileno(), 1); os.dup2(devnull.fileno(), 2)
+    os.dup2(devnull.fileno(), 1)
+    os.dup2(devnull.fileno(), 2)
     try:
-        from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRConfig
         config = Qwen3ASRConfig(**json.loads(config_payload))
     finally:
-        os.dup2(stdout_fd, 1); os.dup2(stderr_fd, 2)
-        os.close(stdout_fd); os.close(stderr_fd); devnull.close()
+        os.dup2(stdout_fd, 1)
+        os.dup2(stderr_fd, 2)
+        os.close(stdout_fd)
+        os.close(stderr_fd)
+        devnull.close()
 
     ac = config.thinker_config.audio_config
     tc = config.thinker_config.text_config
@@ -140,31 +175,100 @@ def main() -> str:
 
     # Audio tower (non-layered)
     conv2d1_t = at_tensors.create_conv2d1("spike.audio.conv2d1")
-    conv2d2_t = at_tensors.create_conv2d2("spike.audio.conv2d2")
-    conv2d3_t = at_tensors.create_conv2d3("spike.audio.conv2d3")
+    conv2d2_t = at_tensors.create_conv2d2(
+        "spike.audio.conv2d2",
+        bindings={"x": conv2d1_t.gelu},
+    )
+    conv2d3_t = at_tensors.create_conv2d3(
+        "spike.audio.conv2d3",
+        bindings={"x": conv2d2_t.gelu},
+    )
     conv_out_t = at_tensors.create_conv_out("spike.audio.conv_out")
-    ln_post_t = at_tensors.create_ln_post("spike.audio.ln_post")
-    proj1_t = at_tensors.create_proj1("spike.audio.proj1")
-    proj2_t = at_tensors.create_proj2("spike.audio.proj2")
 
     # Encoder layers (layered)
-    encoder_layer_ts = [enc_tensors.create_encoder_layer(f"spike.audio.enc.{i}", layer_idx=i) for i in range(ac.encoder_layers)]
+    encoder_layer_ts = []
+    encoder_hidden = None
+    for layer_idx in range(ac.encoder_layers):
+        bindings = {}
+        if encoder_hidden is not None:
+            bindings["hidden_states"] = encoder_hidden
+            bindings["attention_mask"] = encoder_layer_ts[0].attention_mask
+        layer_tensors = enc_tensors.create_encoder_layer(
+            f"spike.audio.enc.{layer_idx}",
+            layer_idx=layer_idx,
+            bindings=bindings,
+        )
+        encoder_layer_ts.append(layer_tensors)
+        encoder_hidden = layer_tensors.add_1
+    ln_post_t = at_tensors.create_ln_post(
+        "spike.audio.ln_post",
+        bindings={"input": encoder_layer_ts[-1].add_1},
+    )
+    proj1_t = at_tensors.create_proj1(
+        "spike.audio.proj1",
+        bindings={"x": ln_post_t.layer_norm},
+    )
+    proj2_t = at_tensors.create_proj2(
+        "spike.audio.proj2",
+        bindings={"input": proj1_t.gelu},
+        request_state_outputs={at_tensors.PROJ2_OUTPUT},
+    )
 
     # Text (non-layered)
     embed_tokens_t = text_tensors.create_embed_tokens("spike.text.embed")
-    text_norm_t = text_tensors.create_text_norm("spike.text.norm")
-    lm_head_t = text_tensors.create_lm_head("spike.text.lm_head")
 
     # Text layers (layered)
-    text_layer_ts = [text_layer_tensors.create_text_layer(f"spike.text.layer.{i}", layer_idx=i) for i in range(tc.num_hidden_layers)]
+    text_layer_ts = []
+    text_hidden = None
+    for layer_idx in range(tc.num_hidden_layers):
+        bindings = {}
+        if text_hidden is not None:
+            bindings["hidden_states"] = text_hidden
+            bindings["position_embeddings_0"] = text_layer_ts[0].position_embeddings_0
+            bindings["position_embeddings_1"] = text_layer_ts[0].position_embeddings_1
+        layer_tensors = text_layer_tensors.create_text_layer(
+            f"spike.text.layer.{layer_idx}",
+            layer_idx=layer_idx,
+            bindings=bindings,
+        )
+        text_layer_ts.append(layer_tensors)
+        text_hidden = layer_tensors.add_7
+    text_norm_t = text_tensors.create_text_norm(
+        "spike.text.norm",
+        bindings={"hidden_states": text_layer_ts[-1].add_7},
+    )
+    lm_head_t = text_tensors.create_lm_head(
+        "spike.text.lm_head",
+        request_state_outputs={text_tensors.LM_HEAD_OUTPUT},
+    )
 
     # Decode (non-layered, reuse for all decode steps)
     decode_embed_t = decode_tensors.create_decode_embed("spike.decode.embed")
-    decode_norm_t = decode_tensors.create_decode_norm("spike.decode.norm")
-    decode_lm_head_t = decode_tensors.create_decode_lm_head("spike.decode.lm_head")
 
     # Decode layers (layered)
-    decode_layer_ts = [decode_layer_tensors.create_decode_layer(f"spike.decode.layer.{i}", layer_idx=i) for i in range(tc.num_hidden_layers)]
+    decode_layer_ts = []
+    decode_hidden = decode_embed_t.embedding
+    for layer_idx in range(tc.num_hidden_layers):
+        bindings = {"hidden_states": decode_hidden}
+        if layer_idx > 0:
+            bindings["position_embeddings_0"] = decode_layer_ts[0].position_embeddings_0
+            bindings["position_embeddings_1"] = decode_layer_ts[0].position_embeddings_1
+        layer_tensors = decode_layer_tensors.create_decode_layer(
+            f"spike.decode.layer.{layer_idx}",
+            layer_idx=layer_idx,
+            bindings=bindings,
+        )
+        decode_layer_ts.append(layer_tensors)
+        decode_hidden = layer_tensors.add_7
+    decode_norm_t = decode_tensors.create_decode_norm(
+        "spike.decode.norm",
+        bindings={"hidden_states": decode_layer_ts[-1].add_7},
+    )
+    decode_lm_head_t = decode_tensors.create_decode_lm_head(
+        "spike.decode.lm_head",
+        bindings={"input": decode_norm_t.mul_1},
+        request_state_outputs={decode_tensors.DECODE_LM_HEAD_OUTPUT},
+    )
 
     # Materialize all weights to persistent GPU memory
     for t in [conv2d1_t, conv2d2_t, conv2d3_t, conv_out_t, ln_post_t, proj1_t, proj2_t]:
@@ -209,21 +313,25 @@ def main() -> str:
         padded_feature[i, 0, :, :chunk.shape[0]] = chunk.T
 
     # Conv layers
-    print(f"  conv2d1 ({padded_feature.shape})...")
-    conv1_out = _run(rt, dispatch.run_conv2d1, conv2d1_t, at_tensors.CONV2D1_OUTPUT, {"x": padded_feature}, "spike.audio.conv2d1")
-
-    print(f"  conv2d2 ({conv1_out.shape})...")
-    conv2_out = _run(rt, dispatch.run_conv2d2, conv2d2_t, at_tensors.CONV2D2_OUTPUT, {"x": conv1_out}, "spike.audio.conv2d2")
-
-    print(f"  conv2d3 ({conv2_out.shape})...")
-    conv3_out = _run(rt, dispatch.run_conv2d3, conv2d3_t, at_tensors.CONV2D3_OUTPUT, {"x": conv2_out}, "spike.audio.conv2d3")
+    print(f"  conv stack ({padded_feature.shape})...")
+    rt._inputs.clear()
+    rt.register_inputs({conv2d1_t.x: padded_feature})
+    with rt.frame("spike.audio.conv_stack"):
+        dispatch.run_conv2d1(rt, conv2d1_t)
+        dispatch.run_conv2d2(rt, conv2d2_t)
+        dispatch.run_conv2d3(rt, conv2d3_t)
+        conv3_out = _readback_materialized(rt, conv2d3_t.gelu)
 
     # Reshape + conv_out
     b, c, f, t_dim = conv3_out.shape
     reshaped = conv3_out.transpose(0, 3, 1, 2).reshape(b, t_dim, c * f)
     conv_out_input = reshaped.reshape(b * t_dim, c * f)
     print(f"  conv_out ({conv_out_input.shape})...")
-    conv_out_result = _run(rt, dispatch.run_conv_out, conv_out_t, at_tensors.CONV_OUT_OUTPUT, {"input": conv_out_input}, "spike.audio.conv_out")
+    rt._inputs.clear()
+    rt.register_inputs({conv_out_t.input: conv_out_input})
+    with rt.frame("spike.audio.conv_out"):
+        dispatch.run_conv_out(rt, conv_out_t)
+        conv_out_result = _readback_materialized(rt, conv_out_t.linear)
     conv_out_result = conv_out_result.reshape(b, t_dim, ac.d_model)
 
     # Positional embedding + compact
@@ -258,35 +366,42 @@ def main() -> str:
         s, e = int(cu_seqlens[i - 1]), int(cu_seqlens[i])
         attention_mask[0, 0, s:e, s:e] = 0.0
 
-    # Encoder layers
-    for layer_idx in range(ac.encoder_layers):
-        hidden_states = _run(rt, dispatch.run_encoder_layer, encoder_layer_ts[layer_idx], enc_tensors.ENCODER_LAYER_OUTPUT, {"hidden_states": hidden_states, "cu_seqlens": cu_seqlens, "attention_mask": attention_mask}, f"spike.audio.enc.{layer_idx}")
-        if layer_idx == 0:
-            print(f"    layer 0: max={hidden_states.max():.4f}")
-        if layer_idx % 6 == 5:
-            print(f"    layer {layer_idx} done")
-
-    # ln_post, proj1, proj2
-    print("  ln_post...")
-    hidden_states = _run(rt, dispatch.run_ln_post, ln_post_t, at_tensors.LN_POST_OUTPUT, {"input": hidden_states}, "spike.audio.ln_post")
-
-    print("  proj1 + gelu...")
-    hidden_states = _run(rt, dispatch.run_proj1, proj1_t, at_tensors.PROJ1_OUTPUT, {"x": hidden_states}, "spike.audio.proj1")
-
-    print("  proj2...")
-    audio_hidden = _run(rt, dispatch.run_proj2, proj2_t, at_tensors.PROJ2_OUTPUT, {"input": hidden_states}, "spike.audio.proj2")
-    print(f"  Audio tower output: {audio_hidden.shape}")
+    # Encoder layers + projection stay in one GPU frame.
+    print("  encoder + projection...")
+    rt._inputs.clear()
+    rt.register_inputs(
+        {
+            encoder_layer_ts[0].hidden_states: hidden_states,
+            encoder_layer_ts[0].attention_mask: attention_mask,
+        }
+    )
+    with rt.frame("spike.audio.encoder_project"):
+        for layer_idx, layer_tensors in enumerate(encoder_layer_ts):
+            dispatch.run_encoder_layer(rt, layer_tensors)
+            if layer_idx % 6 == 5:
+                print(f"    layer {layer_idx} done")
+        dispatch.run_ln_post(rt, ln_post_t)
+        dispatch.run_proj1(rt, proj1_t)
+        dispatch.run_proj2(rt, proj2_t)
+    audio_hidden_t = proj2_t.linear
+    _require_gpu_output(audio_hidden_t)
+    audio_hidden = rt.read_request_state(audio_hidden_t)
+    print(f"  Audio tower output: {audio_hidden_t.spec.shape}")
 
     # === Text Prefill ===
     print("\n=== Phase 2: Text Prefill ===")
     prompt_length = prepared.prompt_length
 
     print("  embed_tokens...")
-    embedded = _run(rt, dispatch.run_embed_tokens, embed_tokens_t, text_tensors.EMBED_TOKENS_OUTPUT, {"input": prepared.input_ids.astype(np.int32)}, "spike.text.embed")
+    rt._inputs.clear()
+    rt.register_inputs({embed_tokens_t.input: prepared.input_ids.astype(np.int32)})
+    with rt.frame("spike.text.embed"):
+        dispatch.run_embed_tokens(rt, embed_tokens_t)
+        embedded = _readback_materialized(rt, embed_tokens_t.embedding)
 
     # Inject audio
     ids_flat = prepared.input_ids.flatten()
-    audio_positions = np.where(ids_flat == 151646)[0]
+    audio_positions = np.where(ids_flat == 151676)[0]
     if len(audio_positions) > 0:
         audio_start = int(audio_positions[0])
         audio_end = audio_start + audio_hidden.shape[0]
@@ -298,59 +413,100 @@ def main() -> str:
     # Decoder layers
     hidden_states = embedded
     print(f"  Decoder layers x {tc.num_hidden_layers}...")
-    for layer_idx in range(tc.num_hidden_layers):
-        hidden_states = _run(
-            rt, dispatch.run_text_layer, text_layer_ts[layer_idx],
-            text_layer_tensors.TEXT_LAYER_OUTPUT,
-            {"hidden_states": hidden_states, "position_embeddings_0": rope_cos, "position_embeddings_1": rope_sin},
-            f"spike.text.layer.{layer_idx}",
-        )
-        if layer_idx == 0:
-            print(f"    layer 0: max={hidden_states.max():.4f}")
-        if layer_idx % 7 == 6:
-            print(f"    layer {layer_idx} done")
+    rt._inputs.clear()
+    rt.register_inputs(
+        {
+            text_layer_ts[0].hidden_states: hidden_states,
+            text_layer_ts[0].position_embeddings_0: rope_cos,
+            text_layer_ts[0].position_embeddings_1: rope_sin,
+        }
+    )
+    with rt.frame("spike.text.layers_norm"):
+        for layer_idx, layer_tensors in enumerate(text_layer_ts):
+            dispatch.run_text_layer(rt, layer_tensors)
+            if layer_idx % 7 == 6:
+                print(f"    layer {layer_idx} done")
+        dispatch.run_text_norm(rt, text_norm_t)
+        normed = _readback_materialized(rt, text_norm_t.mul_1)
 
-    print("  final_norm...")
-    normed = _run(rt, dispatch.run_text_norm, text_norm_t, text_tensors.TEXT_NORM_OUTPUT, {"hidden_states": hidden_states}, "spike.text.norm")
-
-    print("  lm_head...")
+    print("  lm_head + token_select...")
     last_hidden = normed[:, -1:, :]
-    logits = _run(rt, dispatch.run_lm_head, lm_head_t, text_tensors.LM_HEAD_OUTPUT, {"input": last_hidden}, "spike.text.lm_head")
-    first_token = int(np.argmax(logits[0, -1, :]))
+    rt._inputs.clear()
+    rt.register_inputs({lm_head_t.input: last_hidden})
+    with rt.frame("spike.text.lm_head"):
+        dispatch.run_lm_head(rt, lm_head_t)
+    logits_t = lm_head_t.linear
+    _require_gpu_output(logits_t)
+
+    eos_token_ids = (151645, 151643)
+    eos_token_array = np.array(eos_token_ids, dtype=np.int64)
+    eos_token_ids_t = _host_input_tensor(
+        "spike.token_select.eos_token_ids",
+        "int64",
+        (len(eos_token_ids),),
+    )
+    next_token_t = _request_output_tensor("spike.token_select.next_token", "int64", (1,))
+    done_t = _request_output_tensor("spike.token_select.done", "uint32", (1,))
+    rt.register_inputs({eos_token_ids_t: eos_token_array})
+    first_token = _run_token_select(
+        rt,
+        logits=logits_t,
+        eos_token_ids=eos_token_ids_t,
+        next_token=next_token_t,
+        done=done_t,
+        frame_name="spike.text.token_select",
+    )
     print(f"  First token: {first_token}")
 
     # === Decode Loop ===
     print("\n=== Phase 3: Decode Loop ===")
     max_new_tokens = 20
-    eos_token_ids = {151645, 151643}
+    eos_token_set = set(eos_token_ids)
     generated_tokens = [first_token]
 
     for step in range(max_new_tokens - 1):
-        if generated_tokens[-1] in eos_token_ids:
+        if generated_tokens[-1] in eos_token_set:
             print(f"  EOS at step {step}")
             break
 
         cache_pos = prompt_length + step
         token_input = np.array([[generated_tokens[-1]]], dtype=np.int32)
 
-        hidden = _run(rt, dispatch.run_decode_embed, decode_embed_t, decode_tensors.DECODE_EMBED_OUTPUT, {"input": token_input}, "spike.decode.embed")
-
         rope_cos, rope_sin = _compute_rope(1, tc.head_dim, start_pos=cache_pos)
 
-        for layer_idx in range(tc.num_hidden_layers):
-            hidden = _run(rt, dispatch.run_decode_layer, decode_layer_ts[layer_idx], decode_layer_tensors.DECODE_LAYER_OUTPUT, {"hidden_states": hidden, "position_embeddings_0": rope_cos, "position_embeddings_1": rope_sin}, f"spike.decode.layer.{layer_idx}")
+        rt._inputs.clear()
+        rt.register_inputs(
+            {
+                decode_embed_t.input: token_input,
+                decode_layer_ts[0].position_embeddings_0: rope_cos,
+                decode_layer_ts[0].position_embeddings_1: rope_sin,
+            }
+        )
+        with rt.frame(f"spike.decode.{step:04d}"):
+            dispatch.run_decode_embed(rt, decode_embed_t)
+            for layer_tensors in decode_layer_ts:
+                dispatch.run_decode_layer(rt, layer_tensors)
+            dispatch.run_decode_norm(rt, decode_norm_t)
+            dispatch.run_decode_lm_head(rt, decode_lm_head_t)
 
-        normed = _run(rt, dispatch.run_decode_norm, decode_norm_t, decode_tensors.DECODE_NORM_OUTPUT, {"hidden_states": hidden}, "spike.decode.norm")
-
-        logits = _run(rt, dispatch.run_decode_lm_head, decode_lm_head_t, decode_tensors.DECODE_LM_HEAD_OUTPUT, {"input": normed}, "spike.decode.lm_head")
-        next_token = int(np.argmax(logits[0, -1, :]))
+        decode_logits_t = decode_lm_head_t.linear
+        _require_gpu_output(decode_logits_t)
+        rt.register_inputs({eos_token_ids_t: eos_token_array})
+        next_token = _run_token_select(
+            rt,
+            logits=decode_logits_t,
+            eos_token_ids=eos_token_ids_t,
+            next_token=next_token_t,
+            done=done_t,
+            frame_name=f"spike.decode.token_select.{step:04d}",
+        )
         generated_tokens.append(next_token)
 
         if step < 5 or step % 20 == 0:
             print(f"  Step {step}: token={next_token}")
 
     # Decode text
-    print(f"\n=== Result ===")
+    print("\n=== Result ===")
     print(f"Generated {len(generated_tokens)} tokens")
     text = processor.batch_decode(
         np.array([generated_tokens], dtype=np.int64),

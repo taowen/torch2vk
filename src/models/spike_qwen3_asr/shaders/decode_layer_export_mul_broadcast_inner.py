@@ -45,13 +45,15 @@ DECODE_LAYER_EXPORT_MUL_BROADCAST_INNER = ShaderVariant(
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('T', 'H'), 'D')),
-                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, 128),
-                PushConstantFieldSpec('REPEAT', PushConstantType.UINT32, 8, 16),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('T', 'H'), 'D'), dynamic=False),
+                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, 128, dynamic=False),
+                PushConstantFieldSpec('REPEAT', PushConstantType.UINT32, 8, 16, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(ceil_div(mul(mul('T', 'H'), 'D'), 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

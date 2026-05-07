@@ -55,15 +55,17 @@ EXPORT_SDPA_MASKED_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=20,
             fields=(
-                PushConstantFieldSpec('NH', PushConstantType.UINT32, 0, 14),
-                PushConstantFieldSpec('NK', PushConstantType.UINT32, 4, 14),
-                PushConstantFieldSpec('T', PushConstantType.UINT32, 8, 133),
-                PushConstantFieldSpec('S', PushConstantType.UINT32, 12, 133),
-                PushConstantFieldSpec('D', PushConstantType.UINT32, 16, 64),
+                PushConstantFieldSpec('NH', PushConstantType.UINT32, 0, 14, dynamic=False),
+                PushConstantFieldSpec('NK', PushConstantType.UINT32, 4, 14, dynamic=False),
+                PushConstantFieldSpec('T', PushConstantType.UINT32, 8, 133, dynamic=False),
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 12, 133, dynamic=False),
+                PushConstantFieldSpec('D', PushConstantType.UINT32, 16, 64, dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(14, 133, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 layout(std430) buffer;

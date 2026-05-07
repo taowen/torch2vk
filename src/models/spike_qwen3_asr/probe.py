@@ -74,15 +74,16 @@ def _probe_submodule(name: str, module: torch.nn.Module, args, kwargs=None):
 
     print(f"  Total ops: {total} ({covered} covered, {alias_count} alias, {len(missing)} missing types)")
     if missing:
-        print(f"  Missing ops:")
+        print("  Missing ops:")
         for op, count in sorted(missing.items()):
             print(f"    {op} ×{count}")
     else:
-        print(f"  All ops covered!")
+        print("  All ops covered!")
 
 
 def main() -> int:
     model, config = _load_model()
+    ac = config.thinker_config.audio_config
     tc = config.thinker_config.text_config
 
     # Text decoder layer
@@ -100,8 +101,7 @@ def main() -> int:
 
     # Audio encoder layer
     audio_layer = model.thinker.audio_tower.layers[0]
-    audio_hidden = audio_layer.self_attn_layer_norm.normalized_shape[0]
-    ah = torch.zeros(seq_len, audio_hidden, device="meta")
+    ah = torch.zeros(seq_len, ac.d_model, device="meta")
     cu = torch.tensor([0, seq_len], dtype=torch.int32, device="meta")
     _probe_submodule("audio_encoder_layer", audio_layer, args=(ah, cu))
 

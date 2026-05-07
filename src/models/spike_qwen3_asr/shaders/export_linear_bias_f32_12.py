@@ -1,4 +1,4 @@
-"""Generated shader: export_linear_nobias_f32_x_x_1."""
+"""Generated shader: export_linear_bias_f32_12."""
 
 from __future__ import annotations
 
@@ -15,18 +15,18 @@ from torch2vk.runtime.shader import (
 )
 
 
-EXPORT_LINEAR_NOBIAS_F32_X_X_1 = ShaderVariant(
-    name='export_linear_nobias_f32_x_x_1',
+EXPORT_LINEAR_BIAS_F32_12 = ShaderVariant(
+    name='export_linear_bias_f32_12',
     family='export',
     contract=ShaderContract(
-        class_name='ExportLinearNobiasProgram',
-        shader_name='export_linear_nobias_f32_x_x_1',
+        class_name='ExportLinearBiasProgram',
+        shader_name='export_linear_bias_f32_12',
         fields=(
             TensorFieldSpec(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('X0', 'X1', 'X2',)),
+                contract=TensorContract(dtype='float32', shape=('X0', 'X1',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -35,29 +35,38 @@ EXPORT_LINEAR_NOBIAS_F32_X_X_1 = ShaderVariant(
                 contract=TensorContract(dtype='float32', shape=('W0', 'W1',)),
             ),
             TensorFieldSpec(
+                name='bias',
+                io_kind=IOKind.INPUT,
+                role='input',
+                contract=TensorContract(dtype='float32', shape=('N',)),
+            ),
+            TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('Y0', 'Y1', 'Y2',)),
+                contract=TensorContract(dtype='float32', shape=('Y0', 'Y1',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 151),
-                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 1024),
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 2048),
+                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 133, dynamic=False),
+                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 3584, dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 896, dynamic=False),
             ),
         ),
-        dispatch=(ceil_div(151, 16), ceil_div(2048, 16), 1),
+        params_buffer=None,
+        dispatch=(ceil_div(133, 16), ceil_div(896, 16), 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 #extension GL_EXT_control_flow_attributes : enable
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { float weight[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { float bias[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 const uint TILE_M = 16u; const uint TILE_N = 16u; const uint TILE_K = 32u;
@@ -86,7 +95,7 @@ void main() {
         }
         barrier();
     }
-    if (row < pc.M && col < pc.N) { output_values[row * pc.N + col] = acc; }
+    if (row < pc.M && col < pc.N) { output_values[row * pc.N + col] = acc + bias[col]; }
 }
 """,
 )
