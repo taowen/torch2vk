@@ -16,6 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from jinja2 import Environment, StrictUndefined
 
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
@@ -40,6 +41,14 @@ from torch2vk.export.codegen_loop import (
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
+_JINJA = Environment(
+    autoescape=False,
+    keep_trailing_newline=True,
+    lstrip_blocks=True,
+    trim_blocks=True,
+    undefined=StrictUndefined,
+)
+
 
 def _to_class_name(plan_name: str) -> str:
     base = plan_name.removeprefix("run_")
@@ -60,13 +69,11 @@ def _compare_extra_lines(plan_name: str, tensor_name: str) -> tuple[str, ...]:
     return ()
 
 
-_DISPATCH_EXTRA_IMPORTS = """from collections.abc import Sequence
-
-import numpy as np
+_DISPATCH_EXTRA_IMPORTS = """import numpy as np
 
 from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
-from torch2vk.runtime.rope_table import ROPE_TABLE_F32, run_rope_table_f32
+from torch2vk.runtime.rope_table import run_rope_table_f32
 """
 
 
@@ -173,6 +180,50 @@ def run_decode_step(
     return int(rt.read_request_state(next_token).reshape(-1)[0])'''
 
 
+_DISPATCH_FILE_TEMPLATE = '''"""Generated dispatch functions for all submodules."""
+
+from __future__ import annotations
+
+import sys
+from collections.abc import Sequence
+from typing import cast
+
+{{ extra_imports_source }}
+{% for item in shader_imports %}
+from models.exported_qwen3_asr.shaders.{{ item.shader }} import {{ item.const }}
+{% endfor %}
+{% for item in tensor_imports %}
+from models.exported_qwen3_asr.tensors.{{ item.file }} import {{ item.classes_source }}
+{% endfor %}
+from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.shader import ShaderVariant
+from torch2vk.runtime.session import RuntimeSession
+
+
+def shader_variant(shader_name: str) -> ShaderVariant:
+    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
+
+
+{{ dispatch_sources_source }}
+
+
+{{ rope_dispatch_helper }}
+
+
+{{ decode_step_helpers }}
+
+
+def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:
+    rt._materialize_read(src)
+    with dst.runtime_write_scope():
+        dst.buffer = src.buffer
+        dst.descriptor_nbytes = src.descriptor_nbytes
+        dst.version = src.version
+        dst.writer = src.writer
+    rt._current_frame().written_tensors.append(dst)
+'''
+
+
 # ==============================================================
 # Model loading + shape computation
 # ==============================================================
@@ -268,17 +319,6 @@ def _combine_dispatch(
     all_shader_imports: dict[str, str],
     tensor_file_classes: dict[str, list[str]],
 ) -> str:
-    lines = [
-        '"""Generated dispatch functions for all submodules."""',
-        "",
-        "from __future__ import annotations",
-        "",
-        _DISPATCH_EXTRA_IMPORTS.rstrip("\n"),
-    ]
-    for shader_name in sorted(all_shader_imports):
-        const = all_shader_imports[shader_name]
-        lines.append(f"from models.exported_qwen3_asr.shaders.{shader_name} import {const}")
-    lines.append("")
     dispatch_body = (
         "\n\n\n".join(dispatch_sources)
         + "\n\n\n"
@@ -286,48 +326,28 @@ def _combine_dispatch(
         + "\n\n\n"
         + _DECODE_STEP_HELPERS
     )
-    for target_file in sorted(tensor_file_classes):
-        classes = ", ".join(
-            cls for cls in sorted(tensor_file_classes[target_file])
-            if re.search(rf"\b{re.escape(cls)}\b", dispatch_body)
+    tensor_imports = tuple(
+        {"file": target_file, "classes_source": classes}
+        for target_file in sorted(tensor_file_classes)
+        for classes in (
+            ", ".join(
+                cls for cls in sorted(tensor_file_classes[target_file])
+                if re.search(rf"\b{re.escape(cls)}\b", dispatch_body)
+            ),
         )
-        if not classes:
-            continue
-        lines.append(f"from models.exported_qwen3_asr.tensors.{target_file} import {classes}")
-    lines.append("from torch2vk.runtime.logical import LogicalTensor")
-    lines.append("from torch2vk.runtime.shader import ShaderVariant")
-    lines.append("from torch2vk.runtime.session import RuntimeSession")
-    lines.append("")
-    lines.append("")
-    lines.append("SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {")
-    for shader_name in sorted(all_shader_imports):
-        const = all_shader_imports[shader_name]
-        lines.append(f"    {shader_name!r}: {const},")
-    lines.append("    ROPE_TABLE_F32.name: ROPE_TABLE_F32,")
-    lines.append("    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name: QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,")
-    lines.append("    QWEN3_ASR_TOKEN_STORE_EOS_F32.name: QWEN3_ASR_TOKEN_STORE_EOS_F32,")
-    lines.append("}")
-    lines.append("")
-    lines.append("")
-    lines.append("\n\n\n".join(dispatch_sources))
-    lines.append("")
-    lines.append("")
-    lines.append(_ROPE_DISPATCH_HELPER)
-    lines.append("")
-    lines.append("")
-    lines.append(_DECODE_STEP_HELPERS)
-    lines.append("")
-    lines.append("")
-    lines.append("def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:")
-    lines.append("    rt._materialize_read(src)")
-    lines.append("    with dst.runtime_write_scope():")
-    lines.append("        dst.buffer = src.buffer")
-    lines.append("        dst.descriptor_nbytes = src.descriptor_nbytes")
-    lines.append("        dst.version = src.version")
-    lines.append("        dst.writer = src.writer")
-    lines.append("    rt._current_frame().written_tensors.append(dst)")
-    lines.append("")
-    return "\n".join(lines)
+        if classes
+    )
+    return _JINJA.from_string(_DISPATCH_FILE_TEMPLATE).render(
+        extra_imports_source=_DISPATCH_EXTRA_IMPORTS.rstrip("\n"),
+        shader_imports=tuple(
+            {"shader": shader_name, "const": all_shader_imports[shader_name]}
+            for shader_name in sorted(all_shader_imports)
+        ),
+        tensor_imports=tensor_imports,
+        dispatch_sources_source="\n\n\n".join(dispatch_sources),
+        rope_dispatch_helper=_ROPE_DISPATCH_HELPER,
+        decode_step_helpers=_DECODE_STEP_HELPERS,
+    )
 
 
 # ==============================================================

@@ -185,7 +185,7 @@ def _build_decode_replay_plan(
     token_feedback_target: LogicalTensor,
 ) -> ReplayPlan:
     warmup_records = rt.dispatch_records[dispatch_start:dispatch_end]
-    variants = [dispatch.SHADER_VARIANTS_BY_NAME[record.shader] for record in warmup_records]
+    variants = [dispatch.shader_variant(record.shader) for record in warmup_records]
     plan = rt.build_replay_plan(
         name="exported_qwen3_asr_decode_step",
         frame_dispatch_records=list(warmup_records),

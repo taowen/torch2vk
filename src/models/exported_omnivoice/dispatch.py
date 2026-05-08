@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+from typing import cast
+
 from models.exported_omnivoice.shaders.audio_head_export_linear_nobias_f32 import AUDIO_HEAD_EXPORT_LINEAR_NOBIAS_F32
 from models.exported_omnivoice.shaders.export_add_f32 import EXPORT_ADD_F32
 from models.exported_omnivoice.shaders.export_add_f32_37 import EXPORT_ADD_F32_37
@@ -48,66 +51,17 @@ from models.exported_omnivoice.shaders.export_slice_f32_31 import EXPORT_SLICE_F
 from models.exported_omnivoice.shaders.export_transpose_f32_45de1e4f84 import EXPORT_TRANSPOSE_F32_45DE1E4F84
 from models.exported_omnivoice.shaders.export_transpose_f32_c943282b28 import EXPORT_TRANSPOSE_F32_C943282B28
 from models.exported_omnivoice.shaders.export_transpose_f32_f3e8fdf2d4 import EXPORT_TRANSPOSE_F32_F3E8FDF2D4
-
 from models.exported_omnivoice.tensors.audio_embed import AudioEmbedTensors
 from models.exported_omnivoice.tensors.audio_head import AudioHeadTensors
 from models.exported_omnivoice.tensors.llm_forward import LlmForwardTensors
 from models.exported_omnivoice.tensors.text_embed import TextEmbedTensors
 from torch2vk.runtime.logical import LogicalTensor
-from torch2vk.runtime.rope_table import ROPE_TABLE_F32
 from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
 
 
-SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {
-    'audio_head_export_linear_nobias_f32': AUDIO_HEAD_EXPORT_LINEAR_NOBIAS_F32,
-    'export_add_f32': EXPORT_ADD_F32,
-    'export_add_f32_37': EXPORT_ADD_F32_37,
-    'export_add_f32_43': EXPORT_ADD_F32_43,
-    'export_add_scalar': EXPORT_ADD_SCALAR,
-    'export_add_scalar_17': EXPORT_ADD_SCALAR_17,
-    'export_add_scalar_9': EXPORT_ADD_SCALAR_9,
-    'export_cat_f32': EXPORT_CAT_F32,
-    'export_cat_f32_32': EXPORT_CAT_F32_32,
-    'export_embedding_f32': EXPORT_EMBEDDING_F32,
-    'export_linear_nobias_f32': EXPORT_LINEAR_NOBIAS_F32,
-    'export_linear_nobias_f32_14': EXPORT_LINEAR_NOBIAS_F32_14,
-    'export_linear_nobias_f32_22': EXPORT_LINEAR_NOBIAS_F32_22,
-    'export_linear_nobias_f32_36': EXPORT_LINEAR_NOBIAS_F32_36,
-    'export_linear_nobias_f32_38': EXPORT_LINEAR_NOBIAS_F32_38,
-    'export_linear_nobias_f32_40': EXPORT_LINEAR_NOBIAS_F32_40,
-    'export_linear_nobias_f32_42': EXPORT_LINEAR_NOBIAS_F32_42,
-    'export_mean_dim_f32': EXPORT_MEAN_DIM_F32,
-    'export_mean_dim_f32_16': EXPORT_MEAN_DIM_F32_16,
-    'export_mean_dim_f32_8': EXPORT_MEAN_DIM_F32_8,
-    'export_mul_broadcast_inner': EXPORT_MUL_BROADCAST_INNER,
-    'export_mul_broadcast_inner_29': EXPORT_MUL_BROADCAST_INNER_29,
-    'export_mul_broadcast_inner_33': EXPORT_MUL_BROADCAST_INNER_33,
-    'export_mul_broadcast_last': EXPORT_MUL_BROADCAST_LAST,
-    'export_mul_broadcast_last_11': EXPORT_MUL_BROADCAST_LAST_11,
-    'export_mul_broadcast_last_19': EXPORT_MUL_BROADCAST_LAST_19,
-    'export_mul_f32': EXPORT_MUL_F32,
-    'export_mul_left_broadcast': EXPORT_MUL_LEFT_BROADCAST,
-    'export_mul_left_broadcast_12': EXPORT_MUL_LEFT_BROADCAST_12,
-    'export_mul_left_broadcast_20': EXPORT_MUL_LEFT_BROADCAST_20,
-    'export_neg_f32': EXPORT_NEG_F32,
-    'export_pow_scalar_f32': EXPORT_POW_SCALAR_F32,
-    'export_pow_scalar_f32_15': EXPORT_POW_SCALAR_F32_15,
-    'export_pow_scalar_f32_7': EXPORT_POW_SCALAR_F32_7,
-    'export_rsqrt_f32': EXPORT_RSQRT_F32,
-    'export_rsqrt_f32_10': EXPORT_RSQRT_F32_10,
-    'export_rsqrt_f32_18': EXPORT_RSQRT_F32_18,
-    'export_sdpa_masked_f32': EXPORT_SDPA_MASKED_F32,
-    'export_silu_f32': EXPORT_SILU_F32,
-    'export_slice_f32': EXPORT_SLICE_F32,
-    'export_slice_f32_25': EXPORT_SLICE_F32_25,
-    'export_slice_f32_30': EXPORT_SLICE_F32_30,
-    'export_slice_f32_31': EXPORT_SLICE_F32_31,
-    'export_transpose_f32_45de1e4f84': EXPORT_TRANSPOSE_F32_45DE1E4F84,
-    'export_transpose_f32_c943282b28': EXPORT_TRANSPOSE_F32_C943282B28,
-    'export_transpose_f32_f3e8fdf2d4': EXPORT_TRANSPOSE_F32_F3E8FDF2D4,
-    ROPE_TABLE_F32.name: ROPE_TABLE_F32,
-}
+def shader_variant(shader_name: str) -> ShaderVariant:
+    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
 
 
 def run_text_embed(rt: RuntimeSession, tensors: TextEmbedTensors) -> None:

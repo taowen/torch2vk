@@ -15,6 +15,7 @@ from pathlib import Path
 
 import torch
 import transformers.integrations.sdpa_attention as _sdpa_attn_mod
+from jinja2 import Environment, StrictUndefined
 
 from models.hf_cache import resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
@@ -36,6 +37,15 @@ from torch2vk.export.codegen_loop import (
     generate_looped_tensor_class_sources,
 )
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
+
+
+_JINJA = Environment(
+    autoescape=False,
+    keep_trailing_newline=True,
+    lstrip_blocks=True,
+    trim_blocks=True,
+    undefined=StrictUndefined,
+)
 
 
 def _to_class_name(plan_name: str) -> str:
@@ -74,55 +84,67 @@ def _load_model_and_shapes():
 # Output file assembly
 # ==============================================================
 
+_DISPATCH_FILE_TEMPLATE = '''"""Generated dispatch functions for OmniVoice submodules."""
+
+from __future__ import annotations
+
+import sys
+from typing import cast
+
+{% for item in shader_imports %}
+from models.exported_omnivoice.shaders.{{ item.shader }} import {{ item.const }}
+{% endfor %}
+{% for item in tensor_imports %}
+from models.exported_omnivoice.tensors.{{ item.file }} import {{ item.classes_source }}
+{% endfor %}
+from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.shader import ShaderVariant
+from torch2vk.runtime.session import RuntimeSession
+
+
+def shader_variant(shader_name: str) -> ShaderVariant:
+    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
+
+
+{{ dispatch_sources_source }}
+
+
+def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:
+    rt._materialize_read(src)
+    with dst.runtime_write_scope():
+        dst.buffer = src.buffer
+        dst.descriptor_nbytes = src.descriptor_nbytes
+        dst.version = src.version
+        dst.writer = src.writer
+    rt._current_frame().written_tensors.append(dst)
+'''
+
+
 def _combine_dispatch(
     dispatch_sources: list[str],
     all_shader_imports: dict[str, str],
     tensor_file_classes: dict[str, list[str]],
 ) -> str:
-    lines = [
-        '"""Generated dispatch functions for OmniVoice submodules."""',
-        "",
-        "from __future__ import annotations",
-        "",
-    ]
-    for shader_name in sorted(all_shader_imports):
-        const = all_shader_imports[shader_name]
-        lines.append(f"from models.exported_omnivoice.shaders.{shader_name} import {const}")
-    lines.append("")
     dispatch_body = "\n\n\n".join(dispatch_sources)
-    for target_file in sorted(tensor_file_classes):
-        classes = ", ".join(
-            cls for cls in sorted(tensor_file_classes[target_file])
-            if re.search(rf"\b{re.escape(cls)}\b", dispatch_body)
+    tensor_imports = tuple(
+        {"file": target_file, "classes_source": classes}
+        for target_file in sorted(tensor_file_classes)
+        for classes in (
+            ", ".join(
+                cls for cls in sorted(tensor_file_classes[target_file])
+                if re.search(rf"\b{re.escape(cls)}\b", dispatch_body)
+            ),
         )
-        if not classes:
-            continue
-        lines.append(f"from models.exported_omnivoice.tensors.{target_file} import {classes}")
-    lines.append("from torch2vk.runtime.logical import LogicalTensor")
-    lines.append("from torch2vk.runtime.shader import ShaderVariant")
-    lines.append("from torch2vk.runtime.session import RuntimeSession")
-    lines.append("")
-    lines.append("")
-    lines.append("SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {")
-    for shader_name in sorted(all_shader_imports):
-        const = all_shader_imports[shader_name]
-        lines.append(f"    {shader_name!r}: {const},")
-    lines.append("}")
-    lines.append("")
-    lines.append("")
-    lines.append("\n\n\n".join(dispatch_sources))
-    lines.append("")
-    lines.append("")
-    lines.append("def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:")
-    lines.append("    rt._materialize_read(src)")
-    lines.append("    with dst.runtime_write_scope():")
-    lines.append("        dst.buffer = src.buffer")
-    lines.append("        dst.descriptor_nbytes = src.descriptor_nbytes")
-    lines.append("        dst.version = src.version")
-    lines.append("        dst.writer = src.writer")
-    lines.append("    rt._current_frame().written_tensors.append(dst)")
-    lines.append("")
-    return "\n".join(lines)
+        if classes
+    )
+    return _JINJA.from_string(_DISPATCH_FILE_TEMPLATE).render(
+        shader_imports=tuple(
+            {"shader": shader_name, "const": all_shader_imports[shader_name]}
+            for shader_name in sorted(all_shader_imports)
+        ),
+        tensor_imports=tensor_imports,
+        dispatch_sources_source=dispatch_body,
+    )
 
 
 # ==============================================================
