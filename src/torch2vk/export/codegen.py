@@ -536,12 +536,12 @@ def _resolve_all_variants(graph: Graph, registry: ShaderRegistry) -> dict[str, S
     return variants
 
 
-def _generate_param_fields(sig: ExportGraphSignature) -> list[str]:
+def _generate_param_fields(sig: ExportGraphSignature, weight_prefix: str = "") -> list[str]:
     lines: list[str] = []
     lines.append("PARAMETER_FIELDS = {")
     for spec in sig.input_specs:
         if spec.kind in (InputKind.PARAMETER, InputKind.BUFFER):
-            lines.append(f'    "{spec.arg.name}": "{spec.target}",')
+            lines.append(f'    "{spec.arg.name}": "{weight_prefix}{spec.target}",')
     lines.append("}")
     return lines
 
@@ -621,12 +621,346 @@ def _build_shader_args(node: Node, shader: ShaderVariant) -> str:
     output_fields = [f for f in contract.fields if f.io_kind in (IOKind.OUTPUT, IOKind.INOUT)]
 
     inputs = node_input_names(node)
-    parts: list[str] = []
+    bindings: dict[str, str] = {}
     for i, field in enumerate(input_fields):
         if i < len(inputs):
-            parts.append(f"{field.name}=tensors.{inputs[i]}")
-    for i, field in enumerate(output_fields):
-        if i == 0:
-            parts.append(f"{field.name}=tensors.{node.name}")
+            bindings[field.name] = f"tensors.{inputs[i]}"
+    for field in output_fields:
+        bindings[field.name] = f"tensors.{node.name}"
 
-    return ", ".join(parts)
+    return ", ".join(f"{k}={v}" for k, v in bindings.items())
+
+
+def _generate_static_dispatch_function(
+    graph: Graph,
+    class_name: str,
+    function_name: str,
+    node_variants: dict[str, ShaderVariant],
+) -> tuple[list[str], dict[str, str]]:
+    ops = _collect_ops(graph, node_variants)
+    output_names = _find_graph_outputs(graph)
+    ops = _prune_dead_ops(ops, output_names)
+
+    shader_imports: dict[str, str] = {}
+    lines: list[str] = []
+    lines.append(f"def {function_name}(rt: RuntimeSession, tensors: {class_name}) -> None:")
+
+    for op in ops:
+        if op["type"] == "alias":
+            lines.append(f"    _alias(rt, tensors.{op['src']}, tensors.{op['dst']})")
+        elif op["type"] == "dispatch":
+            variant = op["variant"]
+            const_name = variant.name.upper()
+            shader_imports[variant.name] = const_name
+            args = ", ".join(f"{k}={v}" for k, v in op["bindings"].items())
+            lines.append(f"    {const_name}(rt, {args})")
+        elif op["type"] == "unsupported":
+            lines.append(f"    raise RuntimeError({op['message']!r})")
+
+    return lines, shader_imports
+
+
+def _collect_ops(graph: Graph, node_variants: dict[str, ShaderVariant]) -> list[dict]:
+    from torch2vk.runtime.shader import ShaderContract
+
+    ops: list[dict] = []
+    seen_variants: dict[str, ShaderVariant] = {}
+
+    for node in graph.nodes:
+        if node.op != "call_function":
+            continue
+        target = str(node.target)
+        if target in SKIP_OPS:
+            continue
+
+        if is_alias_op(node):
+            inputs = node_input_names(node)
+            src = inputs[0] if inputs else "???"
+            ops.append({"type": "alias", "src": src, "dst": node.name})
+            continue
+
+        shader = node_variants.get(node.name)
+        if shader is None:
+            ops.append({"type": "unsupported", "name": node.name, "message": f"unsupported exported op {target} ({node.name})"})
+            continue
+
+        # Deduplicate within submodule: rename if same name but different contract
+        shader_key = shader.name
+        if shader_key in seen_variants:
+            if seen_variants[shader_key].contract != shader.contract:
+                suffix = f"_{len(seen_variants)}"
+                shader_key = f"{shader.name}{suffix}"
+                new_contract = ShaderContract(
+                    class_name=shader.contract.class_name,
+                    shader_name=shader_key,
+                    fields=shader.contract.fields,
+                    dispatch=shader.contract.dispatch,
+                    push_constants=shader.contract.push_constants,
+                    params_buffer=shader.contract.params_buffer,
+                )
+                shader = ShaderVariant(
+                    name=shader_key, family=shader.family, contract=new_contract,
+                    source=shader.source, precompiled_spv_path=shader.precompiled_spv_path,
+                    specialization_constants=shader.specialization_constants,
+                    include_dirs=shader.include_dirs, compile_defines=shader.compile_defines,
+                    execution_requirements=shader.execution_requirements,
+                )
+        if shader_key not in seen_variants:
+            seen_variants[shader_key] = shader
+
+        input_fields = [f for f in shader.contract.fields if f.io_kind in (IOKind.INPUT, IOKind.INOUT)]
+        output_fields = [f for f in shader.contract.fields if f.io_kind in (IOKind.OUTPUT, IOKind.INOUT)]
+        inputs = node_input_names(node)
+        bindings: dict[str, str] = {}
+        for i, field in enumerate(input_fields):
+            if i < len(inputs):
+                bindings[field.name] = f"tensors.{inputs[i]}"
+        for field in output_fields:
+            bindings[field.name] = f"tensors.{node.name}"
+        ops.append({"type": "dispatch", "name": node.name, "variant": shader, "bindings": bindings})
+
+    return ops
+
+
+def _find_graph_outputs(graph: Graph) -> list[str]:
+    names: list[str] = []
+    for node in graph.nodes:
+        if node.op == "output":
+            _collect_output_node_names(node.args, names)
+    return names
+
+
+def _collect_output_node_names(value, names: list[str]) -> None:
+    if isinstance(value, Node):
+        names.append(value.name)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _collect_output_node_names(item, names)
+
+
+def _prune_dead_ops(ops: list[dict], output_names: list[str]) -> list[dict]:
+    needed = set(output_names)
+    kept_reversed = []
+    for op in reversed(ops):
+        if op["type"] == "dispatch":
+            if op["name"] not in needed:
+                continue
+            kept_reversed.append(op)
+            for v in op["bindings"].values():
+                needed.add(v.removeprefix("tensors."))
+        elif op["type"] == "alias":
+            if op["dst"] not in needed:
+                continue
+            kept_reversed.append(op)
+            needed.add(op["src"])
+        elif op["type"] == "unsupported":
+            if op["name"] not in needed:
+                continue
+            kept_reversed.append(op)
+    return list(reversed(kept_reversed))
+
+
+# ==============================================================
+# Public API: split generation
+# ==============================================================
+
+
+
+def generate_tensor_class_source(
+    prog: ExportedProgram,
+    *,
+    class_name: str = "ExportedTensors",
+    function_name: str = "create_exported",
+    weight_prefix: str = "",
+    is_layered: bool | None = None,
+    extra_lines_fn: "Callable[[str], tuple[str, ...]] | None" = None,
+    registry: ShaderRegistry = DEFAULT_REGISTRY,
+) -> str:
+    """Generate tensor dataclass + factory function for a single submodule.
+
+    Args:
+        prog: Exported program to analyze.
+        class_name: Name for the generated dataclass.
+        function_name: Name for the factory function (e.g., "create_conv2d1").
+        weight_prefix: Prefix for safetensors weight keys.
+        is_layered: Whether param names contain .layers.N. patterns.
+            None = auto-detect.
+        extra_lines_fn: Optional callback(tensor_name) → extra source lines
+            for the tensor declaration (e.g., compare policy).
+        registry: Shader registry for resolving supported ops.
+    """
+    import re
+
+    graph = prog.graph_module.graph
+    sig = prog.graph_signature
+
+    tensors: dict[str, dict] = {}
+    user_inputs: list[str] = []
+    param_map: dict[str, str] = {}
+
+    for spec in sig.input_specs:
+        for node in graph.nodes:
+            if node.name == spec.arg.name:
+                tm = node.meta.get("tensor_meta")
+                if tm:
+                    shape = tuple(int(d) for d in tm.shape)
+                    dtype = str(tm.dtype).removeprefix("torch.")
+                    is_param = spec.kind in (InputKind.PARAMETER, InputKind.BUFFER)
+                    tensors[spec.arg.name] = {
+                        "shape": shape, "dtype": dtype,
+                        "kind": "parameter" if is_param else "user_input",
+                    }
+                    if is_param:
+                        param_map[spec.arg.name] = f"{weight_prefix}{spec.target}"
+                    else:
+                        user_inputs.append(spec.arg.name)
+                break
+
+    for node in graph.nodes:
+        if node.op == "call_function" and node.name not in tensors:
+            if str(node.target) in SKIP_OPS:
+                continue
+            tm = node.meta.get("tensor_meta")
+            if tm:
+                shape = tuple(int(d) for d in tm.shape)
+                dtype = str(tm.dtype).removeprefix("torch.")
+                tensors[node.name] = {"shape": shape, "dtype": dtype, "kind": "intermediate"}
+
+    output_name = _find_output_name(graph, tensors)
+
+    # Prune dead tensors (only keep those transitively needed by outputs)
+    node_variants = _resolve_all_variants(graph, registry)
+    ops = _collect_ops(graph, node_variants)
+    output_names = _find_graph_outputs(graph)
+    if not output_names:
+        output_names = [output_name] if output_name else []
+    live_ops = _prune_dead_ops(ops, output_names)
+    live_tensors = set(output_names)
+    for op in live_ops:
+        if op["type"] == "dispatch":
+            for v in op["bindings"].values():
+                live_tensors.add(v.removeprefix("tensors."))
+        elif op["type"] == "alias":
+            live_tensors.add(op["src"])
+            live_tensors.add(op["dst"])
+    # Also keep all params and user_inputs that are in live_tensors
+    live_tensors.update(name for name in user_inputs if name in live_tensors)
+    live_tensors.update(param_map.keys() & live_tensors)
+    tensors = {k: v for k, v in tensors.items() if k in live_tensors}
+    user_inputs = [n for n in user_inputs if n in live_tensors]
+    param_map = {k: v for k, v in param_map.items() if k in live_tensors}
+
+    if is_layered is None:
+        is_layered = any(re.search(r"\.layers\.\d+\.", v) for v in param_map.values())
+
+    create_kwargs = (
+        "*, bindings: Mapping[str, LogicalTensor] | None = None, "
+        "request_state_outputs: Collection[str] = frozenset()"
+    )
+    if is_layered:
+        sig_str = f"def {function_name}(prefix: str, layer_idx: int, {create_kwargs}) -> {class_name}:"
+    else:
+        sig_str = f"def {function_name}(prefix: str, {create_kwargs}) -> {class_name}:"
+
+    tensor_entries = []
+    for name, meta in tensors.items():
+        shape = meta["shape"]
+        kind = meta["kind"]
+        dtype = "bfloat16" if kind == "parameter" else (
+            meta["dtype"] if meta["dtype"] in ("int64", "int32") else "float32"
+        )
+        if kind == "parameter":
+            role = "TensorRole.WEIGHT"
+            memory = "MemoryClass.MODEL_WEIGHT"
+            lifetime = "TensorLifetime.MODEL"
+            safetensors_key = param_map[name]
+            if is_layered:
+                name_template = re.sub(r"\.layers\.(\d+)\.", ".layers.{layer_idx}.", safetensors_key)
+                name_expr = f'f"{name_template}"'
+            else:
+                name_expr = f'"{safetensors_key}"'
+        elif kind == "user_input":
+            role = "TensorRole.INPUT"
+            memory = "MemoryClass.HOST_INPUT"
+            lifetime = "TensorLifetime.FRAME"
+            name_expr = f'f"{{prefix}}.{name}"'
+        else:
+            role = "TensorRole.ACTIVATION"
+            memory = "MemoryClass.FRAME_WORKSPACE"
+            lifetime = "TensorLifetime.FRAME"
+            name_expr = f'f"{{prefix}}.{name}"'
+
+        extra = extra_lines_fn(name) if extra_lines_fn else ()
+
+        tensor_entries.append({
+            "name": name,
+            "name_source": repr(name),
+            "name_expr": name_expr,
+            "dtype_source": repr(dtype),
+            "shape_source": repr(shape),
+            "role": role,
+            "memory": memory,
+            "lifetime": lifetime,
+            "extra_lines": extra,
+        })
+
+    output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
+    return render_tensor_class(
+        class_name=class_name,
+        fields=tuple(tensors.keys()),
+        output_const=output_const,
+        output_name_source=repr(output_name),
+        signature=sig_str,
+        tensor_names_source=repr(tuple(tensors.keys())),
+        tensors=tensor_entries,
+    )
+
+
+def _find_output_name(graph: Graph, tensors: dict) -> str | None:
+    for node in graph.nodes:
+        if node.op == "output":
+            names = _collect_graph_output_names(node.args, tensors)
+            if names:
+                return names[0]
+    return None
+
+
+def _collect_graph_output_names(value, tensors: dict) -> list[str]:
+    names: list[str] = []
+    if isinstance(value, Node):
+        if value.name in tensors:
+            names.append(value.name)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            names.extend(_collect_graph_output_names(item, tensors))
+    return names
+
+
+def generate_dispatch_function_source(
+    prog: ExportedProgram,
+    *,
+    class_name: str = "ExportedTensors",
+    function_name: str = "run_exported",
+    shader_package: str = "",
+    registry: ShaderRegistry = DEFAULT_REGISTRY,
+) -> tuple[str, dict[str, str], dict[str, ShaderVariant]]:
+    """Generate dispatch function with static shader imports.
+
+    Returns (function_source, {shader_name: CONST_NAME}, {shader_name: ShaderVariant}).
+    The caller is responsible for assembling the final file with imports.
+    """
+    graph = prog.graph_module.graph
+    node_variants = _resolve_all_variants(graph, registry)
+    lines, shader_imports = _generate_static_dispatch_function(
+        graph, class_name, function_name, node_variants,
+    )
+    # Collect actual ShaderVariant objects used (after pruning + dedup)
+    ops = _collect_ops(graph, node_variants)
+    output_names = _find_graph_outputs(graph)
+    live_ops = _prune_dead_ops(ops, output_names)
+    used_variants: dict[str, ShaderVariant] = {}
+    for op in live_ops:
+        if op["type"] == "dispatch":
+            v = op["variant"]
+            used_variants.setdefault(v.name, v)
+    return "\n".join(lines), shader_imports, used_variants

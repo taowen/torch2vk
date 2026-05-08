@@ -16,329 +16,64 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.export import ExportedProgram
-from torch.export.graph_signature import InputKind
-from torch.fx import Node
 
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
-from torch2vk.export import KVCacheExportHint, export_submodule
+from torch2vk.export import (
+    KVCacheExportHint,
+    export_submodule,
+    generate_dispatch_function_source,
+    generate_tensor_class_source,
+)
 from torch2vk.export.codegen import (
-    render_dispatch_file,
-    render_dispatch_function,
     render_shader_file,
     render_simple_init,
-    render_tensor_class,
     render_tensor_helpers,
     render_tensor_module,
 )
-from torch2vk.export.graph import SKIP_OPS, is_alias_op, node_input_names
-from torch2vk.export.registry import DEFAULT_REGISTRY
-from torch2vk.runtime.shader import IOKind, ShaderContract, ShaderVariant
+from torch2vk.runtime.shader import ShaderVariant
 
 
-# ==============================================================
-# Plan extraction from ExportedProgram
-# ==============================================================
-
-def _rename_variant(variant: ShaderVariant, new_name: str) -> ShaderVariant:
-    new_contract = ShaderContract(
-        class_name=variant.contract.class_name,
-        shader_name=new_name,
-        fields=variant.contract.fields,
-        dispatch=variant.contract.dispatch,
-        push_constants=variant.contract.push_constants,
-        params_buffer=variant.contract.params_buffer,
-    )
-    return ShaderVariant(
-        name=new_name,
-        family=variant.family,
-        contract=new_contract,
-        source=variant.source,
-        precompiled_spv_path=variant.precompiled_spv_path,
-        specialization_constants=variant.specialization_constants,
-        include_dirs=variant.include_dirs,
-        compile_defines=variant.compile_defines,
-        execution_requirements=variant.execution_requirements,
-    )
+PLAN_TO_FILE: dict[str, str] = {
+    "run_conv2d1": "audio_tower",
+    "run_conv2d2": "audio_tower",
+    "run_conv2d3": "audio_tower",
+    "run_conv_out": "audio_tower",
+    "run_audio_position_compact": "audio_tower",
+    "run_ln_post": "audio_tower",
+    "run_proj1": "audio_tower",
+    "run_proj2": "audio_tower",
+    "run_encoder_layer": "encoder_layer",
+    "run_embed_tokens": "text",
+    "run_audio_inject": "text",
+    "run_text_norm": "text",
+    "run_lm_head": "text",
+    "run_text_layer": "text_layer",
+    "run_decode_embed": "decode",
+    "run_decode_norm": "decode",
+    "run_decode_lm_head": "decode",
+    "run_decode_layer": "decode_layer",
+}
 
 
-def _extract_plan(prog: ExportedProgram, weight_prefix: str) -> dict:
-    graph = prog.graph_module.graph
-    sig = prog.graph_signature
-
-    tensors = {}
-    user_inputs = []
-    param_map = {}
-
-    for spec in sig.input_specs:
-        for node in graph.nodes:
-            if node.name == spec.arg.name:
-                tm = node.meta.get("tensor_meta")
-                if tm:
-                    shape = tuple(int(d) for d in tm.shape)
-                    dtype = str(tm.dtype).removeprefix("torch.")
-                    is_param = spec.kind in (InputKind.PARAMETER, InputKind.BUFFER)
-                    tensors[spec.arg.name] = {
-                        "shape": list(shape),
-                        "dtype": dtype,
-                        "kind": "parameter" if is_param else "user_input",
-                    }
-                    if is_param:
-                        param_map[spec.arg.name] = f"{weight_prefix}{spec.target}"
-                    else:
-                        user_inputs.append(spec.arg.name)
-                break
-
-    for node in graph.nodes:
-        if node.op == "call_function" and node.name not in tensors:
-            if str(node.target) in SKIP_OPS:
-                continue
-            tm = node.meta.get("tensor_meta")
-            if tm:
-                shape = tuple(int(d) for d in tm.shape)
-                dtype = str(tm.dtype).removeprefix("torch.")
-                tensors[node.name] = {"shape": list(shape), "dtype": dtype, "kind": "intermediate"}
-
-    ops = []
-    shader_variants = {}
-
-    for node in graph.nodes:
-        if node.op != "call_function":
-            continue
-        target = str(node.target)
-        if target in SKIP_OPS:
-            continue
-        if is_alias_op(node):
-            inputs = node_input_names(node)
-            src = inputs[0] if inputs else None
-            if src and src in tensors and node.name in tensors:
-                ops.append({"type": "alias", "src": src, "dst": node.name})
-            continue
-        variant = DEFAULT_REGISTRY.resolve(node)
-        if variant is None:
-            tm = node.meta.get("tensor_meta")
-            dtype = "<unknown>" if tm is None else str(tm.dtype).removeprefix("torch.")
-            ops.append({"type": "unsupported", "target": target, "name": node.name, "dtype": dtype})
-            continue
-        shader_key = variant.name
-        if shader_key in shader_variants and shader_variants[shader_key].contract != variant.contract:
-            # Same op name but different shape contract within one submodule
-            suffix = f"_{len(shader_variants)}"
-            shader_key = f"{variant.name}{suffix}"
-            variant = _rename_variant(variant, shader_key)
-        if shader_key not in shader_variants:
-            shader_variants[shader_key] = variant
-        inputs = node_input_names(node)
-        input_fields = [f for f in variant.contract.fields if f.io_kind in (IOKind.INPUT, IOKind.INOUT)]
-        output_fields = [f for f in variant.contract.fields if f.io_kind in (IOKind.OUTPUT, IOKind.INOUT)]
-        bindings = {}
-        for i, field in enumerate(input_fields):
-            if i < len(inputs) and inputs[i] in tensors:
-                bindings[field.name] = inputs[i]
-        for field in output_fields:
-            bindings[field.name] = node.name
-        if not _variant_bindings_match_tensor_dtypes(variant, bindings, tensors):
-            tm = node.meta.get("tensor_meta")
-            dtype = "<unknown>" if tm is None else str(tm.dtype).removeprefix("torch.")
-            ops.append({"type": "unsupported", "target": target, "name": node.name, "dtype": dtype})
-            continue
-        ops.append({"type": "dispatch", "shader": shader_key, "output_tensor": node.name, "bindings": bindings})
-
-    output_names = _graph_output_names(graph, tensors)
-    if not output_names:
-        for op in reversed(ops):
-            if op["type"] == "dispatch":
-                output_names = [op["output_tensor"]]
-                break
-    ops, used_tensors = _prune_dead_ops(ops, output_names)
-    output_name = output_names[0] if output_names else None
-    tensors = {name: meta for name, meta in tensors.items() if name in used_tensors}
-    user_inputs = [name for name in user_inputs if name in used_tensors]
-    param_map = {name: target for name, target in param_map.items() if name in used_tensors}
-    used_shaders = {op["shader"] for op in ops if op["type"] == "dispatch"}
-    shader_variants = {
-        name: variant for name, variant in shader_variants.items() if name in used_shaders
-    }
-
-    return {
-        "tensors": tensors,
-        "user_inputs": user_inputs,
-        "param_map": param_map,
-        "output": output_name,
-        "ops": ops,
-        "shader_variants": shader_variants,
-    }
+def _to_class_name(plan_name: str) -> str:
+    base = plan_name.removeprefix("run_")
+    return "".join(p.capitalize() for p in base.split("_")) + "Tensors"
 
 
-def _runtime_dtype(dtype: str) -> str:
-    if dtype in {"int64", "int32"}:
-        return dtype
-    return "float32"
-
-
-def _variant_bindings_match_tensor_dtypes(
-    variant: ShaderVariant,
-    bindings: dict[str, str],
-    tensors: dict,
-) -> bool:
-    for field in variant.contract.fields:
-        tensor_name = bindings.get(field.name)
-        if tensor_name is None:
-            continue
-        expected = field.contract.dtype
-        actual = (
-            "bfloat16"
-            if tensors[tensor_name]["kind"] == "parameter"
-            else _runtime_dtype(tensors[tensor_name]["dtype"])
+def _compare_extra_lines(plan_name: str, tensor_name: str) -> tuple[str, ...]:
+    if plan_name == "run_proj2" and tensor_name == "linear":
+        return (
+            'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
+            'pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="last_hidden_state"),',
         )
-        if isinstance(expected, str):
-            if actual != expected:
-                return False
-        elif isinstance(expected, tuple) and actual not in expected:
-            return False
-    return True
-
-
-def _graph_output_names(graph, tensors: dict) -> list[str]:
-    names: list[str] = []
-    for node in graph.nodes:
-        if node.op != "output":
-            continue
-        _collect_output_names(node.args, tensors, names)
-    return names
-
-
-def _collect_output_names(value, tensors: dict, names: list[str]) -> None:
-    if isinstance(value, Node):
-        if value.name in tensors:
-            names.append(value.name)
-        return
-    if isinstance(value, (list, tuple)):
-        for item in value:
-            _collect_output_names(item, tensors, names)
-
-
-def _prune_dead_ops(ops: list[dict], output_names: list[str]) -> tuple[list[dict], set[str]]:
-    needed = set(output_names)
-    kept_reversed = []
-    for op in reversed(ops):
-        if op["type"] == "dispatch":
-            if op["output_tensor"] not in needed:
-                continue
-            kept_reversed.append(op)
-            needed.update(op["bindings"].values())
-        elif op["type"] == "alias":
-            if op["dst"] not in needed:
-                continue
-            kept_reversed.append(op)
-            needed.add(op["src"])
-        elif op["type"] == "unsupported":
-            if op["name"] not in needed:
-                continue
-            kept_reversed.append(op)
-    kept = list(reversed(kept_reversed))
-    used_tensors = set(output_names)
-    for op in kept:
-        if op["type"] == "dispatch":
-            used_tensors.update(op["bindings"].values())
-        elif op["type"] == "alias":
-            used_tensors.add(op["src"])
-            used_tensors.add(op["dst"])
-        elif op["type"] == "unsupported":
-            used_tensors.add(op["name"])
-    return kept, used_tensors
-
-
-def _validate_plan_complete(name: str, plan: dict) -> None:
-    unsupported = [
-        (
-            f"{op['name']}: {op['target']} -> {op['dtype']}"
-            if "dtype" in op
-            else f"{op['name']}: {op['target']}"
+    if plan_name in {"run_lm_head", "run_decode_lm_head"} and tensor_name == "linear":
+        return (
+            'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
+            'pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),',
         )
-        for op in plan["ops"]
-        if op["type"] == "unsupported"
-    ]
-    if unsupported:
-        details = "\n".join(f"  - {item}" for item in unsupported)
-        raise RuntimeError(f"{name} contains unsupported exported ops:\n{details}")
-
-
-# ==============================================================
-# Source code generation
-# ==============================================================
-
-def _generate_dispatch_function(plan: dict, function_name: str) -> tuple[str, dict[str, str]]:
-    class_name = _plan_to_class_name(function_name)
-    ops = plan["ops"]
-    shader_imports: dict[str, str] = {}
-    for op in ops:
-        if op["type"] == "dispatch":
-            shader_imports[op["shader"]] = op["shader"].upper()
-
-    render_ops = []
-    for op in ops:
-        if op["type"] == "alias":
-            render_ops.append({"type": "alias", "src": op["src"], "dst": op["dst"]})
-        elif op["type"] == "dispatch":
-            const = shader_imports[op["shader"]]
-            args = ", ".join(f"{k}=tensors.{v}" for k, v in op["bindings"].items())
-            render_ops.append({"type": "dispatch", "shader_const": const, "args_source": args})
-        elif op["type"] == "unsupported":
-            message = f"unsupported exported op {op['target']} ({op['name']})"
-            render_ops.append({"type": "unsupported", "message_source": repr(message)})
-    return (
-        render_dispatch_function(function_name, class_name, render_ops),
-        shader_imports,
-    )
-
-
-def _generate_dispatch_file(plans: dict[str, dict]) -> str:
-    all_shader_imports: dict[str, str] = {}
-    function_sources = []
-
-    for func_name, plan in plans.items():
-        source, imports = _generate_dispatch_function(plan, func_name)
-        function_sources.append(source)
-        all_shader_imports.update(imports)
-    function_sources.append(_generate_decode_step_helpers())
-
-    # Group tensor class imports by file
-    tensor_imports: dict[str, list[str]] = {}
-    for func_name in plans:
-        target_file = PLAN_TO_FILE.get(func_name, "misc")
-        class_name = _plan_to_class_name(func_name)
-        tensor_imports.setdefault(target_file, []).append(class_name)
-
-    shader_imports = [
-        {"shader": shader_name, "const": all_shader_imports[shader_name]}
-        for shader_name in sorted(all_shader_imports)
-    ]
-    tensor_import_sources = [
-        {"file": target_file, "classes_source": ", ".join(sorted(tensor_imports[target_file]))}
-        for target_file in sorted(tensor_imports)
-    ]
-    return render_dispatch_file(
-        docstring="Generated dispatch functions for all submodules",
-        shader_package="models.exported_qwen3_asr.shaders",
-        tensor_package="models.exported_qwen3_asr.tensors",
-        shader_imports=shader_imports,
-        tensor_imports=tensor_import_sources,
-        extra_imports_source=_DISPATCH_EXTRA_IMPORTS,
-        extra_shader_variants=(
-            {
-                "name_source": "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name",
-                "const": "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32",
-            },
-            {
-                "name_source": "QWEN3_ASR_TOKEN_STORE_EOS_F32.name",
-                "const": "QWEN3_ASR_TOKEN_STORE_EOS_F32",
-            },
-        ),
-        function_sources=function_sources,
-    )
+    return ()
 
 
 _DISPATCH_EXTRA_IMPORTS = """from collections.abc import Sequence
@@ -350,8 +85,7 @@ from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_S
 """
 
 
-def _generate_decode_step_helpers() -> str:
-    return '''def decode_step_inputs(
+_DECODE_STEP_HELPERS = '''def decode_step_inputs(
     *,
     decode_embed_t: DecodeEmbedTensors,
     decode_layer_ts: Sequence[DecodeLayerTensors],
@@ -413,161 +147,6 @@ def run_decode_step(
             stopped=stopped,
         )
     return int(rt.read_request_state(next_token).reshape(-1)[0])'''
-
-
-# ==============================================================
-# Tensor file generation
-# ==============================================================
-
-PLAN_TO_FILE: dict[str, str] = {
-    "run_conv2d1": "audio_tower",
-    "run_conv2d2": "audio_tower",
-    "run_conv2d3": "audio_tower",
-    "run_conv_out": "audio_tower",
-    "run_audio_position_compact": "audio_tower",
-    "run_ln_post": "audio_tower",
-    "run_proj1": "audio_tower",
-    "run_proj2": "audio_tower",
-    "run_encoder_layer": "encoder_layer",
-    "run_embed_tokens": "text",
-    "run_audio_inject": "text",
-    "run_text_norm": "text",
-    "run_lm_head": "text",
-    "run_text_layer": "text_layer",
-    "run_decode_embed": "decode",
-    "run_decode_norm": "decode",
-    "run_decode_lm_head": "decode",
-    "run_decode_layer": "decode_layer",
-}
-
-
-def _plan_to_class_name(plan_name: str) -> str:
-    base = plan_name.removeprefix("run_")
-    parts = base.split("_")
-    return "".join(p.capitalize() for p in parts) + "Tensors"
-
-
-def _compare_extra_lines(plan_name: str, tensor_name: str) -> tuple[str, ...]:
-    if plan_name == "run_proj2" and tensor_name == "linear":
-        return (
-            'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
-            'pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="last_hidden_state"),',
-        )
-    if plan_name in {"run_lm_head", "run_decode_lm_head"} and tensor_name == "linear":
-        return (
-            'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
-            'pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),',
-        )
-    return ()
-
-
-def _generate_tensor_class(plan_name: str, plan: dict) -> str:
-    class_name = _plan_to_class_name(plan_name)
-    func_name = plan_name.removeprefix("run_")
-    output_name = plan["output"]
-
-    # Determine if this is a layered submodule (param_map keys contain .layers.N.)
-    is_layered = any(re.search(r"\.layers\.\d+\.", v) for v in plan["param_map"].values())
-
-    tensor_entries = []
-    for name, meta in plan["tensors"].items():
-        shape = tuple(meta["shape"])
-        kind = meta["kind"]
-        if kind == "parameter":
-            dtype = "bfloat16"
-        else:
-            dtype = meta["dtype"] if meta["dtype"] in ("int64", "int32") else "float32"
-
-        if kind == "parameter":
-            role, memory, lifetime = "TensorRole.WEIGHT", "MemoryClass.MODEL_WEIGHT", "TensorLifetime.MODEL"
-            safetensors_key = plan["param_map"][name]
-            if is_layered:
-                # Replace .layers.N. with .layers.{layer_idx}. for the f-string
-                name_template = re.sub(r"\.layers\.(\d+)\.", ".layers.{layer_idx}.", safetensors_key)
-                name_expr = f'f"{name_template}"'
-            else:
-                name_expr = f'"{safetensors_key}"'
-        elif kind == "user_input":
-            role, memory, lifetime = "TensorRole.INPUT", "MemoryClass.HOST_INPUT", "TensorLifetime.FRAME"
-            name_expr = f'f"{{prefix}}.{name}"'
-        else:
-            role, memory, lifetime = "TensorRole.ACTIVATION", "MemoryClass.FRAME_WORKSPACE", "TensorLifetime.FRAME"
-            name_expr = f'f"{{prefix}}.{name}"'
-
-        tensor_entries.append({
-            "name": name,
-            "name_source": repr(name),
-            "name_expr": name_expr,
-            "dtype_source": repr(dtype),
-            "shape_source": repr(shape),
-            "role": role,
-            "memory": memory,
-            "lifetime": lifetime,
-            "extra_lines": _compare_extra_lines(plan_name, name),
-        })
-
-    # Function signature: layered submodules get layer_idx parameter
-    create_kwargs = (
-        "*, bindings: Mapping[str, LogicalTensor] | None = None, "
-        "request_state_outputs: Collection[str] = frozenset()"
-    )
-    if is_layered:
-        sig = f"def create_{func_name}(prefix: str, layer_idx: int, {create_kwargs}) -> {class_name}:"
-    else:
-        sig = f"def create_{func_name}(prefix: str, {create_kwargs}) -> {class_name}:"
-
-    return render_tensor_class(
-        class_name=class_name,
-        fields=tuple(plan["tensors"]),
-        output_const=f"{func_name.upper()}_OUTPUT",
-        output_name_source=repr(output_name),
-        signature=sig,
-        tensor_names_source=repr(tuple(plan["tensors"])),
-        tensors=tensor_entries,
-    )
-
-
-def _generate_tensors_files(all_plans: dict[str, dict]) -> dict[str, str]:
-    """Generate tensors/ file contents grouped by PLAN_TO_FILE mapping."""
-    file_contents: dict[str, list[str]] = {}
-
-    for plan_name, plan in all_plans.items():
-        target_file = PLAN_TO_FILE.get(plan_name, "misc")
-        file_contents.setdefault(target_file, [])
-        file_contents[target_file].append(_generate_tensor_class(plan_name, plan))
-
-    result = {}
-    helper_source = _generate_tensor_helpers()
-    for filename, class_sources in file_contents.items():
-        result[filename] = render_tensor_module(class_sources, helper_source)
-    return result
-
-
-def _generate_tensor_helpers() -> str:
-    return render_tensor_helpers()
-
-
-def _generate_shader_init_file(shader_names) -> str:
-    imports = [
-        f"from models.exported_qwen3_asr.shaders.{shader_name} import {shader_name.upper()}  # noqa: F401"
-        for shader_name in sorted(shader_names)
-    ]
-    return render_simple_init("Generated shader index", imports)
-
-
-def _generate_tensors_init_file(tensor_files: dict[str, str], all_plans: dict[str, dict]) -> str:
-    imports = []
-    for filename in sorted(tensor_files):
-        classes = [
-            _plan_to_class_name(plan_name)
-            for plan_name in all_plans
-            if PLAN_TO_FILE.get(plan_name) == filename
-        ]
-        for class_name in classes:
-            imports.append(
-                f"from models.exported_qwen3_asr.tensors.{filename} import {class_name}  # noqa: F401"
-            )
-    return render_simple_init("Generated tensor declarations", imports)
 
 
 # ==============================================================
@@ -657,6 +236,61 @@ def _load_model_and_shapes():
 
 
 # ==============================================================
+# Output file assembly
+# ==============================================================
+
+def _combine_dispatch(
+    dispatch_sources: list[str],
+    all_shader_imports: dict[str, str],
+    tensor_file_classes: dict[str, list[str]],
+) -> str:
+    lines = [
+        '"""Generated dispatch functions for all submodules."""',
+        "",
+        "from __future__ import annotations",
+        "",
+        _DISPATCH_EXTRA_IMPORTS.rstrip("\n"),
+    ]
+    for shader_name in sorted(all_shader_imports):
+        const = all_shader_imports[shader_name]
+        lines.append(f"from models.exported_qwen3_asr.shaders.{shader_name} import {const}")
+    lines.append("")
+    for target_file in sorted(tensor_file_classes):
+        classes = ", ".join(sorted(tensor_file_classes[target_file]))
+        lines.append(f"from models.exported_qwen3_asr.tensors.{target_file} import {classes}")
+    lines.append("from torch2vk.runtime.logical import LogicalTensor")
+    lines.append("from torch2vk.runtime.shader import ShaderVariant")
+    lines.append("from torch2vk.runtime.session import RuntimeSession")
+    lines.append("")
+    lines.append("")
+    lines.append("SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {")
+    for shader_name in sorted(all_shader_imports):
+        const = all_shader_imports[shader_name]
+        lines.append(f"    {shader_name!r}: {const},")
+    lines.append(f"    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name: QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,")
+    lines.append(f"    QWEN3_ASR_TOKEN_STORE_EOS_F32.name: QWEN3_ASR_TOKEN_STORE_EOS_F32,")
+    lines.append("}")
+    lines.append("")
+    lines.append("")
+    lines.append("\n\n\n".join(dispatch_sources))
+    lines.append("")
+    lines.append("")
+    lines.append(_DECODE_STEP_HELPERS)
+    lines.append("")
+    lines.append("")
+    lines.append("def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:")
+    lines.append("    rt._materialize_read(src)")
+    lines.append("    with dst.runtime_write_scope():")
+    lines.append("        dst.buffer = src.buffer")
+    lines.append("        dst.descriptor_nbytes = src.descriptor_nbytes")
+    lines.append("        dst.version = src.version")
+    lines.append("        dst.writer = src.writer")
+    lines.append("    rt._current_frame().written_tensors.append(dst)")
+    lines.append("")
+    return "\n".join(lines)
+
+
+# ==============================================================
 # Main
 # ==============================================================
 
@@ -672,33 +306,81 @@ def main() -> int:
     ac = config.thinker_config.audio_config
     at = model.thinker.audio_tower
 
-    all_shader_variants = {}
-    all_plans = {}
+    all_shader_imports: dict[str, str] = {}  # shader_name → CONST_NAME
+    all_shader_variants: dict[str, ShaderVariant] = {}
+    tensor_sources: dict[str, list[str]] = {}  # file_group → [class source, ...]
+    tensor_file_classes: dict[str, list[str]] = {}  # file_group → [class names]
+    dispatch_sources: list[str] = []
 
-    def export_and_plan(name, module, args, kwargs=None, weight_prefix="", kv_cache=None):
+    def export_one(name, module, args, kwargs=None, weight_prefix="", kv_cache=None):
         prog = export_submodule(module, args=args, kwargs=kwargs, kv_cache=kv_cache)
-        plan = _extract_plan(prog, weight_prefix)
-        _validate_plan_complete(name, plan)
-        # Merge shader variants globally; rename on conflict to keep them unique
-        for shader_key, variant in list(plan["shader_variants"].items()):
-            if shader_key in all_shader_variants:
-                if all_shader_variants[shader_key].contract == variant.contract:
-                    continue
-                # Conflict: same name, different contract. Prefix with plan name.
-                new_key = f"{name}_{shader_key}".replace("run_", "")
-                variant = _rename_variant(variant, new_key)
-                for op in plan["ops"]:
-                    if op.get("shader") == shader_key:
-                        op["shader"] = new_key
-                del plan["shader_variants"][shader_key]
-                plan["shader_variants"][new_key] = variant
-                shader_key = new_key
-            all_shader_variants[shader_key] = variant
-        all_plans[name] = plan
-        n_ops = sum(1 for op in plan["ops"] if op["type"] == "dispatch")
-        print(f"  {name}: {n_ops} ops, {len(plan['shader_variants'])} shaders")
+        cls_name = _to_class_name(name)
+        func_name = name.removeprefix("run_")
+        group = PLAN_TO_FILE.get(name, "misc")
 
-    # Audio tower
+        # Generate tensor class source
+        tensor_src = generate_tensor_class_source(
+            prog,
+            class_name=cls_name,
+            function_name=f"create_{func_name}",
+            weight_prefix=weight_prefix,
+            extra_lines_fn=lambda t: _compare_extra_lines(name, t),
+        )
+        tensor_sources.setdefault(group, []).append(tensor_src)
+        tensor_file_classes.setdefault(group, []).append(cls_name)
+
+        # Generate dispatch function source (also returns the variants it uses)
+        func_src, shader_imports, used_variants = generate_dispatch_function_source(
+            prog,
+            class_name=cls_name,
+            function_name=name,
+            shader_package="models.exported_qwen3_asr.shaders",
+        )
+
+        # Handle cross-submodule shader name conflicts
+        rename_map: dict[str, str] = {}
+        for v in used_variants.values():
+            if v.name in all_shader_variants:
+                if all_shader_variants[v.name].contract == v.contract:
+                    continue
+                new_name = f"{func_name}_{v.name}"
+                rename_map[v.name] = new_name
+                from torch2vk.runtime.shader import ShaderContract
+                new_contract = ShaderContract(
+                    class_name=v.contract.class_name,
+                    shader_name=new_name,
+                    fields=v.contract.fields,
+                    dispatch=v.contract.dispatch,
+                    push_constants=v.contract.push_constants,
+                    params_buffer=v.contract.params_buffer,
+                )
+                renamed = ShaderVariant(
+                    name=new_name, family=v.family, contract=new_contract,
+                    source=v.source, precompiled_spv_path=v.precompiled_spv_path,
+                    specialization_constants=v.specialization_constants,
+                    include_dirs=v.include_dirs, compile_defines=v.compile_defines,
+                    execution_requirements=v.execution_requirements,
+                )
+                all_shader_variants[new_name] = renamed
+            else:
+                all_shader_variants[v.name] = v
+
+        # Apply renames to dispatch source (use word boundary to avoid substring matches)
+        for old_name in sorted(rename_map, key=len, reverse=True):
+            new_name = rename_map[old_name]
+            old_const = old_name.upper()
+            new_const = new_name.upper()
+            func_src = re.sub(rf"\b{re.escape(old_const)}\b", new_const, func_src)
+            if old_name in shader_imports:
+                shader_imports[new_name] = new_const
+                del shader_imports[old_name]
+
+        dispatch_sources.append(func_src)
+        all_shader_imports.update(shader_imports)
+
+        print(f"  {name}: {len(used_variants)} shaders")
+
+    # Wrapper classes for export
     nc = shapes["num_chunks"]
 
     class _ConvGelu(torch.nn.Module):
@@ -829,131 +511,134 @@ def main() -> int:
             )
             return self._finish(residual, attn_output, input_shape), key_cache, value_cache
 
-    export_and_plan("run_conv2d1", _ConvGelu(at.conv2d1).float(),
-                    args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),),
-                    weight_prefix="thinker.audio_tower.conv2d1.")
-    export_and_plan("run_conv2d2", _ConvGelu(at.conv2d2).float(),
-                    args=(torch.zeros(*shapes["conv2d1_out"], device="meta"),),
-                    weight_prefix="thinker.audio_tower.conv2d2.")
-    export_and_plan("run_conv2d3", _ConvGelu(at.conv2d3).float(),
-                    args=(torch.zeros(*shapes["conv2d2_out"], device="meta"),),
-                    weight_prefix="thinker.audio_tower.conv2d3.")
-    export_and_plan("run_conv_out", _ConvOutFromCnn(at.conv_out).float(),
-                    args=(torch.zeros(*shapes["conv2d3_out"], device="meta"),),
-                    weight_prefix="thinker.audio_tower.conv_out.")
-    export_and_plan("run_audio_position_compact", _AudioPositionCompact(),
-                    args=(torch.zeros(*shapes["conv_out"], device="meta"),
-                          torch.zeros(*shapes["conv_out"], device="meta"),
-                          torch.zeros(shapes["enc_seq_len"], dtype=torch.long, device="meta")))
+    # Audio tower exports
+    export_one("run_conv2d1", _ConvGelu(at.conv2d1).float(),
+               args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),),
+               weight_prefix="thinker.audio_tower.conv2d1.")
+    export_one("run_conv2d2", _ConvGelu(at.conv2d2).float(),
+               args=(torch.zeros(*shapes["conv2d1_out"], device="meta"),),
+               weight_prefix="thinker.audio_tower.conv2d2.")
+    export_one("run_conv2d3", _ConvGelu(at.conv2d3).float(),
+               args=(torch.zeros(*shapes["conv2d2_out"], device="meta"),),
+               weight_prefix="thinker.audio_tower.conv2d3.")
+    export_one("run_conv_out", _ConvOutFromCnn(at.conv_out).float(),
+               args=(torch.zeros(*shapes["conv2d3_out"], device="meta"),),
+               weight_prefix="thinker.audio_tower.conv_out.")
+    export_one("run_audio_position_compact", _AudioPositionCompact(),
+               args=(torch.zeros(*shapes["conv_out"], device="meta"),
+                     torch.zeros(*shapes["conv_out"], device="meta"),
+                     torch.zeros(shapes["enc_seq_len"], dtype=torch.long, device="meta")))
     enc_seq = shapes["enc_seq_len"]
-    export_and_plan("run_encoder_layer", at.layers[0].float(),
-                    args=(torch.zeros(enc_seq, shapes["d_model"], device="meta"),
-                          torch.zeros(shapes["cu_seqlens_len"], dtype=torch.int32, device="meta")),
-                    kwargs={"attention_mask": torch.zeros(1, 1, enc_seq, enc_seq, device="meta")},
-                    weight_prefix="thinker.audio_tower.layers.0.")
-    export_and_plan("run_ln_post", at.ln_post.float(),
-                    args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
-                    weight_prefix="thinker.audio_tower.ln_post.")
-    export_and_plan("run_proj1", _LinearAct(at.proj1, at.act).float(),
-                    args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
-                    weight_prefix="thinker.audio_tower.proj1.")
-    export_and_plan("run_proj2", at.proj2.float(),
-                    args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
-                    weight_prefix="thinker.audio_tower.proj2.")
+    export_one("run_encoder_layer", at.layers[0].float(),
+               args=(torch.zeros(enc_seq, shapes["d_model"], device="meta"),
+                     torch.zeros(shapes["cu_seqlens_len"], dtype=torch.int32, device="meta")),
+               kwargs={"attention_mask": torch.zeros(1, 1, enc_seq, enc_seq, device="meta")},
+               weight_prefix="thinker.audio_tower.layers.0.")
+    export_one("run_ln_post", at.ln_post.float(),
+               args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
+               weight_prefix="thinker.audio_tower.ln_post.")
+    export_one("run_proj1", _LinearAct(at.proj1, at.act).float(),
+               args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
+               weight_prefix="thinker.audio_tower.proj1.")
+    export_one("run_proj2", at.proj2.float(),
+               args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
+               weight_prefix="thinker.audio_tower.proj2.")
 
-    # Text pipeline
+    # Text pipeline exports
     pl = shapes["prompt_length"]
     max_seq = shapes["max_sequence_length"]
     hs = shapes["hidden_size"]
     hd = shapes["head_dim"]
     nh = shapes["num_key_value_heads"]
-    export_and_plan("run_embed_tokens", model.thinker.model.embed_tokens.float(),
-                    args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
-                    weight_prefix="thinker.model.embed_tokens.")
-    export_and_plan("run_audio_inject", _AudioInject(),
-                    args=(torch.zeros(1, pl, hs, device="meta"),
-                          torch.zeros(shapes["enc_seq_len"], dtype=torch.long, device="meta"),
-                          torch.zeros(shapes["enc_seq_len"], hs, device="meta")))
-    export_and_plan("run_text_layer", _TextLayerPrefillWithCache(model.thinker.model.layers[0]),
-                    args=(torch.zeros(1, pl, hs, device="meta"),
-                          torch.zeros(pl, dtype=torch.long, device="meta"),
-                          torch.zeros(1, nh, max_seq, hd, device="meta"),
-                          torch.zeros(1, nh, max_seq, hd, device="meta")),
-                    kwargs={"position_embeddings": (
-                        torch.zeros(1, pl, hd, device="meta"),
-                        torch.zeros(1, pl, hd, device="meta"),
-                    )},
-                    weight_prefix="thinker.model.layers.0.",
-                    kv_cache=KVCacheExportHint(
-                        phase="prefill",
-                        key_cache="key_cache",
-                        value_cache="value_cache",
-                        cache_position="cache_position",
-                    ))
-    export_and_plan("run_text_norm", model.thinker.model.norm.float(),
-                    args=(torch.zeros(1, pl, hs, device="meta"),),
-                    weight_prefix="thinker.model.norm.")
-    export_and_plan("run_lm_head", model.thinker.lm_head.float(),
-                    args=(torch.zeros(1, pl, hs, device="meta"),),
-                    weight_prefix="thinker.lm_head.")
+    export_one("run_embed_tokens", model.thinker.model.embed_tokens.float(),
+               args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
+               weight_prefix="thinker.model.embed_tokens.")
+    export_one("run_audio_inject", _AudioInject(),
+               args=(torch.zeros(1, pl, hs, device="meta"),
+                     torch.zeros(shapes["enc_seq_len"], dtype=torch.long, device="meta"),
+                     torch.zeros(shapes["enc_seq_len"], hs, device="meta")))
+    export_one("run_text_layer", _TextLayerPrefillWithCache(model.thinker.model.layers[0]),
+               args=(torch.zeros(1, pl, hs, device="meta"),
+                     torch.zeros(pl, dtype=torch.long, device="meta"),
+                     torch.zeros(1, nh, max_seq, hd, device="meta"),
+                     torch.zeros(1, nh, max_seq, hd, device="meta")),
+               kwargs={"position_embeddings": (
+                   torch.zeros(1, pl, hd, device="meta"),
+                   torch.zeros(1, pl, hd, device="meta"),
+               )},
+               weight_prefix="thinker.model.layers.0.",
+               kv_cache=KVCacheExportHint(
+                   phase="prefill",
+                   key_cache="key_cache",
+                   value_cache="value_cache",
+                   cache_position="cache_position",
+               ))
+    export_one("run_text_norm", model.thinker.model.norm.float(),
+               args=(torch.zeros(1, pl, hs, device="meta"),),
+               weight_prefix="thinker.model.norm.")
+    export_one("run_lm_head", model.thinker.lm_head.float(),
+               args=(torch.zeros(1, pl, hs, device="meta"),),
+               weight_prefix="thinker.lm_head.")
 
-    # Decode-step variants (seq_len=1)
-    export_and_plan("run_decode_embed", model.thinker.model.embed_tokens.float(),
-                    args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
-                    weight_prefix="thinker.model.embed_tokens.")
-    export_and_plan("run_decode_layer", _TextLayerDecodeWithCache(model.thinker.model.layers[0]),
-                    args=(torch.zeros(1, 1, hs, device="meta"),
-                          torch.zeros(1, dtype=torch.long, device="meta"),
-                          torch.zeros(1, nh, max_seq, hd, device="meta"),
-                          torch.zeros(1, nh, max_seq, hd, device="meta"),
-                          torch.zeros(1, 1, 1, max_seq, device="meta")),
-                    kwargs={"position_embeddings": (
-                        torch.zeros(1, 1, hd, device="meta"),
-                        torch.zeros(1, 1, hd, device="meta"),
-                    )},
-                    weight_prefix="thinker.model.layers.0.",
-                    kv_cache=KVCacheExportHint(
-                        phase="decode",
-                        key_cache="key_cache",
-                        value_cache="value_cache",
-                        cache_position="cache_position",
-                    ))
-    export_and_plan("run_decode_norm", model.thinker.model.norm.float(),
-                    args=(torch.zeros(1, 1, hs, device="meta"),),
-                    weight_prefix="thinker.model.norm.")
-    export_and_plan("run_decode_lm_head", model.thinker.lm_head.float(),
-                    args=(torch.zeros(1, 1, hs, device="meta"),),
-                    weight_prefix="thinker.lm_head.")
+    # Decode-step exports (seq_len=1)
+    export_one("run_decode_embed", model.thinker.model.embed_tokens.float(),
+               args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
+               weight_prefix="thinker.model.embed_tokens.")
+    export_one("run_decode_layer", _TextLayerDecodeWithCache(model.thinker.model.layers[0]),
+               args=(torch.zeros(1, 1, hs, device="meta"),
+                     torch.zeros(1, dtype=torch.long, device="meta"),
+                     torch.zeros(1, nh, max_seq, hd, device="meta"),
+                     torch.zeros(1, nh, max_seq, hd, device="meta"),
+                     torch.zeros(1, 1, 1, max_seq, device="meta")),
+               kwargs={"position_embeddings": (
+                   torch.zeros(1, 1, hd, device="meta"),
+                   torch.zeros(1, 1, hd, device="meta"),
+               )},
+               weight_prefix="thinker.model.layers.0.",
+               kv_cache=KVCacheExportHint(
+                   phase="decode",
+                   key_cache="key_cache",
+                   value_cache="value_cache",
+                   cache_position="cache_position",
+               ))
+    export_one("run_decode_norm", model.thinker.model.norm.float(),
+               args=(torch.zeros(1, 1, hs, device="meta"),),
+               weight_prefix="thinker.model.norm.")
+    export_one("run_decode_lm_head", model.thinker.lm_head.float(),
+               args=(torch.zeros(1, 1, hs, device="meta"),),
+               weight_prefix="thinker.lm_head.")
 
     # Write shaders/
     for f in shaders_dir.glob("*.py"):
         f.unlink()
     for shader_name, variant in all_shader_variants.items():
         (shaders_dir / f"{shader_name}.py").write_text(render_shader_file(variant))
-    (shaders_dir / "__init__.py").write_text(_generate_shader_init_file(all_shader_variants))
+    shader_init_imports = [
+        f"from models.exported_qwen3_asr.shaders.{name} import {name.upper()}  # noqa: F401"
+        for name in sorted(all_shader_variants)
+    ]
+    (shaders_dir / "__init__.py").write_text(render_simple_init("Generated shader index", shader_init_imports))
     print(f"\n  {len(all_shader_variants)} shader files written")
 
-    # Write dispatch.py
-    dispatch_source = _generate_dispatch_file(all_plans)
-    (output_dir / "dispatch.py").write_text(dispatch_source)
-    print(f"  dispatch.py written ({len(all_plans)} functions)")
-
     # Write tensors/
-    # Clean existing .py files in tensors/
     for f in tensors_dir.glob("*.py"):
         f.unlink()
-    tensor_files = _generate_tensors_files(all_plans)
-    for filename, content in tensor_files.items():
-        (tensors_dir / f"{filename}.py").write_text(content)
-    (tensors_dir / "__init__.py").write_text(_generate_tensors_init_file(tensor_files, all_plans))
-    print(f"  tensors/ written ({len(tensor_files)} files)")
+    helper_source = render_tensor_helpers()
+    for group, sources in tensor_sources.items():
+        (tensors_dir / f"{group}.py").write_text(render_tensor_module(sources, helper_source))
+    tensor_init_imports = []
+    for group in sorted(tensor_file_classes):
+        for cls in tensor_file_classes[group]:
+            tensor_init_imports.append(
+                f"from models.exported_qwen3_asr.tensors.{group} import {cls}  # noqa: F401"
+            )
+    (tensors_dir / "__init__.py").write_text(render_simple_init("Generated tensor declarations", tensor_init_imports))
+    print(f"  tensors/ written ({len(tensor_sources)} files)")
 
-    # Clean up obsolete files
-    for obsolete in ["plans.json", "shapes.json", "generated_text_layer.py"]:
-        f = output_dir / obsolete
-        if f.exists():
-            f.unlink()
-            print(f"  deleted {obsolete}")
+    # Write dispatch.py
+    dispatch_source = _combine_dispatch(dispatch_sources, all_shader_imports, tensor_file_classes)
+    (output_dir / "dispatch.py").write_text(dispatch_source)
+    print(f"  dispatch.py written ({len(dispatch_sources)} functions)")
 
     print("\nDone!")
     return 0
