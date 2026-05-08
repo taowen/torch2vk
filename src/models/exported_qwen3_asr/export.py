@@ -381,6 +381,12 @@ def main() -> int:
     nc = shapes["num_chunks"]
 
     class _AudioConvStack(torch.nn.Module):
+        """Thin wrapper chaining upstream sub-modules of Qwen3ASRAudioEncoder.
+
+        These sub-modules exist on audio_tower but their chaining logic is
+        inside audio_tower.forward() which can't be exported (.item() calls).
+        """
+
         def __init__(self, at):
             super().__init__()
             self.conv2d1 = at.conv2d1
@@ -389,20 +395,18 @@ def main() -> int:
             self.conv_out = at.conv_out
 
         def forward(self, x, position_embedding, compact_index):
-            F = torch.nn.functional
-            x = F.gelu(F.conv2d(x, self.conv2d1.weight, self.conv2d1.bias,
-                                stride=self.conv2d1.stride, padding=self.conv2d1.padding))
-            x = F.gelu(F.conv2d(x, self.conv2d2.weight, self.conv2d2.bias,
-                                stride=self.conv2d2.stride, padding=self.conv2d2.padding))
-            x = F.gelu(F.conv2d(x, self.conv2d3.weight, self.conv2d3.bias,
-                                stride=self.conv2d3.stride, padding=self.conv2d3.padding))
+            x = torch.nn.functional.gelu(self.conv2d1(x))
+            x = torch.nn.functional.gelu(self.conv2d2(x))
+            x = torch.nn.functional.gelu(self.conv2d3(x))
             b, c, f, t = x.shape
-            x = F.linear(x.reshape(b, c * f, t).transpose(1, 2), self.conv_out.weight, None)
+            x = self.conv_out(x.reshape(b, c * f, t).transpose(1, 2))
             x = x + position_embedding
             x = x.reshape(-1, x.shape[-1])
             return torch.index_select(x, 0, compact_index)
 
     class _AudioProj(torch.nn.Module):
+        """Thin wrapper chaining upstream sub-modules of Qwen3ASRAudioEncoder."""
+
         def __init__(self, at):
             super().__init__()
             self.ln_post = at.ln_post
@@ -411,12 +415,13 @@ def main() -> int:
             self._act = at.act
 
         def forward(self, x):
-            F = torch.nn.functional
             x = self.ln_post(x)
-            x = self._act(F.linear(x, self.proj1.weight, self.proj1.bias))
-            return F.linear(x, self.proj2.weight, self.proj2.bias)
+            x = self._act(self.proj1(x))
+            return self.proj2(x)
 
     class _AudioInject(torch.nn.Module):
+        """Wraps index_copy for audio feature injection (no upstream Module exists)."""
+
         def forward(self, inputs_embeds, audio_positions, audio_features):
             return torch.index_copy(inputs_embeds, 1, audio_positions, audio_features.unsqueeze(0))
 
