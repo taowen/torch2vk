@@ -5,14 +5,27 @@ from torch2vk.export.codegen import (
     generate_dispatch_source,
     generate_tensor_class_source,
 )
-from torch2vk.export.graph import KVCacheExportHint, KVCacheInjectHint, export_submodule, inject_kv_cache
+from torch2vk.export.codegen_loop import (
+    generate_looped_dispatch_function_source,
+    generate_looped_tensor_class_sources,
+)
+from torch2vk.export.graph import (
+    KVCacheExportHint,
+    KVCacheInjectHint,
+    LayerLoopHint,
+    export_submodule,
+    inject_kv_cache,
+)
 
 __all__ = [
     "KVCacheExportHint",
     "KVCacheInjectHint",
+    "LayerLoopHint",
     "export_submodule",
     "inject_kv_cache",
     "generate_dispatch_function_source",
     "generate_dispatch_source",
+    "generate_looped_dispatch_function_source",
+    "generate_looped_tensor_class_sources",
     "generate_tensor_class_source",
 ]

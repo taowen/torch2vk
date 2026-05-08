@@ -23,6 +23,7 @@ from models.optimized_qwen3_asr.pytorch.example import REPO_ID
 from torch2vk.export import (
     KVCacheExportHint,
     KVCacheInjectHint,
+    LayerLoopHint,
     export_submodule,
     generate_dispatch_function_source,
     generate_tensor_class_source,
@@ -33,23 +34,12 @@ from torch2vk.export.codegen import (
     render_tensor_helpers,
     render_tensor_module,
 )
+from torch2vk.export.codegen_loop import (
+    generate_looped_dispatch_function_source,
+    generate_looped_tensor_class_sources,
+)
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
-
-PLAN_TO_FILE: dict[str, str] = {
-    "run_audio_conv_stack": "audio_tower",
-    "run_encoder_layer": "encoder_layer",
-    "run_audio_proj": "audio_tower",
-    "run_embed_tokens": "text",
-    "run_audio_inject": "text",
-    "run_text_layer": "text_layer",
-    "run_text_norm": "text",
-    "run_lm_head": "text",
-    "run_decode_embed": "decode",
-    "run_decode_layer": "decode_layer",
-    "run_decode_norm": "decode",
-    "run_decode_lm_head": "decode",
-}
 
 
 def _to_class_name(plan_name: str) -> str:
@@ -307,33 +297,61 @@ def main() -> int:
     tensor_file_classes: dict[str, list[str]] = {}  # file_group → [class names]
     dispatch_sources: list[str] = []
 
-    def export_one(name, module, args, kwargs=None, weight_prefix="", kv_cache=None, kv_inject=None):
+    def export_one(name, module, args, kwargs=None, weight_prefix="", kv_cache=None, kv_inject=None, layer_loop=None):
         prog = export_submodule(module, args=args, kwargs=kwargs, kv_cache=kv_cache)
         if kv_inject is not None:
-            from torch2vk.export.graph import KVCacheInjectHint, inject_kv_cache
+            from torch2vk.export.graph import inject_kv_cache
             inject_kv_cache(prog, kv_inject)
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
-        group = PLAN_TO_FILE.get(name, "misc")
+        group = func_name
 
-        # Generate tensor class source
-        tensor_src = generate_tensor_class_source(
-            prog,
-            class_name=cls_name,
-            function_name=f"create_{func_name}",
-            weight_prefix=weight_prefix,
-            extra_lines_fn=lambda t: _compare_extra_lines(name, t),
-        )
-        tensor_sources.setdefault(group, []).append(tensor_src)
-        tensor_file_classes.setdefault(group, []).append(cls_name)
+        if layer_loop is not None:
+            # Looped export: generates parent + layer tensor classes and looped dispatch
+            layer_cls_name = "EncoderLayerTensors"
+            layer_func_name = f"create_encoder_layer"
 
-        # Generate dispatch function source (also returns the variants it uses)
-        func_src, shader_imports, used_variants = generate_dispatch_function_source(
-            prog,
-            class_name=cls_name,
-            function_name=name,
-            shader_package="models.exported_qwen3_asr.shaders",
-        )
+            parent_src, layer_src = generate_looped_tensor_class_sources(
+                prog,
+                parent_class_name=cls_name,
+                layer_class_name=layer_cls_name,
+                parent_function_name=f"create_{func_name}",
+                layer_function_name=layer_func_name,
+                weight_prefix=weight_prefix,
+                hint=layer_loop,
+                extra_lines_fn=lambda t: _compare_extra_lines(name, t),
+            )
+            tensor_sources.setdefault(group, []).append(layer_src)
+            tensor_sources.setdefault(group, []).append(parent_src)
+            tensor_file_classes.setdefault(group, []).append(layer_cls_name)
+            tensor_file_classes.setdefault(group, []).append(cls_name)
+
+            func_src, shader_imports, used_variants = generate_looped_dispatch_function_source(
+                prog,
+                parent_class_name=cls_name,
+                layer_class_name=layer_cls_name,
+                function_name=name,
+                weight_prefix=weight_prefix,
+                hint=layer_loop,
+            )
+        else:
+            # Flat export: single tensor class + dispatch
+            tensor_src = generate_tensor_class_source(
+                prog,
+                class_name=cls_name,
+                function_name=f"create_{func_name}",
+                weight_prefix=weight_prefix,
+                extra_lines_fn=lambda t: _compare_extra_lines(name, t),
+            )
+            tensor_sources.setdefault(group, []).append(tensor_src)
+            tensor_file_classes.setdefault(group, []).append(cls_name)
+
+            func_src, shader_imports, used_variants = generate_dispatch_function_source(
+                prog,
+                class_name=cls_name,
+                function_name=name,
+                shader_package="models.exported_qwen3_asr.shaders",
+            )
 
         # Handle cross-submodule shader name conflicts
         rename_map: dict[str, str] = {}
@@ -377,14 +395,17 @@ def main() -> int:
 
         print(f"  {name}: {len(used_variants)} shaders")
 
-    # Wrapper classes for export
+    # Audio encoder wrapper (conv + layers + proj as one module)
     nc = shapes["num_chunks"]
+    enc_seq = shapes["enc_seq_len"]
 
-    class _AudioConvStack(torch.nn.Module):
-        """Thin wrapper chaining upstream sub-modules of Qwen3ASRAudioEncoder.
+    class _AudioEncoder(torch.nn.Module):
+        """Chains the exportable parts of Qwen3ASRAudioEncoder.
 
-        These sub-modules exist on audio_tower but their chaining logic is
-        inside audio_tower.forward() which can't be exported (.item() calls).
+        The upstream forward() can't be exported due to .item() calls in
+        chunking logic. This wrapper takes pre-computed host-side tensors
+        (position_embedding, compact_index, cu_seqlens, attention_mask) and
+        chains all exportable sub-modules: conv → layers → proj.
         """
 
         def __init__(self, at):
@@ -393,8 +414,13 @@ def main() -> int:
             self.conv2d2 = at.conv2d2
             self.conv2d3 = at.conv2d3
             self.conv_out = at.conv_out
+            self.layers = at.layers
+            self.ln_post = at.ln_post
+            self.proj1 = at.proj1
+            self.proj2 = at.proj2
+            self._act = at.act
 
-        def forward(self, x, position_embedding, compact_index):
+        def forward(self, x, position_embedding, compact_index, cu_seqlens, attention_mask):
             x = torch.nn.functional.gelu(self.conv2d1(x))
             x = torch.nn.functional.gelu(self.conv2d2(x))
             x = torch.nn.functional.gelu(self.conv2d3(x))
@@ -402,22 +428,14 @@ def main() -> int:
             x = self.conv_out(x.reshape(b, c * f, t).transpose(1, 2))
             x = x + position_embedding
             x = x.reshape(-1, x.shape[-1])
-            return torch.index_select(x, 0, compact_index)
+            hidden_states = torch.index_select(x, 0, compact_index)
 
-    class _AudioProj(torch.nn.Module):
-        """Thin wrapper chaining upstream sub-modules of Qwen3ASRAudioEncoder."""
+            for layer in self.layers:
+                hidden_states = layer(hidden_states, cu_seqlens, attention_mask=attention_mask)[0]
 
-        def __init__(self, at):
-            super().__init__()
-            self.ln_post = at.ln_post
-            self.proj1 = at.proj1
-            self.proj2 = at.proj2
-            self._act = at.act
-
-        def forward(self, x):
-            x = self.ln_post(x)
-            x = self._act(self.proj1(x))
-            return self.proj2(x)
+            hidden_states = self.ln_post(hidden_states)
+            hidden_states = self._act(self.proj1(hidden_states))
+            return self.proj2(hidden_states)
 
     class _AudioInject(torch.nn.Module):
         """Wraps index_copy for audio feature injection (no upstream Module exists)."""
@@ -425,21 +443,16 @@ def main() -> int:
         def forward(self, inputs_embeds, audio_positions, audio_features):
             return torch.index_copy(inputs_embeds, 1, audio_positions, audio_features.unsqueeze(0))
 
-    # Audio tower exports
-    enc_seq = shapes["enc_seq_len"]
-    export_one("run_audio_conv_stack", _AudioConvStack(at).float(),
+    # Audio encoder export (single export with layer loop hint)
+    num_encoder_layers = len(at.layers)
+    export_one("run_audio_encoder", _AudioEncoder(at).float(),
                args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),
                      torch.zeros(*shapes["conv_out"], device="meta"),
-                     torch.zeros(enc_seq, dtype=torch.long, device="meta")),
-               weight_prefix="thinker.audio_tower.")
-    export_one("run_encoder_layer", at.layers[0].float(),
-               args=(torch.zeros(enc_seq, shapes["d_model"], device="meta"),
-                     torch.zeros(shapes["cu_seqlens_len"], dtype=torch.int32, device="meta")),
-               kwargs={"attention_mask": torch.zeros(1, 1, enc_seq, enc_seq, device="meta")},
-               weight_prefix="thinker.audio_tower.layers.0.")
-    export_one("run_audio_proj", _AudioProj(at).float(),
-               args=(torch.zeros(enc_seq, shapes["d_model"], device="meta"),),
-               weight_prefix="thinker.audio_tower.")
+                     torch.zeros(enc_seq, dtype=torch.long, device="meta"),
+                     torch.zeros(shapes["cu_seqlens_len"], dtype=torch.int32, device="meta"),
+                     torch.zeros(1, 1, enc_seq, enc_seq, device="meta")),
+               weight_prefix="thinker.audio_tower.",
+               layer_loop=LayerLoopHint(layer_prefix="layers", num_layers=num_encoder_layers))
 
     # Text pipeline exports
     pl = shapes["prompt_length"]

@@ -1,4 +1,4 @@
-"""Generated shader: encoder_layer_export_gelu_f32."""
+"""Generated shader: export_add_f32_17."""
 
 from __future__ import annotations
 
@@ -16,15 +16,21 @@ from torch2vk.runtime.shader import (
 )
 
 
-ENCODER_LAYER_EXPORT_GELU_F32 = ShaderVariant(
-    name='encoder_layer_export_gelu_f32',
+EXPORT_ADD_F32_17 = ShaderVariant(
+    name='export_add_f32_17',
     family='export',
     contract=ShaderContract(
-        class_name='ExportGeluF32Program',
-        shader_name='encoder_layer_export_gelu_f32',
+        class_name='ExportAddF32Program',
+        shader_name='export_add_f32_17',
         fields=(
             TensorFieldSpec(
                 name='x',
+                io_kind=IOKind.INPUT,
+                role='input',
+                contract=TensorContract(dtype='float32', shape=('B', 'T',)),
+            ),
+            TensorFieldSpec(
+                name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
                 contract=TensorContract(dtype='float32', shape=('B', 'T',)),
@@ -50,30 +56,13 @@ ENCODER_LAYER_EXPORT_GELU_F32 = ShaderVariant(
 #version 450
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint N; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
-float erf_approx(float value) {
-    const float p = 0.3275911;
-    const float a1 = 0.254829592;
-    const float a2 = -0.284496736;
-    const float a3 = 1.421413741;
-    const float a4 = -1.453152027;
-    const float a5 = 1.061405429;
-    const float sign_value = value < 0.0 ? -1.0 : 1.0;
-    const float abs_value = abs(value);
-    const float t = 1.0 / (1.0 + p * abs_value);
-    const float y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * exp(-abs_value * abs_value);
-    return sign_value * y;
-}
-float gelu_erf(float value) {
-    return 0.5 * value * (1.0 + erf_approx(value * 0.7071067811865476));
-}
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) {
-        output_values[idx] = gelu_erf(x[idx]);
-    }
+    if (idx < pc.N) { output_values[idx] = x[idx] + y[idx]; }
 }
 """,
 )

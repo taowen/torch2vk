@@ -1011,3 +1011,5 @@ def generate_dispatch_function_source(
         if isinstance(op, _DispatchOp):
             used_variants.setdefault(op.variant.name, op.variant)
     return "\n".join(lines), shader_imports, used_variants
+
+

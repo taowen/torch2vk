@@ -1,4 +1,4 @@
-"""Generated shader: export_linear_bias_f32_10."""
+"""Generated shader: export_linear_bias_f32_125."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-EXPORT_LINEAR_BIAS_F32_10 = ShaderVariant(
-    name='export_linear_bias_f32_10',
+EXPORT_LINEAR_BIAS_F32_125 = ShaderVariant(
+    name='export_linear_bias_f32_125',
     family='export',
     contract=ShaderContract(
         class_name='ExportLinearBiasProgram',
-        shader_name='export_linear_bias_f32_10',
+        shader_name='export_linear_bias_f32_125',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -52,11 +52,11 @@ EXPORT_LINEAR_BIAS_F32_10 = ShaderVariant(
             fields=(
                 PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 133, dynamic=False),
                 PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 896, dynamic=False),
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 3584, dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 1024, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(133, 16), ceil_div(3584, 16), 1),
+        dispatch=(ceil_div(133, 16), ceil_div(1024, 16), 1),
     ),
     execution_requirements=None,
     source="""\

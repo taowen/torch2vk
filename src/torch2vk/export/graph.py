@@ -32,6 +32,19 @@ class KVCacheInjectHint:
     phase: KVCachePhase
     max_seq_len: int
 
+
+@dataclass(frozen=True, slots=True)
+class LayerLoopHint:
+    """Hint for codegen to split an unrolled graph into pre-loop / loop-body / post-loop.
+
+    When a Module contains a for-loop over layers (e.g. nn.ModuleList),
+    torch.export unrolls it. This hint tells codegen to recognize the repeating
+    pattern and generate a loop dispatch instead of inlining all N copies.
+    """
+
+    layer_prefix: str
+    num_layers: int
+
 ALIAS_OPS = frozenset({
     "aten.view.default",
     "aten.unsqueeze.default",

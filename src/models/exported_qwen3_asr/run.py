@@ -26,12 +26,16 @@ from models.optimized_qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TAB
 from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
 from models.exported_qwen3_asr import dispatch
-from models.exported_qwen3_asr.tensors import audio_tower as at_tensors
-from models.exported_qwen3_asr.tensors import decode as decode_tensors
+from models.exported_qwen3_asr.tensors import audio_encoder as audio_encoder_tensors
+from models.exported_qwen3_asr.tensors import audio_inject as audio_inject_tensors
+from models.exported_qwen3_asr.tensors import decode_embed as decode_embed_tensors
 from models.exported_qwen3_asr.tensors import decode_layer as decode_layer_tensors
-from models.exported_qwen3_asr.tensors import encoder_layer as enc_tensors
-from models.exported_qwen3_asr.tensors import text as text_tensors
+from models.exported_qwen3_asr.tensors import decode_lm_head as decode_lm_head_tensors
+from models.exported_qwen3_asr.tensors import decode_norm as decode_norm_tensors
+from models.exported_qwen3_asr.tensors import embed_tokens as embed_tokens_tensors
+from models.exported_qwen3_asr.tensors import lm_head as lm_head_tensors
 from models.exported_qwen3_asr.tensors import text_layer as text_layer_tensors
+from models.exported_qwen3_asr.tensors import text_norm as text_norm_tensors
 from torch2vk.runtime.logical import (
     LogicalTensor,
     MemoryClass,
@@ -47,12 +51,14 @@ from torch2vk.runtime.session import RuntimeSession
 def _materialize_weights(rt: RuntimeSession, tensors_obj) -> None:
     """Upload declared model weights through the runtime checkpoint path."""
     for f in dataclasses.fields(tensors_obj):
-        tensor: LogicalTensor = getattr(tensors_obj, f.name)
-        if tensor.role is not TensorRole.WEIGHT:
+        value = getattr(tensors_obj, f.name)
+        if isinstance(value, list):
             continue
-        if tensor.buffer is not None:
+        if value.role is not TensorRole.WEIGHT:
             continue
-        rt._materialize_weight(tensor)
+        if value.buffer is not None:
+            continue
+        rt._materialize_weight(value)
 
 
 def _require_gpu_output(tensor: LogicalTensor) -> None:
@@ -275,41 +281,18 @@ def main(
     # === Create all tensor objects upfront and materialize weights ===
     print("Materializing weights...")
 
-    # Audio tower (merged conv stack + encoder layers + merged proj)
-    audio_conv_stack_t = at_tensors.create_audio_conv_stack(
-        "spike.audio.conv_stack",
-        request_state_outputs={at_tensors.AUDIO_CONV_STACK_OUTPUT},
-    )
-
-    encoder_layer_ts = []
-    encoder_hidden = audio_conv_stack_t.index_select
-    encoder_attention_mask = None
-    for layer_idx in range(ac.encoder_layers):
-        bindings: dict[str, LogicalTensor] = {"hidden_states": encoder_hidden}
-        if encoder_attention_mask is not None:
-            bindings["attention_mask"] = encoder_attention_mask
-        layer_tensors = enc_tensors.create_encoder_layer(
-            f"spike.audio.enc.{layer_idx}",
-            layer_idx=layer_idx,
-            bindings=bindings,
-        )
-        encoder_layer_ts.append(layer_tensors)
-        if encoder_attention_mask is None:
-            encoder_attention_mask = layer_tensors.attention_mask
-        encoder_hidden = layer_tensors.add_1
-
-    audio_proj_t = at_tensors.create_audio_proj(
-        "spike.audio.proj",
-        bindings={"x": encoder_layer_ts[-1].add_1},
-        request_state_outputs={at_tensors.AUDIO_PROJ_OUTPUT},
+    # Audio encoder (conv + layers + proj as single dispatch)
+    audio_encoder_t = audio_encoder_tensors.create_audio_encoder(
+        "spike.audio",
+        request_state_outputs={audio_encoder_tensors.AUDIO_ENCODER_OUTPUT},
     )
 
     # Text (non-layered)
-    embed_tokens_t = text_tensors.create_embed_tokens("spike.text.embed")
-    audio_inject_t = text_tensors.create_audio_inject(
+    embed_tokens_t = embed_tokens_tensors.create_embed_tokens("spike.text.embed")
+    audio_inject_t = audio_inject_tensors.create_audio_inject(
         "spike.text.audio_inject",
         bindings={
-            "audio_features": audio_proj_t.linear_1,
+            "audio_features": audio_encoder_t.linear_110,
             "index_copy": embed_tokens_t.embedding,
         },
     )
@@ -374,18 +357,18 @@ def main(
         )
         text_layer_ts.append(layer_tensors)
         text_hidden = layer_tensors.add_7
-    text_norm_t = text_tensors.create_text_norm(
+    text_norm_t = text_norm_tensors.create_text_norm(
         "spike.text.norm",
         bindings={"hidden_states": text_layer_ts[-1].add_7},
     )
-    lm_head_t = text_tensors.create_lm_head(
+    lm_head_t = lm_head_tensors.create_lm_head(
         "spike.text.lm_head",
         bindings={"input": text_norm_t.mul_1},
-        request_state_outputs={text_tensors.LM_HEAD_OUTPUT},
+        request_state_outputs={lm_head_tensors.LM_HEAD_OUTPUT},
     )
 
     # Decode (non-layered, reuse for all decode steps)
-    decode_embed_t = decode_tensors.create_decode_embed(
+    decode_embed_t = decode_embed_tensors.create_decode_embed(
         "spike.decode.embed",
         bindings={"p_weight": embed_tokens_t.p_weight},
     )
@@ -424,27 +407,26 @@ def main(
         )
         decode_layer_ts.append(layer_tensors)
         decode_hidden = layer_tensors.add_7
-    decode_norm_t = decode_tensors.create_decode_norm(
+    decode_norm_t = decode_norm_tensors.create_decode_norm(
         "spike.decode.norm",
         bindings={
             "p_weight": text_norm_t.p_weight,
             "hidden_states": decode_layer_ts[-1].add_7,
         },
     )
-    decode_lm_head_t = decode_tensors.create_decode_lm_head(
+    decode_lm_head_t = decode_lm_head_tensors.create_decode_lm_head(
         "spike.decode.lm_head",
         bindings={
             "p_weight": lm_head_t.p_weight,
             "input": decode_norm_t.mul_1,
         },
-        request_state_outputs={decode_tensors.DECODE_LM_HEAD_OUTPUT},
+        request_state_outputs={decode_lm_head_tensors.DECODE_LM_HEAD_OUTPUT},
     )
 
     # Materialize all weights to persistent GPU memory
-    _materialize_weights(rt, audio_conv_stack_t)
-    for t in encoder_layer_ts:
-        _materialize_weights(rt, t)
-    _materialize_weights(rt, audio_proj_t)
+    _materialize_weights(rt, audio_encoder_t)
+    for layer_t in audio_encoder_t.layers:
+        _materialize_weights(rt, layer_t)
     _materialize_weights(rt, embed_tokens_t)
     _materialize_weights(rt, text_norm_t)
     _materialize_weights(rt, lm_head_t)
@@ -487,11 +469,11 @@ def main(
         padded_feature[i, 0, :, :chunk.shape[0]] = chunk.T
 
     # Positional embedding + compact
-    conv_stack_pos_shape = tuple(int(dim) for dim in audio_conv_stack_t.position_embedding.spec.shape)
-    _, t_dim, _ = conv_stack_pos_shape
+    pos_shape = tuple(int(dim) for dim in audio_encoder_t.position_embedding.spec.shape)
+    _, t_dim, _ = pos_shape
     pos_emb = _compute_positional_embedding(t_dim, ac.d_model)
     position_embedding = np.ascontiguousarray(
-        np.broadcast_to(pos_emb[None, :t_dim, :], conv_stack_pos_shape),
+        np.broadcast_to(pos_emb[None, :t_dim, :], pos_shape),
         dtype=np.float32,
     )
 
@@ -501,9 +483,9 @@ def main(
         for j in range(int(fl)):
             valid_positions.append(i * t_dim + j)
     compact_index = np.array(valid_positions, dtype=np.int64)
-    print(f"  hidden_states after compact: {audio_conv_stack_t.index_select.spec.shape}")
+    print(f"  hidden_states after compact: {audio_encoder_t.index_select.spec.shape}")
 
-    # cu_seqlens
+    # Build block-diagonal attention mask from cu_seqlens
     n_window_infer = 800
     aftercnn_lens = _get_feat_extract_output_lengths(np.array([feat_len], dtype=np.int64))
     window_aftercnn = int(feature_lens_after_cnn.max()) * (n_window_infer // (n_window * 2))
@@ -516,51 +498,35 @@ def main(
             cu_chunk_lens += [rem]
     cu_seqlens = np.cumsum(cu_chunk_lens, dtype=np.int32)
 
-    # Build block-diagonal attention mask from cu_seqlens
     seq_len = compact_index.shape[0]
     attention_mask = np.full((1, 1, seq_len, seq_len), -np.finfo(np.float32).max, dtype=np.float32)
     for i in range(1, len(cu_seqlens)):
         s, e = int(cu_seqlens[i - 1]), int(cu_seqlens[i])
         attention_mask[0, 0, s:e, s:e] = 0.0
 
-    # Conv layers + compact stay on GPU; only host-prepared indices/position are uploaded.
-    print(f"  conv stack ({padded_feature.shape})...")
+    # Run entire audio encoder in one frame
+    print(f"  audio encoder ({padded_feature.shape})...")
     rt._inputs.clear()
     rt.register_inputs(
         {
-            audio_conv_stack_t.x: padded_feature,
-            audio_conv_stack_t.position_embedding: position_embedding,
-            audio_conv_stack_t.compact_index: compact_index,
-        }
-    )
-    with rt.frame("spike.audio.conv_stack"):
-        dispatch.run_audio_conv_stack(rt, audio_conv_stack_t)
-    _require_gpu_output(audio_conv_stack_t.index_select)
-
-    # Encoder layers + projection stay in one GPU frame.
-    print("  encoder + projection...")
-    rt._inputs.clear()
-    rt.register_inputs(
-        {
-            encoder_layer_ts[0].attention_mask: attention_mask,
+            audio_encoder_t.x: padded_feature,
+            audio_encoder_t.position_embedding: position_embedding,
+            audio_encoder_t.compact_index: compact_index,
+            audio_encoder_t.attention_mask: attention_mask,
         }
     )
     if pytorch_compare:
-        encoder_frame_scope = rt.frame(
-            "spike.audio.encoder_project",
+        audio_frame_scope = rt.frame(
+            "spike.audio",
             pytorch_model_class=Qwen3ASRForConditionalGeneration,
             pytorch_model_submodule="thinker.audio_tower",
             pytorch_args=(input_features, audio_feature_lens),
         )
     else:
-        encoder_frame_scope = rt.frame("spike.audio.encoder_project")
-    with encoder_frame_scope:
-        for layer_idx, layer_tensors in enumerate(encoder_layer_ts):
-            dispatch.run_encoder_layer(rt, layer_tensors)
-            if layer_idx % 6 == 5:
-                print(f"    layer {layer_idx} done")
-        dispatch.run_audio_proj(rt, audio_proj_t)
-    audio_hidden_t = audio_proj_t.linear_1
+        audio_frame_scope = rt.frame("spike.audio")
+    with audio_frame_scope:
+        dispatch.run_audio_encoder(rt, audio_encoder_t)
+    audio_hidden_t = audio_encoder_t.linear_110
     _require_gpu_output(audio_hidden_t)
     print(f"  Audio tower output: {audio_hidden_t.spec.shape}")
 
