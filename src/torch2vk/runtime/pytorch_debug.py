@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from torch2vk.runtime.session import RuntimeSession
 
 
-_PYTORCH_ARTIFACT_CACHE_VERSION = 2
+_PYTORCH_ARTIFACT_CACHE_VERSION = 5
 
 
 class _PyTorchModuleLike(Protocol):
@@ -104,12 +104,16 @@ class _ReadCompareOutcome:
     ancestor_probe_tensors: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _PyTorchForwardInput:
+    kwarg: str
+    tensor: LogicalTensor
+    value: object
+
+
 class _PyTorchDebugRunner:
     def __init__(self, rt: RuntimeSession) -> None:
         self.rt = rt
-
-    def __getattr__(self, name: str) -> object:
-        return getattr(self.rt, name)
 
     def _compare_frame(self, frame: FrameContext) -> None:
         written = _unique_tensors(frame.written_tensors)
@@ -132,7 +136,7 @@ class _PyTorchDebugRunner:
             self._record_compare(
                 tensor=tensor,
                 frame=frame,
-                candidate=self.readback(tensor),
+                candidate=self.rt.readback(tensor),
                 expected=expected,
             )
 
@@ -186,21 +190,21 @@ class _PyTorchDebugRunner:
                 frame=frame.frame,
                 candidate=candidate,
                 expected=expected,
-                artifact_dir=self.artifact_dir,
+                artifact_dir=self.rt.artifact_dir,
                 nearest_upstream_artifact_key=self._nearest_passed_artifact_key(frame.frame),
             )
         except CompareAssertionError as exc:
             result = self._attach_writer_drilldown(exc.result, frame=frame, seen=set())
             write_compare_summary(result)
-            self._compare_results.append(result)
+            self.rt._compare_results.append(result)
             raise CompareAssertionError(
                 policy=result.tensor.compare or exc.policy,
                 result=result,
             ) from exc
-        self._compare_results.append(result)
+        self.rt._compare_results.append(result)
 
     def _nearest_passed_artifact_key(self, frame: str) -> str | None:
-        for result in reversed(self._compare_results):
+        for result in reversed(self.rt._compare_results):
             if result.frame == frame and result.passed:
                 return result.artifact_key
         return None
@@ -237,7 +241,7 @@ class _PyTorchDebugRunner:
                     output_paths=(),
                 )
             try:
-                record = self._dispatch_records[writer.dispatch_index]
+                record = self.rt._dispatch_records[writer.dispatch_index]
             except IndexError:
                 return self._with_drilldown_classification(
                     current,
@@ -256,7 +260,7 @@ class _PyTorchDebugRunner:
                 )
 
             root = (
-                self.artifact_dir
+                self.rt.artifact_dir
                 / "debug"
                 / _safe_path_component(current.frame)
                 / _safe_path_component(current.tensor.name)
@@ -414,23 +418,23 @@ class _PyTorchDebugRunner:
                 result = compare_arrays(
                     tensor=tensor,
                     frame=probe_frame.frame,
-                    candidate=self.readback(tensor),
+                    candidate=self.rt.readback(tensor),
                     expected=expected,
-                    artifact_dir=self.artifact_dir,
+                    artifact_dir=self.rt.artifact_dir,
                     nearest_upstream_artifact_key=self._nearest_passed_artifact_key(
                         probe_frame.frame
                     ),
                 )
             except CompareAssertionError as exc:
                 write_compare_summary(exc.result)
-                self._compare_results.append(exc.result)
+                self.rt._compare_results.append(exc.result)
                 return _ReadCompareOutcome(
                     failed_result=exc.result,
                     missing_reference_tensors=missing_reference_tensors,
                     unprobed_read_tensors=unprobed_read_tensors,
                     ancestor_probe_tensors=ancestor_probe_tensor_names,
                 )
-            self._compare_results.append(result)
+            self.rt._compare_results.append(result)
         return _ReadCompareOutcome(
             failed_result=None,
             missing_reference_tensors=missing_reference_tensors,
@@ -461,7 +465,7 @@ class _PyTorchDebugRunner:
                 if writer is None:
                     continue
                 try:
-                    record = self._dispatch_records[writer.dispatch_index]
+                    record = self.rt._dispatch_records[writer.dispatch_index]
                 except IndexError:
                     continue
                 for _, read_tensor in record.reads:
@@ -489,7 +493,7 @@ class _PyTorchDebugRunner:
         writer = tensor.writer
         if writer is None or writer.frame == default_frame.frame:
             return default_frame
-        return self._frame_history.get(writer.frame, default_frame)
+        return self.rt._frame_history.get(writer.frame, default_frame)
 
     def _with_drilldown_classification(
         self,
@@ -511,7 +515,7 @@ class _PyTorchDebugRunner:
     def _upstream_tensor_status(self, *, frame: str, tensor: LogicalTensor) -> dict[str, object]:
         artifact_key = f"{frame}/{tensor.name}"
         latest_result = None
-        for result in reversed(self._compare_results):
+        for result in reversed(self.rt._compare_results):
             if result.artifact_key == artifact_key:
                 latest_result = result
                 break
@@ -556,7 +560,7 @@ class _PyTorchDebugRunner:
         if tensor.buffer is None:
             entry["materialized"] = False
             return entry
-        array = self.readback(tensor)
+        array = self.rt.readback(tensor)
         path = (
             root
             / f"{prefix}_{_safe_path_component(field_name)}_{_safe_path_component(tensor.name)}.npy"
@@ -630,7 +634,7 @@ class _PyTorchDebugRunner:
             json.dumps(metadata, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
         root = (
-            self.artifact_dir
+            self.rt.artifact_dir
             / "pytorch_cache"
             / _safe_path_component(frame.frame)
             / _safe_path_component(tensor.name)
@@ -663,59 +667,57 @@ class _PyTorchDebugRunner:
                 "compare": None if tensor.compare is None else asdict(tensor.compare),
             },
             "probe": None if probe is None else asdict(probe),
-            "inputs": self._frame_input_fingerprints(frame),
+            "inputs": self._frame_input_fingerprints(frame, model=model),
             "pytorch_frame": {
-                "input_prefixes": _pytorch_input_prefixes(frame),
                 "cache_policy": frame.pytorch_cache_policy,
                 "cache_namespace": frame.pytorch_cache_namespace,
                 "reset_cache": frame.pytorch_reset_cache,
             },
-            "explicit_pytorch_args": [
-                self._pytorch_value_fingerprint(value) for value in frame.pytorch_args
-            ],
-            "explicit_pytorch_kwargs": {
-                key: self._pytorch_value_fingerprint(value)
-                for key, value in sorted(frame.pytorch_kwargs.items())
-            },
             "model": self._model_fingerprint(model),
         }
 
-    def _frame_input_fingerprints(self, frame: FrameContext) -> list[dict[str, object]]:
-        entries: list[dict[str, object]] = []
-        for tensor, value in self._inputs.items():
-            if tensor.role is not TensorRole.INPUT:
-                continue
-            if not any(tensor.name.startswith(prefix) for prefix in _pytorch_input_prefixes(frame)):
-                continue
+    def _frame_input_fingerprints(
+        self,
+        frame: FrameContext,
+        *,
+        model: object,
+    ) -> list[dict[str, object]]:
+        parameter_names = _pytorch_forward_parameter_names(model)
+        entries = []
+        for entry in self._frame_pytorch_forward_inputs(
+            frame=frame,
+            parameter_names=parameter_names,
+        ):
             entries.append(
                 {
-                    "tensor": tensor.name,
-                    "dtype": tensor.spec.dtype,
-                    "shape": tensor.concrete_shape,
-                    "value": _value_fingerprint(value),
+                    "kwarg": entry.kwarg,
+                    "tensor": entry.tensor.name,
+                    "dtype": entry.tensor.spec.dtype,
+                    "shape": entry.tensor.concrete_shape,
+                    "value": _value_fingerprint(entry.value),
                 }
             )
-        return sorted(entries, key=lambda entry: str(entry["tensor"]))
+        return sorted(entries, key=lambda entry: str(entry["kwarg"]))
 
     def _model_fingerprint(self, model: object) -> dict[str, object]:
         model_type = type(model)
         fingerprint: dict[str, object] = {
             "type": f"{model_type.__module__}.{model_type.__qualname__}",
         }
-        if self.model_dir is not None:
+        if self.rt.model_dir is not None:
             files = [
                 path
                 for pattern in ("*.safetensors", "*.safetensors.index.json", "config.json")
-                for path in sorted(self.model_dir.glob(pattern))
+                for path in sorted(self.rt.model_dir.glob(pattern))
                 if path.is_file()
             ]
             fingerprint.update(
                 {
                     "kind": "model_dir",
-                    "model_dir": str(self.model_dir),
+                    "model_dir": str(self.rt.model_dir),
                     "files": [
                         {
-                            "path": str(path.relative_to(self.model_dir)),
+                            "path": str(path.relative_to(self.rt.model_dir)),
                             "size": path.stat().st_size,
                             "mtime_ns": path.stat().st_mtime_ns,
                         }
@@ -726,20 +728,6 @@ class _PyTorchDebugRunner:
             return fingerprint
         fingerprint.update({"kind": "process_object", "object_id": id(model)})
         return fingerprint
-
-    def _pytorch_value_fingerprint(self, value: object) -> dict[str, object]:
-        if isinstance(value, LogicalTensor):
-            try:
-                registered = self._inputs[value]
-            except KeyError:
-                return {"kind": "logical_tensor", "tensor": value.name, "registered": False}
-            return {
-                "kind": "logical_tensor",
-                "tensor": value.name,
-                "registered": True,
-                "value": _value_fingerprint(registered),
-            }
-        return _value_fingerprint(value)
 
     def _run_pytorch_probes(
         self,
@@ -795,14 +783,15 @@ class _PyTorchDebugRunner:
             frame=frame,
             model=model,
         )
-        args, kwargs = self._pytorch_forward_inputs(
-            frame,
-            model,
+        kwargs = self._infer_pytorch_forward_kwargs(
+            frame=frame,
+            model=model,
+            parameter_names=_pytorch_forward_parameter_names(model),
             cache_overrides=cache_overrides,
         )
         try:
             with torch.no_grad():
-                output = module_like(*args, **kwargs)
+                output = module_like(**kwargs)
         finally:
             for hook in hooks:
                 hook.remove()
@@ -863,39 +852,9 @@ class _PyTorchDebugRunner:
         past_key_values = getattr(output, "past_key_values", None)
         if past_key_values is not None:
             namespace = _pytorch_cache_namespace(frame=frame, model=model)
-            self._pytorch_cache_states[namespace] = past_key_values
+            self.rt._pytorch_cache_states[namespace] = past_key_values
 
-    def _pytorch_forward_inputs(
-        self,
-        frame: FrameContext,
-        model: object,
-        *,
-        cache_overrides: Mapping[str, object] | None = None,
-    ) -> tuple[tuple[object, ...], dict[str, object]]:
-        parameter_names = _pytorch_forward_parameter_names(model)
-        if frame.pytorch_args or frame.pytorch_kwargs:
-            device = self._pytorch_model_device(model)
-            kwargs = {
-                key: self._to_device(self._resolve_pytorch_value(value), device)
-                for key, value in frame.pytorch_kwargs.items()
-            }
-            self._configure_pytorch_cache_kwargs(
-                frame=frame,
-                model=model,
-                parameter_names=parameter_names,
-                kwargs=kwargs,
-                cache_overrides={} if cache_overrides is None else cache_overrides,
-            )
-            return tuple(self._to_device(self._resolve_pytorch_value(value), device) for value in frame.pytorch_args), kwargs
-        kwargs = self._infer_pytorch_kwargs(
-            frame=frame,
-            model=model,
-            parameter_names=parameter_names,
-            cache_overrides={} if cache_overrides is None else cache_overrides,
-        )
-        return (), kwargs
-
-    def _infer_pytorch_kwargs(
+    def _infer_pytorch_forward_kwargs(
         self,
         *,
         frame: FrameContext,
@@ -907,21 +866,14 @@ class _PyTorchDebugRunner:
 
         device = self._pytorch_model_device(model)
         kwargs: dict[str, object] = {}
-        for tensor, value in self._inputs.items():
-            if tensor.role is not TensorRole.INPUT:
-                continue
-            kwarg = None
-            for prefix in _pytorch_input_prefixes(frame):
-                if tensor.name.startswith(prefix):
-                    kwarg = tensor.name.removeprefix(prefix)
-                    break
-            if kwarg is None:
-                continue
-            if kwarg in parameter_names:
-                pytorch_value = self._as_pytorch_input(value)
-                if isinstance(pytorch_value, torch.Tensor):
-                    pytorch_value = pytorch_value.to(device)
-                kwargs[kwarg] = pytorch_value
+        for entry in self._frame_pytorch_forward_inputs(
+            frame=frame,
+            parameter_names=parameter_names,
+        ):
+            pytorch_value = self._as_pytorch_input(entry.value)
+            if isinstance(pytorch_value, torch.Tensor):
+                pytorch_value = pytorch_value.to(device)
+            kwargs[entry.kwarg] = pytorch_value
         self._configure_pytorch_cache_kwargs(
             frame=frame,
             model=model,
@@ -930,6 +882,51 @@ class _PyTorchDebugRunner:
             cache_overrides=cache_overrides,
         )
         return kwargs
+
+    def _frame_pytorch_forward_inputs(
+        self,
+        *,
+        frame: FrameContext,
+        parameter_names: set[str],
+    ) -> tuple[_PyTorchForwardInput, ...]:
+        selected: dict[str, _PyTorchForwardInput] = {}
+        for tensor in self._frame_pytorch_input_tensors(frame):
+            if tensor.role is TensorRole.WEIGHT:
+                continue
+            kwarg = _pytorch_kwarg_name(tensor)
+            if kwarg not in parameter_names:
+                continue
+            value = self._pytorch_value_for_tensor(tensor)
+            existing = selected.get(kwarg)
+            if existing is not None:
+                if existing.tensor is not tensor:
+                    raise RuntimeError(
+                        "PyTorch frame input inference found duplicate kwarg "
+                        f"{kwarg!r}: {existing.tensor.name} and {tensor.name}"
+                    )
+                continue
+            selected[kwarg] = _PyTorchForwardInput(
+                kwarg=kwarg,
+                tensor=tensor,
+                value=value,
+            )
+        return tuple(selected.values())
+
+    def _frame_used_tensors(self, frame: FrameContext) -> list[LogicalTensor]:
+        return _unique_tensors(frame.used_tensors)
+
+    def _frame_pytorch_input_tensors(self, frame: FrameContext) -> list[LogicalTensor]:
+        return _unique_tensors((*frame.registered_inputs, *frame.used_tensors))
+
+    def _pytorch_value_for_tensor(self, tensor: LogicalTensor) -> object:
+        if tensor.role is TensorRole.INPUT:
+            try:
+                return self.rt._inputs[tensor]
+            except KeyError as exc:
+                raise RuntimeError(f"{tensor.name} requires missing PyTorch input") from exc
+        if tensor.buffer is None:
+            raise RuntimeError(f"{tensor.name} has no GPU buffer for PyTorch input")
+        return self.rt.readback(tensor)
 
     def _configure_pytorch_cache_kwargs(
         self,
@@ -958,30 +955,15 @@ class _PyTorchDebugRunner:
         if frame.pytorch_reset_cache and not frame.pytorch_forward_ran:
             cache = _new_hf_dynamic_cache(model)
             if cache is not None:
-                self._pytorch_cache_states[namespace] = cache
+                self.rt._pytorch_cache_states[namespace] = cache
             return cache
         try:
-            return self._pytorch_cache_states[namespace]
+            return self.rt._pytorch_cache_states[namespace]
         except KeyError:
             cache = _new_hf_dynamic_cache(model)
             if cache is not None:
-                self._pytorch_cache_states[namespace] = cache
+                self.rt._pytorch_cache_states[namespace] = cache
             return cache
-
-    def _resolve_pytorch_value(self, value: object) -> object:
-        if isinstance(value, LogicalTensor):
-            try:
-                registered = self._inputs[value]
-            except KeyError as exc:
-                raise RuntimeError(
-                    f"{value.name} is used as a PyTorch input but was not registered"
-                ) from exc
-            return self._as_pytorch_input(registered)
-        if isinstance(value, tuple):
-            return tuple(self._resolve_pytorch_value(v) for v in value)
-        if isinstance(value, list):
-            return [self._resolve_pytorch_value(v) for v in value]
-        return self._as_pytorch_input(value)
 
     def _as_pytorch_input(self, value: object) -> object:
         import torch
@@ -1004,9 +986,9 @@ class _PyTorchDebugRunner:
         return value
 
     def _load_pytorch_model(self, model_class: object) -> object | None:
-        if model_class in self._pytorch_models:
-            return self._pytorch_models[model_class]
-        if self.model_dir is None:
+        if model_class in self.rt._pytorch_models:
+            return self.rt._pytorch_models[model_class]
+        if self.rt.model_dir is None:
             return None
         import torch
 
@@ -1016,13 +998,13 @@ class _PyTorchDebugRunner:
                 f"pytorch_model_class must provide from_pretrained, got {type(model_class).__name__}"
             )
         model = model_class.from_pretrained(
-            str(self.model_dir),
+            str(self.rt.model_dir),
             dtype=torch.float32,
             attn_implementation="eager",
         )
         model.to(device)
         model.eval()
-        self._pytorch_models[model_class] = model
+        self.rt._pytorch_models[model_class] = model
         return model
 
     def _pytorch_model_device(self, model: object) -> "torch.device":
@@ -1079,18 +1061,8 @@ def _default_frame_compare_targets(written: Iterable[LogicalTensor]) -> list[Log
     return [comparable[-1]]
 
 
-def _pytorch_input_prefixes(frame: FrameContext) -> tuple[str, ...]:
-    prefixes = [_normalize_pytorch_input_prefix(frame.frame)]
-    prefixes.extend(
-        _normalize_pytorch_input_prefix(prefix) for prefix in frame.pytorch_input_prefixes
-    )
-    return tuple(dict.fromkeys(prefixes))
-
-
-def _normalize_pytorch_input_prefix(prefix: str) -> str:
-    if not prefix:
-        raise ValueError("PyTorch input prefix must be non-empty")
-    return prefix if prefix.endswith(".") else f"{prefix}."
+def _pytorch_kwarg_name(tensor: LogicalTensor) -> str:
+    return tensor.name.rsplit(".", 1)[-1]
 
 
 def _is_stateful_pytorch_frame(frame: FrameContext) -> bool:

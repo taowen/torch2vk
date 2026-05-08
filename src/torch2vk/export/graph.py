@@ -243,8 +243,9 @@ def inject_kv_cache(prog: torch.export.ExportedProgram, hint: KVCacheInjectHint)
     sdpa_node = _find_sdpa_node(graph)
     k_node = sdpa_node.args[1]
     v_node = sdpa_node.args[2]
+    if not isinstance(k_node, Node) or not isinstance(v_node, Node):
+        raise TypeError("SDPA key/value args must be graph nodes for KV cache injection")
     k_meta = k_node.meta["tensor_meta"]
-    v_meta = v_node.meta["tensor_meta"]
 
     batch, num_kv_heads, seq_len, head_dim = k_meta.shape
     cache_shape = (batch, num_kv_heads, hint.max_seq_len, head_dim)

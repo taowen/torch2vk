@@ -18,6 +18,11 @@ import numpy as np
 import torch
 from jinja2 import Environment, StrictUndefined
 
+from models.exported_qwen3_asr.export_forwards import (
+    export_audio_inject_forward,
+    export_audio_tower_forward,
+    patched_forward,
+)
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
@@ -220,7 +225,9 @@ def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:
         dst.descriptor_nbytes = src.descriptor_nbytes
         dst.version = src.version
         dst.writer = src.writer
-    rt._current_frame().written_tensors.append(dst)
+    frame = rt._current_frame()
+    frame.used_tensors.append(src)
+    frame.written_tensors.append(dst)
 '''
 
 
@@ -474,60 +481,17 @@ def main() -> int:
     nc = shapes["num_chunks"]
     enc_seq = shapes["enc_seq_len"]
 
-    class _AudioEncoder(torch.nn.Module):
-        """Chains the exportable parts of Qwen3ASRAudioEncoder.
-
-        The upstream forward() can't be exported due to .item() calls in
-        chunking logic. This wrapper takes pre-computed host-side tensors
-        (position_embedding, compact_index, cu_seqlens, attention_mask) and
-        chains all exportable sub-modules: conv → layers → proj.
-        """
-
-        def __init__(self, at):
-            super().__init__()
-            self.conv2d1 = at.conv2d1
-            self.conv2d2 = at.conv2d2
-            self.conv2d3 = at.conv2d3
-            self.conv_out = at.conv_out
-            self.layers = at.layers
-            self.ln_post = at.ln_post
-            self.proj1 = at.proj1
-            self.proj2 = at.proj2
-            self._act = at.act
-
-        def forward(self, x, position_embedding, compact_index, cu_seqlens, attention_mask):
-            x = torch.nn.functional.gelu(self.conv2d1(x))
-            x = torch.nn.functional.gelu(self.conv2d2(x))
-            x = torch.nn.functional.gelu(self.conv2d3(x))
-            b, c, f, t = x.shape
-            x = self.conv_out(x.reshape(b, c * f, t).transpose(1, 2))
-            x = x + position_embedding
-            x = x.reshape(-1, x.shape[-1])
-            hidden_states = torch.index_select(x, 0, compact_index)
-
-            for layer in self.layers:
-                hidden_states = layer(hidden_states, cu_seqlens, attention_mask=attention_mask)[0]
-
-            hidden_states = self.ln_post(hidden_states)
-            hidden_states = self._act(self.proj1(hidden_states))
-            return self.proj2(hidden_states)
-
-    class _AudioInject(torch.nn.Module):
-        """Wraps index_copy for audio feature injection (no upstream Module exists)."""
-
-        def forward(self, inputs_embeds, audio_positions, audio_features):
-            return torch.index_copy(inputs_embeds, 1, audio_positions, audio_features.unsqueeze(0))
-
     # Audio encoder export (single export with layer loop hint)
     num_encoder_layers = len(at.layers)
-    export_one("run_audio_encoder", _AudioEncoder(at).float(),
-               args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),
-                     torch.zeros(*shapes["conv_out"], device="meta"),
-                     torch.zeros(enc_seq, dtype=torch.long, device="meta"),
-                     torch.zeros(shapes["cu_seqlens_len"], dtype=torch.int32, device="meta"),
-                     torch.zeros(1, 1, enc_seq, enc_seq, device="meta")),
-               weight_prefix="thinker.audio_tower.",
-               layer_loop=LayerLoopHint(layer_prefix="layers", num_layers=num_encoder_layers))
+    with patched_forward(at, export_audio_tower_forward):
+        export_one("run_audio_encoder", at.float(),
+                   args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),
+                         torch.zeros(*shapes["conv_out"], device="meta"),
+                         torch.zeros(enc_seq, dtype=torch.long, device="meta"),
+                         torch.zeros(shapes["cu_seqlens_len"], dtype=torch.int32, device="meta"),
+                         torch.zeros(1, 1, enc_seq, enc_seq, device="meta")),
+                   weight_prefix="thinker.audio_tower.",
+                   layer_loop=LayerLoopHint(layer_prefix="layers", num_layers=num_encoder_layers))
 
     # Text pipeline exports
     pl = shapes["prompt_length"]
@@ -537,10 +501,11 @@ def main() -> int:
     export_one("run_embed_tokens", model.thinker.model.embed_tokens.float(),
                args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.")
-    export_one("run_audio_inject", _AudioInject(),
-               args=(torch.zeros(1, pl, hs, device="meta"),
-                     torch.zeros(enc_seq, dtype=torch.long, device="meta"),
-                     torch.zeros(enc_seq, hs, device="meta")))
+    with patched_forward(model.thinker, export_audio_inject_forward):
+        export_one("run_audio_inject", model.thinker,
+                   args=(torch.zeros(1, pl, hs, device="meta"),
+                         torch.zeros(enc_seq, dtype=torch.long, device="meta"),
+                         torch.zeros(enc_seq, hs, device="meta")))
     export_one("run_text_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, pl, hs, device="meta"),
                      (torch.zeros(1, pl, hd, device="meta"),

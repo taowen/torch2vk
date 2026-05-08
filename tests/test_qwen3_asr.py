@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,7 @@ _EXPECTED_ZH_TEXT = "甚至出现交易几乎停滞的情况。"
 
 
 @pytest.fixture(scope="module")
-def recognizer(tmp_path_factory: pytest.TempPathFactory) -> Qwen3AsrRecognizer:
+def recognizer(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Qwen3AsrRecognizer]:
     artifact_dir = tmp_path_factory.mktemp("qwen3_asr")
     with Qwen3AsrRecognizer.open(artifact_dir=artifact_dir, pytorch_compare=True) as asr:
         yield asr

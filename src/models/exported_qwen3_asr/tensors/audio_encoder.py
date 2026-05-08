@@ -556,6 +556,8 @@ def create_encoder_layer(
 
 @dataclass(frozen=True, slots=True)
 class AudioEncoderTensors:
+    p_ln_post_weight: LogicalTensor
+    p_ln_post_bias: LogicalTensor
     p_conv2d1_weight: LogicalTensor
     p_conv2d1_bias: LogicalTensor
     p_conv2d2_weight: LogicalTensor
@@ -563,8 +565,6 @@ class AudioEncoderTensors:
     p_conv2d3_weight: LogicalTensor
     p_conv2d3_bias: LogicalTensor
     p_conv_out_weight: LogicalTensor
-    p_ln_post_weight: LogicalTensor
-    p_ln_post_bias: LogicalTensor
     p_proj1_weight: LogicalTensor
     p_proj1_bias: LogicalTensor
     p_proj2_weight: LogicalTensor
@@ -598,6 +598,8 @@ AUDIO_ENCODER_OUTPUT: str = 'linear_110'
 def create_audio_encoder(
     prefix: str,
     *,
+    p_ln_post_weight: LogicalTensor | None = None,
+    p_ln_post_bias: LogicalTensor | None = None,
     p_conv2d1_weight: LogicalTensor | None = None,
     p_conv2d1_bias: LogicalTensor | None = None,
     p_conv2d2_weight: LogicalTensor | None = None,
@@ -605,8 +607,6 @@ def create_audio_encoder(
     p_conv2d3_weight: LogicalTensor | None = None,
     p_conv2d3_bias: LogicalTensor | None = None,
     p_conv_out_weight: LogicalTensor | None = None,
-    p_ln_post_weight: LogicalTensor | None = None,
-    p_ln_post_bias: LogicalTensor | None = None,
     p_proj1_weight: LogicalTensor | None = None,
     p_proj1_bias: LogicalTensor | None = None,
     p_proj2_weight: LogicalTensor | None = None,
@@ -635,6 +635,28 @@ def create_audio_encoder(
 ) -> AudioEncoderTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('linear_110',)))
     return AudioEncoderTensors(
+        p_ln_post_weight=_bind_tensor(
+            p_ln_post_weight,
+            _declare_tensor(
+            name="thinker.audio_tower.ln_post.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(896,)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_ln_post_weight' in request_state_outputs,
+            ),
+        ),
+        p_ln_post_bias=_bind_tensor(
+            p_ln_post_bias,
+            _declare_tensor(
+            name="thinker.audio_tower.ln_post.bias",
+            spec=TensorSpec(dtype='bfloat16', shape=(896,)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_ln_post_bias' in request_state_outputs,
+            ),
+        ),
         p_conv2d1_weight=_bind_tensor(
             p_conv2d1_weight,
             _declare_tensor(
@@ -710,28 +732,6 @@ def create_audio_encoder(
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
             request_state='p_conv_out_weight' in request_state_outputs,
-            ),
-        ),
-        p_ln_post_weight=_bind_tensor(
-            p_ln_post_weight,
-            _declare_tensor(
-            name="thinker.audio_tower.ln_post.weight",
-            spec=TensorSpec(dtype='bfloat16', shape=(896,)),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-            request_state='p_ln_post_weight' in request_state_outputs,
-            ),
-        ),
-        p_ln_post_bias=_bind_tensor(
-            p_ln_post_bias,
-            _declare_tensor(
-            name="thinker.audio_tower.ln_post.bias",
-            spec=TensorSpec(dtype='bfloat16', shape=(896,)),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-            request_state='p_ln_post_bias' in request_state_outputs,
             ),
         ),
         p_proj1_weight=_bind_tensor(

@@ -109,6 +109,7 @@ class RuntimeSession:
             if tensor.role is not TensorRole.INPUT:
                 raise ValueError(f"{tensor.name} is not an input tensor")
             self._inputs[tensor] = value
+            self._record_frame_input(tensor)
 
     def initialize_request_state(self, states: Mapping[LogicalTensor, object]) -> None:
         from torch2vk.runtime.request_state import initialize_request_state
@@ -144,9 +145,6 @@ class RuntimeSession:
         pytorch_model: object | None = None,
         pytorch_model_class: object | None = None,
         pytorch_model_submodule: str | None = None,
-        pytorch_args: tuple[object, ...] = (),
-        pytorch_kwargs: Mapping[str, object] | None = None,
-        pytorch_input_prefixes: Sequence[str] = (),
         pytorch_cache_policy: str = "none",
         pytorch_cache_namespace: str | None = None,
         pytorch_reset_cache: bool = False,
@@ -170,9 +168,6 @@ class RuntimeSession:
             frame=name,
             start_dispatch_index=len(self._dispatch_records),
             pytorch_model=pytorch_model,
-            pytorch_args=tuple(pytorch_args),
-            pytorch_kwargs={} if pytorch_kwargs is None else dict(pytorch_kwargs),
-            pytorch_input_prefixes=tuple(pytorch_input_prefixes),
             pytorch_cache_policy=cache_policy,
             pytorch_cache_namespace=pytorch_cache_namespace,
             pytorch_reset_cache=pytorch_reset_cache,
@@ -299,6 +294,17 @@ class RuntimeSession:
         if not self._frame_stack:
             raise RuntimeError("RuntimeSession.dispatch requires an active rt.frame(...)")
         return self._frame_stack[-1]
+
+    def _active_frame(self) -> FrameContext | None:
+        if not self._frame_stack:
+            return None
+        return self._frame_stack[-1]
+
+    def _record_frame_input(self, tensor: LogicalTensor) -> None:
+        frame = self._active_frame()
+        if frame is not None:
+            frame.registered_inputs.append(tensor)
+
 
     def _bind_shape_symbols(
         self,

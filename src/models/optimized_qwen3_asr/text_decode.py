@@ -52,7 +52,6 @@ def run_qwen3_asr_text_decode(
             f"qwen3_asr.text_decode.{step:04d}",
             pytorch_model_class=Qwen3ASRForConditionalGeneration,
             pytorch_model_submodule="thinker",
-            pytorch_input_prefixes=("qwen3_asr.text_decode",),
             pytorch_cache_policy="hf_dynamic",
             pytorch_cache_namespace="qwen3_asr.text",
         )

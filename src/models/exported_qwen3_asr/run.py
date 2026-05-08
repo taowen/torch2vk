@@ -7,17 +7,20 @@ Run from project root:
 from __future__ import annotations
 
 from collections.abc import Iterable
+from contextlib import nullcontext
 import dataclasses
 import json
 import os
 import time
 from pathlib import Path
-
+from typing import cast
 import numpy as np
+import torch
 from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRConfig
 from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
     Qwen3ASRForConditionalGeneration,
 )
+from transformers.modeling_outputs import BaseModelOutput
 
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
@@ -25,6 +28,10 @@ from models.optimized_qwen3_asr.pytorch.example import REPO_ID
 from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
 from models.exported_qwen3_asr import dispatch
+from models.exported_qwen3_asr.export_forwards import (
+    export_audio_tower_forward,
+    patched_forward,
+)
 from models.exported_qwen3_asr.tensors import audio_encoder as audio_encoder_tensors
 from models.exported_qwen3_asr.tensors import audio_inject as audio_inject_tensors
 from models.exported_qwen3_asr.tensors import decode_embed as decode_embed_tensors
@@ -155,6 +162,140 @@ def _compute_positional_embedding(length: int, channels: int) -> np.ndarray:
     scaled_time = np.arange(length, dtype=np.float32)[:, None] * inv_timescales[None, :]
     return np.concatenate([np.sin(scaled_time), np.cos(scaled_time)], axis=1).astype(np.float32)
 
+
+def _preprocess_audio_inputs(
+    input_ids: np.ndarray,
+    input_features: np.ndarray,
+    feature_attention_mask: np.ndarray,
+    *,
+    position_embedding_shape: tuple[int, ...],
+    d_model: int,
+) -> dict[str, np.ndarray]:
+    feat_len = int(np.asarray(feature_attention_mask).sum(axis=-1).reshape(-1)[0])
+    mel = np.ascontiguousarray(np.asarray(input_features)[0, :, :feat_len], dtype=np.float32)
+
+    n_window = 50
+    chunk_num = int(np.ceil(feat_len / (n_window * 2)))
+    chunk_lengths = np.full(chunk_num, n_window * 2, dtype=np.int64)
+    remainder = feat_len % (n_window * 2)
+    if remainder != 0:
+        chunk_lengths[-1] = remainder
+
+    features_t = mel.T
+    chunks = []
+    offset = 0
+    for chunk_length in chunk_lengths:
+        chunk = features_t[offset : offset + chunk_length]
+        chunks.append(chunk)
+        offset += int(chunk_length)
+
+    max_chunk_len = int(chunk_lengths.max())
+    num_mel = mel.shape[0]
+    padded_feature = np.zeros((chunk_num, 1, num_mel, max_chunk_len), dtype=np.float32)
+    for index, chunk in enumerate(chunks):
+        padded_feature[index, 0, :, : chunk.shape[0]] = chunk.T
+
+    _, t_dim, _ = position_embedding_shape
+    pos_emb = _compute_positional_embedding(t_dim, d_model)
+    position_embedding = np.ascontiguousarray(
+        np.broadcast_to(pos_emb[None, :t_dim, :], position_embedding_shape),
+        dtype=np.float32,
+    )
+
+    feature_lens_after_cnn = _get_feat_extract_output_lengths(chunk_lengths)
+    valid_positions = [
+        chunk_index * t_dim + offset
+        for chunk_index, feature_len in enumerate(feature_lens_after_cnn)
+        for offset in range(int(feature_len))
+    ]
+    compact_index = np.array(valid_positions, dtype=np.int64)
+
+    n_window_infer = 800
+    aftercnn_lens = _get_feat_extract_output_lengths(np.array([feat_len], dtype=np.int64))
+    window_aftercnn = int(feature_lens_after_cnn.max()) * (n_window_infer // (n_window * 2))
+    cu_chunk_lens = [0]
+    for cnn_len in aftercnn_lens:
+        cnn_len = int(cnn_len)
+        cu_chunk_lens += [window_aftercnn] * (cnn_len // window_aftercnn)
+        rem = cnn_len % window_aftercnn
+        if rem != 0:
+            cu_chunk_lens += [rem]
+    cu_seqlens = np.cumsum(cu_chunk_lens, dtype=np.int32)
+
+    seq_len = compact_index.shape[0]
+    attention_mask = np.full(
+        (1, 1, seq_len, seq_len),
+        -np.finfo(np.float32).max,
+        dtype=np.float32,
+    )
+    for index in range(1, len(cu_seqlens)):
+        start, end = int(cu_seqlens[index - 1]), int(cu_seqlens[index])
+        attention_mask[0, 0, start:end, start:end] = 0.0
+
+    audio_positions = np.where(np.asarray(input_ids).reshape(-1) == 151676)[0].astype(np.int64)
+    return {
+        "padded_feature": padded_feature,
+        "position_embedding": position_embedding,
+        "compact_index": compact_index,
+        "audio_attention_mask": attention_mask,
+        "cu_seqlens": cu_seqlens,
+        "audio_positions": audio_positions,
+    }
+
+
+def _audio_position_embedding_shape(
+    *,
+    feature_length: int,
+    d_model: int,
+) -> tuple[int, int, int]:
+    n_window = 50
+    chunk_num = int(np.ceil(feature_length / (n_window * 2)))
+    chunk_lengths = np.full(chunk_num, n_window * 2, dtype=np.int64)
+    remainder = feature_length % (n_window * 2)
+    if remainder != 0:
+        chunk_lengths[-1] = remainder
+    time = int(_get_feat_extract_output_lengths(chunk_lengths).max())
+    return (chunk_num, time, d_model)
+
+
+def _debug_audio_tower_forward(
+    self: torch.nn.Module,
+    input_features: torch.Tensor,
+    feature_lens: torch.Tensor | None = None,
+    aftercnn_lens: torch.Tensor | None = None,
+) -> BaseModelOutput:
+    if feature_lens is None:
+        raise ValueError("feature_lens is required for exported_qwen3_asr audio debug")
+    config = getattr(self, "config")
+    d_model = int(getattr(config, "d_model"))
+    feat_len = int(feature_lens.detach().cpu().reshape(-1)[0].item())
+    features = input_features.detach().cpu().float().numpy()
+    arrays = _preprocess_audio_inputs(
+        np.zeros((1, 0), dtype=np.int64),
+        features[None, :, :feat_len],
+        np.ones((1, feat_len), dtype=np.int64),
+        position_embedding_shape=_audio_position_embedding_shape(
+            feature_length=feat_len,
+            d_model=d_model,
+        ),
+        d_model=d_model,
+    )
+    device = input_features.device
+    dtype = input_features.dtype
+    output = export_audio_tower_forward(
+        self,
+        torch.from_numpy(arrays["padded_feature"]).to(device=device, dtype=dtype),
+        torch.from_numpy(arrays["position_embedding"]).to(device=device, dtype=dtype),
+        torch.from_numpy(arrays["compact_index"]).to(device=device),
+        torch.from_numpy(arrays["cu_seqlens"]).to(device=device),
+        torch.from_numpy(arrays["audio_attention_mask"]).to(device=device, dtype=dtype),
+    )
+    return BaseModelOutput(
+        last_hidden_state=cast(torch.FloatTensor, output["last_hidden_state"])
+    )
+
+
+
 def _collect_tensors_by_name(*values: object) -> dict[str, LogicalTensor]:
     tensors_by_name: dict[str, LogicalTensor] = {}
 
@@ -238,13 +379,48 @@ def main(
 
     ac = config.thinker_config.audio_config
     tc = config.thinker_config.text_config
+    rope_theta = float(getattr(tc, "rope_theta", 5_000_000.0))
     processor, prepared = prepare_qwen3_asr_inputs(model_dir=model_dir, wav=str(wav_path))
     prompt_length = prepared.prompt_length
     max_sequence_length = prepared.prompt_length + 64
     rt = RuntimeSession.open(device_index=0, model_dir=model_dir)
+    pytorch_audio_tower = None
+    pytorch_thinker = None
+    if pytorch_compare:
+        pytorch_model = rt._load_pytorch_model(Qwen3ASRForConditionalGeneration)
+        if pytorch_model is None:
+            raise RuntimeError("exported_qwen3_asr compare requires a PyTorch model")
+        pytorch_audio_tower = getattr(getattr(pytorch_model, "thinker"), "audio_tower")
+        pytorch_thinker = getattr(pytorch_model, "thinker")
 
     # === Create all tensor objects upfront ===
     print("Declaring tensors...")
+
+    input_ids_t = _host_input_tensor(
+        "spike.text.prefill.input_ids",
+        "int64",
+        tuple(int(dim) for dim in prepared.input_ids.shape),
+    )
+    attention_mask_t = _host_input_tensor(
+        "spike.text.prefill.attention_mask",
+        "int64",
+        tuple(int(dim) for dim in prepared.attention_mask.shape),
+    )
+    input_features_t = _host_input_tensor(
+        "spike.text.prefill.input_features",
+        "float32",
+        tuple(int(dim) for dim in prepared.input_features.shape),
+    )
+    feature_attention_mask_t = _host_input_tensor(
+        "spike.text.prefill.feature_attention_mask",
+        "int64",
+        tuple(int(dim) for dim in prepared.feature_attention_mask.shape),
+    )
+    position_ids_t = _host_input_tensor(
+        "spike.text.prefill.position_ids",
+        "int64",
+        (3, 1, prompt_length),
+    )
 
     # Audio encoder (conv + layers + proj as single dispatch)
     audio_encoder_t = audio_encoder_tensors.create_audio_encoder(
@@ -253,7 +429,10 @@ def main(
     )
 
     # Text (non-layered)
-    embed_tokens_t = embed_tokens_tensors.create_embed_tokens("spike.text.embed")
+    embed_tokens_t = embed_tokens_tensors.create_embed_tokens(
+        "spike.text.embed",
+        input=input_ids_t,
+    )
     audio_inject_t = audio_inject_tensors.create_audio_inject(
         "spike.text.audio_inject",
         audio_features=audio_encoder_t.linear_110,
@@ -374,88 +553,31 @@ def main(
 
     # === Audio Tower ===
     print("\n=== Phase 1: Audio Tower ===")
-    feat_len = prepared.audio_feature_length
-    input_features = np.ascontiguousarray(prepared.input_features[0, :, :feat_len], dtype=np.float32)
-    audio_feature_lens = np.array([feat_len], dtype=np.int64)
-
-    n_window = 50
-    chunk_num = int(np.ceil(feat_len / (n_window * 2)))
-    chunk_lengths = np.full(chunk_num, n_window * 2, dtype=np.int64)
-    remainder = feat_len % (n_window * 2)
-    if remainder != 0:
-        chunk_lengths[-1] = remainder
-
-    features_t = input_features.T
-    chunks = []
-    offset = 0
-    for cl in chunk_lengths:
-        chunks.append(features_t[offset:offset + cl])
-        offset += cl
-
-    max_chunk_len = int(chunk_lengths.max())
-    num_mel = input_features.shape[0]
-    padded_feature = np.zeros((chunk_num, 1, num_mel, max_chunk_len), dtype=np.float32)
-    for i, chunk in enumerate(chunks):
-        padded_feature[i, 0, :, :chunk.shape[0]] = chunk.T
-
-    # Positional embedding + compact
-    pos_shape = tuple(int(dim) for dim in audio_encoder_t.position_embedding.spec.shape)
-    _, t_dim, _ = pos_shape
-    pos_emb = _compute_positional_embedding(t_dim, ac.d_model)
-    position_embedding = np.ascontiguousarray(
-        np.broadcast_to(pos_emb[None, :t_dim, :], pos_shape),
-        dtype=np.float32,
+    preprocessed = _preprocess_audio_inputs(
+        prepared.input_ids,
+        prepared.input_features,
+        prepared.feature_attention_mask,
+        position_embedding_shape=tuple(int(dim) for dim in audio_encoder_t.position_embedding.spec.shape),
+        d_model=ac.d_model,
     )
-
-    feature_lens_after_cnn = _get_feat_extract_output_lengths(chunk_lengths)
-    valid_positions = []
-    for i, fl in enumerate(feature_lens_after_cnn):
-        for j in range(int(fl)):
-            valid_positions.append(i * t_dim + j)
-    compact_index = np.array(valid_positions, dtype=np.int64)
     print(f"  hidden_states after compact: {audio_encoder_t.index_select.spec.shape}")
-
-    # Build block-diagonal attention mask from cu_seqlens
-    n_window_infer = 800
-    aftercnn_lens = _get_feat_extract_output_lengths(np.array([feat_len], dtype=np.int64))
-    window_aftercnn = int(feature_lens_after_cnn.max()) * (n_window_infer // (n_window * 2))
-    cu_chunk_lens = [0]
-    for cnn_len in aftercnn_lens:
-        cnn_len = int(cnn_len)
-        cu_chunk_lens += [window_aftercnn] * (cnn_len // window_aftercnn)
-        rem = cnn_len % window_aftercnn
-        if rem != 0:
-            cu_chunk_lens += [rem]
-    cu_seqlens = np.cumsum(cu_chunk_lens, dtype=np.int32)
-
-    seq_len = compact_index.shape[0]
-    attention_mask = np.full((1, 1, seq_len, seq_len), -np.finfo(np.float32).max, dtype=np.float32)
-    for i in range(1, len(cu_seqlens)):
-        s, e = int(cu_seqlens[i - 1]), int(cu_seqlens[i])
-        attention_mask[0, 0, s:e, s:e] = 0.0
-
-    # Run entire audio encoder in one frame
-    print(f"  audio encoder ({padded_feature.shape})...")
+    print(f"  audio encoder ({audio_encoder_t.x.spec.shape})...")
     rt._inputs.clear()
     rt.register_inputs(
         {
-            audio_encoder_t.x: padded_feature,
-            audio_encoder_t.position_embedding: position_embedding,
-            audio_encoder_t.compact_index: compact_index,
-            audio_encoder_t.attention_mask: attention_mask,
+            audio_encoder_t.x: preprocessed["padded_feature"],
+            audio_encoder_t.position_embedding: preprocessed["position_embedding"],
+            audio_encoder_t.compact_index: preprocessed["compact_index"],
+            audio_encoder_t.attention_mask: preprocessed["audio_attention_mask"],
         }
     )
-    if pytorch_compare:
-        audio_frame_scope = rt.frame(
-            "spike.audio",
-            pytorch_model_class=Qwen3ASRForConditionalGeneration,
-            pytorch_model_submodule="thinker.audio_tower",
-            pytorch_args=(input_features, audio_feature_lens),
-        )
+    if pytorch_audio_tower is not None:
+        with patched_forward(pytorch_audio_tower, export_audio_tower_forward):
+            with rt.frame("spike.audio", pytorch_model=pytorch_audio_tower):
+                dispatch.run_audio_encoder(rt, audio_encoder_t)
     else:
-        audio_frame_scope = rt.frame("spike.audio")
-    with audio_frame_scope:
-        dispatch.run_audio_encoder(rt, audio_encoder_t)
+        with rt.frame("spike.audio"):
+            dispatch.run_audio_encoder(rt, audio_encoder_t)
     audio_hidden_t = audio_encoder_t.linear_110
     _require_gpu_output(audio_hidden_t)
     print(f"  Audio tower output: {audio_hidden_t.spec.shape}")
@@ -464,17 +586,17 @@ def main(
     print("\n=== Phase 2: Text Prefill ===")
     prompt_length = prepared.prompt_length
 
-    ids_flat = prepared.input_ids.flatten()
-    audio_positions = np.where(ids_flat == 151676)[0].astype(np.int64)
+    audio_positions = preprocessed["audio_positions"]
     if len(audio_positions) > 0:
         audio_start = int(audio_positions[0])
         audio_end = audio_start + len(audio_positions)
         print(f"    Injecting audio [{audio_start}:{audio_end}]")
 
+    rt._inputs.clear()
     rt.register_inputs(
         {
             prefill_rope_t.start_position: np.array([0], dtype=np.int64),
-            prefill_rope_t.theta: np.array([5_000_000.0], dtype=np.float32),
+            prefill_rope_t.theta: np.array([rope_theta], dtype=np.float32),
         }
     )
     dispatch.run_rope_table(
@@ -486,41 +608,51 @@ def main(
     # Embedding, audio injection, and decoder layers stay on GPU.
     print(f"  embed + audio inject + decoder layers x {tc.num_hidden_layers}...")
     rt._inputs.clear()
-    rt.register_inputs(
-        {
-            embed_tokens_t.input: prepared.input_ids.astype(np.int64),
-            audio_inject_t.audio_positions: audio_positions,
-            text_layer_ts[0].cache_position: np.arange(prompt_length, dtype=np.int64),
-        }
-    )
     if pytorch_compare:
         prefill_frame_scope = rt.frame(
             "spike.text.prefill",
-            pytorch_model_class=Qwen3ASRForConditionalGeneration,
-            pytorch_model_submodule="thinker",
-            pytorch_kwargs={
-                "input_ids": prepared.input_ids,
-                "attention_mask": prepared.attention_mask,
-                "input_features": prepared.input_features,
-                "feature_attention_mask": prepared.feature_attention_mask,
-                "use_cache": True,
-            },
+            pytorch_model=pytorch_thinker,
             pytorch_cache_policy="hf_dynamic",
             pytorch_cache_namespace="exported_qwen3_asr.text",
             pytorch_reset_cache=True,
         )
     else:
         prefill_frame_scope = rt.frame("spike.text.prefill")
-    with prefill_frame_scope:
-        dispatch.run_embed_tokens(rt, embed_tokens_t)
-        dispatch.run_audio_inject(rt, audio_inject_t)
-        for layer_idx, layer_tensors in enumerate(text_layer_ts):
-            dispatch.run_text_layer(rt, layer_tensors)
-            if layer_idx % 7 == 6:
-                print(f"    layer {layer_idx} done")
-        dispatch.run_text_norm(rt, text_norm_t)
-        dispatch.run_lm_head(rt, lm_head_t)
-
+    prefill_audio_patch_scope = (
+        patched_forward(pytorch_audio_tower, _debug_audio_tower_forward)
+        if pytorch_audio_tower is not None
+        else nullcontext()
+    )
+    with prefill_audio_patch_scope:
+        with prefill_frame_scope:
+            rt.register_inputs(
+                {
+                    input_ids_t: np.ascontiguousarray(prepared.input_ids, dtype=np.int64),
+                    attention_mask_t: np.ascontiguousarray(prepared.attention_mask, dtype=np.int64),
+                    input_features_t: np.ascontiguousarray(
+                        prepared.input_features,
+                        dtype=np.float32,
+                    ),
+                    feature_attention_mask_t: np.ascontiguousarray(
+                        prepared.feature_attention_mask,
+                        dtype=np.int64,
+                    ),
+                    position_ids_t: np.broadcast_to(
+                        np.arange(prompt_length, dtype=np.int64)[None, None, :],
+                        (3, 1, prompt_length),
+                    ).copy(),
+                    audio_inject_t.audio_positions: preprocessed["audio_positions"],
+                    text_layer_ts[0].cache_position: np.arange(prompt_length, dtype=np.int64),
+                }
+            )
+            dispatch.run_embed_tokens(rt, embed_tokens_t)
+            dispatch.run_audio_inject(rt, audio_inject_t)
+            for layer_idx, layer_tensors in enumerate(text_layer_ts):
+                dispatch.run_text_layer(rt, layer_tensors)
+                if layer_idx % 7 == 6:
+                    print(f"    layer {layer_idx} done")
+            dispatch.run_text_norm(rt, text_norm_t)
+            dispatch.run_lm_head(rt, lm_head_t)
 
     print("  lm_head + token_select...")
     logits_t = lm_head_t.linear
@@ -620,7 +752,7 @@ def main(
         rt.register_inputs(
             {
                 decode_rope_t.start_position: np.array([cache_pos], dtype=np.int64),
-                decode_rope_t.theta: np.array([5_000_000.0], dtype=np.float32),
+                decode_rope_t.theta: np.array([rope_theta], dtype=np.float32),
             }
         )
         dispatch.run_rope_table(
