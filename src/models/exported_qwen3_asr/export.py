@@ -32,7 +32,7 @@ from torch2vk.export.codegen import (
     render_tensor_helpers,
     render_tensor_module,
 )
-from torch2vk.runtime.shader import ShaderVariant
+from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
 PLAN_TO_FILE: dict[str, str] = {
@@ -345,7 +345,6 @@ def main() -> int:
                     continue
                 new_name = f"{func_name}_{v.name}"
                 rename_map[v.name] = new_name
-                from torch2vk.runtime.shader import ShaderContract
                 new_contract = ShaderContract(
                     class_name=v.contract.class_name,
                     shader_name=new_name,
