@@ -24,19 +24,18 @@ from models.hf_cache import resolve_cached_model
 from models.qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.qwen3_asr.pytorch.example import REPO_ID
 from torch2vk.export import export_submodule
+from torch2vk.export.codegen import (
+    render_dispatch_file,
+    render_dispatch_function,
+    render_shader_file,
+    render_simple_init,
+    render_tensor_class,
+    render_tensor_helpers,
+    render_tensor_module,
+)
 from torch2vk.export.graph import SKIP_OPS, is_alias_op, node_input_names
 from torch2vk.export.registry import DEFAULT_REGISTRY
-from torch2vk.runtime.shader import (
-    AddExpr,
-    CeilDivExpr,
-    IOKind,
-    MulExpr,
-    ParamsBufferSpec,
-    PushConstantInput,
-    ShaderContract,
-    ShaderVariant,
-)
-from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
+from torch2vk.runtime.shader import IOKind, ShaderContract, ShaderVariant
 
 
 # ==============================================================
@@ -267,193 +266,6 @@ def _validate_plan_complete(name: str, plan: dict) -> None:
 # Source code generation
 # ==============================================================
 
-def _expr_to_source(expr) -> str:
-    if isinstance(expr, int):
-        return repr(expr)
-    if isinstance(expr, str):
-        return repr(expr)
-    if isinstance(expr, CeilDivExpr):
-        return f"ceil_div({_expr_to_source(expr.lhs)}, {_expr_to_source(expr.rhs)})"
-    if isinstance(expr, MulExpr):
-        return f"mul({_expr_to_source(expr.lhs)}, {_expr_to_source(expr.rhs)})"
-    if isinstance(expr, AddExpr):
-        return f"add({_expr_to_source(expr.lhs)}, {_expr_to_source(expr.rhs)})"
-    if isinstance(expr, PushConstantInput):
-        return f"PushConstantInput({expr.name!r})"
-    raise TypeError(f"Unknown expr type: {type(expr)}")
-
-
-def _shape_to_source(shape: tuple) -> str:
-    return f"({', '.join(_expr_to_source(d) for d in shape)},)"
-
-
-def _generate_shader_file(variant: ShaderVariant) -> str:
-    contract = variant.contract
-    const_name = variant.name.upper()
-
-    needed = {"IOKind", "ShaderContract", "ShaderVariant", "TensorContract", "TensorFieldSpec"}
-    if contract.push_constants:
-        needed.update({"PushConstantFieldSpec", "PushConstantSpec", "PushConstantType"})
-    if contract.params_buffer:
-        needed.update({"ParamsBufferFieldSpec", "ParamsBufferSpec", "PushConstantType"})
-    if _variant_uses_push_constant_input(variant):
-        needed.add("PushConstantInput")
-
-    def _check(expr):
-        if isinstance(expr, CeilDivExpr):
-            needed.add("ceil_div")
-            _check(expr.lhs)
-            _check(expr.rhs)
-        elif isinstance(expr, MulExpr):
-            needed.add("mul")
-            _check(expr.lhs)
-            _check(expr.rhs)
-        elif isinstance(expr, AddExpr):
-            needed.add("add")
-            _check(expr.lhs)
-            _check(expr.rhs)
-
-    for d in contract.dispatch:
-        _check(d)
-    if contract.push_constants:
-        for f in contract.push_constants.fields:
-            _check(f.value)
-    if contract.params_buffer:
-        for f in contract.params_buffer.fields:
-            _check(f.value)
-
-    imports = ["from __future__ import annotations", "", "from torch2vk.runtime.shader import ("]
-    for name in sorted(needed):
-        imports.append(f"    {name},")
-    imports.append(")")
-    execution_requirements_source = _execution_requirements_to_source(variant.execution_requirements)
-    if execution_requirements_source != "None":
-        imports.append("from torch2vk.vulkan.shader_execution_requirements import (")
-        imports.append("    ShaderExecutionRequirements,")
-        if variant.execution_requirements is not None and variant.execution_requirements.subgroup is not None:
-            imports.append("    SubgroupRequirements,")
-        imports.append(")")
-
-    fields_lines = []
-    for f in contract.fields:
-        fields_lines.append("            TensorFieldSpec(")
-        fields_lines.append(f"                name={f.name!r},")
-        fields_lines.append(f"                io_kind=IOKind.{f.io_kind.name},")
-        fields_lines.append(f"                role={f.role!r},")
-        fields_lines.append(f"                contract=TensorContract(dtype={f.contract.dtype!r}, shape={_shape_to_source(f.contract.shape)}),")
-        fields_lines.append("            ),")
-
-    pc_source = _push_constant_spec_to_source(contract.push_constants)
-    params_source = _params_buffer_spec_to_source(contract.params_buffer)
-
-    dispatch_source = f"({', '.join(_expr_to_source(d) for d in contract.dispatch)})"
-    glsl = variant.source.lstrip("\n")
-
-    lines = [f'"""Generated shader: {variant.name}."""', ""]
-    lines.extend(imports)
-    lines.append("")
-    lines.append("")
-    lines.append(f"{const_name} = ShaderVariant(")
-    lines.append(f"    name={variant.name!r},")
-    lines.append(f"    family={variant.family!r},")
-    lines.append("    contract=ShaderContract(")
-    lines.append(f"        class_name={contract.class_name!r},")
-    lines.append(f"        shader_name={contract.shader_name!r},")
-    lines.append("        fields=(")
-    lines.extend(fields_lines)
-    lines.append("        ),")
-    lines.append(f"        push_constants={pc_source},")
-    lines.append(f"        params_buffer={params_source},")
-    lines.append(f"        dispatch={dispatch_source},")
-    lines.append("    ),")
-    lines.append(f"    execution_requirements={execution_requirements_source},")
-    lines.append(f'    source="""\\\n{glsl}""",')
-    lines.append(")")
-    lines.append("")
-    return "\n".join(lines)
-
-
-def _variant_uses_push_constant_input(variant: ShaderVariant) -> bool:
-    push = variant.contract.push_constants
-    if push is not None:
-        for field in push.fields:
-            if isinstance(field.value, PushConstantInput):
-                return True
-    params = variant.contract.params_buffer
-    if params is not None:
-        for field in params.fields:
-            if isinstance(field.value, PushConstantInput):
-                return True
-    return False
-
-
-def _push_constant_value_source(value) -> str:
-    return repr(value) if isinstance(value, (int, float)) else _expr_to_source(value)
-
-
-def _push_constant_spec_to_source(spec) -> str:
-    if spec is None:
-        return "None"
-    fields = []
-    for field in spec.fields:
-        fields.append(
-            "                "
-            f"PushConstantFieldSpec({field.name!r}, PushConstantType.{field.dtype.name}, "
-            f"{field.offset}, {_push_constant_value_source(field.value)}, dynamic={field.dynamic}),"
-        )
-    return (
-        "PushConstantSpec(\n"
-        f"            size={spec.size},\n"
-        "            fields=(\n" + "\n".join(fields) + "\n"
-        "            ),\n"
-        "        )"
-    )
-
-
-def _params_buffer_spec_to_source(spec: ParamsBufferSpec | None) -> str:
-    if spec is None:
-        return "None"
-    fields = []
-    for field in spec.fields:
-        fields.append(
-            "                "
-            f"ParamsBufferFieldSpec({field.name!r}, PushConstantType.{field.dtype.name}, "
-            f"{field.offset}, {_push_constant_value_source(field.value)}),"
-        )
-    return (
-        "ParamsBufferSpec(\n"
-        f"            size={spec.size},\n"
-        "            fields=(\n" + "\n".join(fields) + "\n"
-        "            ),\n"
-        f"            binding_index={spec.binding_index},\n"
-        "        )"
-    )
-
-
-def _execution_requirements_to_source(requirements: ShaderExecutionRequirements | None) -> str:
-    if requirements is None:
-        return "None"
-    fields = []
-    if requirements.subgroup is not None:
-        fields.append(
-            "subgroup=SubgroupRequirements("
-            f"required_size={requirements.subgroup.required_size}, "
-            f"require_full_subgroups={requirements.subgroup.require_full_subgroups}"
-            ")"
-        )
-    if requirements.cooperative_matrix is not None:
-        raise NotImplementedError("generated shader files do not support cooperative matrix requirements yet")
-    if requirements.require_integer_dot_product:
-        fields.append("require_integer_dot_product=True")
-    if requirements.require_shader_int64:
-        fields.append("require_shader_int64=True")
-    if requirements.require_buffer_device_address:
-        fields.append("require_buffer_device_address=True")
-    if requirements.require_storage_buffer_16bit_access:
-        fields.append("require_storage_buffer_16bit_access=True")
-    return f"ShaderExecutionRequirements({', '.join(fields)})"
-
-
 def _generate_dispatch_function(plan: dict, function_name: str) -> tuple[str, dict[str, str]]:
     class_name = _plan_to_class_name(function_name)
     ops = plan["ops"]
@@ -462,20 +274,21 @@ def _generate_dispatch_function(plan: dict, function_name: str) -> tuple[str, di
         if op["type"] == "dispatch":
             shader_imports[op["shader"]] = op["shader"].upper()
 
-    lines = []
-    lines.append(f"def {function_name}(rt: RuntimeSession, tensors: {class_name}) -> None:")
+    render_ops = []
     for op in ops:
         if op["type"] == "alias":
-            lines.append(f"    _alias(rt, tensors.{op['src']}, tensors.{op['dst']})")
+            render_ops.append({"type": "alias", "src": op["src"], "dst": op["dst"]})
         elif op["type"] == "dispatch":
             const = shader_imports[op["shader"]]
             args = ", ".join(f"{k}=tensors.{v}" for k, v in op["bindings"].items())
-            lines.append(f"    {const}(rt, {args})")
+            render_ops.append({"type": "dispatch", "shader_const": const, "args_source": args})
         elif op["type"] == "unsupported":
             message = f"unsupported exported op {op['target']} ({op['name']})"
-            lines.append(f"    raise RuntimeError({message!r})")
-    lines.append("")
-    return "\n".join(lines), shader_imports
+            render_ops.append({"type": "unsupported", "message_source": repr(message)})
+    return (
+        render_dispatch_function(function_name, class_name, render_ops),
+        shader_imports,
+    )
 
 
 def _generate_dispatch_file(plans: dict[str, dict]) -> str:
@@ -494,32 +307,22 @@ def _generate_dispatch_file(plans: dict[str, dict]) -> str:
         class_name = _plan_to_class_name(func_name)
         tensor_imports.setdefault(target_file, []).append(class_name)
 
-    lines = ['"""Generated dispatch functions for all submodules."""', ""]
-    lines.append("from __future__ import annotations")
-    lines.append("")
-    for shader_name in sorted(all_shader_imports):
-        const_name = all_shader_imports[shader_name]
-        lines.append(f"from models.spike_qwen3_asr.shaders.{shader_name} import {const_name}")
-    for target_file in sorted(tensor_imports):
-        classes = ", ".join(sorted(tensor_imports[target_file]))
-        lines.append(f"from models.spike_qwen3_asr.tensors.{target_file} import {classes}")
-    lines.append("from torch2vk.runtime.logical import LogicalTensor")
-    lines.append("from torch2vk.runtime.session import RuntimeSession")
-    lines.append("")
-    lines.append("")
-    for source in function_sources:
-        lines.append(source)
-        lines.append("")
-    lines.append("def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:")
-    lines.append("    rt._materialize_read(src)")
-    lines.append("    with dst.runtime_write_scope():")
-    lines.append("        dst.buffer = src.buffer")
-    lines.append("        dst.descriptor_nbytes = src.descriptor_nbytes")
-    lines.append("        dst.version = src.version")
-    lines.append("        dst.writer = src.writer")
-    lines.append("    rt._current_frame().written_tensors.append(dst)")
-    lines.append("")
-    return "\n".join(lines)
+    shader_imports = [
+        {"shader": shader_name, "const": all_shader_imports[shader_name]}
+        for shader_name in sorted(all_shader_imports)
+    ]
+    tensor_import_sources = [
+        {"file": target_file, "classes_source": ", ".join(sorted(tensor_imports[target_file]))}
+        for target_file in sorted(tensor_imports)
+    ]
+    return render_dispatch_file(
+        docstring="Generated dispatch functions for all submodules",
+        shader_package="models.spike_qwen3_asr.shaders",
+        tensor_package="models.spike_qwen3_asr.tensors",
+        shader_imports=shader_imports,
+        tensor_imports=tensor_import_sources,
+        function_sources=function_sources,
+    )
 
 
 # ==============================================================
@@ -560,13 +363,7 @@ def _generate_tensor_class(plan_name: str, plan: dict) -> str:
     # Determine if this is a layered submodule (param_map keys contain .layers.N.)
     is_layered = any(re.search(r"\.layers\.\d+\.", v) for v in plan["param_map"].values())
 
-    # Collect fields in order: parameters, user_inputs, intermediates
-    fields_lines = []
-    for name, meta in plan["tensors"].items():
-        fields_lines.append(f"    {name}: LogicalTensor")
-
-    # create() function body
-    create_args = []
+    tensor_entries = []
     for name, meta in plan["tensors"].items():
         shape = tuple(meta["shape"])
         dtype = "int32" if meta["dtype"] in ("int64", "int32") else "float32"
@@ -588,27 +385,24 @@ def _generate_tensor_class(plan_name: str, plan: dict) -> str:
             role, memory, lifetime = "TensorRole.ACTIVATION", "MemoryClass.FRAME_WORKSPACE", "TensorLifetime.FRAME"
             name_expr = f'f"{{prefix}}.{name}"'
 
-        extra = ""
+        extra_lines = ()
         if name == output_name:
-            extra = (
-                "\n            compare=ComparePolicy(kind=\"tensor\", rtol=3e-3, atol=3e-2),"
-                "\n            pytorch_probe=PyTorchProbe(kind=\"module_output\", target=\"\", index=0),"
+            extra_lines = (
+                'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
+                'pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),',
             )
 
-        create_args.append(
-            f"        {name}=_bind_tensor(\n"
-            f"            bindings,\n"
-            f"            {name!r},\n"
-            f"            _declare_tensor(\n"
-            f"            name={name_expr},\n"
-            f"            spec=TensorSpec(dtype={dtype!r}, shape={shape}),\n"
-            f"            role={role},\n"
-            f"            memory={memory},\n"
-            f"            lifetime={lifetime},\n"
-            f"            request_state={name!r} in request_state_outputs,{extra}\n"
-            f"            ),\n"
-            f"        ),"
-        )
+        tensor_entries.append({
+            "name": name,
+            "name_source": repr(name),
+            "name_expr": name_expr,
+            "dtype_source": repr(dtype),
+            "shape_source": repr(shape),
+            "role": role,
+            "memory": memory,
+            "lifetime": lifetime,
+            "extra_lines": extra_lines,
+        })
 
     # Function signature: layered submodules get layer_idx parameter
     create_kwargs = (
@@ -620,24 +414,15 @@ def _generate_tensor_class(plan_name: str, plan: dict) -> str:
     else:
         sig = f"def create_{func_name}(prefix: str, {create_kwargs}) -> {class_name}:"
 
-    lines = []
-    lines.append("@dataclass(frozen=True, slots=True)")
-    lines.append(f"class {class_name}:")
-    lines.extend(fields_lines)
-    lines.append("")
-    lines.append("")
-    lines.append(f"{func_name.upper()}_OUTPUT: str = {output_name!r}")
-    lines.append("")
-    lines.append("")
-    lines.append(sig)
-    tensor_names = tuple(plan["tensors"])
-    lines.append(f"    _validate_bindings(bindings, frozenset({tensor_names!r}))")
-    lines.append(f"    _validate_request_state_outputs(request_state_outputs, frozenset(({output_name!r},)))")
-    lines.append(f"    return {class_name}(")
-    lines.extend(create_args)
-    lines.append("    )")
-    lines.append("")
-    return "\n".join(lines)
+    return render_tensor_class(
+        class_name=class_name,
+        fields=tuple(plan["tensors"]),
+        output_const=f"{func_name.upper()}_OUTPUT",
+        output_name_source=repr(output_name),
+        signature=sig,
+        tensor_names_source=repr(tuple(plan["tensors"])),
+        tensors=tensor_entries,
+    )
 
 
 def _generate_tensors_files(all_plans: dict[str, dict]) -> dict[str, str]:
@@ -646,100 +431,41 @@ def _generate_tensors_files(all_plans: dict[str, dict]) -> dict[str, str]:
 
     for plan_name, plan in all_plans.items():
         target_file = PLAN_TO_FILE.get(plan_name, "misc")
-        if target_file not in file_contents:
-            file_contents[target_file] = [
-                '"""Generated tensor declarations."""',
-                "",
-                "from __future__ import annotations",
-                "",
-                "from collections.abc import Collection, Mapping",
-                "from dataclasses import dataclass",
-                "",
-                "from torch2vk.runtime.logical import (",
-                "    ComparePolicy,",
-                "    LogicalTensor,",
-                "    MemoryClass,",
-                "    PyTorchProbe,",
-                "    TensorLifetime,",
-                "    TensorRole,",
-                ")",
-                "from torch2vk.vulkan.types import TensorSpec",
-                "",
-                "",
-            ]
+        file_contents.setdefault(target_file, [])
         file_contents[target_file].append(_generate_tensor_class(plan_name, plan))
-        file_contents[target_file].append("")
 
     result = {}
-    for filename, lines in file_contents.items():
-        lines.extend(_generate_tensor_helpers())
-        result[filename] = "\n".join(lines)
+    helper_source = _generate_tensor_helpers()
+    for filename, class_sources in file_contents.items():
+        result[filename] = render_tensor_module(class_sources, helper_source)
     return result
 
 
-def _generate_tensor_helpers() -> list[str]:
-    return [
-        "def _declare_tensor(",
-        "    *,",
-        "    name: str,",
-        "    spec: TensorSpec,",
-        "    role: TensorRole,",
-        "    memory: MemoryClass,",
-        "    lifetime: TensorLifetime,",
-        "    request_state: bool = False,",
-        "    compare: ComparePolicy | None = None,",
-        "    pytorch_probe: PyTorchProbe | None = None,",
-        ") -> LogicalTensor:",
-        "    if request_state:",
-        "        role = TensorRole.OUTPUT",
-        "        memory = MemoryClass.REQUEST_STATE",
-        "        lifetime = TensorLifetime.REQUEST",
-        "    return LogicalTensor(",
-        "        name=name,",
-        "        spec=spec,",
-        "        role=role,",
-        "        memory=memory,",
-        "        lifetime=lifetime,",
-        "        compare=compare,",
-        "        pytorch_probe=pytorch_probe,",
-        "    )",
-        "",
-        "",
-        "def _bind_tensor(",
-        "    bindings: Mapping[str, LogicalTensor] | None,",
-        "    field: str,",
-        "    tensor: LogicalTensor,",
-        ") -> LogicalTensor:",
-        "    if bindings is None:",
-        "        return tensor",
-        "    bound = bindings.get(field)",
-        "    if bound is None:",
-        "        return tensor",
-        "    if bound.spec != tensor.spec:",
-        "        raise ValueError(f\"{field} binding spec {bound.spec} does not match {tensor.spec}\")",
-        "    return bound",
-        "",
-        "",
-        "def _validate_bindings(",
-        "    bindings: Mapping[str, LogicalTensor] | None,",
-        "    tensor_names: frozenset[str],",
-        ") -> None:",
-        "    if bindings is None:",
-        "        return",
-        "    unknown = frozenset(bindings) - tensor_names",
-        "    if unknown:",
-        "        raise ValueError(f\"unknown tensor bindings: {sorted(unknown)}\")",
-        "",
-        "",
-        "def _validate_request_state_outputs(",
-        "    request_state_outputs: Collection[str],",
-        "    output_names: frozenset[str],",
-        ") -> None:",
-        "    unknown = frozenset(request_state_outputs) - output_names",
-        "    if unknown:",
-        "        raise ValueError(f\"request_state_outputs must name module outputs, got {sorted(unknown)}\")",
-        "",
+def _generate_tensor_helpers() -> str:
+    return render_tensor_helpers()
+
+
+def _generate_shader_init_file(shader_names) -> str:
+    imports = [
+        f"from models.spike_qwen3_asr.shaders.{shader_name} import {shader_name.upper()}  # noqa: F401"
+        for shader_name in sorted(shader_names)
     ]
+    return render_simple_init("Generated shader index", imports)
+
+
+def _generate_tensors_init_file(tensor_files: dict[str, str], all_plans: dict[str, dict]) -> str:
+    imports = []
+    for filename in sorted(tensor_files):
+        classes = [
+            _plan_to_class_name(plan_name)
+            for plan_name in all_plans
+            if PLAN_TO_FILE.get(plan_name) == filename
+        ]
+        for class_name in classes:
+            imports.append(
+                f"from models.spike_qwen3_asr.tensors.{filename} import {class_name}  # noqa: F401"
+            )
+    return render_simple_init("Generated tensor declarations", imports)
 
 
 # ==============================================================
@@ -1070,12 +796,8 @@ def main() -> int:
     for f in shaders_dir.glob("*.py"):
         f.unlink()
     for shader_name, variant in all_shader_variants.items():
-        (shaders_dir / f"{shader_name}.py").write_text(_generate_shader_file(variant))
-    init_lines = ['"""Generated shader index."""', ""]
-    for shader_name in sorted(all_shader_variants):
-        init_lines.append(f"from models.spike_qwen3_asr.shaders.{shader_name} import {shader_name.upper()}  # noqa: F401")
-    init_lines.append("")
-    (shaders_dir / "__init__.py").write_text("\n".join(init_lines))
+        (shaders_dir / f"{shader_name}.py").write_text(render_shader_file(variant))
+    (shaders_dir / "__init__.py").write_text(_generate_shader_init_file(all_shader_variants))
     print(f"\n  {len(all_shader_variants)} shader files written")
 
     # Write dispatch.py
@@ -1090,15 +812,7 @@ def main() -> int:
     tensor_files = _generate_tensors_files(all_plans)
     for filename, content in tensor_files.items():
         (tensors_dir / f"{filename}.py").write_text(content)
-    # Write tensors/__init__.py with re-exports
-    init_lines = ['"""Generated tensor declarations."""', ""]
-    for filename in sorted(tensor_files):
-        # Collect all class names from this file's plans
-        classes = [_plan_to_class_name(pn) for pn, _ in all_plans.items() if PLAN_TO_FILE.get(pn) == filename]
-        for cls in classes:
-            init_lines.append(f"from models.spike_qwen3_asr.tensors.{filename} import {cls}  # noqa: F401")
-    init_lines.append("")
-    (tensors_dir / "__init__.py").write_text("\n".join(init_lines))
+    (tensors_dir / "__init__.py").write_text(_generate_tensors_init_file(tensor_files, all_plans))
     print(f"  tensors/ written ({len(tensor_files)} files)")
 
     # Clean up obsolete files
