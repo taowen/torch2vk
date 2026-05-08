@@ -11,20 +11,20 @@ import numpy as np
 import numpy.typing as npt
 
 from models.hf_cache import resolve_cached_model
-from models.qwen3_asr.audio_tower import (
+from models.optimized_qwen3_asr.audio_tower import (
     run_qwen3_asr_audio_tower as run_qwen3_asr_audio_tower,
 )
-from models.qwen3_asr.pytorch.example import REPO_ID
-from models.qwen3_asr.text_decode import run_qwen3_asr_text_decode
-from models.qwen3_asr.text_prefill import run_qwen3_asr_text_prefill
-from models.qwen3_asr.tensors.text import (
+from models.optimized_qwen3_asr.pytorch.example import REPO_ID
+from models.optimized_qwen3_asr.text_decode import run_qwen3_asr_text_decode
+from models.optimized_qwen3_asr.text_prefill import run_qwen3_asr_text_prefill
+from models.optimized_qwen3_asr.tensors.text import (
     Qwen3AsrTextDecodeTensors,
     Qwen3AsrTextPrefillTensors,
     Qwen3AsrTextTensors,
     Qwen3AsrTokenSelectTensors,
 )
-from models.qwen3_asr.tensors.text_layer import Qwen3AsrTextLayerTensors
-from models.qwen3_asr.token_select import run_qwen3_asr_token_select
+from models.optimized_qwen3_asr.tensors.text_layer import Qwen3AsrTextLayerTensors
+from models.optimized_qwen3_asr.token_select import run_qwen3_asr_token_select
 from torch2vk.runtime.logical import (
     LogicalTensor,
     MemoryClass,
@@ -845,7 +845,7 @@ def _run_qwen3_asr_token_store(
     stopped: LogicalTensor,
     stop_on_eos: bool,
 ) -> None:
-    from models.qwen3_asr.shaders.token_store_f32 import (
+    from models.optimized_qwen3_asr.shaders.token_store_f32 import (
         QWEN3_ASR_TOKEN_STORE_EOS_F32,
         QWEN3_ASR_TOKEN_STORE_F32,
     )
@@ -872,7 +872,7 @@ def _run_qwen3_asr_rope_table(
     rope_cos: LogicalTensor,
     rope_sin: LogicalTensor,
 ) -> None:
-    from models.qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TABLE_F32
+    from models.optimized_qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TABLE_F32
 
     with rt.frame("qwen3_asr.rope_table"):
         QWEN3_ASR_ROPE_TABLE_F32(
@@ -912,27 +912,27 @@ def _require_supported_mrope_section(mrope_section: tuple[int, ...]) -> None:
 
 
 def _collect_decode_variants(out: dict[str, "ShaderVariant"]) -> None:
-    from models.qwen3_asr.shaders.text_add_3d_f32 import QWEN3_ASR_TEXT_ADD_3D_F32
-    from models.qwen3_asr.shaders.text_attention_decode_f32 import QWEN3_ASR_TEXT_ATTENTION_DECODE_F32
-    from models.qwen3_asr.shaders.text_embed_lookup_f32 import QWEN3_ASR_TEXT_EMBED_LOOKUP_F32
-    from models.qwen3_asr.shaders.text_gate_up_swiglu_t1_f32 import (
+    from models.optimized_qwen3_asr.shaders.text_add_3d_f32 import QWEN3_ASR_TEXT_ADD_3D_F32
+    from models.optimized_qwen3_asr.shaders.text_attention_decode_f32 import QWEN3_ASR_TEXT_ATTENTION_DECODE_F32
+    from models.optimized_qwen3_asr.shaders.text_embed_lookup_f32 import QWEN3_ASR_TEXT_EMBED_LOOKUP_F32
+    from models.optimized_qwen3_asr.shaders.text_gate_up_swiglu_t1_f32 import (
         QWEN3_ASR_TEXT_GATE_UP_SWIGLU_T1_F32,
     )
-    from models.qwen3_asr.shaders.text_kv_cache_write_f32 import QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32
-    from models.qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
-    from models.qwen3_asr.shaders.text_linear_nobias_t1_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
-    from models.qwen3_asr.shaders.text_linear_nobias_t1_splitk4_f32 import (
+    from models.optimized_qwen3_asr.shaders.text_kv_cache_write_f32 import QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32
+    from models.optimized_qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
+    from models.optimized_qwen3_asr.shaders.text_linear_nobias_t1_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
+    from models.optimized_qwen3_asr.shaders.text_linear_nobias_t1_splitk4_f32 import (
         QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32,
     )
-    from models.qwen3_asr.shaders.text_lm_head_select_t1_f32 import (
+    from models.optimized_qwen3_asr.shaders.text_lm_head_select_t1_f32 import (
         QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32,
         QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32,
     )
-    from models.qwen3_asr.shaders.text_qk_norm_f32 import QWEN3_ASR_TEXT_QK_NORM_F32
-    from models.qwen3_asr.shaders.text_qkv_proj_t1_f32 import QWEN3_ASR_TEXT_QKV_PROJ_T1_F32
-    from models.qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
-    from models.qwen3_asr.shaders.text_rope_f32 import QWEN3_ASR_TEXT_ROPE_F32
-    from models.qwen3_asr.shaders.text_swiglu_f32 import QWEN3_ASR_TEXT_SWIGLU_F32
+    from models.optimized_qwen3_asr.shaders.text_qk_norm_f32 import QWEN3_ASR_TEXT_QK_NORM_F32
+    from models.optimized_qwen3_asr.shaders.text_qkv_proj_t1_f32 import QWEN3_ASR_TEXT_QKV_PROJ_T1_F32
+    from models.optimized_qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
+    from models.optimized_qwen3_asr.shaders.text_rope_f32 import QWEN3_ASR_TEXT_ROPE_F32
+    from models.optimized_qwen3_asr.shaders.text_swiglu_f32 import QWEN3_ASR_TEXT_SWIGLU_F32
 
     for v in (
         QWEN3_ASR_TEXT_ADD_3D_F32,
@@ -955,7 +955,7 @@ def _collect_decode_variants(out: dict[str, "ShaderVariant"]) -> None:
 
 
 def _collect_token_select_variants(out: dict[str, "ShaderVariant"]) -> None:
-    from models.qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
+    from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
     out[QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name] = QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 
 
@@ -964,7 +964,7 @@ def _collect_token_store_variants(
     *,
     stop_on_eos: bool,
 ) -> None:
-    from models.qwen3_asr.shaders.token_store_f32 import (
+    from models.optimized_qwen3_asr.shaders.token_store_f32 import (
         QWEN3_ASR_TOKEN_STORE_EOS_F32,
         QWEN3_ASR_TOKEN_STORE_F32,
     )

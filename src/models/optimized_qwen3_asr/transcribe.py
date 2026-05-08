@@ -10,8 +10,8 @@ from pathlib import Path
 import numpy as np
 
 from models.hf_cache import load_config_json, resolve_cached_model
-from models.qwen3_asr.audio_tower import run_qwen3_asr_audio_tower
-from models.qwen3_asr.execution import (
+from models.optimized_qwen3_asr.audio_tower import run_qwen3_asr_audio_tower
+from models.optimized_qwen3_asr.execution import (
     QWEN3_ASR_DEFAULT_EOS_TOKEN_IDS,
     Qwen3AsrPreparedInputs,
     Qwen3AsrProcessorLike,
@@ -19,9 +19,9 @@ from models.qwen3_asr.execution import (
     run_qwen3_asr_greedy_decode_loop,
     run_qwen3_asr_replay_decode_loop,
 )
-from models.qwen3_asr.pytorch.example import REPO_ID
-from models.qwen3_asr.tensors.audio_tower import declare_qwen3_asr_audio_tower_tensors
-from models.qwen3_asr.tensors.text import (
+from models.optimized_qwen3_asr.pytorch.example import REPO_ID
+from models.optimized_qwen3_asr.tensors.audio_tower import declare_qwen3_asr_audio_tower_tensors
+from models.optimized_qwen3_asr.tensors.text import (
     Qwen3AsrTextTensors,
     declare_qwen3_asr_text_tensors,
 )

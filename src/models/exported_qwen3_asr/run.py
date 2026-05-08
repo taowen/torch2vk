@@ -1,7 +1,7 @@
 """Full ASR pipeline using generated shaders and dispatch functions.
 
 Run from project root:
-    .venv/bin/python -m models.spike_qwen3_asr.run
+    .venv/bin/python -m models.exported_qwen3_asr.run
 """
 
 from __future__ import annotations
@@ -20,18 +20,18 @@ from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
 )
 
 from models.hf_cache import resolve_cached_model
-from models.qwen3_asr.execution import prepare_qwen3_asr_inputs
-from models.qwen3_asr.pytorch.example import REPO_ID
-from models.qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TABLE_F32
-from models.qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
-from models.qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
-from models.spike_qwen3_asr import dispatch
-from models.spike_qwen3_asr.tensors import audio_tower as at_tensors
-from models.spike_qwen3_asr.tensors import decode as decode_tensors
-from models.spike_qwen3_asr.tensors import decode_layer as decode_layer_tensors
-from models.spike_qwen3_asr.tensors import encoder_layer as enc_tensors
-from models.spike_qwen3_asr.tensors import text as text_tensors
-from models.spike_qwen3_asr.tensors import text_layer as text_layer_tensors
+from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
+from models.optimized_qwen3_asr.pytorch.example import REPO_ID
+from models.optimized_qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TABLE_F32
+from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
+from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
+from models.exported_qwen3_asr import dispatch
+from models.exported_qwen3_asr.tensors import audio_tower as at_tensors
+from models.exported_qwen3_asr.tensors import decode as decode_tensors
+from models.exported_qwen3_asr.tensors import decode_layer as decode_layer_tensors
+from models.exported_qwen3_asr.tensors import encoder_layer as enc_tensors
+from models.exported_qwen3_asr.tensors import text as text_tensors
+from models.exported_qwen3_asr.tensors import text_layer as text_layer_tensors
 from torch2vk.runtime.logical import (
     LogicalTensor,
     MemoryClass,
@@ -216,7 +216,7 @@ def _build_decode_replay_plan(
     warmup_records = rt.dispatch_records[dispatch_start:dispatch_end]
     variants = [dispatch.SHADER_VARIANTS_BY_NAME[record.shader] for record in warmup_records]
     plan = rt.build_replay_plan(
-        name="spike_qwen3_asr_decode_step",
+        name="exported_qwen3_asr_decode_step",
         frame_dispatch_records=list(warmup_records),
         variants=variants,
         tensors_by_name=tensors_by_name,
@@ -226,7 +226,7 @@ def _build_decode_replay_plan(
     if plan.readback_slots:
         plan.close()
         raise RuntimeError("Spike Qwen3-ASR decode replay must not use readback slots")
-    rt.cache_replay_plan("spike_qwen3_asr_decode_step:v1", plan)
+    rt.cache_replay_plan("exported_qwen3_asr_decode_step:v1", plan)
     return plan
 
 
@@ -641,7 +641,7 @@ def main(
                 "use_cache": True,
             },
             pytorch_cache_policy="hf_dynamic",
-            pytorch_cache_namespace="spike_qwen3_asr.text",
+            pytorch_cache_namespace="exported_qwen3_asr.text",
             pytorch_reset_cache=True,
         )
     else:

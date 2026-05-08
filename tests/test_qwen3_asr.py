@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from models.qwen3_asr import Qwen3AsrRecognizer
+from models.optimized_qwen3_asr import Qwen3AsrRecognizer
 
 _FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
 _ASKNOT_WAV = _FIXTURE_DIR / "qwen3_asr_asknot.wav"

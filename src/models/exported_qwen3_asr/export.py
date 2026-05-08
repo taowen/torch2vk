@@ -1,10 +1,10 @@
-"""Export all spike_qwen3_asr submodules → shaders/, tensors/, dispatch.py.
+"""Export all exported_qwen3_asr submodules → shaders/, tensors/, dispatch.py.
 
 Generates Python source files for the full ASR pipeline (audio tower + text).
 Shapes are computed from the test fixture (tests/fixtures/qwen3_asr_asknot.wav).
 
 Run from project root:
-    .venv/bin/python -m models.spike_qwen3_asr.export
+    .venv/bin/python -m models.exported_qwen3_asr.export
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ from torch.export.graph_signature import InputKind
 from torch.fx import Node
 
 from models.hf_cache import resolve_cached_model
-from models.qwen3_asr.execution import prepare_qwen3_asr_inputs
-from models.qwen3_asr.pytorch.example import REPO_ID
+from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
+from models.optimized_qwen3_asr.pytorch.example import REPO_ID
 from torch2vk.export import KVCacheExportHint, export_submodule
 from torch2vk.export.codegen import (
     render_dispatch_file,
@@ -322,8 +322,8 @@ def _generate_dispatch_file(plans: dict[str, dict]) -> str:
     ]
     return render_dispatch_file(
         docstring="Generated dispatch functions for all submodules",
-        shader_package="models.spike_qwen3_asr.shaders",
-        tensor_package="models.spike_qwen3_asr.tensors",
+        shader_package="models.exported_qwen3_asr.shaders",
+        tensor_package="models.exported_qwen3_asr.tensors",
         shader_imports=shader_imports,
         tensor_imports=tensor_import_sources,
         extra_imports_source=_DISPATCH_EXTRA_IMPORTS,
@@ -345,8 +345,8 @@ _DISPATCH_EXTRA_IMPORTS = """from collections.abc import Sequence
 
 import numpy as np
 
-from models.qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
-from models.qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
+from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
+from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
 """
 
 
@@ -549,7 +549,7 @@ def _generate_tensor_helpers() -> str:
 
 def _generate_shader_init_file(shader_names) -> str:
     imports = [
-        f"from models.spike_qwen3_asr.shaders.{shader_name} import {shader_name.upper()}  # noqa: F401"
+        f"from models.exported_qwen3_asr.shaders.{shader_name} import {shader_name.upper()}  # noqa: F401"
         for shader_name in sorted(shader_names)
     ]
     return render_simple_init("Generated shader index", imports)
@@ -565,7 +565,7 @@ def _generate_tensors_init_file(tensor_files: dict[str, str], all_plans: dict[st
         ]
         for class_name in classes:
             imports.append(
-                f"from models.spike_qwen3_asr.tensors.{filename} import {class_name}  # noqa: F401"
+                f"from models.exported_qwen3_asr.tensors.{filename} import {class_name}  # noqa: F401"
             )
     return render_simple_init("Generated tensor declarations", imports)
 

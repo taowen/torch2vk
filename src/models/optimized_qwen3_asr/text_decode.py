@@ -2,30 +2,30 @@
 
 from __future__ import annotations
 
-from models.qwen3_asr.shaders.text_add_3d_f32 import QWEN3_ASR_TEXT_ADD_3D_F32
-from models.qwen3_asr.shaders.text_attention_decode_f32 import QWEN3_ASR_TEXT_ATTENTION_DECODE_F32
-from models.qwen3_asr.shaders.text_embed_lookup_f32 import QWEN3_ASR_TEXT_EMBED_LOOKUP_F32
-from models.qwen3_asr.shaders.text_gate_up_swiglu_t1_f32 import (
+from models.optimized_qwen3_asr.shaders.text_add_3d_f32 import QWEN3_ASR_TEXT_ADD_3D_F32
+from models.optimized_qwen3_asr.shaders.text_attention_decode_f32 import QWEN3_ASR_TEXT_ATTENTION_DECODE_F32
+from models.optimized_qwen3_asr.shaders.text_embed_lookup_f32 import QWEN3_ASR_TEXT_EMBED_LOOKUP_F32
+from models.optimized_qwen3_asr.shaders.text_gate_up_swiglu_t1_f32 import (
     QWEN3_ASR_TEXT_GATE_UP_SWIGLU_T1_F32,
 )
-from models.qwen3_asr.shaders.text_kv_cache_write_f32 import (
+from models.optimized_qwen3_asr.shaders.text_kv_cache_write_f32 import (
     QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32,
 )
-from models.qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
-from models.qwen3_asr.shaders.text_linear_nobias_t1_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
-from models.qwen3_asr.shaders.text_linear_nobias_t1_splitk4_f32 import (
+from models.optimized_qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
+from models.optimized_qwen3_asr.shaders.text_linear_nobias_t1_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
+from models.optimized_qwen3_asr.shaders.text_linear_nobias_t1_splitk4_f32 import (
     QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32,
 )
-from models.qwen3_asr.shaders.text_lm_head_select_t1_f32 import (
+from models.optimized_qwen3_asr.shaders.text_lm_head_select_t1_f32 import (
     QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32,
     QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32,
 )
-from models.qwen3_asr.shaders.text_qk_norm_f32 import QWEN3_ASR_TEXT_QK_NORM_F32
-from models.qwen3_asr.shaders.text_qkv_proj_t1_f32 import QWEN3_ASR_TEXT_QKV_PROJ_T1_F32
-from models.qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
-from models.qwen3_asr.shaders.text_rope_f32 import QWEN3_ASR_TEXT_ROPE_F32
-from models.qwen3_asr.shaders.text_swiglu_f32 import QWEN3_ASR_TEXT_SWIGLU_F32
-from models.qwen3_asr.tensors.text import Qwen3AsrTextDecodeTensors, Qwen3AsrTokenSelectTensors
+from models.optimized_qwen3_asr.shaders.text_qk_norm_f32 import QWEN3_ASR_TEXT_QK_NORM_F32
+from models.optimized_qwen3_asr.shaders.text_qkv_proj_t1_f32 import QWEN3_ASR_TEXT_QKV_PROJ_T1_F32
+from models.optimized_qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
+from models.optimized_qwen3_asr.shaders.text_rope_f32 import QWEN3_ASR_TEXT_ROPE_F32
+from models.optimized_qwen3_asr.shaders.text_swiglu_f32 import QWEN3_ASR_TEXT_SWIGLU_F32
+from models.optimized_qwen3_asr.tensors.text import Qwen3AsrTextDecodeTensors, Qwen3AsrTokenSelectTensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 

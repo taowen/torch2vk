@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from models.qwen3_asr.shaders.add_f32 import QWEN3_ASR_ADD_F32
-from models.qwen3_asr.shaders.attention_f32 import QWEN3_ASR_ENCODER_ATTENTION_F32
-from models.qwen3_asr.shaders.compact_after_cnn_f32 import QWEN3_ASR_COMPACT_AFTER_CNN_F32
-from models.qwen3_asr.shaders.conv2d_gelu_f32 import QWEN3_ASR_CONV2D_GELU_F32
-from models.qwen3_asr.shaders.conv_out_add_position_f32 import (
+from models.optimized_qwen3_asr.shaders.add_f32 import QWEN3_ASR_ADD_F32
+from models.optimized_qwen3_asr.shaders.attention_f32 import QWEN3_ASR_ENCODER_ATTENTION_F32
+from models.optimized_qwen3_asr.shaders.compact_after_cnn_f32 import QWEN3_ASR_COMPACT_AFTER_CNN_F32
+from models.optimized_qwen3_asr.shaders.conv2d_gelu_f32 import QWEN3_ASR_CONV2D_GELU_F32
+from models.optimized_qwen3_asr.shaders.conv_out_add_position_f32 import (
     QWEN3_ASR_ADD_POSITION_F32,
     QWEN3_ASR_CONV_OUT_F32,
 )
-from models.qwen3_asr.shaders.cu_seqlens_u32 import QWEN3_ASR_CU_SEQLENS_U32
-from models.qwen3_asr.shaders.layer_norm_f32 import QWEN3_ASR_LAYER_NORM_F32
-from models.qwen3_asr.shaders.linear_f32 import QWEN3_ASR_LINEAR_F32, QWEN3_ASR_LINEAR_GELU_F32
-from models.qwen3_asr.shaders.pad_feature_f32 import QWEN3_ASR_PAD_FEATURE_F32
-from models.qwen3_asr.tensors.audio_tower import Qwen3AsrAudioTowerTensors
+from models.optimized_qwen3_asr.shaders.cu_seqlens_u32 import QWEN3_ASR_CU_SEQLENS_U32
+from models.optimized_qwen3_asr.shaders.layer_norm_f32 import QWEN3_ASR_LAYER_NORM_F32
+from models.optimized_qwen3_asr.shaders.linear_f32 import QWEN3_ASR_LINEAR_F32, QWEN3_ASR_LINEAR_GELU_F32
+from models.optimized_qwen3_asr.shaders.pad_feature_f32 import QWEN3_ASR_PAD_FEATURE_F32
+from models.optimized_qwen3_asr.tensors.audio_tower import Qwen3AsrAudioTowerTensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 

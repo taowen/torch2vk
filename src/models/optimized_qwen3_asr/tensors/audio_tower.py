@@ -13,7 +13,7 @@ from torch2vk.runtime.logical import (
     TensorRole,
     TensorSpec,
 )
-from models.qwen3_asr.tensors.audio_tower_layer import (
+from models.optimized_qwen3_asr.tensors.audio_tower_layer import (
     Qwen3AsrAudioEncoderLayerTensors,
     declare_qwen3_asr_audio_encoder_layer_tensors,
 )

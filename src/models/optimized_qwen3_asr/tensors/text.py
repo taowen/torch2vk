@@ -14,7 +14,7 @@ from torch2vk.runtime.logical import (
     TensorSemantic,
     TensorSpec,
 )
-from models.qwen3_asr.tensors.text_layer import (
+from models.optimized_qwen3_asr.tensors.text_layer import (
     Qwen3AsrTextLayerTensors,
     declare_qwen3_asr_text_layer_tensors,
 )
