@@ -684,6 +684,13 @@ def _generate_static_dispatch_function(
     output_names = _find_graph_outputs(graph)
     ops = _prune_dead_ops(ops, output_names)
 
+    unsupported = [op for op in ops if isinstance(op, _UnsupportedOp)]
+    if unsupported:
+        details = "\n".join(f"  - {op.message}" for op in unsupported)
+        raise RuntimeError(
+            f"{function_name} contains unsupported ops:\n{details}"
+        )
+
     shader_imports: dict[str, str] = {}
     lines: list[str] = []
     lines.append(f"def {function_name}(rt: RuntimeSession, tensors: {class_name}) -> None:")
@@ -696,8 +703,6 @@ def _generate_static_dispatch_function(
             shader_imports[op.variant.name] = const_name
             args = ", ".join(f"{k}={v}" for k, v in op.bindings.items())
             lines.append(f"    {const_name}(rt, {args})")
-        elif isinstance(op, _UnsupportedOp):
-            lines.append(f"    raise RuntimeError({op.message!r})")
 
     return lines, shader_imports
 
