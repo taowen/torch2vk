@@ -1,4 +1,4 @@
-"""Generated shader: decode_layer_export_linear_nobias_f32_38."""
+"""Generated shader: export_linear_nobias_f32_39."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_38 = ShaderVariant(
-    name='decode_layer_export_linear_nobias_f32_38',
+EXPORT_LINEAR_NOBIAS_F32_39 = ShaderVariant(
+    name='export_linear_nobias_f32_39',
     family='export',
     contract=ShaderContract(
         class_name='ExportLinearNobiasProgram',
-        shader_name='decode_layer_export_linear_nobias_f32_38',
+        shader_name='export_linear_nobias_f32_39',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -44,13 +44,13 @@ DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_38 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 1, dynamic=False),
+                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 151, dynamic=False),
                 PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 1024, dynamic=False),
                 PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 3072, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(1, 16), ceil_div(3072, 16), 1),
+        dispatch=(ceil_div(151, 16), ceil_div(3072, 16), 1),
     ),
     execution_requirements=None,
     source="""\

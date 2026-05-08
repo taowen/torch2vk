@@ -32,6 +32,7 @@ from torch2vk.runtime.logical import (
     MemoryClass,
     TensorLifetime,
     TensorRole,
+    TensorSemantic,
     TensorSpec,
 )
 from torch2vk.runtime.session import RuntimeSession
@@ -83,6 +84,23 @@ def _request_output_tensor(name: str, dtype: str, shape: tuple[int, ...]) -> Log
         role=TensorRole.OUTPUT,
         memory=MemoryClass.REQUEST_STATE,
         lifetime=TensorLifetime.REQUEST,
+    )
+
+
+def _request_state_tensor(
+    name: str,
+    dtype: str,
+    shape: tuple[int, ...],
+    *,
+    semantic: TensorSemantic | None = None,
+) -> LogicalTensor:
+    return LogicalTensor(
+        name=name,
+        spec=TensorSpec(dtype=dtype, shape=shape),
+        role=TensorRole.STATE,
+        memory=MemoryClass.REQUEST_STATE,
+        lifetime=TensorLifetime.REQUEST,
+        semantic=semantic,
     )
 
 
@@ -165,8 +183,10 @@ def main() -> str:
 
     ac = config.thinker_config.audio_config
     tc = config.thinker_config.text_config
+    max_new_tokens = 64
 
     processor, prepared = prepare_qwen3_asr_inputs(model_dir=model_dir, wav=str(wav_path))
+    max_sequence_length = prepared.prompt_length + max_new_tokens
     weights = safe_open(str(Path(model_dir) / "model.safetensors"), framework="pt", device="cpu")
     rt = RuntimeSession.open(device_index=0, model_dir=model_dir)
 
@@ -220,14 +240,36 @@ def main() -> str:
 
     # Text (non-layered)
     embed_tokens_t = text_tensors.create_embed_tokens("spike.text.embed")
+    key_caches = tuple(
+        _request_state_tensor(
+            f"spike.text.layers.{layer_idx}.key_cache",
+            "float32",
+            (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
+            semantic=TensorSemantic.KV_CACHE,
+        )
+        for layer_idx in range(tc.num_hidden_layers)
+    )
+    value_caches = tuple(
+        _request_state_tensor(
+            f"spike.text.layers.{layer_idx}.value_cache",
+            "float32",
+            (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
+            semantic=TensorSemantic.KV_CACHE,
+        )
+        for layer_idx in range(tc.num_hidden_layers)
+    )
 
     # Text layers (layered)
     text_layer_ts = []
     text_hidden = None
     for layer_idx in range(tc.num_hidden_layers):
-        bindings = {}
+        bindings = {
+            "index_copy": key_caches[layer_idx],
+            "index_copy_1": value_caches[layer_idx],
+        }
         if text_hidden is not None:
             bindings["hidden_states"] = text_hidden
+            bindings["cache_position"] = text_layer_ts[0].cache_position
             bindings["position_embeddings_0"] = text_layer_ts[0].position_embeddings_0
             bindings["position_embeddings_1"] = text_layer_ts[0].position_embeddings_1
         layer_tensors = text_layer_tensors.create_text_layer(
@@ -254,8 +296,14 @@ def main() -> str:
     decode_layer_ts = []
     decode_hidden = decode_embed_t.embedding
     for layer_idx in range(tc.num_hidden_layers):
-        bindings = {"hidden_states": decode_hidden}
+        bindings = {
+            "hidden_states": decode_hidden,
+            "index_copy": key_caches[layer_idx],
+            "index_copy_1": value_caches[layer_idx],
+        }
         if layer_idx > 0:
+            bindings["cache_position"] = decode_layer_ts[0].cache_position
+            bindings["attention_mask"] = decode_layer_ts[0].attention_mask
             bindings["position_embeddings_0"] = decode_layer_ts[0].position_embeddings_0
             bindings["position_embeddings_1"] = decode_layer_ts[0].position_embeddings_1
         layer_tensors = decode_layer_tensors.create_decode_layer(
@@ -290,6 +338,13 @@ def main() -> str:
     _materialize_weights(rt, decode_lm_head_t, weights)
     for t in decode_layer_ts:
         _materialize_weights(rt, t, weights)
+    zero_cache = np.zeros(
+        (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
+        dtype=np.float32,
+    )
+    rt.initialize_request_state(
+        {cache: zero_cache for cache in key_caches + value_caches}
+    )
     print("  Weights materialized.")
 
     # === Audio Tower ===
@@ -412,6 +467,7 @@ def main() -> str:
     rt.register_inputs(
         {
             text_layer_ts[0].hidden_states: hidden_states,
+            text_layer_ts[0].cache_position: np.arange(prompt_length, dtype=np.int32),
             text_layer_ts[0].position_embeddings_0: rope_cos,
             text_layer_ts[0].position_embeddings_1: rope_sin,
         }
@@ -450,7 +506,6 @@ def main() -> str:
 
     # === Decode Loop ===
     print("\n=== Phase 3: Decode Loop ===")
-    max_new_tokens = 20
     eos_token_set = set(eos_token_ids)
     generated_tokens = [first_token]
 
@@ -461,6 +516,12 @@ def main() -> str:
 
         cache_pos = prompt_length + step
         token_input = np.array([[generated_tokens[-1]]], dtype=np.int32)
+        decode_attention_mask = np.full(
+            (1, 1, 1, max_sequence_length),
+            -np.finfo(np.float32).max,
+            dtype=np.float32,
+        )
+        decode_attention_mask[0, 0, 0, : cache_pos + 1] = 0.0
 
         rope_cos, rope_sin = _compute_rope(1, tc.head_dim, start_pos=cache_pos)
 
@@ -468,6 +529,8 @@ def main() -> str:
         rt.register_inputs(
             {
                 decode_embed_t.input: token_input,
+                decode_layer_ts[0].cache_position: np.array([cache_pos], dtype=np.int32),
+                decode_layer_ts[0].attention_mask: decode_attention_mask,
                 decode_layer_ts[0].position_embeddings_0: rope_cos,
                 decode_layer_ts[0].position_embeddings_1: rope_sin,
             }

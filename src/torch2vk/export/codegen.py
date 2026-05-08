@@ -141,7 +141,7 @@ def _generate_dispatch_function(
 
 def _build_shader_args(node: Node, shader: ShaderVariant) -> str:
     contract = shader.contract
-    input_fields = [f for f in contract.fields if f.io_kind == IOKind.INPUT]
+    input_fields = [f for f in contract.fields if f.io_kind in (IOKind.INPUT, IOKind.INOUT)]
     output_fields = [f for f in contract.fields if f.io_kind in (IOKind.OUTPUT, IOKind.INOUT)]
 
     inputs = node_input_names(node)

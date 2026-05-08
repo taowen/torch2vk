@@ -1,4 +1,4 @@
-"""Generated shader: decode_layer_export_linear_nobias_f32_42."""
+"""Generated shader: decode_layer_export_linear_nobias_f32_43."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_42 = ShaderVariant(
-    name='decode_layer_export_linear_nobias_f32_42',
+DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_43 = ShaderVariant(
+    name='decode_layer_export_linear_nobias_f32_43',
     family='export',
     contract=ShaderContract(
         class_name='ExportLinearNobiasProgram',
-        shader_name='decode_layer_export_linear_nobias_f32_42',
+        shader_name='decode_layer_export_linear_nobias_f32_43',
         fields=(
             TensorFieldSpec(
                 name='x',

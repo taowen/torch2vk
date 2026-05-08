@@ -14,6 +14,7 @@ from torch2vk.export.shaders import (
     make_conv2d_variant,
     make_embedding_variant,
     make_gelu_variant,
+    make_index_copy_variant,
     make_layer_norm_variant,
     make_linear_bias_variant,
     make_linear_nobias_variant,
@@ -78,4 +79,5 @@ DEFAULT_REGISTRY = ShaderRegistry([
     ShaderBinding("aten.embedding.default", make_embedding_variant),
     ShaderBinding("aten.conv2d.default", make_conv2d_variant),
     ShaderBinding("aten.argmax.default", make_argmax_variant),
+    ShaderBinding("aten.index_copy.default", make_index_copy_variant),
 ])

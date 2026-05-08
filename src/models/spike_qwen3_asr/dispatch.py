@@ -11,10 +11,10 @@ from models.spike_qwen3_asr.shaders.decode_layer_export_cat_f32_32 import DECODE
 from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32
 from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32_14 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_14
 from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32_22 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_22
-from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32_36 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_36
-from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32_38 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_38
-from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32_40 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_40
-from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32_42 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_42
+from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32_37 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_37
+from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32_39 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_39
+from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32_41 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_41
+from models.spike_qwen3_asr.shaders.decode_layer_export_linear_nobias_f32_43 import DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_43
 from models.spike_qwen3_asr.shaders.decode_layer_export_mean_dim_f32 import DECODE_LAYER_EXPORT_MEAN_DIM_F32
 from models.spike_qwen3_asr.shaders.decode_layer_export_mean_dim_f32_16 import DECODE_LAYER_EXPORT_MEAN_DIM_F32_16
 from models.spike_qwen3_asr.shaders.decode_layer_export_mean_dim_f32_8 import DECODE_LAYER_EXPORT_MEAN_DIM_F32_8
@@ -24,6 +24,7 @@ from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_inner_33 i
 from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_last import DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST
 from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_last_11 import DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST_11
 from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_last_19 import DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST_19
+from models.spike_qwen3_asr.shaders.decode_layer_export_sdpa_masked_f32 import DECODE_LAYER_EXPORT_SDPA_MASKED_F32
 from models.spike_qwen3_asr.shaders.decode_layer_export_slice_f32 import DECODE_LAYER_EXPORT_SLICE_F32
 from models.spike_qwen3_asr.shaders.decode_layer_export_slice_f32_25 import DECODE_LAYER_EXPORT_SLICE_F32_25
 from models.spike_qwen3_asr.shaders.decode_layer_export_slice_f32_30 import DECODE_LAYER_EXPORT_SLICE_F32_30
@@ -33,8 +34,8 @@ from models.spike_qwen3_asr.shaders.decode_norm_export_mean_dim_f32 import DECOD
 from models.spike_qwen3_asr.shaders.decode_norm_export_mul_broadcast_last import DECODE_NORM_EXPORT_MUL_BROADCAST_LAST
 from models.spike_qwen3_asr.shaders.encoder_layer_export_gelu_f32 import ENCODER_LAYER_EXPORT_GELU_F32
 from models.spike_qwen3_asr.shaders.export_add_f32 import EXPORT_ADD_F32
-from models.spike_qwen3_asr.shaders.export_add_f32_37 import EXPORT_ADD_F32_37
-from models.spike_qwen3_asr.shaders.export_add_f32_43 import EXPORT_ADD_F32_43
+from models.spike_qwen3_asr.shaders.export_add_f32_38 import EXPORT_ADD_F32_38
+from models.spike_qwen3_asr.shaders.export_add_f32_44 import EXPORT_ADD_F32_44
 from models.spike_qwen3_asr.shaders.export_add_scalar import EXPORT_ADD_SCALAR
 from models.spike_qwen3_asr.shaders.export_add_scalar_17 import EXPORT_ADD_SCALAR_17
 from models.spike_qwen3_asr.shaders.export_add_scalar_9 import EXPORT_ADD_SCALAR_9
@@ -43,6 +44,8 @@ from models.spike_qwen3_asr.shaders.export_cat_f32_32 import EXPORT_CAT_F32_32
 from models.spike_qwen3_asr.shaders.export_conv2d_f32 import EXPORT_CONV2D_F32
 from models.spike_qwen3_asr.shaders.export_embedding_f32 import EXPORT_EMBEDDING_F32
 from models.spike_qwen3_asr.shaders.export_gelu_f32 import EXPORT_GELU_F32
+from models.spike_qwen3_asr.shaders.export_index_copy_f32_aced7cb1d3 import EXPORT_INDEX_COPY_F32_ACED7CB1D3
+from models.spike_qwen3_asr.shaders.export_index_copy_f32_b94c52aa2e import EXPORT_INDEX_COPY_F32_B94C52AA2E
 from models.spike_qwen3_asr.shaders.export_layer_norm_f32 import EXPORT_LAYER_NORM_F32
 from models.spike_qwen3_asr.shaders.export_linear_bias_f32 import EXPORT_LINEAR_BIAS_F32
 from models.spike_qwen3_asr.shaders.export_linear_bias_f32_10 import EXPORT_LINEAR_BIAS_F32_10
@@ -50,10 +53,10 @@ from models.spike_qwen3_asr.shaders.export_linear_bias_f32_12 import EXPORT_LINE
 from models.spike_qwen3_asr.shaders.export_linear_nobias_f32 import EXPORT_LINEAR_NOBIAS_F32
 from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_14 import EXPORT_LINEAR_NOBIAS_F32_14
 from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_22 import EXPORT_LINEAR_NOBIAS_F32_22
-from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_36 import EXPORT_LINEAR_NOBIAS_F32_36
-from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_38 import EXPORT_LINEAR_NOBIAS_F32_38
-from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_40 import EXPORT_LINEAR_NOBIAS_F32_40
-from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_42 import EXPORT_LINEAR_NOBIAS_F32_42
+from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_37 import EXPORT_LINEAR_NOBIAS_F32_37
+from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_39 import EXPORT_LINEAR_NOBIAS_F32_39
+from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_41 import EXPORT_LINEAR_NOBIAS_F32_41
+from models.spike_qwen3_asr.shaders.export_linear_nobias_f32_43 import EXPORT_LINEAR_NOBIAS_F32_43
 from models.spike_qwen3_asr.shaders.export_mean_dim_f32 import EXPORT_MEAN_DIM_F32
 from models.spike_qwen3_asr.shaders.export_mean_dim_f32_16 import EXPORT_MEAN_DIM_F32_16
 from models.spike_qwen3_asr.shaders.export_mean_dim_f32_8 import EXPORT_MEAN_DIM_F32_8
@@ -75,7 +78,6 @@ from models.spike_qwen3_asr.shaders.export_rsqrt_f32 import EXPORT_RSQRT_F32
 from models.spike_qwen3_asr.shaders.export_rsqrt_f32_10 import EXPORT_RSQRT_F32_10
 from models.spike_qwen3_asr.shaders.export_rsqrt_f32_18 import EXPORT_RSQRT_F32_18
 from models.spike_qwen3_asr.shaders.export_sdpa_causal_f32 import EXPORT_SDPA_CAUSAL_F32
-from models.spike_qwen3_asr.shaders.export_sdpa_f32 import EXPORT_SDPA_F32
 from models.spike_qwen3_asr.shaders.export_sdpa_masked_f32 import EXPORT_SDPA_MASKED_F32
 from models.spike_qwen3_asr.shaders.export_silu_f32 import EXPORT_SILU_F32
 from models.spike_qwen3_asr.shaders.export_slice_f32 import EXPORT_SLICE_F32
@@ -221,12 +223,14 @@ def run_text_layer(rt: RuntimeSession, tensors: TextLayerTensors) -> None:
     EXPORT_CAT_F32_32(rt, a=tensors.neg_1, b=tensors.slice_3, output=tensors.cat_1)
     EXPORT_MUL_BROADCAST_INNER_33(rt, x=tensors.cat_1, y=tensors.unsqueeze_1, output=tensors.mul_9)
     TEXT_LAYER_EXPORT_ADD_F32(rt, x=tensors.mul_8, y=tensors.mul_9, output=tensors.add_4)
+    EXPORT_INDEX_COPY_F32_ACED7CB1D3(rt, cache=tensors.index_copy, index=tensors.cache_position, src=tensors.add_4)
+    EXPORT_INDEX_COPY_F32_ACED7CB1D3(rt, cache=tensors.index_copy_1, index=tensors.cache_position, src=tensors.transpose_2)
     EXPORT_SDPA_CAUSAL_F32(rt, q=tensors.add_3, k=tensors.add_4, v=tensors.transpose_2, output=tensors.scaled_dot_product_attention)
     EXPORT_TRANSPOSE_F32_9E00CA2F33(rt, x=tensors.scaled_dot_product_attention, output=tensors.transpose_3)
     _alias(rt, tensors.transpose_3, tensors.contiguous)
     _alias(rt, tensors.contiguous, tensors.reshape)
-    EXPORT_LINEAR_NOBIAS_F32_36(rt, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)
-    EXPORT_ADD_F32_37(rt, x=tensors.to, y=tensors.linear_3, output=tensors.add_5)
+    EXPORT_LINEAR_NOBIAS_F32_37(rt, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)
+    EXPORT_ADD_F32_38(rt, x=tensors.to, y=tensors.linear_3, output=tensors.add_5)
     _alias(rt, tensors.add_5, tensors.to_6)
     EXPORT_POW_SCALAR_F32(rt, x=tensors.to_6, output=tensors.pow_4)
     EXPORT_MEAN_DIM_F32(rt, x=tensors.pow_4, output=tensors.mean_3)
@@ -235,12 +239,12 @@ def run_text_layer(rt: RuntimeSession, tensors: TextLayerTensors) -> None:
     EXPORT_MUL_BROADCAST_LAST(rt, x=tensors.to_6, y=tensors.rsqrt_3, output=tensors.mul_10)
     _alias(rt, tensors.mul_10, tensors.to_7)
     EXPORT_MUL_LEFT_BROADCAST(rt, x=tensors.p_post_attention_layernorm_weight, y=tensors.to_7, output=tensors.mul_11)
-    EXPORT_LINEAR_NOBIAS_F32_38(rt, x=tensors.mul_11, weight=tensors.p_mlp_gate_proj_weight, output=tensors.linear_4)
+    EXPORT_LINEAR_NOBIAS_F32_39(rt, x=tensors.mul_11, weight=tensors.p_mlp_gate_proj_weight, output=tensors.linear_4)
     EXPORT_SILU_F32(rt, x=tensors.linear_4, output=tensors.silu)
-    EXPORT_LINEAR_NOBIAS_F32_40(rt, x=tensors.mul_11, weight=tensors.p_mlp_up_proj_weight, output=tensors.linear_5)
+    EXPORT_LINEAR_NOBIAS_F32_41(rt, x=tensors.mul_11, weight=tensors.p_mlp_up_proj_weight, output=tensors.linear_5)
     EXPORT_MUL_F32(rt, x=tensors.silu, y=tensors.linear_5, output=tensors.mul_12)
-    EXPORT_LINEAR_NOBIAS_F32_42(rt, x=tensors.mul_12, weight=tensors.p_mlp_down_proj_weight, output=tensors.linear_6)
-    EXPORT_ADD_F32_43(rt, x=tensors.to_6, y=tensors.linear_6, output=tensors.add_7)
+    EXPORT_LINEAR_NOBIAS_F32_43(rt, x=tensors.mul_12, weight=tensors.p_mlp_down_proj_weight, output=tensors.linear_6)
+    EXPORT_ADD_F32_44(rt, x=tensors.to_6, y=tensors.linear_6, output=tensors.add_7)
 
 
 def run_text_norm(rt: RuntimeSession, tensors: TextNormTensors) -> None:
@@ -312,11 +316,13 @@ def run_decode_layer(rt: RuntimeSession, tensors: DecodeLayerTensors) -> None:
     DECODE_LAYER_EXPORT_CAT_F32_32(rt, a=tensors.neg_1, b=tensors.slice_3, output=tensors.cat_1)
     DECODE_LAYER_EXPORT_MUL_BROADCAST_INNER_33(rt, x=tensors.cat_1, y=tensors.unsqueeze_1, output=tensors.mul_9)
     DECODE_LAYER_EXPORT_ADD_F32(rt, x=tensors.mul_8, y=tensors.mul_9, output=tensors.add_4)
-    EXPORT_SDPA_F32(rt, q=tensors.add_3, k=tensors.add_4, v=tensors.transpose_2, output=tensors.scaled_dot_product_attention)
+    EXPORT_INDEX_COPY_F32_B94C52AA2E(rt, cache=tensors.index_copy, index=tensors.cache_position, src=tensors.add_4)
+    EXPORT_INDEX_COPY_F32_B94C52AA2E(rt, cache=tensors.index_copy_1, index=tensors.cache_position, src=tensors.transpose_2)
+    DECODE_LAYER_EXPORT_SDPA_MASKED_F32(rt, q=tensors.add_3, k=tensors.index_copy, v=tensors.index_copy_1, mask=tensors.attention_mask, output=tensors.scaled_dot_product_attention)
     EXPORT_TRANSPOSE_F32_9E77B1CEE2(rt, x=tensors.scaled_dot_product_attention, output=tensors.transpose_3)
     _alias(rt, tensors.transpose_3, tensors.reshape)
-    DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_36(rt, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)
-    EXPORT_ADD_F32_37(rt, x=tensors.to, y=tensors.linear_3, output=tensors.add_5)
+    DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_37(rt, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)
+    EXPORT_ADD_F32_38(rt, x=tensors.to, y=tensors.linear_3, output=tensors.add_5)
     _alias(rt, tensors.add_5, tensors.to_6)
     EXPORT_POW_SCALAR_F32(rt, x=tensors.to_6, output=tensors.pow_4)
     DECODE_LAYER_EXPORT_MEAN_DIM_F32(rt, x=tensors.pow_4, output=tensors.mean_3)
@@ -325,12 +331,12 @@ def run_decode_layer(rt: RuntimeSession, tensors: DecodeLayerTensors) -> None:
     DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST(rt, x=tensors.to_6, y=tensors.rsqrt_3, output=tensors.mul_10)
     _alias(rt, tensors.mul_10, tensors.to_7)
     EXPORT_MUL_LEFT_BROADCAST(rt, x=tensors.p_post_attention_layernorm_weight, y=tensors.to_7, output=tensors.mul_11)
-    DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_38(rt, x=tensors.mul_11, weight=tensors.p_mlp_gate_proj_weight, output=tensors.linear_4)
+    DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_39(rt, x=tensors.mul_11, weight=tensors.p_mlp_gate_proj_weight, output=tensors.linear_4)
     EXPORT_SILU_F32(rt, x=tensors.linear_4, output=tensors.silu)
-    DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_40(rt, x=tensors.mul_11, weight=tensors.p_mlp_up_proj_weight, output=tensors.linear_5)
+    DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_41(rt, x=tensors.mul_11, weight=tensors.p_mlp_up_proj_weight, output=tensors.linear_5)
     EXPORT_MUL_F32(rt, x=tensors.silu, y=tensors.linear_5, output=tensors.mul_12)
-    DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_42(rt, x=tensors.mul_12, weight=tensors.p_mlp_down_proj_weight, output=tensors.linear_6)
-    EXPORT_ADD_F32_43(rt, x=tensors.to_6, y=tensors.linear_6, output=tensors.add_7)
+    DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_43(rt, x=tensors.mul_12, weight=tensors.p_mlp_down_proj_weight, output=tensors.linear_6)
+    EXPORT_ADD_F32_44(rt, x=tensors.to_6, y=tensors.linear_6, output=tensors.add_7)
 
 
 def run_decode_norm(rt: RuntimeSession, tensors: DecodeNormTensors) -> None:

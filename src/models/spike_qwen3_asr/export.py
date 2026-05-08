@@ -132,7 +132,7 @@ def _extract_plan(prog: ExportedProgram, weight_prefix: str) -> dict:
         if shader_key not in shader_variants:
             shader_variants[shader_key] = variant
         inputs = node_input_names(node)
-        input_fields = [f for f in variant.contract.fields if f.io_kind == IOKind.INPUT]
+        input_fields = [f for f in variant.contract.fields if f.io_kind in (IOKind.INPUT, IOKind.INOUT)]
         output_fields = [f for f in variant.contract.fields if f.io_kind in (IOKind.OUTPUT, IOKind.INOUT)]
         bindings = {}
         for i, field in enumerate(input_fields):
@@ -818,8 +818,11 @@ def _load_model_and_shapes():
         "cu_seqlens_len": cu_seqlens_len,
         "d_model": ac.d_model,
         "prompt_length": prepared.prompt_length,
+        "max_sequence_length": prepared.prompt_length + 64,
         "hidden_size": tc.hidden_size,
         "head_dim": tc.head_dim,
+        "num_attention_heads": tc.num_attention_heads,
+        "num_key_value_heads": tc.num_key_value_heads,
     }
     return model, config, shapes
 
@@ -899,6 +902,94 @@ def main() -> int:
             x = x.reshape(b, c * f, t).transpose(1, 2)
             return torch.nn.functional.linear(x, self.weight, None)
 
+    def _rotate_half(x):
+        x1 = x[..., : x.shape[-1] // 2]
+        x2 = x[..., x.shape[-1] // 2 :]
+        return torch.cat((-x2, x1), dim=-1)
+
+    def _apply_rope(q, k, position_embeddings):
+        cos, sin = position_embeddings
+        cos = cos.unsqueeze(1)
+        sin = sin.unsqueeze(1)
+        return (q * cos) + (_rotate_half(q) * sin), (k * cos) + (_rotate_half(k) * sin)
+
+    class _TextLayerBase(torch.nn.Module):
+        def __init__(self, layer):
+            super().__init__()
+            self.input_layernorm = layer.input_layernorm
+            self.post_attention_layernorm = layer.post_attention_layernorm
+            self.self_attn = layer.self_attn
+            self.mlp = layer.mlp
+            self.head_dim = layer.self_attn.head_dim
+
+        def _qkv(self, hidden_states, position_embeddings):
+            input_shape = hidden_states.shape[:-1]
+            hidden_shape = (*input_shape, -1, self.head_dim)
+            query_states = self.self_attn.q_norm(
+                self.self_attn.q_proj(hidden_states).view(hidden_shape)
+            ).transpose(1, 2)
+            key_states = self.self_attn.k_norm(
+                self.self_attn.k_proj(hidden_states).view(hidden_shape)
+            ).transpose(1, 2)
+            value_states = self.self_attn.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+            query_states, key_states = _apply_rope(query_states, key_states, position_embeddings)
+            return query_states, key_states, value_states, input_shape
+
+        def _finish(self, residual, attn_output, input_shape):
+            hidden_states = attn_output.transpose(1, 2).contiguous().reshape(*input_shape, -1)
+            hidden_states = self.self_attn.o_proj(hidden_states)
+            hidden_states = residual + hidden_states
+            residual = hidden_states
+            hidden_states = self.post_attention_layernorm(hidden_states)
+            hidden_states = self.mlp(hidden_states)
+            return residual + hidden_states
+
+    class _TextLayerPrefillWithCache(_TextLayerBase):
+        def forward(self, hidden_states, cache_position, key_cache, value_cache, position_embeddings):
+            residual = hidden_states
+            hidden_states = self.input_layernorm(hidden_states)
+            query_states, key_states, value_states, input_shape = self._qkv(
+                hidden_states, position_embeddings
+            )
+            key_cache = torch.index_copy(key_cache, 2, cache_position, key_states)
+            value_cache = torch.index_copy(value_cache, 2, cache_position, value_states)
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_states,
+                key_states,
+                value_states,
+                None,
+                0.0,
+                True,
+                enable_gqa=True,
+            )
+            return self._finish(residual, attn_output, input_shape), key_cache, value_cache
+
+    class _TextLayerDecodeWithCache(_TextLayerBase):
+        def forward(
+            self,
+            hidden_states,
+            cache_position,
+            key_cache,
+            value_cache,
+            attention_mask,
+            position_embeddings,
+        ):
+            residual = hidden_states
+            hidden_states = self.input_layernorm(hidden_states)
+            query_states, key_states, value_states, input_shape = self._qkv(
+                hidden_states, position_embeddings
+            )
+            key_cache = torch.index_copy(key_cache, 2, cache_position, key_states)
+            value_cache = torch.index_copy(value_cache, 2, cache_position, value_states)
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_states,
+                key_cache,
+                value_cache,
+                attention_mask,
+                enable_gqa=True,
+            )
+            return self._finish(residual, attn_output, input_shape), key_cache, value_cache
+
     export_and_plan("run_conv2d1", _ConvGelu(at.conv2d1).float(),
                     args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),),
                     weight_prefix="thinker.audio_tower.conv2d1.")
@@ -929,13 +1020,18 @@ def main() -> int:
 
     # Text pipeline
     pl = shapes["prompt_length"]
+    max_seq = shapes["max_sequence_length"]
     hs = shapes["hidden_size"]
     hd = shapes["head_dim"]
+    nh = shapes["num_key_value_heads"]
     export_and_plan("run_embed_tokens", model.thinker.model.embed_tokens.float(),
                     args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
                     weight_prefix="thinker.model.embed_tokens.")
-    export_and_plan("run_text_layer", model.thinker.model.layers[0],
-                    args=(torch.zeros(1, pl, hs, device="meta"),),
+    export_and_plan("run_text_layer", _TextLayerPrefillWithCache(model.thinker.model.layers[0]),
+                    args=(torch.zeros(1, pl, hs, device="meta"),
+                          torch.zeros(pl, dtype=torch.long, device="meta"),
+                          torch.zeros(1, nh, max_seq, hd, device="meta"),
+                          torch.zeros(1, nh, max_seq, hd, device="meta")),
                     kwargs={"position_embeddings": (
                         torch.zeros(1, pl, hd, device="meta"),
                         torch.zeros(1, pl, hd, device="meta"),
@@ -952,8 +1048,12 @@ def main() -> int:
     export_and_plan("run_decode_embed", model.thinker.model.embed_tokens.float(),
                     args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
                     weight_prefix="thinker.model.embed_tokens.")
-    export_and_plan("run_decode_layer", model.thinker.model.layers[0],
-                    args=(torch.zeros(1, 1, hs, device="meta"),),
+    export_and_plan("run_decode_layer", _TextLayerDecodeWithCache(model.thinker.model.layers[0]),
+                    args=(torch.zeros(1, 1, hs, device="meta"),
+                          torch.zeros(1, dtype=torch.long, device="meta"),
+                          torch.zeros(1, nh, max_seq, hd, device="meta"),
+                          torch.zeros(1, nh, max_seq, hd, device="meta"),
+                          torch.zeros(1, 1, 1, max_seq, device="meta")),
                     kwargs={"position_embeddings": (
                         torch.zeros(1, 1, hd, device="meta"),
                         torch.zeros(1, 1, hd, device="meta"),
