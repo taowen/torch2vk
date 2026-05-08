@@ -30,6 +30,7 @@ from models.exported_omnivoice.tensors.llm_forward import (
 )
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
 from omnivoice import OmniVoiceConfig
+from torch2vk.runtime.rope_table import declare_rope_table_tensors, run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 
 DEFAULT_TEXT = "hello world this is a speech recognition test"
@@ -54,17 +55,6 @@ def _ensure_bfloat16_checkpoint(model_dir: Path) -> Path:
     return bf16_dir
 
 
-def _compute_rope(seq_len: int, head_dim: int, batch: int = 2, theta: float = 1_000_000.0) -> tuple[np.ndarray, np.ndarray]:
-    positions = np.arange(seq_len, dtype=np.float32)
-    freqs = 1.0 / (theta ** (np.arange(0, head_dim, 2, dtype=np.float32) / head_dim))
-    angles = np.outer(positions, freqs)
-    cos = np.cos(angles).astype(np.float32)
-    sin = np.sin(angles).astype(np.float32)
-    cos_full = np.concatenate([cos, cos], axis=-1)[None, :, :]
-    sin_full = np.concatenate([sin, sin], axis=-1)[None, :, :]
-    cos_full = np.broadcast_to(cos_full, (batch, seq_len, head_dim)).copy()
-    sin_full = np.broadcast_to(sin_full, (batch, seq_len, head_dim)).copy()
-    return cos_full, sin_full
 
 
 def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float) -> np.ndarray:
@@ -194,8 +184,6 @@ def main(
 
     print(f"  seq_len={seq_len}, target_len={target_len}, cond_audio_start={cond_audio_start}")
 
-    # Pre-compute RoPE (replicate to batch=2 for CFG)
-    cos_np, sin_np = _compute_rope(seq_len, head_dim)
     attn_mask_np = attn_mask_float.cpu().numpy()
 
     # Create runtime and tensors
@@ -204,8 +192,16 @@ def main(
     rt = RuntimeSession.open(device_index=0, model_dir=bf16_dir)
 
     print("Declaring tensors...")
+    rope_t = declare_rope_table_tensors(
+        "omnivoice.rope",
+        batch=2,
+        sequence_length=seq_len,
+        head_dim=head_dim,
+    )
     llm_t = create_llm_forward(
         "omnivoice.llm",
+        cos=rope_t.cos,
+        sin=rope_t.sin,
         request_state_outputs={LLM_FORWARD_OUTPUT},
     )
     audio_head_t = create_audio_head(
@@ -240,6 +236,20 @@ def main(
     layer_penalty_factor = 5.0
     position_temperature = 5.0
 
+    # Compute RoPE once on GPU (positions are fixed for masked decoding)
+    rt.register_inputs({
+        rope_t.start_position: np.array([0], dtype=np.int64),
+        rope_t.theta: np.array([1_000_000.0], dtype=np.float32),
+    })
+    run_rope_table_f32(
+        rt,
+        start_position=rope_t.start_position,
+        theta=rope_t.theta,
+        cos=rope_t.cos,
+        sin=rope_t.sin,
+        frame_name="omnivoice.rope",
+    )
+
     for step in range(num_steps):
         k = schedule[step]
         if k <= 0:
@@ -261,8 +271,6 @@ def main(
         rt._inputs.clear()
         rt.register_inputs({
             llm_t.hidden_states: hidden_np,
-            llm_t.cos: cos_np,
-            llm_t.sin: sin_np,
             llm_t.attention_mask: attn_mask_np,
         })
 

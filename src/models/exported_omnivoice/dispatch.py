@@ -54,6 +54,7 @@ from models.exported_omnivoice.tensors.audio_head import AudioHeadTensors
 from models.exported_omnivoice.tensors.llm_forward import LlmForwardTensors
 from models.exported_omnivoice.tensors.text_embed import TextEmbedTensors
 from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.rope_table import ROPE_TABLE_F32
 from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
 
@@ -105,6 +106,7 @@ SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {
     'export_transpose_f32_45de1e4f84': EXPORT_TRANSPOSE_F32_45DE1E4F84,
     'export_transpose_f32_c943282b28': EXPORT_TRANSPOSE_F32_C943282B28,
     'export_transpose_f32_f3e8fdf2d4': EXPORT_TRANSPOSE_F32_F3E8FDF2D4,
+    ROPE_TABLE_F32.name: ROPE_TABLE_F32,
 }
 
 

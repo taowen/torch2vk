@@ -9,5 +9,6 @@ from models.exported_qwen3_asr.tensors.decode_lm_head import DecodeLmHeadTensors
 from models.exported_qwen3_asr.tensors.decode_norm import DecodeNormTensors  # noqa: F401
 from models.exported_qwen3_asr.tensors.embed_tokens import EmbedTokensTensors  # noqa: F401
 from models.exported_qwen3_asr.tensors.lm_head import LmHeadTensors  # noqa: F401
+from models.exported_qwen3_asr.tensors.rope import RopeTableTensors  # noqa: F401
 from models.exported_qwen3_asr.tensors.text_layer import TextLayerTensors  # noqa: F401
 from models.exported_qwen3_asr.tensors.text_norm import TextNormTensors  # noqa: F401

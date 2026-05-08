@@ -33,6 +33,11 @@ from torch2vk.runtime.logical import (
     TensorSemantic,
     TensorSpec,
 )
+from torch2vk.runtime.rope_table import (
+    declare_rope_start_position_tensor,
+    declare_rope_theta_tensor,
+    run_rope_table_f32,
+)
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader import ShaderVariant
 
@@ -247,13 +252,13 @@ def run_qwen3_asr_greedy_decode_loop(
             break
 
     final_stats = rt.device.allocation_stats()
-    print(f"\n  [memory] === GPU Memory Trace ===")
+    print("\n  [memory] === GPU Memory Trace ===")
     print(f"  [memory] Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB")
     print(f"  [memory] Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB")
     print(f"  [memory] Final device_local live: {final_stats.device_local_live_bytes / 1024**2:.1f} MB")
     print(f"  [memory] Steps sampled: {len(memory_trace)}")
-    print(f"  [memory] Step | GPU Live (MB) | GPU Reserved (MB)")
-    print(f"  [memory] -----|---------------|------------------")
+    print("  [memory] Step | GPU Live (MB) | GPU Reserved (MB)")
+    print("  [memory] -----|---------------|------------------")
     for s, live, reserved in memory_trace:
         print(f"  [memory] {s:4d} | {live:13.1f} | {reserved:17.1f}")
 
@@ -268,20 +273,21 @@ def _register_prefill_rope(
     mrope_section: tuple[int, ...],
 ) -> None:
     _require_supported_mrope_section(mrope_section)
-    start_position = _rope_start_position_tensor()
-    rope_theta_tensor = _rope_theta_tensor()
+    start_position = declare_rope_start_position_tensor("qwen3_asr.rope.start_position")
+    rope_theta_tensor = declare_rope_theta_tensor("qwen3_asr.rope.theta")
     rt.register_inputs(
         {
             start_position: np.array([0], dtype=np.int64),
             rope_theta_tensor: np.array([rope_theta], dtype=np.float32),
         }
     )
-    _run_qwen3_asr_rope_table(
+    run_rope_table_f32(
         rt,
         start_position=start_position,
-        rope_theta=rope_theta_tensor,
-        rope_cos=prefill.rope_cos,
-        rope_sin=prefill.rope_sin,
+        theta=rope_theta_tensor,
+        cos=prefill.rope_cos,
+        sin=prefill.rope_sin,
+        frame_name="qwen3_asr.rope_table",
     )
 
 
@@ -296,19 +302,20 @@ def _register_decode_rope(
 ) -> None:
     del head_dim
     _require_supported_mrope_section(mrope_section)
-    rope_theta_tensor = _rope_theta_tensor()
+    rope_theta_tensor = declare_rope_theta_tensor("qwen3_asr.rope.theta")
     rt.register_inputs(
         {
             decode.cache_position: np.array([cache_position], dtype=np.int64),
             rope_theta_tensor: np.array([rope_theta], dtype=np.float32),
         }
     )
-    _run_qwen3_asr_rope_table(
+    run_rope_table_f32(
         rt,
         start_position=decode.cache_position,
-        rope_theta=rope_theta_tensor,
-        rope_cos=decode.rope_cos,
-        rope_sin=decode.rope_sin,
+        theta=rope_theta_tensor,
+        cos=decode.rope_cos,
+        sin=decode.rope_sin,
+        frame_name="qwen3_asr.rope_table",
     )
 
 
@@ -749,7 +756,7 @@ def _run_qwen3_asr_decode_replay_steps(
 
     del head_dim
     _require_supported_mrope_section(mrope_section)
-    rope_theta_tensor = _rope_theta_tensor()
+    rope_theta_tensor = declare_rope_theta_tensor("qwen3_asr.rope.theta")
     for step in range(start_step, max_new_tokens - 1):
         cache_pos = prompt_length + step
         next_token_value = rt.read_request_state(next_token)
@@ -767,12 +774,13 @@ def _run_qwen3_asr_decode_replay_steps(
             inputs=step_inputs,
             write_through=(decode.input_ids, decode.cache_position, replay_token_index),
         )
-        _run_qwen3_asr_rope_table(
+        run_rope_table_f32(
             rt,
             start_position=decode.cache_position,
-            rope_theta=rope_theta_tensor,
-            rope_cos=decode.rope_cos,
-            rope_sin=decode.rope_sin,
+            theta=rope_theta_tensor,
+            cos=decode.rope_cos,
+            sin=decode.rope_sin,
+            frame_name="qwen3_asr.rope_table",
         )
         execute_replay(plan, dynamic_symbols=_qwen3_asr_decode_dynamic_symbols(decode))
         if stop_on_eos and _replay_decode_stopped(rt, replay_stopped):
@@ -862,46 +870,6 @@ def _run_qwen3_asr_token_store(
             generated_length=generated_length,
             stopped=stopped,
         )
-
-
-def _run_qwen3_asr_rope_table(
-    rt: RuntimeSession,
-    *,
-    start_position: LogicalTensor,
-    rope_theta: LogicalTensor,
-    rope_cos: LogicalTensor,
-    rope_sin: LogicalTensor,
-) -> None:
-    from models.optimized_qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TABLE_F32
-
-    with rt.frame("qwen3_asr.rope_table"):
-        QWEN3_ASR_ROPE_TABLE_F32(
-            rt,
-            start_position=start_position,
-            rope_theta=rope_theta,
-            cos=rope_cos,
-            sin=rope_sin,
-        )
-
-
-def _rope_start_position_tensor() -> LogicalTensor:
-    return LogicalTensor(
-        name="qwen3_asr.rope.start_position",
-        spec=TensorSpec(dtype="int64", shape=(1,)),
-        role=TensorRole.INPUT,
-        memory=MemoryClass.HOST_INPUT,
-        lifetime=TensorLifetime.FRAME,
-    )
-
-
-def _rope_theta_tensor() -> LogicalTensor:
-    return LogicalTensor(
-        name="qwen3_asr.rope.theta",
-        spec=TensorSpec(dtype="float32", shape=(1,)),
-        role=TensorRole.INPUT,
-        memory=MemoryClass.HOST_INPUT,
-        lifetime=TensorLifetime.FRAME,
-    )
 
 
 def _require_supported_mrope_section(mrope_section: tuple[int, ...]) -> None:

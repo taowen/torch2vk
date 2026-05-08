@@ -22,7 +22,6 @@ from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
-from models.optimized_qwen3_asr.shaders.rope_table_f32 import QWEN3_ASR_ROPE_TABLE_F32
 from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
 from models.exported_qwen3_asr import dispatch
@@ -34,6 +33,7 @@ from models.exported_qwen3_asr.tensors import decode_lm_head as decode_lm_head_t
 from models.exported_qwen3_asr.tensors import decode_norm as decode_norm_tensors
 from models.exported_qwen3_asr.tensors import embed_tokens as embed_tokens_tensors
 from models.exported_qwen3_asr.tensors import lm_head as lm_head_tensors
+from models.exported_qwen3_asr.tensors import rope as rope_tensors
 from models.exported_qwen3_asr.tensors import text_layer as text_layer_tensors
 from models.exported_qwen3_asr.tensors import text_norm as text_norm_tensors
 from torch2vk.runtime.logical import (
@@ -154,28 +154,6 @@ def _compute_positional_embedding(length: int, channels: int) -> np.ndarray:
     inv_timescales = np.exp(-log_timescale_increment * np.arange(channels // 2, dtype=np.float32))
     scaled_time = np.arange(length, dtype=np.float32)[:, None] * inv_timescales[None, :]
     return np.concatenate([np.sin(scaled_time), np.cos(scaled_time)], axis=1).astype(np.float32)
-
-
-
-
-def _run_rope_table(
-    rt: RuntimeSession,
-    *,
-    start_position: LogicalTensor,
-    rope_theta: LogicalTensor,
-    cos: LogicalTensor,
-    sin: LogicalTensor,
-    frame_name: str,
-) -> None:
-    with rt.frame(frame_name):
-        QWEN3_ASR_ROPE_TABLE_F32(
-            rt,
-            start_position=start_position,
-            rope_theta=rope_theta,
-            cos=cos,
-            sin=sin,
-        )
-
 
 def _collect_tensors_by_name(*values: object) -> dict[str, LogicalTensor]:
     tensors_by_name: dict[str, LogicalTensor] = {}
@@ -299,27 +277,17 @@ def main(
         )
         for layer_idx in range(tc.num_hidden_layers)
     )
-    rope_start_position_t = _host_input_tensor("spike.rope.start_position", "int64", (1,))
-    rope_theta_t = _host_input_tensor("spike.rope.theta", "float32", (1,))
-    prefill_rope_cos_t = _request_state_tensor(
-        "spike.text.prefill.rope_cos",
-        "float32",
-        (1, prompt_length, tc.head_dim),
+    prefill_rope_t = rope_tensors.create_rope_table(
+        "spike.text.prefill.rope",
+        batch=1,
+        sequence_length=prompt_length,
+        head_dim=tc.head_dim,
     )
-    prefill_rope_sin_t = _request_state_tensor(
-        "spike.text.prefill.rope_sin",
-        "float32",
-        (1, prompt_length, tc.head_dim),
-    )
-    decode_rope_cos_t = _request_state_tensor(
-        "spike.decode.rope_cos",
-        "float32",
-        (1, 1, tc.head_dim),
-    )
-    decode_rope_sin_t = _request_state_tensor(
-        "spike.decode.rope_sin",
-        "float32",
-        (1, 1, tc.head_dim),
+    decode_rope_t = rope_tensors.create_rope_table(
+        "spike.decode.rope",
+        batch=1,
+        sequence_length=1,
+        head_dim=tc.head_dim,
     )
 
     # Text layers (layered)
@@ -332,8 +300,8 @@ def main(
             hidden_states=text_hidden,
             index_copy=key_caches[layer_idx],
             index_copy_1=value_caches[layer_idx],
-            position_embeddings_0=prefill_rope_cos_t,
-            position_embeddings_1=prefill_rope_sin_t,
+            position_embeddings_0=prefill_rope_t.cos,
+            position_embeddings_1=prefill_rope_t.sin,
             cache_position=text_layer_ts[0].cache_position if layer_idx > 0 else None,
         )
         text_layer_ts.append(layer_tensors)
@@ -378,8 +346,8 @@ def main(
             hidden_states=decode_hidden,
             index_copy=key_caches[layer_idx],
             index_copy_1=value_caches[layer_idx],
-            position_embeddings_0=decode_rope_cos_t,
-            position_embeddings_1=decode_rope_sin_t,
+            position_embeddings_0=decode_rope_t.cos,
+            position_embeddings_1=decode_rope_t.sin,
             cache_position=decode_layer_ts[0].cache_position if layer_idx > 0 else None,
         )
         decode_layer_ts.append(layer_tensors)
@@ -505,16 +473,13 @@ def main(
 
     rt.register_inputs(
         {
-            rope_start_position_t: np.array([0], dtype=np.int64),
-            rope_theta_t: np.array([5_000_000.0], dtype=np.float32),
+            prefill_rope_t.start_position: np.array([0], dtype=np.int64),
+            prefill_rope_t.theta: np.array([5_000_000.0], dtype=np.float32),
         }
     )
-    _run_rope_table(
+    dispatch.run_rope_table(
         rt,
-        start_position=rope_start_position_t,
-        rope_theta=rope_theta_t,
-        cos=prefill_rope_cos_t,
-        sin=prefill_rope_sin_t,
+        prefill_rope_t,
         frame_name="spike.text.prefill_rope",
     )
 
@@ -654,16 +619,13 @@ def main(
 
         rt.register_inputs(
             {
-                rope_start_position_t: np.array([cache_pos], dtype=np.int64),
-                rope_theta_t: np.array([5_000_000.0], dtype=np.float32),
+                decode_rope_t.start_position: np.array([cache_pos], dtype=np.int64),
+                decode_rope_t.theta: np.array([5_000_000.0], dtype=np.float32),
             }
         )
-        _run_rope_table(
+        dispatch.run_rope_table(
             rt,
-            start_position=rope_start_position_t,
-            rope_theta=rope_theta_t,
-            cos=decode_rope_cos_t,
-            sin=decode_rope_sin_t,
+            decode_rope_t,
             frame_name=f"spike.decode.rope.{step:04d}",
         )
 

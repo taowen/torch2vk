@@ -66,7 +66,47 @@ import numpy as np
 
 from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
+from torch2vk.runtime.rope_table import ROPE_TABLE_F32, run_rope_table_f32
 """
+
+
+_ROPE_TENSOR_SOURCE = '''"""Generated RoPE tensor declarations."""
+
+from __future__ import annotations
+
+from torch2vk.runtime.rope_table import RopeTableTensors, declare_rope_table_tensors
+
+
+def create_rope_table(
+    prefix: str,
+    *,
+    batch: int,
+    sequence_length: int,
+    head_dim: int,
+) -> RopeTableTensors:
+    return declare_rope_table_tensors(
+        prefix,
+        batch=batch,
+        sequence_length=sequence_length,
+        head_dim=head_dim,
+    )
+'''
+
+
+_ROPE_DISPATCH_HELPER = '''def run_rope_table(
+    rt: RuntimeSession,
+    tensors: RopeTableTensors,
+    *,
+    frame_name: str,
+) -> None:
+    run_rope_table_f32(
+        rt,
+        start_position=tensors.start_position,
+        theta=tensors.theta,
+        cos=tensors.cos,
+        sin=tensors.sin,
+        frame_name=frame_name,
+    )'''
 
 
 _DECODE_STEP_HELPERS = '''def decode_step_inputs(
@@ -239,7 +279,13 @@ def _combine_dispatch(
         const = all_shader_imports[shader_name]
         lines.append(f"from models.exported_qwen3_asr.shaders.{shader_name} import {const}")
     lines.append("")
-    dispatch_body = "\n\n\n".join(dispatch_sources) + "\n\n\n" + _DECODE_STEP_HELPERS
+    dispatch_body = (
+        "\n\n\n".join(dispatch_sources)
+        + "\n\n\n"
+        + _ROPE_DISPATCH_HELPER
+        + "\n\n\n"
+        + _DECODE_STEP_HELPERS
+    )
     for target_file in sorted(tensor_file_classes):
         classes = ", ".join(
             cls for cls in sorted(tensor_file_classes[target_file])
@@ -257,12 +303,16 @@ def _combine_dispatch(
     for shader_name in sorted(all_shader_imports):
         const = all_shader_imports[shader_name]
         lines.append(f"    {shader_name!r}: {const},")
+    lines.append("    ROPE_TABLE_F32.name: ROPE_TABLE_F32,")
     lines.append("    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name: QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,")
     lines.append("    QWEN3_ASR_TOKEN_STORE_EOS_F32.name: QWEN3_ASR_TOKEN_STORE_EOS_F32,")
     lines.append("}")
     lines.append("")
     lines.append("")
     lines.append("\n\n\n".join(dispatch_sources))
+    lines.append("")
+    lines.append("")
+    lines.append(_ROPE_DISPATCH_HELPER)
     lines.append("")
     lines.append("")
     lines.append(_DECODE_STEP_HELPERS)
@@ -518,9 +568,11 @@ def main() -> int:
     # Write tensors/
     for f in tensors_dir.glob("*.py"):
         f.unlink()
+    tensor_file_classes.setdefault("rope", []).append("RopeTableTensors")
     helper_source = render_tensor_helpers()
     for group, sources in tensor_sources.items():
         (tensors_dir / f"{group}.py").write_text(render_tensor_module(sources, helper_source))
+    (tensors_dir / "rope.py").write_text(_ROPE_TENSOR_SOURCE)
     tensor_init_imports = []
     for group in sorted(tensor_file_classes):
         for cls in tensor_file_classes[group]:
@@ -528,7 +580,7 @@ def main() -> int:
                 f"from models.exported_qwen3_asr.tensors.{group} import {cls}  # noqa: F401"
             )
     (tensors_dir / "__init__.py").write_text(render_simple_init("Generated tensor declarations", tensor_init_imports))
-    print(f"  tensors/ written ({len(tensor_sources)} files)")
+    print(f"  tensors/ written ({len(tensor_sources) + 1} files)")
 
     # Write dispatch.py
     dispatch_source = _combine_dispatch(dispatch_sources, all_shader_imports, tensor_file_classes)

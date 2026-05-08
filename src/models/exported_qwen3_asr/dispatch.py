@@ -8,6 +8,7 @@ import numpy as np
 
 from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
+from torch2vk.runtime.rope_table import ROPE_TABLE_F32, run_rope_table_f32
 from models.exported_qwen3_asr.shaders.decode_embed_export_embedding_f32 import DECODE_EMBED_EXPORT_EMBEDDING_F32
 from models.exported_qwen3_asr.shaders.decode_layer_export_add_f32 import DECODE_LAYER_EXPORT_ADD_F32
 from models.exported_qwen3_asr.shaders.decode_layer_export_cat_f32 import DECODE_LAYER_EXPORT_CAT_F32
@@ -116,6 +117,7 @@ from models.exported_qwen3_asr.tensors.decode_lm_head import DecodeLmHeadTensors
 from models.exported_qwen3_asr.tensors.decode_norm import DecodeNormTensors
 from models.exported_qwen3_asr.tensors.embed_tokens import EmbedTokensTensors
 from models.exported_qwen3_asr.tensors.lm_head import LmHeadTensors
+from models.exported_qwen3_asr.tensors.rope import RopeTableTensors
 from models.exported_qwen3_asr.tensors.text_layer import TextLayerTensors
 from models.exported_qwen3_asr.tensors.text_norm import TextNormTensors
 from torch2vk.runtime.logical import LogicalTensor
@@ -223,6 +225,7 @@ SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {
     'lm_head_export_linear_nobias_f32': LM_HEAD_EXPORT_LINEAR_NOBIAS_F32,
     'text_layer_export_add_f32': TEXT_LAYER_EXPORT_ADD_F32,
     'text_layer_export_linear_nobias_f32': TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32,
+    ROPE_TABLE_F32.name: ROPE_TABLE_F32,
     QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name: QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
     QWEN3_ASR_TOKEN_STORE_EOS_F32.name: QWEN3_ASR_TOKEN_STORE_EOS_F32,
 }
@@ -462,6 +465,22 @@ def run_decode_norm(rt: RuntimeSession, tensors: DecodeNormTensors) -> None:
 
 def run_decode_lm_head(rt: RuntimeSession, tensors: DecodeLmHeadTensors) -> None:
     DECODE_LM_HEAD_EXPORT_LINEAR_NOBIAS_F32(rt, x=tensors.input, weight=tensors.p_weight, output=tensors.linear)
+
+
+def run_rope_table(
+    rt: RuntimeSession,
+    tensors: RopeTableTensors,
+    *,
+    frame_name: str,
+) -> None:
+    run_rope_table_f32(
+        rt,
+        start_position=tensors.start_position,
+        theta=tensors.theta,
+        cos=tensors.cos,
+        sin=tensors.sin,
+        frame_name=frame_name,
+    )
 
 
 def decode_step_inputs(
