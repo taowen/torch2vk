@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -109,13 +109,102 @@ class TextLayerTensors:
 TEXT_LAYER_OUTPUT: str = 'add_7'
 
 
-def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> TextLayerTensors:
-    _validate_bindings(bindings, frozenset(('p_attn_q_proj_weight', 'p_attn_k_proj_weight', 'p_attn_v_proj_weight', 'p_attn_o_proj_weight', 'p_attn_q_norm_weight', 'p_attn_k_norm_weight', 'p_mlp_gate_proj_weight', 'p_mlp_up_proj_weight', 'p_mlp_down_proj_weight', 'p_input_layernorm_weight', 'p_post_attention_layernorm_weight', 'hidden_states', 'position_embeddings_0', 'position_embeddings_1', 'cache_position', 'to', 'pow_1', 'mean', 'add', 'rsqrt', 'mul', 'to_1', 'mul_1', 'linear', 'view', 'to_2', 'pow_2', 'mean_1', 'add_1', 'rsqrt_1', 'mul_2', 'to_3', 'mul_3', 'transpose', 'linear_1', 'view_1', 'to_4', 'pow_3', 'mean_2', 'add_2', 'rsqrt_2', 'mul_4', 'to_5', 'mul_5', 'transpose_1', 'linear_2', 'view_2', 'transpose_2', 'unsqueeze', 'unsqueeze_1', 'mul_6', 'slice_1', 'slice_2', 'neg', 'cat', 'mul_7', 'add_3', 'mul_8', 'slice_3', 'slice_4', 'neg_1', 'cat_1', 'mul_9', 'add_4', 'index_copy', 'index_copy_1', 'scaled_dot_product_attention', 'transpose_3', 'contiguous', 'reshape', 'linear_3', 'add_5', 'to_6', 'pow_4', 'mean_3', 'add_6', 'rsqrt_3', 'mul_10', 'to_7', 'mul_11', 'linear_4', 'silu', 'linear_5', 'mul_12', 'linear_6', 'add_7')))
+def create_text_layer(
+    prefix: str,
+    layer_idx: int,
+    *,
+    p_attn_q_proj_weight: LogicalTensor | None = None,
+    p_attn_k_proj_weight: LogicalTensor | None = None,
+    p_attn_v_proj_weight: LogicalTensor | None = None,
+    p_attn_o_proj_weight: LogicalTensor | None = None,
+    p_attn_q_norm_weight: LogicalTensor | None = None,
+    p_attn_k_norm_weight: LogicalTensor | None = None,
+    p_mlp_gate_proj_weight: LogicalTensor | None = None,
+    p_mlp_up_proj_weight: LogicalTensor | None = None,
+    p_mlp_down_proj_weight: LogicalTensor | None = None,
+    p_input_layernorm_weight: LogicalTensor | None = None,
+    p_post_attention_layernorm_weight: LogicalTensor | None = None,
+    hidden_states: LogicalTensor | None = None,
+    position_embeddings_0: LogicalTensor | None = None,
+    position_embeddings_1: LogicalTensor | None = None,
+    cache_position: LogicalTensor | None = None,
+    to: LogicalTensor | None = None,
+    pow_1: LogicalTensor | None = None,
+    mean: LogicalTensor | None = None,
+    add: LogicalTensor | None = None,
+    rsqrt: LogicalTensor | None = None,
+    mul: LogicalTensor | None = None,
+    to_1: LogicalTensor | None = None,
+    mul_1: LogicalTensor | None = None,
+    linear: LogicalTensor | None = None,
+    view: LogicalTensor | None = None,
+    to_2: LogicalTensor | None = None,
+    pow_2: LogicalTensor | None = None,
+    mean_1: LogicalTensor | None = None,
+    add_1: LogicalTensor | None = None,
+    rsqrt_1: LogicalTensor | None = None,
+    mul_2: LogicalTensor | None = None,
+    to_3: LogicalTensor | None = None,
+    mul_3: LogicalTensor | None = None,
+    transpose: LogicalTensor | None = None,
+    linear_1: LogicalTensor | None = None,
+    view_1: LogicalTensor | None = None,
+    to_4: LogicalTensor | None = None,
+    pow_3: LogicalTensor | None = None,
+    mean_2: LogicalTensor | None = None,
+    add_2: LogicalTensor | None = None,
+    rsqrt_2: LogicalTensor | None = None,
+    mul_4: LogicalTensor | None = None,
+    to_5: LogicalTensor | None = None,
+    mul_5: LogicalTensor | None = None,
+    transpose_1: LogicalTensor | None = None,
+    linear_2: LogicalTensor | None = None,
+    view_2: LogicalTensor | None = None,
+    transpose_2: LogicalTensor | None = None,
+    unsqueeze: LogicalTensor | None = None,
+    unsqueeze_1: LogicalTensor | None = None,
+    mul_6: LogicalTensor | None = None,
+    slice_1: LogicalTensor | None = None,
+    slice_2: LogicalTensor | None = None,
+    neg: LogicalTensor | None = None,
+    cat: LogicalTensor | None = None,
+    mul_7: LogicalTensor | None = None,
+    add_3: LogicalTensor | None = None,
+    mul_8: LogicalTensor | None = None,
+    slice_3: LogicalTensor | None = None,
+    slice_4: LogicalTensor | None = None,
+    neg_1: LogicalTensor | None = None,
+    cat_1: LogicalTensor | None = None,
+    mul_9: LogicalTensor | None = None,
+    add_4: LogicalTensor | None = None,
+    index_copy: LogicalTensor | None = None,
+    index_copy_1: LogicalTensor | None = None,
+    scaled_dot_product_attention: LogicalTensor | None = None,
+    transpose_3: LogicalTensor | None = None,
+    contiguous: LogicalTensor | None = None,
+    reshape: LogicalTensor | None = None,
+    linear_3: LogicalTensor | None = None,
+    add_5: LogicalTensor | None = None,
+    to_6: LogicalTensor | None = None,
+    pow_4: LogicalTensor | None = None,
+    mean_3: LogicalTensor | None = None,
+    add_6: LogicalTensor | None = None,
+    rsqrt_3: LogicalTensor | None = None,
+    mul_10: LogicalTensor | None = None,
+    to_7: LogicalTensor | None = None,
+    mul_11: LogicalTensor | None = None,
+    linear_4: LogicalTensor | None = None,
+    silu: LogicalTensor | None = None,
+    linear_5: LogicalTensor | None = None,
+    mul_12: LogicalTensor | None = None,
+    linear_6: LogicalTensor | None = None,
+    add_7: LogicalTensor | None = None,
+    request_state_outputs: Collection[str] = frozenset(),
+) -> TextLayerTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('add_7',)))
     return TextLayerTensors(
         p_attn_q_proj_weight=_bind_tensor(
-            bindings,
-            'p_attn_q_proj_weight',
+            p_attn_q_proj_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.q_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(2048, 1024)),
@@ -126,8 +215,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         p_attn_k_proj_weight=_bind_tensor(
-            bindings,
-            'p_attn_k_proj_weight',
+            p_attn_k_proj_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.k_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
@@ -138,8 +226,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         p_attn_v_proj_weight=_bind_tensor(
-            bindings,
-            'p_attn_v_proj_weight',
+            p_attn_v_proj_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.v_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
@@ -150,8 +237,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         p_attn_o_proj_weight=_bind_tensor(
-            bindings,
-            'p_attn_o_proj_weight',
+            p_attn_o_proj_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.o_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024, 2048)),
@@ -162,8 +248,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         p_attn_q_norm_weight=_bind_tensor(
-            bindings,
-            'p_attn_q_norm_weight',
+            p_attn_q_norm_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.q_norm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(128,)),
@@ -174,8 +259,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         p_attn_k_norm_weight=_bind_tensor(
-            bindings,
-            'p_attn_k_norm_weight',
+            p_attn_k_norm_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.k_norm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(128,)),
@@ -186,8 +270,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         p_mlp_gate_proj_weight=_bind_tensor(
-            bindings,
-            'p_mlp_gate_proj_weight',
+            p_mlp_gate_proj_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.mlp.gate_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
@@ -198,8 +281,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         p_mlp_up_proj_weight=_bind_tensor(
-            bindings,
-            'p_mlp_up_proj_weight',
+            p_mlp_up_proj_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.mlp.up_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
@@ -210,8 +292,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         p_mlp_down_proj_weight=_bind_tensor(
-            bindings,
-            'p_mlp_down_proj_weight',
+            p_mlp_down_proj_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.mlp.down_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024, 3072)),
@@ -222,8 +303,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         p_input_layernorm_weight=_bind_tensor(
-            bindings,
-            'p_input_layernorm_weight',
+            p_input_layernorm_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.input_layernorm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
@@ -234,8 +314,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         p_post_attention_layernorm_weight=_bind_tensor(
-            bindings,
-            'p_post_attention_layernorm_weight',
+            p_post_attention_layernorm_weight,
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.post_attention_layernorm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
@@ -246,8 +325,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         hidden_states=_bind_tensor(
-            bindings,
-            'hidden_states',
+            hidden_states,
             _declare_tensor(
             name=f"{prefix}.hidden_states",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -258,8 +336,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         position_embeddings_0=_bind_tensor(
-            bindings,
-            'position_embeddings_0',
+            position_embeddings_0,
             _declare_tensor(
             name=f"{prefix}.position_embeddings_0",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 128)),
@@ -270,8 +347,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         position_embeddings_1=_bind_tensor(
-            bindings,
-            'position_embeddings_1',
+            position_embeddings_1,
             _declare_tensor(
             name=f"{prefix}.position_embeddings_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 128)),
@@ -282,8 +358,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         cache_position=_bind_tensor(
-            bindings,
-            'cache_position',
+            cache_position,
             _declare_tensor(
             name=f"{prefix}.cache_position",
             spec=TensorSpec(dtype='int64', shape=(151,)),
@@ -294,8 +369,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         to=_bind_tensor(
-            bindings,
-            'to',
+            to,
             _declare_tensor(
             name=f"{prefix}.to",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -306,8 +380,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         pow_1=_bind_tensor(
-            bindings,
-            'pow_1',
+            pow_1,
             _declare_tensor(
             name=f"{prefix}.pow_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -318,8 +391,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mean=_bind_tensor(
-            bindings,
-            'mean',
+            mean,
             _declare_tensor(
             name=f"{prefix}.mean",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
@@ -330,8 +402,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         add=_bind_tensor(
-            bindings,
-            'add',
+            add,
             _declare_tensor(
             name=f"{prefix}.add",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
@@ -342,8 +413,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         rsqrt=_bind_tensor(
-            bindings,
-            'rsqrt',
+            rsqrt,
             _declare_tensor(
             name=f"{prefix}.rsqrt",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
@@ -354,8 +424,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul=_bind_tensor(
-            bindings,
-            'mul',
+            mul,
             _declare_tensor(
             name=f"{prefix}.mul",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -366,8 +435,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         to_1=_bind_tensor(
-            bindings,
-            'to_1',
+            to_1,
             _declare_tensor(
             name=f"{prefix}.to_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -378,8 +446,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_1=_bind_tensor(
-            bindings,
-            'mul_1',
+            mul_1,
             _declare_tensor(
             name=f"{prefix}.mul_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -390,8 +457,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         linear=_bind_tensor(
-            bindings,
-            'linear',
+            linear,
             _declare_tensor(
             name=f"{prefix}.linear",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 2048)),
@@ -402,8 +468,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         view=_bind_tensor(
-            bindings,
-            'view',
+            view,
             _declare_tensor(
             name=f"{prefix}.view",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
@@ -414,8 +479,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         to_2=_bind_tensor(
-            bindings,
-            'to_2',
+            to_2,
             _declare_tensor(
             name=f"{prefix}.to_2",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
@@ -426,8 +490,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         pow_2=_bind_tensor(
-            bindings,
-            'pow_2',
+            pow_2,
             _declare_tensor(
             name=f"{prefix}.pow_2",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
@@ -438,8 +501,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mean_1=_bind_tensor(
-            bindings,
-            'mean_1',
+            mean_1,
             _declare_tensor(
             name=f"{prefix}.mean_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 1)),
@@ -450,8 +512,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         add_1=_bind_tensor(
-            bindings,
-            'add_1',
+            add_1,
             _declare_tensor(
             name=f"{prefix}.add_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 1)),
@@ -462,8 +523,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         rsqrt_1=_bind_tensor(
-            bindings,
-            'rsqrt_1',
+            rsqrt_1,
             _declare_tensor(
             name=f"{prefix}.rsqrt_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 1)),
@@ -474,8 +534,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_2=_bind_tensor(
-            bindings,
-            'mul_2',
+            mul_2,
             _declare_tensor(
             name=f"{prefix}.mul_2",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
@@ -486,8 +545,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         to_3=_bind_tensor(
-            bindings,
-            'to_3',
+            to_3,
             _declare_tensor(
             name=f"{prefix}.to_3",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
@@ -498,8 +556,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_3=_bind_tensor(
-            bindings,
-            'mul_3',
+            mul_3,
             _declare_tensor(
             name=f"{prefix}.mul_3",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
@@ -510,8 +567,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         transpose=_bind_tensor(
-            bindings,
-            'transpose',
+            transpose,
             _declare_tensor(
             name=f"{prefix}.transpose",
             spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
@@ -522,8 +578,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         linear_1=_bind_tensor(
-            bindings,
-            'linear_1',
+            linear_1,
             _declare_tensor(
             name=f"{prefix}.linear_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -534,8 +589,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         view_1=_bind_tensor(
-            bindings,
-            'view_1',
+            view_1,
             _declare_tensor(
             name=f"{prefix}.view_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
@@ -546,8 +600,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         to_4=_bind_tensor(
-            bindings,
-            'to_4',
+            to_4,
             _declare_tensor(
             name=f"{prefix}.to_4",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
@@ -558,8 +611,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         pow_3=_bind_tensor(
-            bindings,
-            'pow_3',
+            pow_3,
             _declare_tensor(
             name=f"{prefix}.pow_3",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
@@ -570,8 +622,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mean_2=_bind_tensor(
-            bindings,
-            'mean_2',
+            mean_2,
             _declare_tensor(
             name=f"{prefix}.mean_2",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 1)),
@@ -582,8 +633,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         add_2=_bind_tensor(
-            bindings,
-            'add_2',
+            add_2,
             _declare_tensor(
             name=f"{prefix}.add_2",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 1)),
@@ -594,8 +644,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         rsqrt_2=_bind_tensor(
-            bindings,
-            'rsqrt_2',
+            rsqrt_2,
             _declare_tensor(
             name=f"{prefix}.rsqrt_2",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 1)),
@@ -606,8 +655,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_4=_bind_tensor(
-            bindings,
-            'mul_4',
+            mul_4,
             _declare_tensor(
             name=f"{prefix}.mul_4",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
@@ -618,8 +666,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         to_5=_bind_tensor(
-            bindings,
-            'to_5',
+            to_5,
             _declare_tensor(
             name=f"{prefix}.to_5",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
@@ -630,8 +677,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_5=_bind_tensor(
-            bindings,
-            'mul_5',
+            mul_5,
             _declare_tensor(
             name=f"{prefix}.mul_5",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
@@ -642,8 +688,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         transpose_1=_bind_tensor(
-            bindings,
-            'transpose_1',
+            transpose_1,
             _declare_tensor(
             name=f"{prefix}.transpose_1",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
@@ -654,8 +699,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         linear_2=_bind_tensor(
-            bindings,
-            'linear_2',
+            linear_2,
             _declare_tensor(
             name=f"{prefix}.linear_2",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -666,8 +710,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         view_2=_bind_tensor(
-            bindings,
-            'view_2',
+            view_2,
             _declare_tensor(
             name=f"{prefix}.view_2",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
@@ -678,8 +721,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         transpose_2=_bind_tensor(
-            bindings,
-            'transpose_2',
+            transpose_2,
             _declare_tensor(
             name=f"{prefix}.transpose_2",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
@@ -690,8 +732,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         unsqueeze=_bind_tensor(
-            bindings,
-            'unsqueeze',
+            unsqueeze,
             _declare_tensor(
             name=f"{prefix}.unsqueeze",
             spec=TensorSpec(dtype='float32', shape=(1, 1, 151, 128)),
@@ -702,8 +743,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         unsqueeze_1=_bind_tensor(
-            bindings,
-            'unsqueeze_1',
+            unsqueeze_1,
             _declare_tensor(
             name=f"{prefix}.unsqueeze_1",
             spec=TensorSpec(dtype='float32', shape=(1, 1, 151, 128)),
@@ -714,8 +754,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_6=_bind_tensor(
-            bindings,
-            'mul_6',
+            mul_6,
             _declare_tensor(
             name=f"{prefix}.mul_6",
             spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
@@ -726,8 +765,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         slice_1=_bind_tensor(
-            bindings,
-            'slice_1',
+            slice_1,
             _declare_tensor(
             name=f"{prefix}.slice_1",
             spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 64)),
@@ -738,8 +776,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         slice_2=_bind_tensor(
-            bindings,
-            'slice_2',
+            slice_2,
             _declare_tensor(
             name=f"{prefix}.slice_2",
             spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 64)),
@@ -750,8 +787,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         neg=_bind_tensor(
-            bindings,
-            'neg',
+            neg,
             _declare_tensor(
             name=f"{prefix}.neg",
             spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 64)),
@@ -762,8 +798,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         cat=_bind_tensor(
-            bindings,
-            'cat',
+            cat,
             _declare_tensor(
             name=f"{prefix}.cat",
             spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
@@ -774,8 +809,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_7=_bind_tensor(
-            bindings,
-            'mul_7',
+            mul_7,
             _declare_tensor(
             name=f"{prefix}.mul_7",
             spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
@@ -786,8 +820,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         add_3=_bind_tensor(
-            bindings,
-            'add_3',
+            add_3,
             _declare_tensor(
             name=f"{prefix}.add_3",
             spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
@@ -798,8 +831,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_8=_bind_tensor(
-            bindings,
-            'mul_8',
+            mul_8,
             _declare_tensor(
             name=f"{prefix}.mul_8",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
@@ -810,8 +842,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         slice_3=_bind_tensor(
-            bindings,
-            'slice_3',
+            slice_3,
             _declare_tensor(
             name=f"{prefix}.slice_3",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 64)),
@@ -822,8 +853,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         slice_4=_bind_tensor(
-            bindings,
-            'slice_4',
+            slice_4,
             _declare_tensor(
             name=f"{prefix}.slice_4",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 64)),
@@ -834,8 +864,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         neg_1=_bind_tensor(
-            bindings,
-            'neg_1',
+            neg_1,
             _declare_tensor(
             name=f"{prefix}.neg_1",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 64)),
@@ -846,8 +875,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         cat_1=_bind_tensor(
-            bindings,
-            'cat_1',
+            cat_1,
             _declare_tensor(
             name=f"{prefix}.cat_1",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
@@ -858,8 +886,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_9=_bind_tensor(
-            bindings,
-            'mul_9',
+            mul_9,
             _declare_tensor(
             name=f"{prefix}.mul_9",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
@@ -870,8 +897,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         add_4=_bind_tensor(
-            bindings,
-            'add_4',
+            add_4,
             _declare_tensor(
             name=f"{prefix}.add_4",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
@@ -882,8 +908,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         index_copy=_bind_tensor(
-            bindings,
-            'index_copy',
+            index_copy,
             _declare_tensor(
             name=f"{prefix}.index_copy",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 215, 128)),
@@ -894,8 +919,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         index_copy_1=_bind_tensor(
-            bindings,
-            'index_copy_1',
+            index_copy_1,
             _declare_tensor(
             name=f"{prefix}.index_copy_1",
             spec=TensorSpec(dtype='float32', shape=(1, 8, 215, 128)),
@@ -906,8 +930,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         scaled_dot_product_attention=_bind_tensor(
-            bindings,
-            'scaled_dot_product_attention',
+            scaled_dot_product_attention,
             _declare_tensor(
             name=f"{prefix}.scaled_dot_product_attention",
             spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
@@ -918,8 +941,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         transpose_3=_bind_tensor(
-            bindings,
-            'transpose_3',
+            transpose_3,
             _declare_tensor(
             name=f"{prefix}.transpose_3",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
@@ -930,8 +952,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         contiguous=_bind_tensor(
-            bindings,
-            'contiguous',
+            contiguous,
             _declare_tensor(
             name=f"{prefix}.contiguous",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
@@ -942,8 +963,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         reshape=_bind_tensor(
-            bindings,
-            'reshape',
+            reshape,
             _declare_tensor(
             name=f"{prefix}.reshape",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 2048)),
@@ -954,8 +974,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         linear_3=_bind_tensor(
-            bindings,
-            'linear_3',
+            linear_3,
             _declare_tensor(
             name=f"{prefix}.linear_3",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -966,8 +985,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         add_5=_bind_tensor(
-            bindings,
-            'add_5',
+            add_5,
             _declare_tensor(
             name=f"{prefix}.add_5",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -978,8 +996,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         to_6=_bind_tensor(
-            bindings,
-            'to_6',
+            to_6,
             _declare_tensor(
             name=f"{prefix}.to_6",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -990,8 +1007,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         pow_4=_bind_tensor(
-            bindings,
-            'pow_4',
+            pow_4,
             _declare_tensor(
             name=f"{prefix}.pow_4",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -1002,8 +1018,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mean_3=_bind_tensor(
-            bindings,
-            'mean_3',
+            mean_3,
             _declare_tensor(
             name=f"{prefix}.mean_3",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
@@ -1014,8 +1029,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         add_6=_bind_tensor(
-            bindings,
-            'add_6',
+            add_6,
             _declare_tensor(
             name=f"{prefix}.add_6",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
@@ -1026,8 +1040,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         rsqrt_3=_bind_tensor(
-            bindings,
-            'rsqrt_3',
+            rsqrt_3,
             _declare_tensor(
             name=f"{prefix}.rsqrt_3",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
@@ -1038,8 +1051,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_10=_bind_tensor(
-            bindings,
-            'mul_10',
+            mul_10,
             _declare_tensor(
             name=f"{prefix}.mul_10",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -1050,8 +1062,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         to_7=_bind_tensor(
-            bindings,
-            'to_7',
+            to_7,
             _declare_tensor(
             name=f"{prefix}.to_7",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -1062,8 +1073,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_11=_bind_tensor(
-            bindings,
-            'mul_11',
+            mul_11,
             _declare_tensor(
             name=f"{prefix}.mul_11",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -1074,8 +1084,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         linear_4=_bind_tensor(
-            bindings,
-            'linear_4',
+            linear_4,
             _declare_tensor(
             name=f"{prefix}.linear_4",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 3072)),
@@ -1086,8 +1095,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         silu=_bind_tensor(
-            bindings,
-            'silu',
+            silu,
             _declare_tensor(
             name=f"{prefix}.silu",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 3072)),
@@ -1098,8 +1106,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         linear_5=_bind_tensor(
-            bindings,
-            'linear_5',
+            linear_5,
             _declare_tensor(
             name=f"{prefix}.linear_5",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 3072)),
@@ -1110,8 +1117,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         mul_12=_bind_tensor(
-            bindings,
-            'mul_12',
+            mul_12,
             _declare_tensor(
             name=f"{prefix}.mul_12",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 3072)),
@@ -1122,8 +1128,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         linear_6=_bind_tensor(
-            bindings,
-            'linear_6',
+            linear_6,
             _declare_tensor(
             name=f"{prefix}.linear_6",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -1134,8 +1139,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             ),
         ),
         add_7=_bind_tensor(
-            bindings,
-            'add_7',
+            add_7,
             _declare_tensor(
             name=f"{prefix}.add_7",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -1175,29 +1179,14 @@ def _declare_tensor(
 
 
 def _bind_tensor(
-    bindings: Mapping[str, LogicalTensor] | None,
-    field: str,
+    bound: LogicalTensor | None,
     tensor: LogicalTensor,
 ) -> LogicalTensor:
-    if bindings is None:
-        return tensor
-    bound = bindings.get(field)
     if bound is None:
         return tensor
     if bound.spec != tensor.spec:
-        raise ValueError(f"{field} binding spec {bound.spec} does not match {tensor.spec}")
+        raise ValueError(f"{bound.name} spec {bound.spec} does not match {tensor.name} spec {tensor.spec}")
     return bound
-
-
-def _validate_bindings(
-    bindings: Mapping[str, LogicalTensor] | None,
-    tensor_names: frozenset[str],
-) -> None:
-    if bindings is None:
-        return
-    unknown = frozenset(bindings) - tensor_names
-    if unknown:
-        raise ValueError(f"unknown tensor bindings: {sorted(unknown)}")
 
 
 def _validate_request_state_outputs(

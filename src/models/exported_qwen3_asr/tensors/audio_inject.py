@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -27,13 +27,19 @@ class AudioInjectTensors:
 AUDIO_INJECT_OUTPUT: str = 'index_copy'
 
 
-def create_audio_inject(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> AudioInjectTensors:
-    _validate_bindings(bindings, frozenset(('audio_positions', 'audio_features', 'unsqueeze', 'index_copy')))
+def create_audio_inject(
+    prefix: str,
+    *,
+    audio_positions: LogicalTensor | None = None,
+    audio_features: LogicalTensor | None = None,
+    unsqueeze: LogicalTensor | None = None,
+    index_copy: LogicalTensor | None = None,
+    request_state_outputs: Collection[str] = frozenset(),
+) -> AudioInjectTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('index_copy',)))
     return AudioInjectTensors(
         audio_positions=_bind_tensor(
-            bindings,
-            'audio_positions',
+            audio_positions,
             _declare_tensor(
             name=f"{prefix}.audio_positions",
             spec=TensorSpec(dtype='int64', shape=(133,)),
@@ -44,8 +50,7 @@ def create_audio_inject(prefix: str, *, bindings: Mapping[str, LogicalTensor] | 
             ),
         ),
         audio_features=_bind_tensor(
-            bindings,
-            'audio_features',
+            audio_features,
             _declare_tensor(
             name=f"{prefix}.audio_features",
             spec=TensorSpec(dtype='float32', shape=(133, 1024)),
@@ -56,8 +61,7 @@ def create_audio_inject(prefix: str, *, bindings: Mapping[str, LogicalTensor] | 
             ),
         ),
         unsqueeze=_bind_tensor(
-            bindings,
-            'unsqueeze',
+            unsqueeze,
             _declare_tensor(
             name=f"{prefix}.unsqueeze",
             spec=TensorSpec(dtype='float32', shape=(1, 133, 1024)),
@@ -68,8 +72,7 @@ def create_audio_inject(prefix: str, *, bindings: Mapping[str, LogicalTensor] | 
             ),
         ),
         index_copy=_bind_tensor(
-            bindings,
-            'index_copy',
+            index_copy,
             _declare_tensor(
             name=f"{prefix}.index_copy",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -109,29 +112,14 @@ def _declare_tensor(
 
 
 def _bind_tensor(
-    bindings: Mapping[str, LogicalTensor] | None,
-    field: str,
+    bound: LogicalTensor | None,
     tensor: LogicalTensor,
 ) -> LogicalTensor:
-    if bindings is None:
-        return tensor
-    bound = bindings.get(field)
     if bound is None:
         return tensor
     if bound.spec != tensor.spec:
-        raise ValueError(f"{field} binding spec {bound.spec} does not match {tensor.spec}")
+        raise ValueError(f"{bound.name} spec {bound.spec} does not match {tensor.name} spec {tensor.spec}")
     return bound
-
-
-def _validate_bindings(
-    bindings: Mapping[str, LogicalTensor] | None,
-    tensor_names: frozenset[str],
-) -> None:
-    if bindings is None:
-        return
-    unknown = frozenset(bindings) - tensor_names
-    if unknown:
-        raise ValueError(f"unknown tensor bindings: {sorted(unknown)}")
 
 
 def _validate_request_state_outputs(

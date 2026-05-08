@@ -89,8 +89,14 @@ def _combine_dispatch(
         const = all_shader_imports[shader_name]
         lines.append(f"from models.exported_omnivoice.shaders.{shader_name} import {const}")
     lines.append("")
+    dispatch_body = "\n\n\n".join(dispatch_sources)
     for target_file in sorted(tensor_file_classes):
-        classes = ", ".join(sorted(tensor_file_classes[target_file]))
+        classes = ", ".join(
+            cls for cls in sorted(tensor_file_classes[target_file])
+            if re.search(rf"\b{re.escape(cls)}\b", dispatch_body)
+        )
+        if not classes:
+            continue
         lines.append(f"from models.exported_omnivoice.tensors.{target_file} import {classes}")
     lines.append("from torch2vk.runtime.logical import LogicalTensor")
     lines.append("from torch2vk.runtime.shader import ShaderVariant")
@@ -137,8 +143,6 @@ def main() -> int:
     S = shapes["seq_len"]
     H = shapes["hidden_size"]
     D = shapes["head_dim"]
-    C = shapes["num_audio_codebook"]
-    V = shapes["audio_vocab_size"]
     num_layers = shapes["num_hidden_layers"]
 
     all_shader_imports: dict[str, str] = {}

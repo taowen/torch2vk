@@ -108,7 +108,7 @@ from models.exported_qwen3_asr.shaders.lm_head_export_linear_nobias_f32 import L
 from models.exported_qwen3_asr.shaders.text_layer_export_add_f32 import TEXT_LAYER_EXPORT_ADD_F32
 from models.exported_qwen3_asr.shaders.text_layer_export_linear_nobias_f32 import TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32
 
-from models.exported_qwen3_asr.tensors.audio_encoder import AudioEncoderTensors, EncoderLayerTensors
+from models.exported_qwen3_asr.tensors.audio_encoder import AudioEncoderTensors
 from models.exported_qwen3_asr.tensors.audio_inject import AudioInjectTensors
 from models.exported_qwen3_asr.tensors.decode_embed import DecodeEmbedTensors
 from models.exported_qwen3_asr.tensors.decode_layer import DecodeLayerTensors

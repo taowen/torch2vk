@@ -22,16 +22,14 @@ from models.hf_cache import resolve_cached_model
 from models.exported_omnivoice import dispatch
 from models.exported_omnivoice.tensors.audio_head import (
     AUDIO_HEAD_OUTPUT,
-    AudioHeadTensors,
     create_audio_head,
 )
 from models.exported_omnivoice.tensors.llm_forward import (
     LLM_FORWARD_OUTPUT,
-    LlmForwardTensors,
     create_llm_forward,
 )
-from models.optimized_omnivoice.pytorch.example import REPO_ID, SAMPLE_RATE, save_audio_wav
-from omnivoice import OmniVoice, OmniVoiceConfig
+from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
+from omnivoice import OmniVoiceConfig
 from torch2vk.runtime.logical import LogicalTensor, TensorRole
 from torch2vk.runtime.session import RuntimeSession
 
@@ -145,9 +143,7 @@ def main(
     num_audio_codebook = config.num_audio_codebook
     audio_vocab_size = config.audio_vocab_size
     audio_mask_id = config.audio_mask_id
-    hidden_size = llm_config.hidden_size
     head_dim = llm_config.head_dim
-    num_layers = llm_config.num_hidden_layers
 
     # Exported model uses fixed seq_len=300
     EXPORTED_SEQ_LEN = 300
@@ -231,7 +227,7 @@ def main(
     )
     audio_head_t = create_audio_head(
         "omnivoice.audio_head",
-        bindings={"input": llm_t.mul_365},
+        input=llm_t.mul_365,
         request_state_outputs={AUDIO_HEAD_OUTPUT},
     )
 

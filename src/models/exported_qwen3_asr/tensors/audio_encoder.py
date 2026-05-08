@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -63,13 +63,56 @@ class EncoderLayerTensors:
 ENCODER_LAYER_OUTPUT: str = 'add_2'
 
 
-def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> EncoderLayerTensors:
-    _validate_bindings(bindings, frozenset(('p_layers_0_self_attn_k_proj_weight', 'p_layers_0_self_attn_k_proj_bias', 'p_layers_0_self_attn_v_proj_weight', 'p_layers_0_self_attn_v_proj_bias', 'p_layers_0_self_attn_q_proj_weight', 'p_layers_0_self_attn_q_proj_bias', 'p_layers_0_self_attn_out_proj_weight', 'p_layers_0_self_attn_out_proj_bias', 'p_layers_0_self_attn_layer_norm_weight', 'p_layers_0_self_attn_layer_norm_bias', 'p_layers_0_fc1_weight', 'p_layers_0_fc1_bias', 'p_layers_0_fc2_weight', 'p_layers_0_fc2_bias', 'p_layers_0_final_layer_norm_weight', 'p_layers_0_final_layer_norm_bias', 'layer_norm', 'linear_1', 'reshape_2', 'linear_2', 'reshape_3', 'linear_3', 'reshape_4', 'transpose_1', 'unsqueeze', 'transpose_2', 'unsqueeze_1', 'transpose_3', 'unsqueeze_2', 'scaled_dot_product_attention', 'transpose_4', 'contiguous', 'reshape_5', 'linear_4', 'add_1', 'layer_norm_1', 'linear_5', 'gelu_3', 'linear_6', 'add_2')))
+def create_encoder_layer(
+    prefix: str,
+    layer_idx: int,
+    *,
+    p_layers_0_self_attn_k_proj_weight: LogicalTensor | None = None,
+    p_layers_0_self_attn_k_proj_bias: LogicalTensor | None = None,
+    p_layers_0_self_attn_v_proj_weight: LogicalTensor | None = None,
+    p_layers_0_self_attn_v_proj_bias: LogicalTensor | None = None,
+    p_layers_0_self_attn_q_proj_weight: LogicalTensor | None = None,
+    p_layers_0_self_attn_q_proj_bias: LogicalTensor | None = None,
+    p_layers_0_self_attn_out_proj_weight: LogicalTensor | None = None,
+    p_layers_0_self_attn_out_proj_bias: LogicalTensor | None = None,
+    p_layers_0_self_attn_layer_norm_weight: LogicalTensor | None = None,
+    p_layers_0_self_attn_layer_norm_bias: LogicalTensor | None = None,
+    p_layers_0_fc1_weight: LogicalTensor | None = None,
+    p_layers_0_fc1_bias: LogicalTensor | None = None,
+    p_layers_0_fc2_weight: LogicalTensor | None = None,
+    p_layers_0_fc2_bias: LogicalTensor | None = None,
+    p_layers_0_final_layer_norm_weight: LogicalTensor | None = None,
+    p_layers_0_final_layer_norm_bias: LogicalTensor | None = None,
+    layer_norm: LogicalTensor | None = None,
+    linear_1: LogicalTensor | None = None,
+    reshape_2: LogicalTensor | None = None,
+    linear_2: LogicalTensor | None = None,
+    reshape_3: LogicalTensor | None = None,
+    linear_3: LogicalTensor | None = None,
+    reshape_4: LogicalTensor | None = None,
+    transpose_1: LogicalTensor | None = None,
+    unsqueeze: LogicalTensor | None = None,
+    transpose_2: LogicalTensor | None = None,
+    unsqueeze_1: LogicalTensor | None = None,
+    transpose_3: LogicalTensor | None = None,
+    unsqueeze_2: LogicalTensor | None = None,
+    scaled_dot_product_attention: LogicalTensor | None = None,
+    transpose_4: LogicalTensor | None = None,
+    contiguous: LogicalTensor | None = None,
+    reshape_5: LogicalTensor | None = None,
+    linear_4: LogicalTensor | None = None,
+    add_1: LogicalTensor | None = None,
+    layer_norm_1: LogicalTensor | None = None,
+    linear_5: LogicalTensor | None = None,
+    gelu_3: LogicalTensor | None = None,
+    linear_6: LogicalTensor | None = None,
+    add_2: LogicalTensor | None = None,
+    request_state_outputs: Collection[str] = frozenset(),
+) -> EncoderLayerTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('add_2',)))
     return EncoderLayerTensors(
         p_layers_0_self_attn_k_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_k_proj_weight',
+            p_layers_0_self_attn_k_proj_weight,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.k_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
@@ -80,8 +123,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_self_attn_k_proj_bias=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_k_proj_bias',
+            p_layers_0_self_attn_k_proj_bias,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.k_proj.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -92,8 +134,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_self_attn_v_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_v_proj_weight',
+            p_layers_0_self_attn_v_proj_weight,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.v_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
@@ -104,8 +145,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_self_attn_v_proj_bias=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_v_proj_bias',
+            p_layers_0_self_attn_v_proj_bias,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.v_proj.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -116,8 +156,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_self_attn_q_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_q_proj_weight',
+            p_layers_0_self_attn_q_proj_weight,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.q_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
@@ -128,8 +167,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_self_attn_q_proj_bias=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_q_proj_bias',
+            p_layers_0_self_attn_q_proj_bias,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.q_proj.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -140,8 +178,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_self_attn_out_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_out_proj_weight',
+            p_layers_0_self_attn_out_proj_weight,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.out_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
@@ -152,8 +189,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_self_attn_out_proj_bias=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_out_proj_bias',
+            p_layers_0_self_attn_out_proj_bias,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.self_attn.out_proj.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -164,8 +200,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_self_attn_layer_norm_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_layer_norm_weight',
+            p_layers_0_self_attn_layer_norm_weight,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.self_attn_layer_norm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -176,8 +211,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_self_attn_layer_norm_bias=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_layer_norm_bias',
+            p_layers_0_self_attn_layer_norm_bias,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.self_attn_layer_norm.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -188,8 +222,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_fc1_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_fc1_weight',
+            p_layers_0_fc1_weight,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.fc1.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(3584, 896)),
@@ -200,8 +233,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_fc1_bias=_bind_tensor(
-            bindings,
-            'p_layers_0_fc1_bias',
+            p_layers_0_fc1_bias,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.fc1.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(3584,)),
@@ -212,8 +244,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_fc2_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_fc2_weight',
+            p_layers_0_fc2_weight,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.fc2.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896, 3584)),
@@ -224,8 +255,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_fc2_bias=_bind_tensor(
-            bindings,
-            'p_layers_0_fc2_bias',
+            p_layers_0_fc2_bias,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.fc2.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -236,8 +266,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_final_layer_norm_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_final_layer_norm_weight',
+            p_layers_0_final_layer_norm_weight,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.final_layer_norm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -248,8 +277,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         p_layers_0_final_layer_norm_bias=_bind_tensor(
-            bindings,
-            'p_layers_0_final_layer_norm_bias',
+            p_layers_0_final_layer_norm_bias,
             _declare_tensor(
             name=f"thinker.audio_tower.layers.{layer_idx}.final_layer_norm.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -260,8 +288,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         layer_norm=_bind_tensor(
-            bindings,
-            'layer_norm',
+            layer_norm,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.layer_norm",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -272,8 +299,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         linear_1=_bind_tensor(
-            bindings,
-            'linear_1',
+            linear_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_1",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -284,8 +310,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         reshape_2=_bind_tensor(
-            bindings,
-            'reshape_2',
+            reshape_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.reshape_2",
             spec=TensorSpec(dtype='float32', shape=(133, 14, 64)),
@@ -296,8 +321,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         linear_2=_bind_tensor(
-            bindings,
-            'linear_2',
+            linear_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_2",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -308,8 +332,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         reshape_3=_bind_tensor(
-            bindings,
-            'reshape_3',
+            reshape_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.reshape_3",
             spec=TensorSpec(dtype='float32', shape=(133, 14, 64)),
@@ -320,8 +343,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         linear_3=_bind_tensor(
-            bindings,
-            'linear_3',
+            linear_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_3",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -332,8 +354,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         reshape_4=_bind_tensor(
-            bindings,
-            'reshape_4',
+            reshape_4,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.reshape_4",
             spec=TensorSpec(dtype='float32', shape=(133, 14, 64)),
@@ -344,8 +365,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         transpose_1=_bind_tensor(
-            bindings,
-            'transpose_1',
+            transpose_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.transpose_1",
             spec=TensorSpec(dtype='float32', shape=(14, 133, 64)),
@@ -356,8 +376,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         unsqueeze=_bind_tensor(
-            bindings,
-            'unsqueeze',
+            unsqueeze,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.unsqueeze",
             spec=TensorSpec(dtype='float32', shape=(1, 14, 133, 64)),
@@ -368,8 +387,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         transpose_2=_bind_tensor(
-            bindings,
-            'transpose_2',
+            transpose_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.transpose_2",
             spec=TensorSpec(dtype='float32', shape=(14, 133, 64)),
@@ -380,8 +398,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         unsqueeze_1=_bind_tensor(
-            bindings,
-            'unsqueeze_1',
+            unsqueeze_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.unsqueeze_1",
             spec=TensorSpec(dtype='float32', shape=(1, 14, 133, 64)),
@@ -392,8 +409,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         transpose_3=_bind_tensor(
-            bindings,
-            'transpose_3',
+            transpose_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.transpose_3",
             spec=TensorSpec(dtype='float32', shape=(14, 133, 64)),
@@ -404,8 +420,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         unsqueeze_2=_bind_tensor(
-            bindings,
-            'unsqueeze_2',
+            unsqueeze_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.unsqueeze_2",
             spec=TensorSpec(dtype='float32', shape=(1, 14, 133, 64)),
@@ -416,8 +431,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         scaled_dot_product_attention=_bind_tensor(
-            bindings,
-            'scaled_dot_product_attention',
+            scaled_dot_product_attention,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.scaled_dot_product_attention",
             spec=TensorSpec(dtype='float32', shape=(1, 14, 133, 64)),
@@ -428,8 +442,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         transpose_4=_bind_tensor(
-            bindings,
-            'transpose_4',
+            transpose_4,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.transpose_4",
             spec=TensorSpec(dtype='float32', shape=(1, 133, 14, 64)),
@@ -440,8 +453,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         contiguous=_bind_tensor(
-            bindings,
-            'contiguous',
+            contiguous,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.contiguous",
             spec=TensorSpec(dtype='float32', shape=(1, 133, 14, 64)),
@@ -452,8 +464,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         reshape_5=_bind_tensor(
-            bindings,
-            'reshape_5',
+            reshape_5,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.reshape_5",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -464,8 +475,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         linear_4=_bind_tensor(
-            bindings,
-            'linear_4',
+            linear_4,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_4",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -476,8 +486,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         add_1=_bind_tensor(
-            bindings,
-            'add_1',
+            add_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.add_1",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -488,8 +497,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         layer_norm_1=_bind_tensor(
-            bindings,
-            'layer_norm_1',
+            layer_norm_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.layer_norm_1",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -500,8 +508,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         linear_5=_bind_tensor(
-            bindings,
-            'linear_5',
+            linear_5,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_5",
             spec=TensorSpec(dtype='float32', shape=(133, 3584)),
@@ -512,8 +519,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         gelu_3=_bind_tensor(
-            bindings,
-            'gelu_3',
+            gelu_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.gelu_3",
             spec=TensorSpec(dtype='float32', shape=(133, 3584)),
@@ -524,8 +530,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         linear_6=_bind_tensor(
-            bindings,
-            'linear_6',
+            linear_6,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_6",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -536,8 +541,7 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             ),
         ),
         add_2=_bind_tensor(
-            bindings,
-            'add_2',
+            add_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.add_2",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -591,13 +595,48 @@ class AudioEncoderTensors:
 AUDIO_ENCODER_OUTPUT: str = 'linear_110'
 
 
-def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> AudioEncoderTensors:
-    _validate_bindings(bindings, frozenset(('p_conv2d1_weight', 'p_conv2d1_bias', 'p_conv2d2_weight', 'p_conv2d2_bias', 'p_conv2d3_weight', 'p_conv2d3_bias', 'p_conv_out_weight', 'p_ln_post_weight', 'p_ln_post_bias', 'p_proj1_weight', 'p_proj1_bias', 'p_proj2_weight', 'p_proj2_bias', 'x', 'position_embedding', 'compact_index', 'attention_mask', 'conv2d', 'gelu', 'conv2d_1', 'gelu_1', 'conv2d_2', 'gelu_2', 'reshape', 'transpose', 'linear', 'add', 'reshape_1', 'index_select', 'layer_norm_36', 'linear_109', 'gelu_21', 'linear_110')))
+def create_audio_encoder(
+    prefix: str,
+    *,
+    p_conv2d1_weight: LogicalTensor | None = None,
+    p_conv2d1_bias: LogicalTensor | None = None,
+    p_conv2d2_weight: LogicalTensor | None = None,
+    p_conv2d2_bias: LogicalTensor | None = None,
+    p_conv2d3_weight: LogicalTensor | None = None,
+    p_conv2d3_bias: LogicalTensor | None = None,
+    p_conv_out_weight: LogicalTensor | None = None,
+    p_ln_post_weight: LogicalTensor | None = None,
+    p_ln_post_bias: LogicalTensor | None = None,
+    p_proj1_weight: LogicalTensor | None = None,
+    p_proj1_bias: LogicalTensor | None = None,
+    p_proj2_weight: LogicalTensor | None = None,
+    p_proj2_bias: LogicalTensor | None = None,
+    x: LogicalTensor | None = None,
+    position_embedding: LogicalTensor | None = None,
+    compact_index: LogicalTensor | None = None,
+    attention_mask: LogicalTensor | None = None,
+    conv2d: LogicalTensor | None = None,
+    gelu: LogicalTensor | None = None,
+    conv2d_1: LogicalTensor | None = None,
+    gelu_1: LogicalTensor | None = None,
+    conv2d_2: LogicalTensor | None = None,
+    gelu_2: LogicalTensor | None = None,
+    reshape: LogicalTensor | None = None,
+    transpose: LogicalTensor | None = None,
+    linear: LogicalTensor | None = None,
+    add: LogicalTensor | None = None,
+    reshape_1: LogicalTensor | None = None,
+    index_select: LogicalTensor | None = None,
+    layer_norm_36: LogicalTensor | None = None,
+    linear_109: LogicalTensor | None = None,
+    gelu_21: LogicalTensor | None = None,
+    linear_110: LogicalTensor | None = None,
+    request_state_outputs: Collection[str] = frozenset(),
+) -> AudioEncoderTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('linear_110',)))
     return AudioEncoderTensors(
         p_conv2d1_weight=_bind_tensor(
-            bindings,
-            'p_conv2d1_weight',
+            p_conv2d1_weight,
             _declare_tensor(
             name="thinker.audio_tower.conv2d1.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(480, 1, 3, 3)),
@@ -608,8 +647,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_conv2d1_bias=_bind_tensor(
-            bindings,
-            'p_conv2d1_bias',
+            p_conv2d1_bias,
             _declare_tensor(
             name="thinker.audio_tower.conv2d1.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(480,)),
@@ -620,8 +658,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_conv2d2_weight=_bind_tensor(
-            bindings,
-            'p_conv2d2_weight',
+            p_conv2d2_weight,
             _declare_tensor(
             name="thinker.audio_tower.conv2d2.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(480, 480, 3, 3)),
@@ -632,8 +669,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_conv2d2_bias=_bind_tensor(
-            bindings,
-            'p_conv2d2_bias',
+            p_conv2d2_bias,
             _declare_tensor(
             name="thinker.audio_tower.conv2d2.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(480,)),
@@ -644,8 +680,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_conv2d3_weight=_bind_tensor(
-            bindings,
-            'p_conv2d3_weight',
+            p_conv2d3_weight,
             _declare_tensor(
             name="thinker.audio_tower.conv2d3.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(480, 480, 3, 3)),
@@ -656,8 +691,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_conv2d3_bias=_bind_tensor(
-            bindings,
-            'p_conv2d3_bias',
+            p_conv2d3_bias,
             _declare_tensor(
             name="thinker.audio_tower.conv2d3.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(480,)),
@@ -668,8 +702,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_conv_out_weight=_bind_tensor(
-            bindings,
-            'p_conv_out_weight',
+            p_conv_out_weight,
             _declare_tensor(
             name="thinker.audio_tower.conv_out.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896, 7680)),
@@ -680,8 +713,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_ln_post_weight=_bind_tensor(
-            bindings,
-            'p_ln_post_weight',
+            p_ln_post_weight,
             _declare_tensor(
             name="thinker.audio_tower.ln_post.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -692,8 +724,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_ln_post_bias=_bind_tensor(
-            bindings,
-            'p_ln_post_bias',
+            p_ln_post_bias,
             _declare_tensor(
             name="thinker.audio_tower.ln_post.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -704,8 +735,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_proj1_weight=_bind_tensor(
-            bindings,
-            'p_proj1_weight',
+            p_proj1_weight,
             _declare_tensor(
             name="thinker.audio_tower.proj1.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
@@ -716,8 +746,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_proj1_bias=_bind_tensor(
-            bindings,
-            'p_proj1_bias',
+            p_proj1_bias,
             _declare_tensor(
             name="thinker.audio_tower.proj1.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -728,8 +757,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_proj2_weight=_bind_tensor(
-            bindings,
-            'p_proj2_weight',
+            p_proj2_weight,
             _declare_tensor(
             name="thinker.audio_tower.proj2.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024, 896)),
@@ -740,8 +768,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         p_proj2_bias=_bind_tensor(
-            bindings,
-            'p_proj2_bias',
+            p_proj2_bias,
             _declare_tensor(
             name="thinker.audio_tower.proj2.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
@@ -752,8 +779,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         x=_bind_tensor(
-            bindings,
-            'x',
+            x,
             _declare_tensor(
             name=f"{prefix}.x",
             spec=TensorSpec(dtype='float32', shape=(11, 1, 128, 100)),
@@ -764,8 +790,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         position_embedding=_bind_tensor(
-            bindings,
-            'position_embedding',
+            position_embedding,
             _declare_tensor(
             name=f"{prefix}.position_embedding",
             spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
@@ -776,8 +801,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         compact_index=_bind_tensor(
-            bindings,
-            'compact_index',
+            compact_index,
             _declare_tensor(
             name=f"{prefix}.compact_index",
             spec=TensorSpec(dtype='int64', shape=(133,)),
@@ -788,8 +812,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         attention_mask=_bind_tensor(
-            bindings,
-            'attention_mask',
+            attention_mask,
             _declare_tensor(
             name=f"{prefix}.attention_mask",
             spec=TensorSpec(dtype='float32', shape=(1, 1, 133, 133)),
@@ -800,8 +823,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         conv2d=_bind_tensor(
-            bindings,
-            'conv2d',
+            conv2d,
             _declare_tensor(
             name=f"{prefix}.conv2d",
             spec=TensorSpec(dtype='float32', shape=(11, 480, 64, 50)),
@@ -812,8 +834,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         gelu=_bind_tensor(
-            bindings,
-            'gelu',
+            gelu,
             _declare_tensor(
             name=f"{prefix}.gelu",
             spec=TensorSpec(dtype='float32', shape=(11, 480, 64, 50)),
@@ -824,8 +845,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         conv2d_1=_bind_tensor(
-            bindings,
-            'conv2d_1',
+            conv2d_1,
             _declare_tensor(
             name=f"{prefix}.conv2d_1",
             spec=TensorSpec(dtype='float32', shape=(11, 480, 32, 25)),
@@ -836,8 +856,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         gelu_1=_bind_tensor(
-            bindings,
-            'gelu_1',
+            gelu_1,
             _declare_tensor(
             name=f"{prefix}.gelu_1",
             spec=TensorSpec(dtype='float32', shape=(11, 480, 32, 25)),
@@ -848,8 +867,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         conv2d_2=_bind_tensor(
-            bindings,
-            'conv2d_2',
+            conv2d_2,
             _declare_tensor(
             name=f"{prefix}.conv2d_2",
             spec=TensorSpec(dtype='float32', shape=(11, 480, 16, 13)),
@@ -860,8 +878,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         gelu_2=_bind_tensor(
-            bindings,
-            'gelu_2',
+            gelu_2,
             _declare_tensor(
             name=f"{prefix}.gelu_2",
             spec=TensorSpec(dtype='float32', shape=(11, 480, 16, 13)),
@@ -872,8 +889,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         reshape=_bind_tensor(
-            bindings,
-            'reshape',
+            reshape,
             _declare_tensor(
             name=f"{prefix}.reshape",
             spec=TensorSpec(dtype='float32', shape=(11, 7680, 13)),
@@ -884,8 +900,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         transpose=_bind_tensor(
-            bindings,
-            'transpose',
+            transpose,
             _declare_tensor(
             name=f"{prefix}.transpose",
             spec=TensorSpec(dtype='float32', shape=(11, 13, 7680)),
@@ -896,8 +911,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         linear=_bind_tensor(
-            bindings,
-            'linear',
+            linear,
             _declare_tensor(
             name=f"{prefix}.linear",
             spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
@@ -908,8 +922,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         add=_bind_tensor(
-            bindings,
-            'add',
+            add,
             _declare_tensor(
             name=f"{prefix}.add",
             spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
@@ -920,8 +933,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         reshape_1=_bind_tensor(
-            bindings,
-            'reshape_1',
+            reshape_1,
             _declare_tensor(
             name=f"{prefix}.reshape_1",
             spec=TensorSpec(dtype='float32', shape=(143, 896)),
@@ -932,8 +944,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         index_select=_bind_tensor(
-            bindings,
-            'index_select',
+            index_select,
             _declare_tensor(
             name=f"{prefix}.index_select",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -944,8 +955,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         layer_norm_36=_bind_tensor(
-            bindings,
-            'layer_norm_36',
+            layer_norm_36,
             _declare_tensor(
             name=f"{prefix}.layer_norm_36",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -956,8 +966,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         linear_109=_bind_tensor(
-            bindings,
-            'linear_109',
+            linear_109,
             _declare_tensor(
             name=f"{prefix}.linear_109",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -968,8 +977,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         gelu_21=_bind_tensor(
-            bindings,
-            'gelu_21',
+            gelu_21,
             _declare_tensor(
             name=f"{prefix}.gelu_21",
             spec=TensorSpec(dtype='float32', shape=(133, 896)),
@@ -980,8 +988,7 @@ def create_audio_encoder(prefix: str, *, bindings: Mapping[str, LogicalTensor] |
             ),
         ),
         linear_110=_bind_tensor(
-            bindings,
-            'linear_110',
+            linear_110,
             _declare_tensor(
             name=f"{prefix}.linear_110",
             spec=TensorSpec(dtype='float32', shape=(133, 1024)),
@@ -1022,29 +1029,14 @@ def _declare_tensor(
 
 
 def _bind_tensor(
-    bindings: Mapping[str, LogicalTensor] | None,
-    field: str,
+    bound: LogicalTensor | None,
     tensor: LogicalTensor,
 ) -> LogicalTensor:
-    if bindings is None:
-        return tensor
-    bound = bindings.get(field)
     if bound is None:
         return tensor
     if bound.spec != tensor.spec:
-        raise ValueError(f"{field} binding spec {bound.spec} does not match {tensor.spec}")
+        raise ValueError(f"{bound.name} spec {bound.spec} does not match {tensor.name} spec {tensor.spec}")
     return bound
-
-
-def _validate_bindings(
-    bindings: Mapping[str, LogicalTensor] | None,
-    tensor_names: frozenset[str],
-) -> None:
-    if bindings is None:
-        return
-    unknown = frozenset(bindings) - tensor_names
-    if unknown:
-        raise ValueError(f"unknown tensor bindings: {sorted(unknown)}")
 
 
 def _validate_request_state_outputs(

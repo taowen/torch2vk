@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -26,13 +26,18 @@ class DecodeLmHeadTensors:
 DECODE_LM_HEAD_OUTPUT: str = 'linear'
 
 
-def create_decode_lm_head(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> DecodeLmHeadTensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'input', 'linear')))
+def create_decode_lm_head(
+    prefix: str,
+    *,
+    p_weight: LogicalTensor | None = None,
+    input: LogicalTensor | None = None,
+    linear: LogicalTensor | None = None,
+    request_state_outputs: Collection[str] = frozenset(),
+) -> DecodeLmHeadTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('linear',)))
     return DecodeLmHeadTensors(
         p_weight=_bind_tensor(
-            bindings,
-            'p_weight',
+            p_weight,
             _declare_tensor(
             name="thinker.lm_head.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(151936, 1024)),
@@ -43,8 +48,7 @@ def create_decode_lm_head(prefix: str, *, bindings: Mapping[str, LogicalTensor] 
             ),
         ),
         input=_bind_tensor(
-            bindings,
-            'input',
+            input,
             _declare_tensor(
             name=f"{prefix}.input",
             spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
@@ -55,8 +59,7 @@ def create_decode_lm_head(prefix: str, *, bindings: Mapping[str, LogicalTensor] 
             ),
         ),
         linear=_bind_tensor(
-            bindings,
-            'linear',
+            linear,
             _declare_tensor(
             name=f"{prefix}.linear",
             spec=TensorSpec(dtype='float32', shape=(1, 1, 151936)),
@@ -98,29 +101,14 @@ def _declare_tensor(
 
 
 def _bind_tensor(
-    bindings: Mapping[str, LogicalTensor] | None,
-    field: str,
+    bound: LogicalTensor | None,
     tensor: LogicalTensor,
 ) -> LogicalTensor:
-    if bindings is None:
-        return tensor
-    bound = bindings.get(field)
     if bound is None:
         return tensor
     if bound.spec != tensor.spec:
-        raise ValueError(f"{field} binding spec {bound.spec} does not match {tensor.spec}")
+        raise ValueError(f"{bound.name} spec {bound.spec} does not match {tensor.name} spec {tensor.spec}")
     return bound
-
-
-def _validate_bindings(
-    bindings: Mapping[str, LogicalTensor] | None,
-    tensor_names: frozenset[str],
-) -> None:
-    if bindings is None:
-        return
-    unknown = frozenset(bindings) - tensor_names
-    if unknown:
-        raise ValueError(f"unknown tensor bindings: {sorted(unknown)}")
 
 
 def _validate_request_state_outputs(

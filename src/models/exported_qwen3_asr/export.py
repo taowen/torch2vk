@@ -21,7 +21,6 @@ from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
 from torch2vk.export import (
-    KVCacheExportHint,
     KVCacheInjectHint,
     LayerLoopHint,
     export_submodule,
@@ -240,8 +239,14 @@ def _combine_dispatch(
         const = all_shader_imports[shader_name]
         lines.append(f"from models.exported_qwen3_asr.shaders.{shader_name} import {const}")
     lines.append("")
+    dispatch_body = "\n\n\n".join(dispatch_sources) + "\n\n\n" + _DECODE_STEP_HELPERS
     for target_file in sorted(tensor_file_classes):
-        classes = ", ".join(sorted(tensor_file_classes[target_file]))
+        classes = ", ".join(
+            cls for cls in sorted(tensor_file_classes[target_file])
+            if re.search(rf"\b{re.escape(cls)}\b", dispatch_body)
+        )
+        if not classes:
+            continue
         lines.append(f"from models.exported_qwen3_asr.tensors.{target_file} import {classes}")
     lines.append("from torch2vk.runtime.logical import LogicalTensor")
     lines.append("from torch2vk.runtime.shader import ShaderVariant")
@@ -252,8 +257,8 @@ def _combine_dispatch(
     for shader_name in sorted(all_shader_imports):
         const = all_shader_imports[shader_name]
         lines.append(f"    {shader_name!r}: {const},")
-    lines.append(f"    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name: QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,")
-    lines.append(f"    QWEN3_ASR_TOKEN_STORE_EOS_F32.name: QWEN3_ASR_TOKEN_STORE_EOS_F32,")
+    lines.append("    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name: QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,")
+    lines.append("    QWEN3_ASR_TOKEN_STORE_EOS_F32.name: QWEN3_ASR_TOKEN_STORE_EOS_F32,")
     lines.append("}")
     lines.append("")
     lines.append("")
@@ -309,7 +314,7 @@ def main() -> int:
         if layer_loop is not None:
             # Looped export: generates parent + layer tensor classes and looped dispatch
             layer_cls_name = "EncoderLayerTensors"
-            layer_func_name = f"create_encoder_layer"
+            layer_func_name = "create_encoder_layer"
 
             parent_src, layer_src = generate_looped_tensor_class_sources(
                 prog,
@@ -459,7 +464,6 @@ def main() -> int:
     max_seq = shapes["max_sequence_length"]
     hs = shapes["hidden_size"]
     hd = shapes["head_dim"]
-    nh = shapes["num_key_value_heads"]
     export_one("run_embed_tokens", model.thinker.model.embed_tokens.float(),
                args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.")

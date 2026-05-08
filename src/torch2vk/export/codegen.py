@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import Enum
+
 from jinja2 import Environment, StrictUndefined
 from torch.export import ExportedProgram
 from torch.export.graph_signature import ExportGraphSignature, InputKind
@@ -9,9 +14,6 @@ from torch.fx import Graph, Node
 
 from torch2vk.export.graph import SKIP_OPS, is_alias_op, node_input_names
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
-import re
-from dataclasses import dataclass
-
 from torch2vk.runtime.shader import (
     AddExpr,
     CeilDivExpr,
@@ -23,9 +25,6 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
 )
 from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
-
-from collections.abc import Callable
-from enum import Enum
 
 
 class _TensorKind(Enum):
@@ -157,13 +156,11 @@ class {{ class_name }}:
 
 
 {{ signature }}
-    _validate_bindings(bindings, frozenset({{ tensor_names_source }}))
     _validate_request_state_outputs(request_state_outputs, frozenset(({{ output_name_source }},)))
     return {{ class_name }}(
 {% for tensor in tensors %}
         {{ tensor.name }}=_bind_tensor(
-            bindings,
-            {{ tensor.name_source }},
+            {{ tensor.name }},
             _declare_tensor(
             name={{ tensor.name_expr }},
             spec=TensorSpec(dtype={{ tensor.dtype_source }}, shape={{ tensor.shape_source }}),
@@ -184,7 +181,7 @@ _TENSOR_MODULE_TEMPLATE = '''"""Generated tensor declarations."""
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -230,29 +227,14 @@ _TENSOR_HELPERS_TEMPLATE = '''def _declare_tensor(
 
 
 def _bind_tensor(
-    bindings: Mapping[str, LogicalTensor] | None,
-    field: str,
+    bound: LogicalTensor | None,
     tensor: LogicalTensor,
 ) -> LogicalTensor:
-    if bindings is None:
-        return tensor
-    bound = bindings.get(field)
     if bound is None:
         return tensor
     if bound.spec != tensor.spec:
-        raise ValueError(f"{field} binding spec {bound.spec} does not match {tensor.spec}")
+        raise ValueError(f"{bound.name} spec {bound.spec} does not match {tensor.name} spec {tensor.spec}")
     return bound
-
-
-def _validate_bindings(
-    bindings: Mapping[str, LogicalTensor] | None,
-    tensor_names: frozenset[str],
-) -> None:
-    if bindings is None:
-        return
-    unknown = frozenset(bindings) - tensor_names
-    if unknown:
-        raise ValueError(f"unknown tensor bindings: {sorted(unknown)}")
 
 
 def _validate_request_state_outputs(
@@ -389,7 +371,6 @@ def render_tensor_class(
     output_const: str,
     output_name_source: str,
     signature: str,
-    tensor_names_source: str,
     tensors,
 ) -> str:
     return _render_template(
@@ -399,7 +380,6 @@ def render_tensor_class(
         output_const=output_const,
         output_name_source=output_name_source,
         signature=signature,
-        tensor_names_source=tensor_names_source,
         tensors=tensors,
     ).rstrip("\n")
 
@@ -422,6 +402,22 @@ def render_simple_init(docstring: str, imports: list[str]) -> str:
         docstring=docstring,
         imports_source="\n".join(imports),
     )
+
+
+def _tensor_factory_signature(
+    function_name: str,
+    class_name: str,
+    *,
+    fields: tuple[str, ...],
+    layered: bool,
+) -> str:
+    params = ["prefix: str"]
+    if layered:
+        params.append("layer_idx: int")
+    params.append("*")
+    params.extend(f"{field}: LogicalTensor | None = None" for field in fields)
+    params.append("request_state_outputs: Collection[str] = frozenset()")
+    return f"def {function_name}(\n    " + ",\n    ".join(params) + f",\n) -> {class_name}:"
 
 
 def _render_template(source: str, **context) -> str:
@@ -901,15 +897,6 @@ def generate_tensor_class_source(
     if is_layered is None:
         is_layered = any(re.search(r"\.layers\.\d+\.", v) for v in param_map.values())
 
-    create_kwargs = (
-        "*, bindings: Mapping[str, LogicalTensor] | None = None, "
-        "request_state_outputs: Collection[str] = frozenset()"
-    )
-    if is_layered:
-        sig_str = f"def {function_name}(prefix: str, layer_idx: int, {create_kwargs}) -> {class_name}:"
-    else:
-        sig_str = f"def {function_name}(prefix: str, {create_kwargs}) -> {class_name}:"
-
     tensor_entries = []
     for name, meta in tensors.items():
         shape = meta.shape
@@ -953,13 +940,18 @@ def generate_tensor_class_source(
         })
 
     output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
+    fields = tuple(tensors.keys())
     return render_tensor_class(
         class_name=class_name,
-        fields=tuple(tensors.keys()),
+        fields=fields,
         output_const=output_const,
         output_name_source=repr(output_name),
-        signature=sig_str,
-        tensor_names_source=repr(tuple(tensors.keys())),
+        signature=_tensor_factory_signature(
+            function_name,
+            class_name,
+            fields=fields,
+            layered=is_layered,
+        ),
         tensors=tensor_entries,
     )
 
@@ -1011,5 +1003,4 @@ def generate_dispatch_function_source(
         if isinstance(op, _DispatchOp):
             used_variants.setdefault(op.variant.name, op.variant)
     return "\n".join(lines), shader_imports, used_variants
-
 

@@ -24,13 +24,13 @@ from torch2vk.export.codegen import (
     _TensorMeta,
     _UnsupportedOp,
     _collect_ops,
-    _dedup_variant,
     _find_graph_outputs,
     _prune_dead_ops,
     _resolve_all_variants,
+    _tensor_factory_signature,
     render_tensor_class,
 )
-from torch2vk.export.graph import LayerLoopHint, is_alias_op, node_input_names
+from torch2vk.export.graph import LayerLoopHint
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
 from torch2vk.runtime.shader import ShaderVariant
 
@@ -88,6 +88,8 @@ def _analyze_loop(
     live_ops: list[_Op],
     classification: dict[str, str],
     hint: LayerLoopHint,
+    tensor_metas: dict[str, _TensorMeta],
+    parameter_names: frozenset[str],
 ) -> _LoopAnalysis:
     pre_ops: list[_Op] = []
     layer0_ops: list[_Op] = []
@@ -117,9 +119,47 @@ def _analyze_loop(
             if classification.get(op.src, "").startswith("layer."):
                 layer_local.add(op.src)
 
-    # Detect carry: layer.0 inputs that come from pre-loop intermediates (not shared/params)
-    pre_intermediates = {_op_name(op) for op in pre_ops}
+    # Detect carry: the layer.0 external input that layer.1 replaces with layer.0 output.
+    layer0_external_inputs: list[str] = []
+    for op in layer0_ops:
+        if isinstance(op, _DispatchOp):
+            for v in op.bindings.values():
+                t = v.removeprefix("tensors.")
+                if _is_initial_carry_candidate(t, classification, parameter_names, layer0_external_inputs):
+                    layer0_external_inputs.append(t)
+        elif isinstance(op, _AliasOp):
+            if _is_initial_carry_candidate(op.src, classification, parameter_names, layer0_external_inputs):
+                layer0_external_inputs.append(op.src)
+
+    layer1_inputs_from_layer0: list[str] = []
+    if hint.num_layers > 1:
+        for op in live_ops:
+            name = _op_name(op)
+            if classification.get(name) != "layer.1":
+                continue
+            if isinstance(op, _DispatchOp):
+                for v in op.bindings.values():
+                    t = v.removeprefix("tensors.")
+                    if classification.get(t) == "layer.0" and t not in layer1_inputs_from_layer0:
+                        layer1_inputs_from_layer0.append(t)
+            elif isinstance(op, _AliasOp):
+                if classification.get(op.src) == "layer.0" and op.src not in layer1_inputs_from_layer0:
+                    layer1_inputs_from_layer0.append(op.src)
+
+    carry_output = _select_carry_output(
+        layer1_inputs_from_layer0=layer1_inputs_from_layer0,
+        layer0_external_inputs=layer0_external_inputs,
+        tensor_metas=tensor_metas,
+    )
     carry_inputs: list[str] = []
+    if carry_output is not None:
+        carry_meta = tensor_metas.get(carry_output)
+        for candidate in layer0_external_inputs:
+            if carry_meta is None or _same_tensor_contract(tensor_metas.get(candidate), carry_meta):
+                carry_inputs.append(candidate)
+                break
+
+    pre_intermediates = {_op_name(op) for op in pre_ops}
     for op in layer0_ops:
         if isinstance(op, _DispatchOp):
             for v in op.bindings.values():
@@ -130,27 +170,6 @@ def _analyze_loop(
             if op.src in pre_intermediates and op.src not in carry_inputs:
                 carry_inputs.append(op.src)
 
-    # Detect carry output: layer.0 output that layer.1 uses in the same role
-    # (the tensor from layer.0 that replaces the carry_input for layer.1)
-    carry_output: str | None = None
-    if carry_inputs and hint.num_layers > 1:
-        layer1_inputs_from_layer0: set[str] = set()
-        for op in live_ops:
-            name = _op_name(op)
-            if classification.get(name) != "layer.1":
-                continue
-            if isinstance(op, _DispatchOp):
-                for v in op.bindings.values():
-                    t = v.removeprefix("tensors.")
-                    if classification.get(t) == "layer.0":
-                        layer1_inputs_from_layer0.add(t)
-            elif isinstance(op, _AliasOp):
-                if classification.get(op.src) == "layer.0":
-                    layer1_inputs_from_layer0.add(op.src)
-
-        if layer1_inputs_from_layer0:
-            carry_output = next(iter(layer1_inputs_from_layer0))
-
     return _LoopAnalysis(
         pre_ops=pre_ops,
         layer_ops=layer0_ops,
@@ -159,6 +178,39 @@ def _analyze_loop(
         carry_inputs=carry_inputs,
         carry_output=carry_output,
     )
+
+
+def _is_initial_carry_candidate(
+    tensor_name: str,
+    classification: dict[str, str],
+    parameter_names: frozenset[str],
+    seen: list[str],
+) -> bool:
+    if tensor_name in seen or tensor_name in parameter_names:
+        return False
+    return not classification.get(tensor_name, "").startswith("layer.")
+
+
+def _select_carry_output(
+    *,
+    layer1_inputs_from_layer0: list[str],
+    layer0_external_inputs: list[str],
+    tensor_metas: dict[str, _TensorMeta],
+) -> str | None:
+    for output_name in layer1_inputs_from_layer0:
+        output_meta = tensor_metas.get(output_name)
+        if output_meta is None:
+            continue
+        for input_name in layer0_external_inputs:
+            if _same_tensor_contract(tensor_metas.get(input_name), output_meta):
+                return output_name
+    return layer1_inputs_from_layer0[0] if layer1_inputs_from_layer0 else None
+
+
+def _same_tensor_contract(lhs: _TensorMeta | None, rhs: _TensorMeta | None) -> bool:
+    if lhs is None or rhs is None:
+        return False
+    return lhs.shape == rhs.shape and lhs.dtype == rhs.dtype
 
 
 def _op_name(op: _Op) -> str:
@@ -182,6 +234,34 @@ def _layer_param_names(sig, weight_prefix: str) -> frozenset[str]:
     return frozenset(names)
 
 
+def _parameter_names(sig) -> frozenset[str]:
+    names: set[str] = set()
+    for spec in sig.input_specs:
+        if spec.kind in (InputKind.PARAMETER, InputKind.BUFFER):
+            names.add(spec.arg.name)
+    return frozenset(names)
+
+
+def _graph_tensor_metas(graph: Graph, sig) -> dict[str, _TensorMeta]:
+    input_kinds = {
+        spec.arg.name: _TensorKind.PARAMETER
+        if spec.kind in (InputKind.PARAMETER, InputKind.BUFFER)
+        else _TensorKind.USER_INPUT
+        for spec in sig.input_specs
+    }
+    tensor_metas: dict[str, _TensorMeta] = {}
+    for node in graph.nodes:
+        tm = node.meta.get("tensor_meta")
+        if tm is None:
+            continue
+        tensor_metas[node.name] = _TensorMeta(
+            shape=tuple(int(d) for d in tm.shape),
+            dtype=str(tm.dtype).removeprefix("torch."),
+            kind=input_kinds.get(node.name, _TensorKind.INTERMEDIATE),
+        )
+    return tensor_metas
+
+
 def generate_looped_dispatch_function_source(
     prog: ExportedProgram,
     *,
@@ -203,7 +283,14 @@ def generate_looped_dispatch_function_source(
     live_ops = _prune_dead_ops(all_ops, output_names)
 
     classification = _classify_graph_nodes(graph, hint.layer_prefix)
-    analysis = _analyze_loop(graph, live_ops, classification, hint)
+    analysis = _analyze_loop(
+        graph,
+        live_ops,
+        classification,
+        hint,
+        _graph_tensor_metas(graph, prog.graph_signature),
+        _parameter_names(prog.graph_signature),
+    )
 
     # Layer params are also layer-local (they're placeholders, not in nn_module_stack)
     layer_params = _layer_param_names(prog.graph_signature, weight_prefix)
@@ -249,7 +336,7 @@ def generate_looped_dispatch_function_source(
         lines.append(f"    carry = tensors.{carry_init}")
 
     # Loop
-    lines.append(f"    for layer_t in tensors.layers:")
+    lines.append("    for layer_t in tensors.layers:")
     for op in analysis.layer_ops:
         lines.append(_emit_op(op, True, "        "))
     if analysis.carry_output:
@@ -257,7 +344,6 @@ def generate_looped_dispatch_function_source(
 
     # Post-loop: rewrite references to last layer's output → carry
     # Find what post ops reference from layer.N-1 and replace with carry
-    last_layer_prefix = f"layer.{hint.num_layers - 1}"
     post_carry_targets: set[str] = set()
     for op in analysis.post_ops:
         if isinstance(op, _DispatchOp):
@@ -369,7 +455,14 @@ def generate_looped_tensor_class_sources(
 
     # Analyze loop structure
     classification = _classify_graph_nodes(graph, hint.layer_prefix)
-    analysis = _analyze_loop(graph, live_ops, classification, hint)
+    analysis = _analyze_loop(
+        graph,
+        live_ops,
+        classification,
+        hint,
+        tensors,
+        frozenset(param_map),
+    )
 
     # Classify parameters: those with .layers.0. go to layer class
     layer_param_map: dict[str, str] = {}
@@ -460,12 +553,6 @@ def _render_layer_class(
     weight_prefix: str,
     extra_lines_fn: Callable[[str], tuple[str, ...]] | None,
 ) -> str:
-    sig_str = (
-        f"def {function_name}(prefix: str, layer_idx: int, "
-        f"*, bindings: Mapping[str, LogicalTensor] | None = None, "
-        f"request_state_outputs: Collection[str] = frozenset()) -> {class_name}:"
-    )
-
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
@@ -504,14 +591,19 @@ def _render_layer_class(
         next(iter(tensors), "unknown"),
     )
     output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
+    fields = tuple(tensors.keys())
 
     return render_tensor_class(
         class_name=class_name,
-        fields=tuple(tensors.keys()),
+        fields=fields,
         output_const=output_const,
         output_name_source=repr(output_name),
-        signature=sig_str,
-        tensor_names_source=repr(tuple(tensors.keys())),
+        signature=_tensor_factory_signature(
+            function_name,
+            class_name,
+            fields=fields,
+            layered=True,
+        ),
         tensors=tensor_entries,
     )
 
@@ -529,12 +621,6 @@ def _render_parent_class(
     output_name: str | None,
     extra_lines_fn: Callable[[str], tuple[str, ...]] | None,
 ) -> str:
-    sig_str = (
-        f"def {function_name}(prefix: str, "
-        f"*, bindings: Mapping[str, LogicalTensor] | None = None, "
-        f"request_state_outputs: Collection[str] = frozenset()) -> {class_name}:"
-    )
-
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
@@ -585,6 +671,7 @@ def _render_parent_class(
         )
 
     output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
+    fields = tuple(tensors.keys())
 
     # Build manually (includes layers field)
     lines: list[str] = []
@@ -598,15 +685,18 @@ def _render_parent_class(
     lines.append(f"{output_const}: str = {output_name!r}")
     lines.append("")
     lines.append("")
-    lines.append(sig_str)
-    lines.append(f"    _validate_bindings(bindings, frozenset({tuple(tensors.keys())!r}))")
+    lines.append(_tensor_factory_signature(
+        function_name,
+        class_name,
+        fields=fields,
+        layered=False,
+    ))
     lines.append(f"    _validate_request_state_outputs(request_state_outputs, frozenset(({output_name!r},)))")
     lines.append(f"    return {class_name}(")
     for entry in tensor_entries:
         lines.append(f"        {entry['name']}=_bind_tensor(")
-        lines.append(f"            bindings,")
-        lines.append(f"            {entry['name_source']},")
-        lines.append(f"            _declare_tensor(")
+        lines.append(f"            {entry['name']},")
+        lines.append("            _declare_tensor(")
         lines.append(f"            name={entry['name_expr']},")
         lines.append(f"            spec=TensorSpec(dtype={entry['dtype_source']}, shape={entry['shape_source']}),")
         lines.append(f"            role={entry['role']},")

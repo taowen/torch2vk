@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -33,13 +33,25 @@ class TextNormTensors:
 TEXT_NORM_OUTPUT: str = 'mul_1'
 
 
-def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> TextNormTensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'hidden_states', 'to', 'pow_1', 'mean', 'add', 'rsqrt', 'mul', 'to_1', 'mul_1')))
+def create_text_norm(
+    prefix: str,
+    *,
+    p_weight: LogicalTensor | None = None,
+    hidden_states: LogicalTensor | None = None,
+    to: LogicalTensor | None = None,
+    pow_1: LogicalTensor | None = None,
+    mean: LogicalTensor | None = None,
+    add: LogicalTensor | None = None,
+    rsqrt: LogicalTensor | None = None,
+    mul: LogicalTensor | None = None,
+    to_1: LogicalTensor | None = None,
+    mul_1: LogicalTensor | None = None,
+    request_state_outputs: Collection[str] = frozenset(),
+) -> TextNormTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('mul_1',)))
     return TextNormTensors(
         p_weight=_bind_tensor(
-            bindings,
-            'p_weight',
+            p_weight,
             _declare_tensor(
             name="thinker.model.norm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
@@ -50,8 +62,7 @@ def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | Non
             ),
         ),
         hidden_states=_bind_tensor(
-            bindings,
-            'hidden_states',
+            hidden_states,
             _declare_tensor(
             name=f"{prefix}.hidden_states",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -62,8 +73,7 @@ def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | Non
             ),
         ),
         to=_bind_tensor(
-            bindings,
-            'to',
+            to,
             _declare_tensor(
             name=f"{prefix}.to",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -74,8 +84,7 @@ def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | Non
             ),
         ),
         pow_1=_bind_tensor(
-            bindings,
-            'pow_1',
+            pow_1,
             _declare_tensor(
             name=f"{prefix}.pow_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -86,8 +95,7 @@ def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | Non
             ),
         ),
         mean=_bind_tensor(
-            bindings,
-            'mean',
+            mean,
             _declare_tensor(
             name=f"{prefix}.mean",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
@@ -98,8 +106,7 @@ def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | Non
             ),
         ),
         add=_bind_tensor(
-            bindings,
-            'add',
+            add,
             _declare_tensor(
             name=f"{prefix}.add",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
@@ -110,8 +117,7 @@ def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | Non
             ),
         ),
         rsqrt=_bind_tensor(
-            bindings,
-            'rsqrt',
+            rsqrt,
             _declare_tensor(
             name=f"{prefix}.rsqrt",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
@@ -122,8 +128,7 @@ def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | Non
             ),
         ),
         mul=_bind_tensor(
-            bindings,
-            'mul',
+            mul,
             _declare_tensor(
             name=f"{prefix}.mul",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -134,8 +139,7 @@ def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | Non
             ),
         ),
         to_1=_bind_tensor(
-            bindings,
-            'to_1',
+            to_1,
             _declare_tensor(
             name=f"{prefix}.to_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -146,8 +150,7 @@ def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | Non
             ),
         ),
         mul_1=_bind_tensor(
-            bindings,
-            'mul_1',
+            mul_1,
             _declare_tensor(
             name=f"{prefix}.mul_1",
             spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
@@ -187,29 +190,14 @@ def _declare_tensor(
 
 
 def _bind_tensor(
-    bindings: Mapping[str, LogicalTensor] | None,
-    field: str,
+    bound: LogicalTensor | None,
     tensor: LogicalTensor,
 ) -> LogicalTensor:
-    if bindings is None:
-        return tensor
-    bound = bindings.get(field)
     if bound is None:
         return tensor
     if bound.spec != tensor.spec:
-        raise ValueError(f"{field} binding spec {bound.spec} does not match {tensor.spec}")
+        raise ValueError(f"{bound.name} spec {bound.spec} does not match {tensor.name} spec {tensor.spec}")
     return bound
-
-
-def _validate_bindings(
-    bindings: Mapping[str, LogicalTensor] | None,
-    tensor_names: frozenset[str],
-) -> None:
-    if bindings is None:
-        return
-    unknown = frozenset(bindings) - tensor_names
-    if unknown:
-        raise ValueError(f"unknown tensor bindings: {sorted(unknown)}")
 
 
 def _validate_request_state_outputs(

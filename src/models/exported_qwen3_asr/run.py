@@ -291,10 +291,8 @@ def main(
     embed_tokens_t = embed_tokens_tensors.create_embed_tokens("spike.text.embed")
     audio_inject_t = audio_inject_tensors.create_audio_inject(
         "spike.text.audio_inject",
-        bindings={
-            "audio_features": audio_encoder_t.linear_110,
-            "index_copy": embed_tokens_t.embedding,
-        },
+        audio_features=audio_encoder_t.linear_110,
+        index_copy=embed_tokens_t.embedding,
     )
     key_caches = tuple(
         _request_state_tensor(
@@ -341,36 +339,32 @@ def main(
     text_layer_ts = []
     text_hidden = audio_inject_t.index_copy
     for layer_idx in range(tc.num_hidden_layers):
-        bindings = {
-            "hidden_states": text_hidden,
-            "index_copy": key_caches[layer_idx],
-            "index_copy_1": value_caches[layer_idx],
-            "position_embeddings_0": prefill_rope_cos_t,
-            "position_embeddings_1": prefill_rope_sin_t,
-        }
-        if layer_idx > 0:
-            bindings["cache_position"] = text_layer_ts[0].cache_position
         layer_tensors = text_layer_tensors.create_text_layer(
             f"spike.text.layer.{layer_idx}",
             layer_idx=layer_idx,
-            bindings=bindings,
+            hidden_states=text_hidden,
+            index_copy=key_caches[layer_idx],
+            index_copy_1=value_caches[layer_idx],
+            position_embeddings_0=prefill_rope_cos_t,
+            position_embeddings_1=prefill_rope_sin_t,
+            cache_position=text_layer_ts[0].cache_position if layer_idx > 0 else None,
         )
         text_layer_ts.append(layer_tensors)
         text_hidden = layer_tensors.add_7
     text_norm_t = text_norm_tensors.create_text_norm(
         "spike.text.norm",
-        bindings={"hidden_states": text_layer_ts[-1].add_7},
+        hidden_states=text_layer_ts[-1].add_7,
     )
     lm_head_t = lm_head_tensors.create_lm_head(
         "spike.text.lm_head",
-        bindings={"input": text_norm_t.mul_1},
+        input=text_norm_t.mul_1,
         request_state_outputs={lm_head_tensors.LM_HEAD_OUTPUT},
     )
 
     # Decode (non-layered, reuse for all decode steps)
     decode_embed_t = decode_embed_tensors.create_decode_embed(
         "spike.decode.embed",
-        bindings={"p_weight": embed_tokens_t.p_weight},
+        p_weight=embed_tokens_t.p_weight,
     )
 
     # Decode layers (layered)
@@ -378,48 +372,40 @@ def main(
     decode_hidden = decode_embed_t.embedding
     for layer_idx in range(tc.num_hidden_layers):
         prefill_layer_tensors = text_layer_ts[layer_idx]
-        bindings = {
-            "p_input_layernorm_weight": prefill_layer_tensors.p_input_layernorm_weight,
-            "p_post_attention_layernorm_weight": (
-                prefill_layer_tensors.p_post_attention_layernorm_weight
-            ),
-            "p_attn_q_proj_weight": prefill_layer_tensors.p_attn_q_proj_weight,
-            "p_attn_k_proj_weight": prefill_layer_tensors.p_attn_k_proj_weight,
-            "p_attn_v_proj_weight": prefill_layer_tensors.p_attn_v_proj_weight,
-            "p_attn_o_proj_weight": prefill_layer_tensors.p_attn_o_proj_weight,
-            "p_attn_q_norm_weight": prefill_layer_tensors.p_attn_q_norm_weight,
-            "p_attn_k_norm_weight": prefill_layer_tensors.p_attn_k_norm_weight,
-            "p_mlp_gate_proj_weight": prefill_layer_tensors.p_mlp_gate_proj_weight,
-            "p_mlp_up_proj_weight": prefill_layer_tensors.p_mlp_up_proj_weight,
-            "p_mlp_down_proj_weight": prefill_layer_tensors.p_mlp_down_proj_weight,
-            "hidden_states": decode_hidden,
-            "index_copy": key_caches[layer_idx],
-            "index_copy_1": value_caches[layer_idx],
-            "position_embeddings_0": decode_rope_cos_t,
-            "position_embeddings_1": decode_rope_sin_t,
-        }
-        if layer_idx > 0:
-            bindings["cache_position"] = decode_layer_ts[0].cache_position
         layer_tensors = decode_layer_tensors.create_decode_layer(
             f"spike.decode.layer.{layer_idx}",
             layer_idx=layer_idx,
-            bindings=bindings,
+            p_input_layernorm_weight=prefill_layer_tensors.p_input_layernorm_weight,
+            p_post_attention_layernorm_weight=(
+                prefill_layer_tensors.p_post_attention_layernorm_weight
+            ),
+            p_attn_q_proj_weight=prefill_layer_tensors.p_attn_q_proj_weight,
+            p_attn_k_proj_weight=prefill_layer_tensors.p_attn_k_proj_weight,
+            p_attn_v_proj_weight=prefill_layer_tensors.p_attn_v_proj_weight,
+            p_attn_o_proj_weight=prefill_layer_tensors.p_attn_o_proj_weight,
+            p_attn_q_norm_weight=prefill_layer_tensors.p_attn_q_norm_weight,
+            p_attn_k_norm_weight=prefill_layer_tensors.p_attn_k_norm_weight,
+            p_mlp_gate_proj_weight=prefill_layer_tensors.p_mlp_gate_proj_weight,
+            p_mlp_up_proj_weight=prefill_layer_tensors.p_mlp_up_proj_weight,
+            p_mlp_down_proj_weight=prefill_layer_tensors.p_mlp_down_proj_weight,
+            hidden_states=decode_hidden,
+            index_copy=key_caches[layer_idx],
+            index_copy_1=value_caches[layer_idx],
+            position_embeddings_0=decode_rope_cos_t,
+            position_embeddings_1=decode_rope_sin_t,
+            cache_position=decode_layer_ts[0].cache_position if layer_idx > 0 else None,
         )
         decode_layer_ts.append(layer_tensors)
         decode_hidden = layer_tensors.add_7
     decode_norm_t = decode_norm_tensors.create_decode_norm(
         "spike.decode.norm",
-        bindings={
-            "p_weight": text_norm_t.p_weight,
-            "hidden_states": decode_layer_ts[-1].add_7,
-        },
+        p_weight=text_norm_t.p_weight,
+        hidden_states=decode_layer_ts[-1].add_7,
     )
     decode_lm_head_t = decode_lm_head_tensors.create_decode_lm_head(
         "spike.decode.lm_head",
-        bindings={
-            "p_weight": lm_head_t.p_weight,
-            "input": decode_norm_t.mul_1,
-        },
+        p_weight=lm_head_t.p_weight,
+        input=decode_norm_t.mul_1,
         request_state_outputs={decode_lm_head_tensors.DECODE_LM_HEAD_OUTPUT},
     )
 

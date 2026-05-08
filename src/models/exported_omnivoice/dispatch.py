@@ -51,7 +51,7 @@ from models.exported_omnivoice.shaders.export_transpose_f32_f3e8fdf2d4 import EX
 
 from models.exported_omnivoice.tensors.audio_embed import AudioEmbedTensors
 from models.exported_omnivoice.tensors.audio_head import AudioHeadTensors
-from models.exported_omnivoice.tensors.llm_forward import LlmForwardTensors, LlmLayerTensors
+from models.exported_omnivoice.tensors.llm_forward import LlmForwardTensors
 from models.exported_omnivoice.tensors.text_embed import TextEmbedTensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.shader import ShaderVariant

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -103,13 +103,96 @@ class LlmLayerTensors:
 LLM_LAYER_OUTPUT: str = 'add_7'
 
 
-def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> LlmLayerTensors:
-    _validate_bindings(bindings, frozenset(('p_layers_0_self_attn_q_proj_weight', 'p_layers_0_self_attn_k_proj_weight', 'p_layers_0_self_attn_v_proj_weight', 'p_layers_0_self_attn_o_proj_weight', 'p_layers_0_self_attn_q_norm_weight', 'p_layers_0_self_attn_k_norm_weight', 'p_layers_0_mlp_gate_proj_weight', 'p_layers_0_mlp_up_proj_weight', 'p_layers_0_mlp_down_proj_weight', 'p_layers_0_input_layernorm_weight', 'p_layers_0_post_attention_layernorm_weight', 'to', 'pow_1', 'mean', 'add', 'rsqrt', 'mul', 'to_1', 'mul_1', 'linear', 'view', 'to_2', 'pow_2', 'mean_1', 'add_1', 'rsqrt_1', 'mul_2', 'to_3', 'mul_3', 'transpose', 'linear_1', 'view_1', 'to_4', 'pow_3', 'mean_2', 'add_2', 'rsqrt_2', 'mul_4', 'to_5', 'mul_5', 'transpose_1', 'linear_2', 'view_2', 'transpose_2', 'unsqueeze', 'unsqueeze_1', 'mul_6', 'slice_1', 'slice_2', 'neg', 'cat', 'mul_7', 'add_3', 'mul_8', 'slice_3', 'slice_4', 'neg_1', 'cat_1', 'mul_9', 'add_4', 'scaled_dot_product_attention', 'transpose_3', 'contiguous', 'reshape', 'linear_3', 'add_5', 'to_6', 'pow_4', 'mean_3', 'add_6', 'rsqrt_3', 'mul_10', 'to_7', 'mul_11', 'linear_4', 'silu', 'linear_5', 'mul_12', 'linear_6', 'add_7')))
+def create_llm_layer(
+    prefix: str,
+    layer_idx: int,
+    *,
+    p_layers_0_self_attn_q_proj_weight: LogicalTensor | None = None,
+    p_layers_0_self_attn_k_proj_weight: LogicalTensor | None = None,
+    p_layers_0_self_attn_v_proj_weight: LogicalTensor | None = None,
+    p_layers_0_self_attn_o_proj_weight: LogicalTensor | None = None,
+    p_layers_0_self_attn_q_norm_weight: LogicalTensor | None = None,
+    p_layers_0_self_attn_k_norm_weight: LogicalTensor | None = None,
+    p_layers_0_mlp_gate_proj_weight: LogicalTensor | None = None,
+    p_layers_0_mlp_up_proj_weight: LogicalTensor | None = None,
+    p_layers_0_mlp_down_proj_weight: LogicalTensor | None = None,
+    p_layers_0_input_layernorm_weight: LogicalTensor | None = None,
+    p_layers_0_post_attention_layernorm_weight: LogicalTensor | None = None,
+    to: LogicalTensor | None = None,
+    pow_1: LogicalTensor | None = None,
+    mean: LogicalTensor | None = None,
+    add: LogicalTensor | None = None,
+    rsqrt: LogicalTensor | None = None,
+    mul: LogicalTensor | None = None,
+    to_1: LogicalTensor | None = None,
+    mul_1: LogicalTensor | None = None,
+    linear: LogicalTensor | None = None,
+    view: LogicalTensor | None = None,
+    to_2: LogicalTensor | None = None,
+    pow_2: LogicalTensor | None = None,
+    mean_1: LogicalTensor | None = None,
+    add_1: LogicalTensor | None = None,
+    rsqrt_1: LogicalTensor | None = None,
+    mul_2: LogicalTensor | None = None,
+    to_3: LogicalTensor | None = None,
+    mul_3: LogicalTensor | None = None,
+    transpose: LogicalTensor | None = None,
+    linear_1: LogicalTensor | None = None,
+    view_1: LogicalTensor | None = None,
+    to_4: LogicalTensor | None = None,
+    pow_3: LogicalTensor | None = None,
+    mean_2: LogicalTensor | None = None,
+    add_2: LogicalTensor | None = None,
+    rsqrt_2: LogicalTensor | None = None,
+    mul_4: LogicalTensor | None = None,
+    to_5: LogicalTensor | None = None,
+    mul_5: LogicalTensor | None = None,
+    transpose_1: LogicalTensor | None = None,
+    linear_2: LogicalTensor | None = None,
+    view_2: LogicalTensor | None = None,
+    transpose_2: LogicalTensor | None = None,
+    unsqueeze: LogicalTensor | None = None,
+    unsqueeze_1: LogicalTensor | None = None,
+    mul_6: LogicalTensor | None = None,
+    slice_1: LogicalTensor | None = None,
+    slice_2: LogicalTensor | None = None,
+    neg: LogicalTensor | None = None,
+    cat: LogicalTensor | None = None,
+    mul_7: LogicalTensor | None = None,
+    add_3: LogicalTensor | None = None,
+    mul_8: LogicalTensor | None = None,
+    slice_3: LogicalTensor | None = None,
+    slice_4: LogicalTensor | None = None,
+    neg_1: LogicalTensor | None = None,
+    cat_1: LogicalTensor | None = None,
+    mul_9: LogicalTensor | None = None,
+    add_4: LogicalTensor | None = None,
+    scaled_dot_product_attention: LogicalTensor | None = None,
+    transpose_3: LogicalTensor | None = None,
+    contiguous: LogicalTensor | None = None,
+    reshape: LogicalTensor | None = None,
+    linear_3: LogicalTensor | None = None,
+    add_5: LogicalTensor | None = None,
+    to_6: LogicalTensor | None = None,
+    pow_4: LogicalTensor | None = None,
+    mean_3: LogicalTensor | None = None,
+    add_6: LogicalTensor | None = None,
+    rsqrt_3: LogicalTensor | None = None,
+    mul_10: LogicalTensor | None = None,
+    to_7: LogicalTensor | None = None,
+    mul_11: LogicalTensor | None = None,
+    linear_4: LogicalTensor | None = None,
+    silu: LogicalTensor | None = None,
+    linear_5: LogicalTensor | None = None,
+    mul_12: LogicalTensor | None = None,
+    linear_6: LogicalTensor | None = None,
+    add_7: LogicalTensor | None = None,
+    request_state_outputs: Collection[str] = frozenset(),
+) -> LlmLayerTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('add_7',)))
     return LlmLayerTensors(
         p_layers_0_self_attn_q_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_q_proj_weight',
+            p_layers_0_self_attn_q_proj_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.self_attn.q_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(2048, 1024)),
@@ -120,8 +203,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         p_layers_0_self_attn_k_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_k_proj_weight',
+            p_layers_0_self_attn_k_proj_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.self_attn.k_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
@@ -132,8 +214,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         p_layers_0_self_attn_v_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_v_proj_weight',
+            p_layers_0_self_attn_v_proj_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.self_attn.v_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
@@ -144,8 +225,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         p_layers_0_self_attn_o_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_o_proj_weight',
+            p_layers_0_self_attn_o_proj_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.self_attn.o_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024, 2048)),
@@ -156,8 +236,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         p_layers_0_self_attn_q_norm_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_q_norm_weight',
+            p_layers_0_self_attn_q_norm_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.self_attn.q_norm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(128,)),
@@ -168,8 +247,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         p_layers_0_self_attn_k_norm_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_self_attn_k_norm_weight',
+            p_layers_0_self_attn_k_norm_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.self_attn.k_norm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(128,)),
@@ -180,8 +258,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         p_layers_0_mlp_gate_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_mlp_gate_proj_weight',
+            p_layers_0_mlp_gate_proj_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.mlp.gate_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
@@ -192,8 +269,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         p_layers_0_mlp_up_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_mlp_up_proj_weight',
+            p_layers_0_mlp_up_proj_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.mlp.up_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
@@ -204,8 +280,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         p_layers_0_mlp_down_proj_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_mlp_down_proj_weight',
+            p_layers_0_mlp_down_proj_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.mlp.down_proj.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024, 3072)),
@@ -216,8 +291,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         p_layers_0_input_layernorm_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_input_layernorm_weight',
+            p_layers_0_input_layernorm_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.input_layernorm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
@@ -228,8 +302,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         p_layers_0_post_attention_layernorm_weight=_bind_tensor(
-            bindings,
-            'p_layers_0_post_attention_layernorm_weight',
+            p_layers_0_post_attention_layernorm_weight,
             _declare_tensor(
             name=f"llm.layers.{layer_idx}.post_attention_layernorm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
@@ -240,8 +313,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         to=_bind_tensor(
-            bindings,
-            'to',
+            to,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.to",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -252,8 +324,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         pow_1=_bind_tensor(
-            bindings,
-            'pow_1',
+            pow_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.pow_1",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -264,8 +335,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mean=_bind_tensor(
-            bindings,
-            'mean',
+            mean,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mean",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
@@ -276,8 +346,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         add=_bind_tensor(
-            bindings,
-            'add',
+            add,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.add",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
@@ -288,8 +357,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         rsqrt=_bind_tensor(
-            bindings,
-            'rsqrt',
+            rsqrt,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.rsqrt",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
@@ -300,8 +368,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul=_bind_tensor(
-            bindings,
-            'mul',
+            mul,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -312,8 +379,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         to_1=_bind_tensor(
-            bindings,
-            'to_1',
+            to_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.to_1",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -324,8 +390,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_1=_bind_tensor(
-            bindings,
-            'mul_1',
+            mul_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_1",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -336,8 +401,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         linear=_bind_tensor(
-            bindings,
-            'linear',
+            linear,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 2048)),
@@ -348,8 +412,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         view=_bind_tensor(
-            bindings,
-            'view',
+            view,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.view",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
@@ -360,8 +423,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         to_2=_bind_tensor(
-            bindings,
-            'to_2',
+            to_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.to_2",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
@@ -372,8 +434,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         pow_2=_bind_tensor(
-            bindings,
-            'pow_2',
+            pow_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.pow_2",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
@@ -384,8 +445,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mean_1=_bind_tensor(
-            bindings,
-            'mean_1',
+            mean_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mean_1",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 1)),
@@ -396,8 +456,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         add_1=_bind_tensor(
-            bindings,
-            'add_1',
+            add_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.add_1",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 1)),
@@ -408,8 +467,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         rsqrt_1=_bind_tensor(
-            bindings,
-            'rsqrt_1',
+            rsqrt_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.rsqrt_1",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 1)),
@@ -420,8 +478,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_2=_bind_tensor(
-            bindings,
-            'mul_2',
+            mul_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_2",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
@@ -432,8 +489,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         to_3=_bind_tensor(
-            bindings,
-            'to_3',
+            to_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.to_3",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
@@ -444,8 +500,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_3=_bind_tensor(
-            bindings,
-            'mul_3',
+            mul_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_3",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
@@ -456,8 +511,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         transpose=_bind_tensor(
-            bindings,
-            'transpose',
+            transpose,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.transpose",
             spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
@@ -468,8 +522,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         linear_1=_bind_tensor(
-            bindings,
-            'linear_1',
+            linear_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_1",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -480,8 +533,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         view_1=_bind_tensor(
-            bindings,
-            'view_1',
+            view_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.view_1",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
@@ -492,8 +544,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         to_4=_bind_tensor(
-            bindings,
-            'to_4',
+            to_4,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.to_4",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
@@ -504,8 +555,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         pow_3=_bind_tensor(
-            bindings,
-            'pow_3',
+            pow_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.pow_3",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
@@ -516,8 +566,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mean_2=_bind_tensor(
-            bindings,
-            'mean_2',
+            mean_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mean_2",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 1)),
@@ -528,8 +577,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         add_2=_bind_tensor(
-            bindings,
-            'add_2',
+            add_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.add_2",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 1)),
@@ -540,8 +588,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         rsqrt_2=_bind_tensor(
-            bindings,
-            'rsqrt_2',
+            rsqrt_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.rsqrt_2",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 1)),
@@ -552,8 +599,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_4=_bind_tensor(
-            bindings,
-            'mul_4',
+            mul_4,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_4",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
@@ -564,8 +610,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         to_5=_bind_tensor(
-            bindings,
-            'to_5',
+            to_5,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.to_5",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
@@ -576,8 +621,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_5=_bind_tensor(
-            bindings,
-            'mul_5',
+            mul_5,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_5",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
@@ -588,8 +632,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         transpose_1=_bind_tensor(
-            bindings,
-            'transpose_1',
+            transpose_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.transpose_1",
             spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
@@ -600,8 +643,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         linear_2=_bind_tensor(
-            bindings,
-            'linear_2',
+            linear_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_2",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -612,8 +654,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         view_2=_bind_tensor(
-            bindings,
-            'view_2',
+            view_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.view_2",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
@@ -624,8 +665,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         transpose_2=_bind_tensor(
-            bindings,
-            'transpose_2',
+            transpose_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.transpose_2",
             spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
@@ -636,8 +676,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         unsqueeze=_bind_tensor(
-            bindings,
-            'unsqueeze',
+            unsqueeze,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.unsqueeze",
             spec=TensorSpec(dtype='float32', shape=(2, 1, 300, 128)),
@@ -648,8 +687,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         unsqueeze_1=_bind_tensor(
-            bindings,
-            'unsqueeze_1',
+            unsqueeze_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.unsqueeze_1",
             spec=TensorSpec(dtype='float32', shape=(2, 1, 300, 128)),
@@ -660,8 +698,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_6=_bind_tensor(
-            bindings,
-            'mul_6',
+            mul_6,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_6",
             spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
@@ -672,8 +709,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         slice_1=_bind_tensor(
-            bindings,
-            'slice_1',
+            slice_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.slice_1",
             spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 64)),
@@ -684,8 +720,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         slice_2=_bind_tensor(
-            bindings,
-            'slice_2',
+            slice_2,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.slice_2",
             spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 64)),
@@ -696,8 +731,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         neg=_bind_tensor(
-            bindings,
-            'neg',
+            neg,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.neg",
             spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 64)),
@@ -708,8 +742,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         cat=_bind_tensor(
-            bindings,
-            'cat',
+            cat,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.cat",
             spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
@@ -720,8 +753,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_7=_bind_tensor(
-            bindings,
-            'mul_7',
+            mul_7,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_7",
             spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
@@ -732,8 +764,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         add_3=_bind_tensor(
-            bindings,
-            'add_3',
+            add_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.add_3",
             spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
@@ -744,8 +775,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_8=_bind_tensor(
-            bindings,
-            'mul_8',
+            mul_8,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_8",
             spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
@@ -756,8 +786,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         slice_3=_bind_tensor(
-            bindings,
-            'slice_3',
+            slice_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.slice_3",
             spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 64)),
@@ -768,8 +797,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         slice_4=_bind_tensor(
-            bindings,
-            'slice_4',
+            slice_4,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.slice_4",
             spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 64)),
@@ -780,8 +808,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         neg_1=_bind_tensor(
-            bindings,
-            'neg_1',
+            neg_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.neg_1",
             spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 64)),
@@ -792,8 +819,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         cat_1=_bind_tensor(
-            bindings,
-            'cat_1',
+            cat_1,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.cat_1",
             spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
@@ -804,8 +830,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_9=_bind_tensor(
-            bindings,
-            'mul_9',
+            mul_9,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_9",
             spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
@@ -816,8 +841,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         add_4=_bind_tensor(
-            bindings,
-            'add_4',
+            add_4,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.add_4",
             spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
@@ -828,8 +852,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         scaled_dot_product_attention=_bind_tensor(
-            bindings,
-            'scaled_dot_product_attention',
+            scaled_dot_product_attention,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.scaled_dot_product_attention",
             spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
@@ -840,8 +863,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         transpose_3=_bind_tensor(
-            bindings,
-            'transpose_3',
+            transpose_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.transpose_3",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
@@ -852,8 +874,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         contiguous=_bind_tensor(
-            bindings,
-            'contiguous',
+            contiguous,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.contiguous",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
@@ -864,8 +885,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         reshape=_bind_tensor(
-            bindings,
-            'reshape',
+            reshape,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.reshape",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 2048)),
@@ -876,8 +896,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         linear_3=_bind_tensor(
-            bindings,
-            'linear_3',
+            linear_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_3",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -888,8 +907,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         add_5=_bind_tensor(
-            bindings,
-            'add_5',
+            add_5,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.add_5",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -900,8 +918,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         to_6=_bind_tensor(
-            bindings,
-            'to_6',
+            to_6,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.to_6",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -912,8 +929,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         pow_4=_bind_tensor(
-            bindings,
-            'pow_4',
+            pow_4,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.pow_4",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -924,8 +940,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mean_3=_bind_tensor(
-            bindings,
-            'mean_3',
+            mean_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mean_3",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
@@ -936,8 +951,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         add_6=_bind_tensor(
-            bindings,
-            'add_6',
+            add_6,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.add_6",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
@@ -948,8 +962,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         rsqrt_3=_bind_tensor(
-            bindings,
-            'rsqrt_3',
+            rsqrt_3,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.rsqrt_3",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
@@ -960,8 +973,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_10=_bind_tensor(
-            bindings,
-            'mul_10',
+            mul_10,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_10",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -972,8 +984,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         to_7=_bind_tensor(
-            bindings,
-            'to_7',
+            to_7,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.to_7",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -984,8 +995,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_11=_bind_tensor(
-            bindings,
-            'mul_11',
+            mul_11,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_11",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -996,8 +1006,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         linear_4=_bind_tensor(
-            bindings,
-            'linear_4',
+            linear_4,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_4",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
@@ -1008,8 +1017,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         silu=_bind_tensor(
-            bindings,
-            'silu',
+            silu,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.silu",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
@@ -1020,8 +1028,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         linear_5=_bind_tensor(
-            bindings,
-            'linear_5',
+            linear_5,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_5",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
@@ -1032,8 +1039,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         mul_12=_bind_tensor(
-            bindings,
-            'mul_12',
+            mul_12,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.mul_12",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
@@ -1044,8 +1050,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         linear_6=_bind_tensor(
-            bindings,
-            'linear_6',
+            linear_6,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.linear_6",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -1056,8 +1061,7 @@ def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Logi
             ),
         ),
         add_7=_bind_tensor(
-            bindings,
-            'add_7',
+            add_7,
             _declare_tensor(
             name=f"{prefix}.layers.{layer_idx}.add_7",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -1091,13 +1095,28 @@ class LlmForwardTensors:
 LLM_FORWARD_OUTPUT: str = 'mul_365'
 
 
-def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> LlmForwardTensors:
-    _validate_bindings(bindings, frozenset(('p_norm_weight', 'hidden_states', 'cos', 'sin', 'attention_mask', 'to_224', 'pow_113', 'mean_112', 'add_224', 'rsqrt_112', 'mul_364', 'to_225', 'mul_365')))
+def create_llm_forward(
+    prefix: str,
+    *,
+    p_norm_weight: LogicalTensor | None = None,
+    hidden_states: LogicalTensor | None = None,
+    cos: LogicalTensor | None = None,
+    sin: LogicalTensor | None = None,
+    attention_mask: LogicalTensor | None = None,
+    to_224: LogicalTensor | None = None,
+    pow_113: LogicalTensor | None = None,
+    mean_112: LogicalTensor | None = None,
+    add_224: LogicalTensor | None = None,
+    rsqrt_112: LogicalTensor | None = None,
+    mul_364: LogicalTensor | None = None,
+    to_225: LogicalTensor | None = None,
+    mul_365: LogicalTensor | None = None,
+    request_state_outputs: Collection[str] = frozenset(),
+) -> LlmForwardTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('mul_365',)))
     return LlmForwardTensors(
         p_norm_weight=_bind_tensor(
-            bindings,
-            'p_norm_weight',
+            p_norm_weight,
             _declare_tensor(
             name="llm.norm.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
@@ -1108,8 +1127,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         hidden_states=_bind_tensor(
-            bindings,
-            'hidden_states',
+            hidden_states,
             _declare_tensor(
             name=f"{prefix}.hidden_states",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -1120,8 +1138,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         cos=_bind_tensor(
-            bindings,
-            'cos',
+            cos,
             _declare_tensor(
             name=f"{prefix}.cos",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 128)),
@@ -1132,8 +1149,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         sin=_bind_tensor(
-            bindings,
-            'sin',
+            sin,
             _declare_tensor(
             name=f"{prefix}.sin",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 128)),
@@ -1144,8 +1160,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         attention_mask=_bind_tensor(
-            bindings,
-            'attention_mask',
+            attention_mask,
             _declare_tensor(
             name=f"{prefix}.attention_mask",
             spec=TensorSpec(dtype='float32', shape=(2, 1, 300, 300)),
@@ -1156,8 +1171,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         to_224=_bind_tensor(
-            bindings,
-            'to_224',
+            to_224,
             _declare_tensor(
             name=f"{prefix}.to_224",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -1168,8 +1182,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         pow_113=_bind_tensor(
-            bindings,
-            'pow_113',
+            pow_113,
             _declare_tensor(
             name=f"{prefix}.pow_113",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -1180,8 +1193,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         mean_112=_bind_tensor(
-            bindings,
-            'mean_112',
+            mean_112,
             _declare_tensor(
             name=f"{prefix}.mean_112",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
@@ -1192,8 +1204,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         add_224=_bind_tensor(
-            bindings,
-            'add_224',
+            add_224,
             _declare_tensor(
             name=f"{prefix}.add_224",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
@@ -1204,8 +1215,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         rsqrt_112=_bind_tensor(
-            bindings,
-            'rsqrt_112',
+            rsqrt_112,
             _declare_tensor(
             name=f"{prefix}.rsqrt_112",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
@@ -1216,8 +1226,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         mul_364=_bind_tensor(
-            bindings,
-            'mul_364',
+            mul_364,
             _declare_tensor(
             name=f"{prefix}.mul_364",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -1228,8 +1237,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         to_225=_bind_tensor(
-            bindings,
-            'to_225',
+            to_225,
             _declare_tensor(
             name=f"{prefix}.to_225",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -1240,8 +1248,7 @@ def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             ),
         ),
         mul_365=_bind_tensor(
-            bindings,
-            'mul_365',
+            mul_365,
             _declare_tensor(
             name=f"{prefix}.mul_365",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -1282,29 +1289,14 @@ def _declare_tensor(
 
 
 def _bind_tensor(
-    bindings: Mapping[str, LogicalTensor] | None,
-    field: str,
+    bound: LogicalTensor | None,
     tensor: LogicalTensor,
 ) -> LogicalTensor:
-    if bindings is None:
-        return tensor
-    bound = bindings.get(field)
     if bound is None:
         return tensor
     if bound.spec != tensor.spec:
-        raise ValueError(f"{field} binding spec {bound.spec} does not match {tensor.spec}")
+        raise ValueError(f"{bound.name} spec {bound.spec} does not match {tensor.name} spec {tensor.spec}")
     return bound
-
-
-def _validate_bindings(
-    bindings: Mapping[str, LogicalTensor] | None,
-    tensor_names: frozenset[str],
-) -> None:
-    if bindings is None:
-        return
-    unknown = frozenset(bindings) - tensor_names
-    if unknown:
-        raise ValueError(f"unknown tensor bindings: {sorted(unknown)}")
 
 
 def _validate_request_state_outputs(

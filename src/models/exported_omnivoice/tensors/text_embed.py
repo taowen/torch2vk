@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -26,13 +26,18 @@ class TextEmbedTensors:
 TEXT_EMBED_OUTPUT: str = 'embedding'
 
 
-def create_text_embed(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> TextEmbedTensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'input', 'embedding')))
+def create_text_embed(
+    prefix: str,
+    *,
+    p_weight: LogicalTensor | None = None,
+    input: LogicalTensor | None = None,
+    embedding: LogicalTensor | None = None,
+    request_state_outputs: Collection[str] = frozenset(),
+) -> TextEmbedTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('embedding',)))
     return TextEmbedTensors(
         p_weight=_bind_tensor(
-            bindings,
-            'p_weight',
+            p_weight,
             _declare_tensor(
             name="llm.embed_tokens.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(151676, 1024)),
@@ -43,8 +48,7 @@ def create_text_embed(prefix: str, *, bindings: Mapping[str, LogicalTensor] | No
             ),
         ),
         input=_bind_tensor(
-            bindings,
-            'input',
+            input,
             _declare_tensor(
             name=f"{prefix}.input",
             spec=TensorSpec(dtype='int64', shape=(2, 300)),
@@ -55,8 +59,7 @@ def create_text_embed(prefix: str, *, bindings: Mapping[str, LogicalTensor] | No
             ),
         ),
         embedding=_bind_tensor(
-            bindings,
-            'embedding',
+            embedding,
             _declare_tensor(
             name=f"{prefix}.embedding",
             spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
@@ -96,29 +99,14 @@ def _declare_tensor(
 
 
 def _bind_tensor(
-    bindings: Mapping[str, LogicalTensor] | None,
-    field: str,
+    bound: LogicalTensor | None,
     tensor: LogicalTensor,
 ) -> LogicalTensor:
-    if bindings is None:
-        return tensor
-    bound = bindings.get(field)
     if bound is None:
         return tensor
     if bound.spec != tensor.spec:
-        raise ValueError(f"{field} binding spec {bound.spec} does not match {tensor.spec}")
+        raise ValueError(f"{bound.name} spec {bound.spec} does not match {tensor.name} spec {tensor.spec}")
     return bound
-
-
-def _validate_bindings(
-    bindings: Mapping[str, LogicalTensor] | None,
-    tensor_names: frozenset[str],
-) -> None:
-    if bindings is None:
-        return
-    unknown = frozenset(bindings) - tensor_names
-    if unknown:
-        raise ValueError(f"unknown tensor bindings: {sorted(unknown)}")
 
 
 def _validate_request_state_outputs(
