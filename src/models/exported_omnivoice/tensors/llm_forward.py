@@ -1,0 +1,1316 @@
+"""Generated tensor declarations."""
+
+from __future__ import annotations
+
+from collections.abc import Collection, Mapping
+from dataclasses import dataclass
+
+from torch2vk.runtime.logical import (
+    ComparePolicy,
+    LogicalTensor,
+    MemoryClass,
+    PyTorchProbe,
+    TensorLifetime,
+    TensorRole,
+)
+from torch2vk.vulkan.types import TensorSpec
+
+
+@dataclass(frozen=True, slots=True)
+class LlmLayerTensors:
+    p_layers_0_self_attn_q_proj_weight: LogicalTensor
+    p_layers_0_self_attn_k_proj_weight: LogicalTensor
+    p_layers_0_self_attn_v_proj_weight: LogicalTensor
+    p_layers_0_self_attn_o_proj_weight: LogicalTensor
+    p_layers_0_self_attn_q_norm_weight: LogicalTensor
+    p_layers_0_self_attn_k_norm_weight: LogicalTensor
+    p_layers_0_mlp_gate_proj_weight: LogicalTensor
+    p_layers_0_mlp_up_proj_weight: LogicalTensor
+    p_layers_0_mlp_down_proj_weight: LogicalTensor
+    p_layers_0_input_layernorm_weight: LogicalTensor
+    p_layers_0_post_attention_layernorm_weight: LogicalTensor
+    to: LogicalTensor
+    pow_1: LogicalTensor
+    mean: LogicalTensor
+    add: LogicalTensor
+    rsqrt: LogicalTensor
+    mul: LogicalTensor
+    to_1: LogicalTensor
+    mul_1: LogicalTensor
+    linear: LogicalTensor
+    view: LogicalTensor
+    to_2: LogicalTensor
+    pow_2: LogicalTensor
+    mean_1: LogicalTensor
+    add_1: LogicalTensor
+    rsqrt_1: LogicalTensor
+    mul_2: LogicalTensor
+    to_3: LogicalTensor
+    mul_3: LogicalTensor
+    transpose: LogicalTensor
+    linear_1: LogicalTensor
+    view_1: LogicalTensor
+    to_4: LogicalTensor
+    pow_3: LogicalTensor
+    mean_2: LogicalTensor
+    add_2: LogicalTensor
+    rsqrt_2: LogicalTensor
+    mul_4: LogicalTensor
+    to_5: LogicalTensor
+    mul_5: LogicalTensor
+    transpose_1: LogicalTensor
+    linear_2: LogicalTensor
+    view_2: LogicalTensor
+    transpose_2: LogicalTensor
+    unsqueeze: LogicalTensor
+    unsqueeze_1: LogicalTensor
+    mul_6: LogicalTensor
+    slice_1: LogicalTensor
+    slice_2: LogicalTensor
+    neg: LogicalTensor
+    cat: LogicalTensor
+    mul_7: LogicalTensor
+    add_3: LogicalTensor
+    mul_8: LogicalTensor
+    slice_3: LogicalTensor
+    slice_4: LogicalTensor
+    neg_1: LogicalTensor
+    cat_1: LogicalTensor
+    mul_9: LogicalTensor
+    add_4: LogicalTensor
+    scaled_dot_product_attention: LogicalTensor
+    transpose_3: LogicalTensor
+    contiguous: LogicalTensor
+    reshape: LogicalTensor
+    linear_3: LogicalTensor
+    add_5: LogicalTensor
+    to_6: LogicalTensor
+    pow_4: LogicalTensor
+    mean_3: LogicalTensor
+    add_6: LogicalTensor
+    rsqrt_3: LogicalTensor
+    mul_10: LogicalTensor
+    to_7: LogicalTensor
+    mul_11: LogicalTensor
+    linear_4: LogicalTensor
+    silu: LogicalTensor
+    linear_5: LogicalTensor
+    mul_12: LogicalTensor
+    linear_6: LogicalTensor
+    add_7: LogicalTensor
+
+
+LLM_LAYER_OUTPUT: str = 'add_7'
+
+
+def create_llm_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> LlmLayerTensors:
+    _validate_bindings(bindings, frozenset(('p_layers_0_self_attn_q_proj_weight', 'p_layers_0_self_attn_k_proj_weight', 'p_layers_0_self_attn_v_proj_weight', 'p_layers_0_self_attn_o_proj_weight', 'p_layers_0_self_attn_q_norm_weight', 'p_layers_0_self_attn_k_norm_weight', 'p_layers_0_mlp_gate_proj_weight', 'p_layers_0_mlp_up_proj_weight', 'p_layers_0_mlp_down_proj_weight', 'p_layers_0_input_layernorm_weight', 'p_layers_0_post_attention_layernorm_weight', 'to', 'pow_1', 'mean', 'add', 'rsqrt', 'mul', 'to_1', 'mul_1', 'linear', 'view', 'to_2', 'pow_2', 'mean_1', 'add_1', 'rsqrt_1', 'mul_2', 'to_3', 'mul_3', 'transpose', 'linear_1', 'view_1', 'to_4', 'pow_3', 'mean_2', 'add_2', 'rsqrt_2', 'mul_4', 'to_5', 'mul_5', 'transpose_1', 'linear_2', 'view_2', 'transpose_2', 'unsqueeze', 'unsqueeze_1', 'mul_6', 'slice_1', 'slice_2', 'neg', 'cat', 'mul_7', 'add_3', 'mul_8', 'slice_3', 'slice_4', 'neg_1', 'cat_1', 'mul_9', 'add_4', 'scaled_dot_product_attention', 'transpose_3', 'contiguous', 'reshape', 'linear_3', 'add_5', 'to_6', 'pow_4', 'mean_3', 'add_6', 'rsqrt_3', 'mul_10', 'to_7', 'mul_11', 'linear_4', 'silu', 'linear_5', 'mul_12', 'linear_6', 'add_7')))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('add_7',)))
+    return LlmLayerTensors(
+        p_layers_0_self_attn_q_proj_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_self_attn_q_proj_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.self_attn.q_proj.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(2048, 1024)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_self_attn_q_proj_weight' in request_state_outputs,
+            ),
+        ),
+        p_layers_0_self_attn_k_proj_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_self_attn_k_proj_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.self_attn.k_proj.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_self_attn_k_proj_weight' in request_state_outputs,
+            ),
+        ),
+        p_layers_0_self_attn_v_proj_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_self_attn_v_proj_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.self_attn.v_proj.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_self_attn_v_proj_weight' in request_state_outputs,
+            ),
+        ),
+        p_layers_0_self_attn_o_proj_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_self_attn_o_proj_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.self_attn.o_proj.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(1024, 2048)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_self_attn_o_proj_weight' in request_state_outputs,
+            ),
+        ),
+        p_layers_0_self_attn_q_norm_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_self_attn_q_norm_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.self_attn.q_norm.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(128,)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_self_attn_q_norm_weight' in request_state_outputs,
+            ),
+        ),
+        p_layers_0_self_attn_k_norm_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_self_attn_k_norm_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.self_attn.k_norm.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(128,)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_self_attn_k_norm_weight' in request_state_outputs,
+            ),
+        ),
+        p_layers_0_mlp_gate_proj_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_mlp_gate_proj_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.mlp.gate_proj.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_mlp_gate_proj_weight' in request_state_outputs,
+            ),
+        ),
+        p_layers_0_mlp_up_proj_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_mlp_up_proj_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.mlp.up_proj.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_mlp_up_proj_weight' in request_state_outputs,
+            ),
+        ),
+        p_layers_0_mlp_down_proj_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_mlp_down_proj_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.mlp.down_proj.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(1024, 3072)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_mlp_down_proj_weight' in request_state_outputs,
+            ),
+        ),
+        p_layers_0_input_layernorm_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_input_layernorm_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.input_layernorm.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_input_layernorm_weight' in request_state_outputs,
+            ),
+        ),
+        p_layers_0_post_attention_layernorm_weight=_bind_tensor(
+            bindings,
+            'p_layers_0_post_attention_layernorm_weight',
+            _declare_tensor(
+            name=f"llm.layers.{layer_idx}.post_attention_layernorm.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_layers_0_post_attention_layernorm_weight' in request_state_outputs,
+            ),
+        ),
+        to=_bind_tensor(
+            bindings,
+            'to',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.to",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='to' in request_state_outputs,
+            ),
+        ),
+        pow_1=_bind_tensor(
+            bindings,
+            'pow_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.pow_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='pow_1' in request_state_outputs,
+            ),
+        ),
+        mean=_bind_tensor(
+            bindings,
+            'mean',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mean",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mean' in request_state_outputs,
+            ),
+        ),
+        add=_bind_tensor(
+            bindings,
+            'add',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.add",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='add' in request_state_outputs,
+            ),
+        ),
+        rsqrt=_bind_tensor(
+            bindings,
+            'rsqrt',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.rsqrt",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='rsqrt' in request_state_outputs,
+            ),
+        ),
+        mul=_bind_tensor(
+            bindings,
+            'mul',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul' in request_state_outputs,
+            ),
+        ),
+        to_1=_bind_tensor(
+            bindings,
+            'to_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.to_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='to_1' in request_state_outputs,
+            ),
+        ),
+        mul_1=_bind_tensor(
+            bindings,
+            'mul_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_1' in request_state_outputs,
+            ),
+        ),
+        linear=_bind_tensor(
+            bindings,
+            'linear',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.linear",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 2048)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='linear' in request_state_outputs,
+            ),
+        ),
+        view=_bind_tensor(
+            bindings,
+            'view',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.view",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='view' in request_state_outputs,
+            ),
+        ),
+        to_2=_bind_tensor(
+            bindings,
+            'to_2',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.to_2",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='to_2' in request_state_outputs,
+            ),
+        ),
+        pow_2=_bind_tensor(
+            bindings,
+            'pow_2',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.pow_2",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='pow_2' in request_state_outputs,
+            ),
+        ),
+        mean_1=_bind_tensor(
+            bindings,
+            'mean_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mean_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mean_1' in request_state_outputs,
+            ),
+        ),
+        add_1=_bind_tensor(
+            bindings,
+            'add_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.add_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='add_1' in request_state_outputs,
+            ),
+        ),
+        rsqrt_1=_bind_tensor(
+            bindings,
+            'rsqrt_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.rsqrt_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='rsqrt_1' in request_state_outputs,
+            ),
+        ),
+        mul_2=_bind_tensor(
+            bindings,
+            'mul_2',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_2",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_2' in request_state_outputs,
+            ),
+        ),
+        to_3=_bind_tensor(
+            bindings,
+            'to_3',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.to_3",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='to_3' in request_state_outputs,
+            ),
+        ),
+        mul_3=_bind_tensor(
+            bindings,
+            'mul_3',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_3",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_3' in request_state_outputs,
+            ),
+        ),
+        transpose=_bind_tensor(
+            bindings,
+            'transpose',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.transpose",
+            spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='transpose' in request_state_outputs,
+            ),
+        ),
+        linear_1=_bind_tensor(
+            bindings,
+            'linear_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.linear_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='linear_1' in request_state_outputs,
+            ),
+        ),
+        view_1=_bind_tensor(
+            bindings,
+            'view_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.view_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='view_1' in request_state_outputs,
+            ),
+        ),
+        to_4=_bind_tensor(
+            bindings,
+            'to_4',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.to_4",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='to_4' in request_state_outputs,
+            ),
+        ),
+        pow_3=_bind_tensor(
+            bindings,
+            'pow_3',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.pow_3",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='pow_3' in request_state_outputs,
+            ),
+        ),
+        mean_2=_bind_tensor(
+            bindings,
+            'mean_2',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mean_2",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mean_2' in request_state_outputs,
+            ),
+        ),
+        add_2=_bind_tensor(
+            bindings,
+            'add_2',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.add_2",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='add_2' in request_state_outputs,
+            ),
+        ),
+        rsqrt_2=_bind_tensor(
+            bindings,
+            'rsqrt_2',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.rsqrt_2",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='rsqrt_2' in request_state_outputs,
+            ),
+        ),
+        mul_4=_bind_tensor(
+            bindings,
+            'mul_4',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_4",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_4' in request_state_outputs,
+            ),
+        ),
+        to_5=_bind_tensor(
+            bindings,
+            'to_5',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.to_5",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='to_5' in request_state_outputs,
+            ),
+        ),
+        mul_5=_bind_tensor(
+            bindings,
+            'mul_5',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_5",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_5' in request_state_outputs,
+            ),
+        ),
+        transpose_1=_bind_tensor(
+            bindings,
+            'transpose_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.transpose_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='transpose_1' in request_state_outputs,
+            ),
+        ),
+        linear_2=_bind_tensor(
+            bindings,
+            'linear_2',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.linear_2",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='linear_2' in request_state_outputs,
+            ),
+        ),
+        view_2=_bind_tensor(
+            bindings,
+            'view_2',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.view_2",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='view_2' in request_state_outputs,
+            ),
+        ),
+        transpose_2=_bind_tensor(
+            bindings,
+            'transpose_2',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.transpose_2",
+            spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='transpose_2' in request_state_outputs,
+            ),
+        ),
+        unsqueeze=_bind_tensor(
+            bindings,
+            'unsqueeze',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.unsqueeze",
+            spec=TensorSpec(dtype='float32', shape=(2, 1, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='unsqueeze' in request_state_outputs,
+            ),
+        ),
+        unsqueeze_1=_bind_tensor(
+            bindings,
+            'unsqueeze_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.unsqueeze_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 1, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='unsqueeze_1' in request_state_outputs,
+            ),
+        ),
+        mul_6=_bind_tensor(
+            bindings,
+            'mul_6',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_6",
+            spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_6' in request_state_outputs,
+            ),
+        ),
+        slice_1=_bind_tensor(
+            bindings,
+            'slice_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.slice_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 64)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='slice_1' in request_state_outputs,
+            ),
+        ),
+        slice_2=_bind_tensor(
+            bindings,
+            'slice_2',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.slice_2",
+            spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 64)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='slice_2' in request_state_outputs,
+            ),
+        ),
+        neg=_bind_tensor(
+            bindings,
+            'neg',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.neg",
+            spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 64)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='neg' in request_state_outputs,
+            ),
+        ),
+        cat=_bind_tensor(
+            bindings,
+            'cat',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.cat",
+            spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='cat' in request_state_outputs,
+            ),
+        ),
+        mul_7=_bind_tensor(
+            bindings,
+            'mul_7',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_7",
+            spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_7' in request_state_outputs,
+            ),
+        ),
+        add_3=_bind_tensor(
+            bindings,
+            'add_3',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.add_3",
+            spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='add_3' in request_state_outputs,
+            ),
+        ),
+        mul_8=_bind_tensor(
+            bindings,
+            'mul_8',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_8",
+            spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_8' in request_state_outputs,
+            ),
+        ),
+        slice_3=_bind_tensor(
+            bindings,
+            'slice_3',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.slice_3",
+            spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 64)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='slice_3' in request_state_outputs,
+            ),
+        ),
+        slice_4=_bind_tensor(
+            bindings,
+            'slice_4',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.slice_4",
+            spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 64)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='slice_4' in request_state_outputs,
+            ),
+        ),
+        neg_1=_bind_tensor(
+            bindings,
+            'neg_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.neg_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 64)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='neg_1' in request_state_outputs,
+            ),
+        ),
+        cat_1=_bind_tensor(
+            bindings,
+            'cat_1',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.cat_1",
+            spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='cat_1' in request_state_outputs,
+            ),
+        ),
+        mul_9=_bind_tensor(
+            bindings,
+            'mul_9',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_9",
+            spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_9' in request_state_outputs,
+            ),
+        ),
+        add_4=_bind_tensor(
+            bindings,
+            'add_4',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.add_4",
+            spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='add_4' in request_state_outputs,
+            ),
+        ),
+        scaled_dot_product_attention=_bind_tensor(
+            bindings,
+            'scaled_dot_product_attention',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.scaled_dot_product_attention",
+            spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='scaled_dot_product_attention' in request_state_outputs,
+            ),
+        ),
+        transpose_3=_bind_tensor(
+            bindings,
+            'transpose_3',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.transpose_3",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='transpose_3' in request_state_outputs,
+            ),
+        ),
+        contiguous=_bind_tensor(
+            bindings,
+            'contiguous',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.contiguous",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='contiguous' in request_state_outputs,
+            ),
+        ),
+        reshape=_bind_tensor(
+            bindings,
+            'reshape',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.reshape",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 2048)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='reshape' in request_state_outputs,
+            ),
+        ),
+        linear_3=_bind_tensor(
+            bindings,
+            'linear_3',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.linear_3",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='linear_3' in request_state_outputs,
+            ),
+        ),
+        add_5=_bind_tensor(
+            bindings,
+            'add_5',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.add_5",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='add_5' in request_state_outputs,
+            ),
+        ),
+        to_6=_bind_tensor(
+            bindings,
+            'to_6',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.to_6",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='to_6' in request_state_outputs,
+            ),
+        ),
+        pow_4=_bind_tensor(
+            bindings,
+            'pow_4',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.pow_4",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='pow_4' in request_state_outputs,
+            ),
+        ),
+        mean_3=_bind_tensor(
+            bindings,
+            'mean_3',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mean_3",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mean_3' in request_state_outputs,
+            ),
+        ),
+        add_6=_bind_tensor(
+            bindings,
+            'add_6',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.add_6",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='add_6' in request_state_outputs,
+            ),
+        ),
+        rsqrt_3=_bind_tensor(
+            bindings,
+            'rsqrt_3',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.rsqrt_3",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='rsqrt_3' in request_state_outputs,
+            ),
+        ),
+        mul_10=_bind_tensor(
+            bindings,
+            'mul_10',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_10",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_10' in request_state_outputs,
+            ),
+        ),
+        to_7=_bind_tensor(
+            bindings,
+            'to_7',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.to_7",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='to_7' in request_state_outputs,
+            ),
+        ),
+        mul_11=_bind_tensor(
+            bindings,
+            'mul_11',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_11",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_11' in request_state_outputs,
+            ),
+        ),
+        linear_4=_bind_tensor(
+            bindings,
+            'linear_4',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.linear_4",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='linear_4' in request_state_outputs,
+            ),
+        ),
+        silu=_bind_tensor(
+            bindings,
+            'silu',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.silu",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='silu' in request_state_outputs,
+            ),
+        ),
+        linear_5=_bind_tensor(
+            bindings,
+            'linear_5',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.linear_5",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='linear_5' in request_state_outputs,
+            ),
+        ),
+        mul_12=_bind_tensor(
+            bindings,
+            'mul_12',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.mul_12",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_12' in request_state_outputs,
+            ),
+        ),
+        linear_6=_bind_tensor(
+            bindings,
+            'linear_6',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.linear_6",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='linear_6' in request_state_outputs,
+            ),
+        ),
+        add_7=_bind_tensor(
+            bindings,
+            'add_7',
+            _declare_tensor(
+            name=f"{prefix}.layers.{layer_idx}.add_7",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='add_7' in request_state_outputs,
+            ),
+        ),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class LlmForwardTensors:
+    p_norm_weight: LogicalTensor
+    hidden_states: LogicalTensor
+    cos: LogicalTensor
+    sin: LogicalTensor
+    attention_mask: LogicalTensor
+    to_224: LogicalTensor
+    pow_113: LogicalTensor
+    mean_112: LogicalTensor
+    add_224: LogicalTensor
+    rsqrt_112: LogicalTensor
+    mul_364: LogicalTensor
+    to_225: LogicalTensor
+    mul_365: LogicalTensor
+    layers: list[LlmLayerTensors]
+
+
+LLM_FORWARD_OUTPUT: str = 'mul_365'
+
+
+def create_llm_forward(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> LlmForwardTensors:
+    _validate_bindings(bindings, frozenset(('p_norm_weight', 'hidden_states', 'cos', 'sin', 'attention_mask', 'to_224', 'pow_113', 'mean_112', 'add_224', 'rsqrt_112', 'mul_364', 'to_225', 'mul_365')))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('mul_365',)))
+    return LlmForwardTensors(
+        p_norm_weight=_bind_tensor(
+            bindings,
+            'p_norm_weight',
+            _declare_tensor(
+            name="llm.norm.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_norm_weight' in request_state_outputs,
+            ),
+        ),
+        hidden_states=_bind_tensor(
+            bindings,
+            'hidden_states',
+            _declare_tensor(
+            name=f"{prefix}.hidden_states",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.INPUT,
+            memory=MemoryClass.HOST_INPUT,
+            lifetime=TensorLifetime.FRAME,
+            request_state='hidden_states' in request_state_outputs,
+            ),
+        ),
+        cos=_bind_tensor(
+            bindings,
+            'cos',
+            _declare_tensor(
+            name=f"{prefix}.cos",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 128)),
+            role=TensorRole.INPUT,
+            memory=MemoryClass.HOST_INPUT,
+            lifetime=TensorLifetime.FRAME,
+            request_state='cos' in request_state_outputs,
+            ),
+        ),
+        sin=_bind_tensor(
+            bindings,
+            'sin',
+            _declare_tensor(
+            name=f"{prefix}.sin",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 128)),
+            role=TensorRole.INPUT,
+            memory=MemoryClass.HOST_INPUT,
+            lifetime=TensorLifetime.FRAME,
+            request_state='sin' in request_state_outputs,
+            ),
+        ),
+        attention_mask=_bind_tensor(
+            bindings,
+            'attention_mask',
+            _declare_tensor(
+            name=f"{prefix}.attention_mask",
+            spec=TensorSpec(dtype='float32', shape=(2, 1, 300, 300)),
+            role=TensorRole.INPUT,
+            memory=MemoryClass.HOST_INPUT,
+            lifetime=TensorLifetime.FRAME,
+            request_state='attention_mask' in request_state_outputs,
+            ),
+        ),
+        to_224=_bind_tensor(
+            bindings,
+            'to_224',
+            _declare_tensor(
+            name=f"{prefix}.to_224",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='to_224' in request_state_outputs,
+            ),
+        ),
+        pow_113=_bind_tensor(
+            bindings,
+            'pow_113',
+            _declare_tensor(
+            name=f"{prefix}.pow_113",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='pow_113' in request_state_outputs,
+            ),
+        ),
+        mean_112=_bind_tensor(
+            bindings,
+            'mean_112',
+            _declare_tensor(
+            name=f"{prefix}.mean_112",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mean_112' in request_state_outputs,
+            ),
+        ),
+        add_224=_bind_tensor(
+            bindings,
+            'add_224',
+            _declare_tensor(
+            name=f"{prefix}.add_224",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='add_224' in request_state_outputs,
+            ),
+        ),
+        rsqrt_112=_bind_tensor(
+            bindings,
+            'rsqrt_112',
+            _declare_tensor(
+            name=f"{prefix}.rsqrt_112",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='rsqrt_112' in request_state_outputs,
+            ),
+        ),
+        mul_364=_bind_tensor(
+            bindings,
+            'mul_364',
+            _declare_tensor(
+            name=f"{prefix}.mul_364",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_364' in request_state_outputs,
+            ),
+        ),
+        to_225=_bind_tensor(
+            bindings,
+            'to_225',
+            _declare_tensor(
+            name=f"{prefix}.to_225",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='to_225' in request_state_outputs,
+            ),
+        ),
+        mul_365=_bind_tensor(
+            bindings,
+            'mul_365',
+            _declare_tensor(
+            name=f"{prefix}.mul_365",
+            spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='mul_365' in request_state_outputs,
+            ),
+        ),
+        layers=[create_llm_layer(prefix, layer_idx=i) for i in range(28)],
+    )
+
+
+def _declare_tensor(
+    *,
+    name: str,
+    spec: TensorSpec,
+    role: TensorRole,
+    memory: MemoryClass,
+    lifetime: TensorLifetime,
+    request_state: bool = False,
+    compare: ComparePolicy | None = None,
+    pytorch_probe: PyTorchProbe | None = None,
+) -> LogicalTensor:
+    if request_state:
+        role = TensorRole.OUTPUT
+        memory = MemoryClass.REQUEST_STATE
+        lifetime = TensorLifetime.REQUEST
+    return LogicalTensor(
+        name=name,
+        spec=spec,
+        role=role,
+        memory=memory,
+        lifetime=lifetime,
+        compare=compare,
+        pytorch_probe=pytorch_probe,
+    )
+
+
+def _bind_tensor(
+    bindings: Mapping[str, LogicalTensor] | None,
+    field: str,
+    tensor: LogicalTensor,
+) -> LogicalTensor:
+    if bindings is None:
+        return tensor
+    bound = bindings.get(field)
+    if bound is None:
+        return tensor
+    if bound.spec != tensor.spec:
+        raise ValueError(f"{field} binding spec {bound.spec} does not match {tensor.spec}")
+    return bound
+
+
+def _validate_bindings(
+    bindings: Mapping[str, LogicalTensor] | None,
+    tensor_names: frozenset[str],
+) -> None:
+    if bindings is None:
+        return
+    unknown = frozenset(bindings) - tensor_names
+    if unknown:
+        raise ValueError(f"unknown tensor bindings: {sorted(unknown)}")
+
+
+def _validate_request_state_outputs(
+    request_state_outputs: Collection[str],
+    output_names: frozenset[str],
+) -> None:
+    unknown = frozenset(request_state_outputs) - output_names
+    if unknown:
+        raise ValueError(f"request_state_outputs must name module outputs, got {sorted(unknown)}")
