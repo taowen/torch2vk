@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
+import numpy as np
+
+from models.qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
+from models.qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
 from models.spike_qwen3_asr.shaders.conv2d2_export_conv2d_f32 import CONV2D2_EXPORT_CONV2D_F32
 from models.spike_qwen3_asr.shaders.conv2d3_export_conv2d_f32 import CONV2D3_EXPORT_CONV2D_F32
 from models.spike_qwen3_asr.shaders.decode_embed_export_embedding_f32 import DECODE_EMBED_EXPORT_EMBEDDING_F32
@@ -44,8 +50,8 @@ from models.spike_qwen3_asr.shaders.export_cat_f32_32 import EXPORT_CAT_F32_32
 from models.spike_qwen3_asr.shaders.export_conv2d_f32 import EXPORT_CONV2D_F32
 from models.spike_qwen3_asr.shaders.export_embedding_f32 import EXPORT_EMBEDDING_F32
 from models.spike_qwen3_asr.shaders.export_gelu_f32 import EXPORT_GELU_F32
-from models.spike_qwen3_asr.shaders.export_index_copy_f32_bd093d5c47 import EXPORT_INDEX_COPY_F32_BD093D5C47
-from models.spike_qwen3_asr.shaders.export_index_select_f32_5f14be2148 import EXPORT_INDEX_SELECT_F32_5F14BE2148
+from models.spike_qwen3_asr.shaders.export_index_copy_f32_7ba4f1ff13 import EXPORT_INDEX_COPY_F32_7BA4F1FF13
+from models.spike_qwen3_asr.shaders.export_index_select_f32_c6680f8d95 import EXPORT_INDEX_SELECT_F32_C6680F8D95
 from models.spike_qwen3_asr.shaders.export_kv_cache_write_f32 import EXPORT_KV_CACHE_WRITE_F32
 from models.spike_qwen3_asr.shaders.export_layer_norm_f32 import EXPORT_LAYER_NORM_F32
 from models.spike_qwen3_asr.shaders.export_linear_bias_f32 import EXPORT_LINEAR_BIAS_F32
@@ -107,7 +113,112 @@ from models.spike_qwen3_asr.tensors.encoder_layer import EncoderLayerTensors
 from models.spike_qwen3_asr.tensors.text import AudioInjectTensors, EmbedTokensTensors, LmHeadTensors, TextNormTensors
 from models.spike_qwen3_asr.tensors.text_layer import TextLayerTensors
 from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
+
+
+SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {
+    "conv2d2_export_conv2d_f32": CONV2D2_EXPORT_CONV2D_F32,
+    "conv2d3_export_conv2d_f32": CONV2D3_EXPORT_CONV2D_F32,
+    "decode_embed_export_embedding_f32": DECODE_EMBED_EXPORT_EMBEDDING_F32,
+    "decode_layer_export_add_f32": DECODE_LAYER_EXPORT_ADD_F32,
+    "decode_layer_export_cat_f32": DECODE_LAYER_EXPORT_CAT_F32,
+    "decode_layer_export_cat_f32_32": DECODE_LAYER_EXPORT_CAT_F32_32,
+    "decode_layer_export_linear_nobias_f32": DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32,
+    "decode_layer_export_linear_nobias_f32_14": DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_14,
+    "decode_layer_export_linear_nobias_f32_22": DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_22,
+    "decode_layer_export_linear_nobias_f32_37": DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_37,
+    "decode_layer_export_linear_nobias_f32_39": DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_39,
+    "decode_layer_export_linear_nobias_f32_41": DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_41,
+    "decode_layer_export_linear_nobias_f32_43": DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_43,
+    "decode_layer_export_mean_dim_f32": DECODE_LAYER_EXPORT_MEAN_DIM_F32,
+    "decode_layer_export_mean_dim_f32_16": DECODE_LAYER_EXPORT_MEAN_DIM_F32_16,
+    "decode_layer_export_mean_dim_f32_8": DECODE_LAYER_EXPORT_MEAN_DIM_F32_8,
+    "decode_layer_export_mul_broadcast_inner": DECODE_LAYER_EXPORT_MUL_BROADCAST_INNER,
+    "decode_layer_export_mul_broadcast_inner_29": DECODE_LAYER_EXPORT_MUL_BROADCAST_INNER_29,
+    "decode_layer_export_mul_broadcast_inner_33": DECODE_LAYER_EXPORT_MUL_BROADCAST_INNER_33,
+    "decode_layer_export_mul_broadcast_last": DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST,
+    "decode_layer_export_mul_broadcast_last_11": DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST_11,
+    "decode_layer_export_mul_broadcast_last_19": DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST_19,
+    "decode_layer_export_slice_f32": DECODE_LAYER_EXPORT_SLICE_F32,
+    "decode_layer_export_slice_f32_25": DECODE_LAYER_EXPORT_SLICE_F32_25,
+    "decode_layer_export_slice_f32_30": DECODE_LAYER_EXPORT_SLICE_F32_30,
+    "decode_layer_export_slice_f32_31": DECODE_LAYER_EXPORT_SLICE_F32_31,
+    "decode_lm_head_export_linear_nobias_f32": DECODE_LM_HEAD_EXPORT_LINEAR_NOBIAS_F32,
+    "decode_norm_export_mean_dim_f32": DECODE_NORM_EXPORT_MEAN_DIM_F32,
+    "decode_norm_export_mul_broadcast_last": DECODE_NORM_EXPORT_MUL_BROADCAST_LAST,
+    "encoder_layer_export_add_f32": ENCODER_LAYER_EXPORT_ADD_F32,
+    "encoder_layer_export_gelu_f32": ENCODER_LAYER_EXPORT_GELU_F32,
+    "export_add_f32": EXPORT_ADD_F32,
+    "export_add_f32_38": EXPORT_ADD_F32_38,
+    "export_add_f32_44": EXPORT_ADD_F32_44,
+    "export_add_scalar": EXPORT_ADD_SCALAR,
+    "export_add_scalar_17": EXPORT_ADD_SCALAR_17,
+    "export_add_scalar_9": EXPORT_ADD_SCALAR_9,
+    "export_cat_f32": EXPORT_CAT_F32,
+    "export_cat_f32_32": EXPORT_CAT_F32_32,
+    "export_conv2d_f32": EXPORT_CONV2D_F32,
+    "export_embedding_f32": EXPORT_EMBEDDING_F32,
+    "export_gelu_f32": EXPORT_GELU_F32,
+    "export_index_copy_f32_7ba4f1ff13": EXPORT_INDEX_COPY_F32_7BA4F1FF13,
+    "export_index_select_f32_c6680f8d95": EXPORT_INDEX_SELECT_F32_C6680F8D95,
+    "export_kv_cache_write_f32": EXPORT_KV_CACHE_WRITE_F32,
+    "export_layer_norm_f32": EXPORT_LAYER_NORM_F32,
+    "export_linear_bias_f32": EXPORT_LINEAR_BIAS_F32,
+    "export_linear_bias_f32_10": EXPORT_LINEAR_BIAS_F32_10,
+    "export_linear_bias_f32_12": EXPORT_LINEAR_BIAS_F32_12,
+    "export_linear_nobias_f32": EXPORT_LINEAR_NOBIAS_F32,
+    "export_linear_nobias_f32_14": EXPORT_LINEAR_NOBIAS_F32_14,
+    "export_linear_nobias_f32_22": EXPORT_LINEAR_NOBIAS_F32_22,
+    "export_linear_nobias_f32_37": EXPORT_LINEAR_NOBIAS_F32_37,
+    "export_linear_nobias_f32_39": EXPORT_LINEAR_NOBIAS_F32_39,
+    "export_linear_nobias_f32_41": EXPORT_LINEAR_NOBIAS_F32_41,
+    "export_linear_nobias_f32_43": EXPORT_LINEAR_NOBIAS_F32_43,
+    "export_mean_dim_f32": EXPORT_MEAN_DIM_F32,
+    "export_mean_dim_f32_16": EXPORT_MEAN_DIM_F32_16,
+    "export_mean_dim_f32_8": EXPORT_MEAN_DIM_F32_8,
+    "export_mul_broadcast_inner": EXPORT_MUL_BROADCAST_INNER,
+    "export_mul_broadcast_inner_29": EXPORT_MUL_BROADCAST_INNER_29,
+    "export_mul_broadcast_inner_33": EXPORT_MUL_BROADCAST_INNER_33,
+    "export_mul_broadcast_last": EXPORT_MUL_BROADCAST_LAST,
+    "export_mul_broadcast_last_11": EXPORT_MUL_BROADCAST_LAST_11,
+    "export_mul_broadcast_last_19": EXPORT_MUL_BROADCAST_LAST_19,
+    "export_mul_f32": EXPORT_MUL_F32,
+    "export_mul_left_broadcast": EXPORT_MUL_LEFT_BROADCAST,
+    "export_mul_left_broadcast_12": EXPORT_MUL_LEFT_BROADCAST_12,
+    "export_mul_left_broadcast_20": EXPORT_MUL_LEFT_BROADCAST_20,
+    "export_neg_f32": EXPORT_NEG_F32,
+    "export_pow_scalar_f32": EXPORT_POW_SCALAR_F32,
+    "export_pow_scalar_f32_15": EXPORT_POW_SCALAR_F32_15,
+    "export_pow_scalar_f32_7": EXPORT_POW_SCALAR_F32_7,
+    "export_rsqrt_f32": EXPORT_RSQRT_F32,
+    "export_rsqrt_f32_10": EXPORT_RSQRT_F32_10,
+    "export_rsqrt_f32_18": EXPORT_RSQRT_F32_18,
+    "export_sdpa_causal_f32": EXPORT_SDPA_CAUSAL_F32,
+    "export_sdpa_decode_cache_f32": EXPORT_SDPA_DECODE_CACHE_F32,
+    "export_sdpa_masked_f32": EXPORT_SDPA_MASKED_F32,
+    "export_silu_f32": EXPORT_SILU_F32,
+    "export_slice_f32": EXPORT_SLICE_F32,
+    "export_slice_f32_25": EXPORT_SLICE_F32_25,
+    "export_slice_f32_30": EXPORT_SLICE_F32_30,
+    "export_slice_f32_31": EXPORT_SLICE_F32_31,
+    "export_transpose_f32_48d16b9b88": EXPORT_TRANSPOSE_F32_48D16B9B88,
+    "export_transpose_f32_6392135058": EXPORT_TRANSPOSE_F32_6392135058,
+    "export_transpose_f32_6a3397f037": EXPORT_TRANSPOSE_F32_6A3397F037,
+    "export_transpose_f32_8e058a050e": EXPORT_TRANSPOSE_F32_8E058A050E,
+    "export_transpose_f32_9884b7b82d": EXPORT_TRANSPOSE_F32_9884B7B82D,
+    "export_transpose_f32_9e00ca2f33": EXPORT_TRANSPOSE_F32_9E00CA2F33,
+    "export_transpose_f32_9e77b1cee2": EXPORT_TRANSPOSE_F32_9E77B1CEE2,
+    "export_transpose_f32_d509518b4f": EXPORT_TRANSPOSE_F32_D509518B4F,
+    "export_transpose_f32_d95ce920ac": EXPORT_TRANSPOSE_F32_D95CE920AC,
+    "lm_head_export_linear_nobias_f32": LM_HEAD_EXPORT_LINEAR_NOBIAS_F32,
+    "proj1_export_gelu_f32": PROJ1_EXPORT_GELU_F32,
+    "proj2_export_linear_bias_f32": PROJ2_EXPORT_LINEAR_BIAS_F32,
+    "text_layer_export_add_f32": TEXT_LAYER_EXPORT_ADD_F32,
+    "text_layer_export_linear_nobias_f32": TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32,
+    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name: QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
+    QWEN3_ASR_TOKEN_STORE_EOS_F32.name: QWEN3_ASR_TOKEN_STORE_EOS_F32,
+}
 
 
 def run_conv2d1(rt: RuntimeSession, tensors: Conv2d1Tensors) -> None:
@@ -134,7 +245,7 @@ def run_conv_out(rt: RuntimeSession, tensors: ConvOutTensors) -> None:
 def run_audio_position_compact(rt: RuntimeSession, tensors: AudioPositionCompactTensors) -> None:
     EXPORT_ADD_F32(rt, x=tensors.x, y=tensors.position_embedding, output=tensors.add)
     _alias(rt, tensors.add, tensors.reshape)
-    EXPORT_INDEX_SELECT_F32_5F14BE2148(rt, x=tensors.reshape, index=tensors.compact_index, output=tensors.index_select)
+    EXPORT_INDEX_SELECT_F32_C6680F8D95(rt, x=tensors.reshape, index=tensors.compact_index, output=tensors.index_select)
 
 
 def run_encoder_layer(rt: RuntimeSession, tensors: EncoderLayerTensors) -> None:
@@ -183,7 +294,7 @@ def run_embed_tokens(rt: RuntimeSession, tensors: EmbedTokensTensors) -> None:
 
 def run_audio_inject(rt: RuntimeSession, tensors: AudioInjectTensors) -> None:
     _alias(rt, tensors.audio_features, tensors.unsqueeze)
-    EXPORT_INDEX_COPY_F32_BD093D5C47(rt, cache=tensors.index_copy, index=tensors.audio_positions, src=tensors.unsqueeze)
+    EXPORT_INDEX_COPY_F32_7BA4F1FF13(rt, cache=tensors.index_copy, index=tensors.audio_positions, src=tensors.unsqueeze)
 
 
 def run_text_layer(rt: RuntimeSession, tensors: TextLayerTensors) -> None:
@@ -365,6 +476,70 @@ def run_decode_norm(rt: RuntimeSession, tensors: DecodeNormTensors) -> None:
 
 def run_decode_lm_head(rt: RuntimeSession, tensors: DecodeLmHeadTensors) -> None:
     DECODE_LM_HEAD_EXPORT_LINEAR_NOBIAS_F32(rt, x=tensors.input, weight=tensors.p_weight, output=tensors.linear)
+
+
+def decode_step_inputs(
+    *,
+    decode_embed_t: DecodeEmbedTensors,
+    decode_layer_ts: Sequence[DecodeLayerTensors],
+    eos_token_ids: LogicalTensor,
+    token_index: LogicalTensor,
+    token: int,
+    cache_position: int,
+    eos_token_array: np.ndarray,
+    token_index_value: int,
+) -> dict[LogicalTensor, np.ndarray]:
+    if not decode_layer_ts:
+        raise ValueError("decode_layer_ts must not be empty")
+    return {
+        decode_embed_t.input: np.array([[token]], dtype=np.int64),
+        decode_layer_ts[0].cache_position: np.array([cache_position], dtype=np.int64),
+        eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
+        token_index: np.array([token_index_value], dtype=np.int64),
+    }
+
+
+def run_decode_step(
+    rt: RuntimeSession,
+    *,
+    decode_embed_t: DecodeEmbedTensors,
+    decode_layer_ts: Sequence[DecodeLayerTensors],
+    decode_norm_t: DecodeNormTensors,
+    decode_lm_head_t: DecodeLmHeadTensors,
+    eos_token_ids: LogicalTensor,
+    next_token: LogicalTensor,
+    done: LogicalTensor,
+    token_index: LogicalTensor,
+    generated_tokens: LogicalTensor,
+    generated_length: LogicalTensor,
+    stopped: LogicalTensor,
+    step: int,
+) -> int:
+    if not decode_layer_ts:
+        raise ValueError("decode_layer_ts must not be empty")
+    with rt.frame(f"spike.decode.{step:04d}"):
+        run_decode_embed(rt, decode_embed_t)
+        for layer_tensors in decode_layer_ts:
+            run_decode_layer(rt, layer_tensors)
+        run_decode_norm(rt, decode_norm_t)
+        run_decode_lm_head(rt, decode_lm_head_t)
+        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
+            rt,
+            logits=decode_lm_head_t.linear,
+            eos_token_ids=eos_token_ids,
+            next_token=next_token,
+            done=done,
+        )
+        QWEN3_ASR_TOKEN_STORE_EOS_F32(
+            rt,
+            next_token=next_token,
+            token_index=token_index,
+            done=done,
+            generated_tokens=generated_tokens,
+            generated_length=generated_length,
+            stopped=stopped,
+        )
+    return int(rt.read_request_state(next_token).reshape(-1)[0])
 
 
 def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:

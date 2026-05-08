@@ -174,7 +174,7 @@ def _extract_plan(prog: ExportedProgram, weight_prefix: str) -> dict:
 
 def _runtime_dtype(dtype: str) -> str:
     if dtype in {"int64", "int32"}:
-        return "int32"
+        return dtype
     return "float32"
 
 
@@ -303,6 +303,7 @@ def _generate_dispatch_file(plans: dict[str, dict]) -> str:
         source, imports = _generate_dispatch_function(plan, func_name)
         function_sources.append(source)
         all_shader_imports.update(imports)
+    function_sources.append(_generate_decode_step_helpers())
 
     # Group tensor class imports by file
     tensor_imports: dict[str, list[str]] = {}
@@ -325,8 +326,93 @@ def _generate_dispatch_file(plans: dict[str, dict]) -> str:
         tensor_package="models.spike_qwen3_asr.tensors",
         shader_imports=shader_imports,
         tensor_imports=tensor_import_sources,
+        extra_imports_source=_DISPATCH_EXTRA_IMPORTS,
+        extra_shader_variants=(
+            {
+                "name_source": "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name",
+                "const": "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32",
+            },
+            {
+                "name_source": "QWEN3_ASR_TOKEN_STORE_EOS_F32.name",
+                "const": "QWEN3_ASR_TOKEN_STORE_EOS_F32",
+            },
+        ),
         function_sources=function_sources,
     )
+
+
+_DISPATCH_EXTRA_IMPORTS = """from collections.abc import Sequence
+
+import numpy as np
+
+from models.qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
+from models.qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
+"""
+
+
+def _generate_decode_step_helpers() -> str:
+    return '''def decode_step_inputs(
+    *,
+    decode_embed_t: DecodeEmbedTensors,
+    decode_layer_ts: Sequence[DecodeLayerTensors],
+    eos_token_ids: LogicalTensor,
+    token_index: LogicalTensor,
+    token: int,
+    cache_position: int,
+    eos_token_array: np.ndarray,
+    token_index_value: int,
+) -> dict[LogicalTensor, np.ndarray]:
+    if not decode_layer_ts:
+        raise ValueError("decode_layer_ts must not be empty")
+    return {
+        decode_embed_t.input: np.array([[token]], dtype=np.int64),
+        decode_layer_ts[0].cache_position: np.array([cache_position], dtype=np.int64),
+        eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
+        token_index: np.array([token_index_value], dtype=np.int64),
+    }
+
+
+def run_decode_step(
+    rt: RuntimeSession,
+    *,
+    decode_embed_t: DecodeEmbedTensors,
+    decode_layer_ts: Sequence[DecodeLayerTensors],
+    decode_norm_t: DecodeNormTensors,
+    decode_lm_head_t: DecodeLmHeadTensors,
+    eos_token_ids: LogicalTensor,
+    next_token: LogicalTensor,
+    done: LogicalTensor,
+    token_index: LogicalTensor,
+    generated_tokens: LogicalTensor,
+    generated_length: LogicalTensor,
+    stopped: LogicalTensor,
+    step: int,
+) -> int:
+    if not decode_layer_ts:
+        raise ValueError("decode_layer_ts must not be empty")
+    with rt.frame(f"spike.decode.{step:04d}"):
+        run_decode_embed(rt, decode_embed_t)
+        for layer_tensors in decode_layer_ts:
+            run_decode_layer(rt, layer_tensors)
+        run_decode_norm(rt, decode_norm_t)
+        run_decode_lm_head(rt, decode_lm_head_t)
+        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
+            rt,
+            logits=decode_lm_head_t.linear,
+            eos_token_ids=eos_token_ids,
+            next_token=next_token,
+            done=done,
+        )
+        QWEN3_ASR_TOKEN_STORE_EOS_F32(
+            rt,
+            next_token=next_token,
+            token_index=token_index,
+            done=done,
+            generated_tokens=generated_tokens,
+            generated_length=generated_length,
+            stopped=stopped,
+        )
+    return int(rt.read_request_state(next_token).reshape(-1)[0])'''
 
 
 # ==============================================================
@@ -361,6 +447,20 @@ def _plan_to_class_name(plan_name: str) -> str:
     return "".join(p.capitalize() for p in parts) + "Tensors"
 
 
+def _compare_extra_lines(plan_name: str, tensor_name: str) -> tuple[str, ...]:
+    if plan_name == "run_proj2" and tensor_name == "linear":
+        return (
+            'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
+            'pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="last_hidden_state"),',
+        )
+    if plan_name in {"run_lm_head", "run_decode_lm_head"} and tensor_name == "linear":
+        return (
+            'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
+            'pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),',
+        )
+    return ()
+
+
 def _generate_tensor_class(plan_name: str, plan: dict) -> str:
     class_name = _plan_to_class_name(plan_name)
     func_name = plan_name.removeprefix("run_")
@@ -376,7 +476,7 @@ def _generate_tensor_class(plan_name: str, plan: dict) -> str:
         if kind == "parameter":
             dtype = "bfloat16"
         else:
-            dtype = "int32" if meta["dtype"] in ("int64", "int32") else "float32"
+            dtype = meta["dtype"] if meta["dtype"] in ("int64", "int32") else "float32"
 
         if kind == "parameter":
             role, memory, lifetime = "TensorRole.WEIGHT", "MemoryClass.MODEL_WEIGHT", "TensorLifetime.MODEL"
@@ -394,13 +494,6 @@ def _generate_tensor_class(plan_name: str, plan: dict) -> str:
             role, memory, lifetime = "TensorRole.ACTIVATION", "MemoryClass.FRAME_WORKSPACE", "TensorLifetime.FRAME"
             name_expr = f'f"{{prefix}}.{name}"'
 
-        extra_lines = ()
-        if name == output_name:
-            extra_lines = (
-                'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
-                'pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),',
-            )
-
         tensor_entries.append({
             "name": name,
             "name_source": repr(name),
@@ -410,7 +503,7 @@ def _generate_tensor_class(plan_name: str, plan: dict) -> str:
             "role": role,
             "memory": memory,
             "lifetime": lifetime,
-            "extra_lines": extra_lines,
+            "extra_lines": _compare_extra_lines(plan_name, name),
         })
 
     # Function signature: layered submodules get layer_idx parameter

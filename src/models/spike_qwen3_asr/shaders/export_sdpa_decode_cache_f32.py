@@ -47,7 +47,7 @@ EXPORT_SDPA_DECODE_CACHE_F32 = ShaderVariant(
                 name='cache_position',
                 io_kind=IOKind.INPUT,
                 role='cache_position',
-                contract=TensorContract(dtype='int32', shape=('T',)),
+                contract=TensorContract(dtype='int64', shape=('T',)),
             ),
             TensorFieldSpec(
                 name='output',
@@ -68,18 +68,19 @@ EXPORT_SDPA_DECODE_CACHE_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(16, 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_shader_int64=True),
     source="""\
 #version 450
 
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float q[]; };
 layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
-layout(set = 0, binding = 3) buffer restrict readonly CachePositionBuffer { int cache_position[]; };
+layout(set = 0, binding = 3) buffer restrict readonly CachePositionBuffer { int64_t cache_position[]; };
 layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; } pc;
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;

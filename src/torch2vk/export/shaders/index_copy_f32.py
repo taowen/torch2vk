@@ -4,7 +4,7 @@ import hashlib
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import node_input_dtype, node_input_shape, node_output_shape
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -17,12 +17,14 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
+from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
 
 _SOURCE_DIM2_4D = """\
 #version 450
+{{INDEX_EXTENSION}}
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict CacheBuffer { float cache[]; };
-layout(set = 0, binding = 1) buffer restrict readonly IndexBuffer { int index_values[]; };
+layout(set = 0, binding = 1) buffer restrict readonly IndexBuffer { {{INDEX_TYPE}} index_values[]; };
 layout(set = 0, binding = 2) buffer restrict readonly SrcBuffer { float src[]; };
 layout(push_constant) uniform PushConstants { uint B; uint H; uint S; uint D; uint T; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -48,9 +50,10 @@ void main() {
 
 _SOURCE_DIM1_3D = """\
 #version 450
+{{INDEX_EXTENSION}}
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict CacheBuffer { float cache[]; };
-layout(set = 0, binding = 1) buffer restrict readonly IndexBuffer { int index_values[]; };
+layout(set = 0, binding = 1) buffer restrict readonly IndexBuffer { {{INDEX_TYPE}} index_values[]; };
 layout(set = 0, binding = 2) buffer restrict readonly SrcBuffer { float src[]; };
 layout(push_constant) uniform PushConstants { uint B; uint T; uint H; uint S; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -75,9 +78,10 @@ void main() {
 
 _SOURCE_KV_CACHE_WRITE = """\
 #version 450
+{{INDEX_EXTENSION}}
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict CacheBuffer { float cache[]; };
-layout(set = 0, binding = 1) buffer restrict readonly CachePositionBuffer { int cache_position[]; };
+layout(set = 0, binding = 1) buffer restrict readonly CachePositionBuffer { {{INDEX_TYPE}} cache_position[]; };
 layout(set = 0, binding = 2) buffer restrict readonly SrcBuffer { float src[]; };
 layout(push_constant) uniform PushConstants { uint B; uint H; uint S; uint D; uint T; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -129,7 +133,10 @@ def _make_kv_cache_write_variant(node: Node) -> ShaderVariant | None:
     cache_shape = node_output_shape(node)
     index_shape = node_input_shape(node, 2)
     src_shape = node_input_shape(node, 3)
+    index_dtype = node_input_dtype(node, 2)
     if dim != 2:
+        return None
+    if index_dtype not in {"int32", "int64"}:
         return None
     if len(cache_shape) != 4 or len(src_shape) != 4 or len(index_shape) != 1:
         return None
@@ -147,7 +154,7 @@ def _make_kv_cache_write_variant(node: Node) -> ShaderVariant | None:
             shader_name="export_kv_cache_write_f32",
             fields=(
                 TensorFieldSpec("cache", IOKind.INOUT, "state", TensorContract(dtype="float32", shape=("B", "H", "S", "D"))),
-                TensorFieldSpec("cache_position", IOKind.INPUT, "cache_position", TensorContract(dtype="int32", shape=("T",))),
+                TensorFieldSpec("cache_position", IOKind.INPUT, "cache_position", TensorContract(dtype=index_dtype, shape=("T",))),
                 TensorFieldSpec("src", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("B", "H", "T", "D"))),
             ),
             push_constants=PushConstantSpec(
@@ -162,7 +169,8 @@ def _make_kv_cache_write_variant(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(ceil_div(total, 256), 1, 1),
         ),
-        source=_SOURCE_KV_CACHE_WRITE,
+        execution_requirements=_index_execution_requirements(index_dtype),
+        source=_index_source(_SOURCE_KV_CACHE_WRITE, index_dtype),
     )
 
 
@@ -171,6 +179,9 @@ def _make_index_copy_dim2_4d(node: Node) -> ShaderVariant | None:
     cache_shape = node_output_shape(node)
     index_shape = node_input_shape(node, 2)
     src_shape = node_input_shape(node, 3)
+    index_dtype = node_input_dtype(node, 2)
+    if index_dtype not in {"int32", "int64"}:
+        return None
     if len(cache_shape) != 4 or len(src_shape) != 4 or len(index_shape) != 1:
         return None
     if cache_shape[0] != src_shape[0] or cache_shape[1] != src_shape[1] or cache_shape[3] != src_shape[3]:
@@ -178,7 +189,9 @@ def _make_index_copy_dim2_4d(node: Node) -> ShaderVariant | None:
     if index_shape[0] != src_shape[2]:
         return None
 
-    digest = hashlib.sha1(repr((cache_shape, index_shape, src_shape, dim)).encode()).hexdigest()[:10]
+    digest = hashlib.sha1(
+        repr((cache_shape, index_shape, src_shape, dim, index_dtype)).encode()
+    ).hexdigest()[:10]
     shader_name = f"export_index_copy_f32_{digest}"
     total = mul(mul(mul("B", "H"), "T"), "D")
     return ShaderVariant(
@@ -189,7 +202,7 @@ def _make_index_copy_dim2_4d(node: Node) -> ShaderVariant | None:
             shader_name=shader_name,
             fields=(
                 TensorFieldSpec("cache", IOKind.INOUT, "state", TensorContract(dtype="float32", shape=("B", "H", "S", "D"))),
-                TensorFieldSpec("index", IOKind.INPUT, "index", TensorContract(dtype="int32", shape=("T",))),
+                TensorFieldSpec("index", IOKind.INPUT, "index", TensorContract(dtype=index_dtype, shape=("T",))),
                 TensorFieldSpec("src", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("B", "H", "T", "D"))),
             ),
             push_constants=PushConstantSpec(
@@ -204,7 +217,8 @@ def _make_index_copy_dim2_4d(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(ceil_div(total, 256), 1, 1),
         ),
-        source=_SOURCE_DIM2_4D,
+        execution_requirements=_index_execution_requirements(index_dtype),
+        source=_index_source(_SOURCE_DIM2_4D, index_dtype),
     )
 
 
@@ -213,6 +227,9 @@ def _make_index_copy_dim1_3d(node: Node) -> ShaderVariant | None:
     cache_shape = node_output_shape(node)
     index_shape = node_input_shape(node, 2)
     src_shape = node_input_shape(node, 3)
+    index_dtype = node_input_dtype(node, 2)
+    if index_dtype not in {"int32", "int64"}:
+        return None
     if len(cache_shape) != 3 or len(src_shape) != 3 or len(index_shape) != 1:
         return None
     if cache_shape[0] != src_shape[0] or cache_shape[2] != src_shape[2]:
@@ -220,7 +237,9 @@ def _make_index_copy_dim1_3d(node: Node) -> ShaderVariant | None:
     if index_shape[0] != src_shape[1]:
         return None
 
-    digest = hashlib.sha1(repr((cache_shape, index_shape, src_shape, dim)).encode()).hexdigest()[:10]
+    digest = hashlib.sha1(
+        repr((cache_shape, index_shape, src_shape, dim, index_dtype)).encode()
+    ).hexdigest()[:10]
     shader_name = f"export_index_copy_f32_{digest}"
     total = mul(mul("B", "S"), "H")
     return ShaderVariant(
@@ -231,7 +250,7 @@ def _make_index_copy_dim1_3d(node: Node) -> ShaderVariant | None:
             shader_name=shader_name,
             fields=(
                 TensorFieldSpec("cache", IOKind.INOUT, "state", TensorContract(dtype="float32", shape=("B", "T", "H"))),
-                TensorFieldSpec("index", IOKind.INPUT, "index", TensorContract(dtype="int32", shape=("S",))),
+                TensorFieldSpec("index", IOKind.INPUT, "index", TensorContract(dtype=index_dtype, shape=("S",))),
                 TensorFieldSpec("src", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("B", "S", "H"))),
             ),
             push_constants=PushConstantSpec(
@@ -245,5 +264,18 @@ def _make_index_copy_dim1_3d(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(ceil_div(total, 256), 1, 1),
         ),
-        source=_SOURCE_DIM1_3D,
+        execution_requirements=_index_execution_requirements(index_dtype),
+        source=_index_source(_SOURCE_DIM1_3D, index_dtype),
     )
+
+
+def _index_source(source: str, dtype: str) -> str:
+    index_type = "int64_t" if dtype == "int64" else "int"
+    extension = "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require" if dtype == "int64" else ""
+    return source.replace("{{INDEX_EXTENSION}}", extension).replace("{{INDEX_TYPE}}", index_type)
+
+
+def _index_execution_requirements(dtype: str) -> ShaderExecutionRequirements | None:
+    if dtype == "int64":
+        return ShaderExecutionRequirements(require_shader_int64=True)
+    return None

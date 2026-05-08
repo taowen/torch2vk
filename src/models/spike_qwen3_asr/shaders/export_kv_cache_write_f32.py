@@ -14,6 +14,9 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+)
 
 
 EXPORT_KV_CACHE_WRITE_F32 = ShaderVariant(
@@ -33,7 +36,7 @@ EXPORT_KV_CACHE_WRITE_F32 = ShaderVariant(
                 name='cache_position',
                 io_kind=IOKind.INPUT,
                 role='cache_position',
-                contract=TensorContract(dtype='int32', shape=('T',)),
+                contract=TensorContract(dtype='int64', shape=('T',)),
             ),
             TensorFieldSpec(
                 name='src',
@@ -55,12 +58,13 @@ EXPORT_KV_CACHE_WRITE_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul(mul(mul('B', 'H'), 'T'), 'D'), 256), 1, 1),
     ),
-    execution_requirements=None,
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
     source="""\
 #version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict CacheBuffer { float cache[]; };
-layout(set = 0, binding = 1) buffer restrict readonly CachePositionBuffer { int cache_position[]; };
+layout(set = 0, binding = 1) buffer restrict readonly CachePositionBuffer { int64_t cache_position[]; };
 layout(set = 0, binding = 2) buffer restrict readonly SrcBuffer { float src[]; };
 layout(push_constant) uniform PushConstants { uint B; uint H; uint S; uint D; uint T; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;

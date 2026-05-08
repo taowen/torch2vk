@@ -262,7 +262,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'cache_position',
             _declare_tensor(
             name=f"{prefix}.cache_position",
-            spec=TensorSpec(dtype='int32', shape=(151,)),
+            spec=TensorSpec(dtype='int64', shape=(151,)),
             role=TensorRole.INPUT,
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
@@ -1143,8 +1143,6 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='add_7' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )

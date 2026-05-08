@@ -41,6 +41,18 @@ def node_input_shape(node: Node, index: int) -> tuple[int, ...]:
     return tuple(int(d) for d in tm.shape)
 
 
+def node_input_dtype(node: Node, index: int) -> str:
+    if index >= len(node.args):
+        return ""
+    arg = node.args[index]
+    if not isinstance(arg, Node):
+        return ""
+    tm = arg.meta.get("tensor_meta")
+    if tm is None:
+        return ""
+    return str(tm.dtype).removeprefix("torch.")
+
+
 def shape_to_contract(shape: tuple[int, ...], symbols: tuple[str, ...] | None = None) -> tuple[Dim, ...]:
     if symbols is None:
         symbols = _DIM_SYMBOLS if len(shape) <= 4 else tuple(f"D{i}" for i in range(len(shape)))

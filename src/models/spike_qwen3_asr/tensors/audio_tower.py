@@ -90,8 +90,6 @@ def create_conv2d1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='gelu' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -171,8 +169,6 @@ def create_conv2d2(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='gelu' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -252,8 +248,6 @@ def create_conv2d3(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='gelu' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -333,8 +327,6 @@ def create_conv_out(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='linear' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -386,7 +378,7 @@ def create_audio_position_compact(prefix: str, *, bindings: Mapping[str, Logical
             'compact_index',
             _declare_tensor(
             name=f"{prefix}.compact_index",
-            spec=TensorSpec(dtype='int32', shape=(133,)),
+            spec=TensorSpec(dtype='int64', shape=(133,)),
             role=TensorRole.INPUT,
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
@@ -427,8 +419,6 @@ def create_audio_position_compact(prefix: str, *, bindings: Mapping[str, Logical
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='index_select' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -495,8 +485,6 @@ def create_ln_post(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='layer_norm' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -576,8 +564,6 @@ def create_proj1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = 
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='gelu' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -645,7 +631,7 @@ def create_proj2(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = 
             lifetime=TensorLifetime.FRAME,
             request_state='linear' in request_state_outputs,
             compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
+            pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="last_hidden_state"),
             ),
         ),
     )

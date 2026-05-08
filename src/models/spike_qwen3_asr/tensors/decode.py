@@ -47,7 +47,7 @@ def create_decode_embed(prefix: str, *, bindings: Mapping[str, LogicalTensor] | 
             'input',
             _declare_tensor(
             name=f"{prefix}.input",
-            spec=TensorSpec(dtype='int32', shape=(1, 1)),
+            spec=TensorSpec(dtype='int64', shape=(1, 1)),
             role=TensorRole.INPUT,
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
@@ -64,8 +64,6 @@ def create_decode_embed(prefix: str, *, bindings: Mapping[str, LogicalTensor] | 
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='embedding' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -210,8 +208,6 @@ def create_decode_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='mul_1' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -266,7 +262,7 @@ def create_decode_lm_head(prefix: str, *, bindings: Mapping[str, LogicalTensor] 
             lifetime=TensorLifetime.FRAME,
             request_state='linear' in request_state_outputs,
             compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
+            pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),
             ),
         ),
     )

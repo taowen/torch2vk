@@ -571,8 +571,6 @@ def create_encoder_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, 
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='add_1' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )

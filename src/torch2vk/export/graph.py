@@ -172,8 +172,17 @@ def _annotate_decode_cache_attention(
             value_write.name,
             cache_position_name,
         )
+        cache_position_node = _find_node_by_name(graph, cache_position_name)
+        node.meta["torch2vk_cache_position_dtype"] = _node_dtype(cache_position_node)
         return
     raise ValueError("KV cache hint did not match decode scaled_dot_product_attention")
+
+
+def _find_node_by_name(graph: Graph, name: str) -> Node:
+    for node in graph.nodes:
+        if node.name == name:
+            return node
+    raise ValueError(f"Graph is missing node {name!r}")
 
 
 def _node_arg_name(node: Node, index: int) -> str | None:

@@ -47,7 +47,7 @@ def create_embed_tokens(prefix: str, *, bindings: Mapping[str, LogicalTensor] | 
             'input',
             _declare_tensor(
             name=f"{prefix}.input",
-            spec=TensorSpec(dtype='int32', shape=(1, 151)),
+            spec=TensorSpec(dtype='int64', shape=(1, 151)),
             role=TensorRole.INPUT,
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
@@ -64,8 +64,6 @@ def create_embed_tokens(prefix: str, *, bindings: Mapping[str, LogicalTensor] | 
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='embedding' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -91,7 +89,7 @@ def create_audio_inject(prefix: str, *, bindings: Mapping[str, LogicalTensor] | 
             'audio_positions',
             _declare_tensor(
             name=f"{prefix}.audio_positions",
-            spec=TensorSpec(dtype='int32', shape=(133,)),
+            spec=TensorSpec(dtype='int64', shape=(133,)),
             role=TensorRole.INPUT,
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
@@ -132,8 +130,6 @@ def create_audio_inject(prefix: str, *, bindings: Mapping[str, LogicalTensor] | 
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='index_copy' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -278,8 +274,6 @@ def create_text_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | Non
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
             request_state='mul_1' in request_state_outputs,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
             ),
         ),
     )
@@ -334,7 +328,7 @@ def create_lm_head(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             lifetime=TensorLifetime.FRAME,
             request_state='linear' in request_state_outputs,
             compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
+            pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),
             ),
         ),
     )

@@ -73,6 +73,11 @@ def build_replay_plan(
         raise ValueError(
             "token_feedback_source and token_feedback_target must be provided together"
         )
+    if token_feedback_source is not None and token_feedback_target is not None:
+        _validate_token_feedback_tensors(
+            token_feedback_source,
+            token_feedback_target,
+        )
 
     use_indirect_dispatch = len(dynamic_symbol_names) > 0
     indirect_buffer: BufferAllocation | None = None
@@ -92,6 +97,7 @@ def build_replay_plan(
     bindings: list[BoundComputeBinding] = []
     workspace_allocations: list[BufferAllocation] = []
     params_allocations: list[BufferAllocation] = []
+    record_by_index = {record.index: record for record in frame_dispatch_records}
 
     for i, (record, variant) in enumerate(zip(frame_dispatch_records, variants, strict=True)):
         if record.shader != variant.name:
@@ -113,7 +119,11 @@ def build_replay_plan(
         descriptor_bindings: list[ReplayDescriptorBinding] = []
         for field in contract.fields:
             tensor = tensors[field.name]
-            descriptor_tensor = tensor
+            descriptor_tensor = _canonical_replay_descriptor_tensor(
+                tensor=tensor,
+                record_by_index=record_by_index,
+                tensors_by_name=tensors_by_name,
+            )
             if (
                 token_feedback_source is not None
                 and token_feedback_target is not None
@@ -125,7 +135,7 @@ def build_replay_plan(
                 MemoryClass.MODEL_WEIGHT,
                 MemoryClass.OP_SCRATCH,
             }
-            if descriptor_tensor.buffer is None:
+            if not _has_live_buffer(descriptor_tensor):
                 alloc = _allocate_replay_descriptor_tensor(
                     rt,
                     descriptor_tensor,
@@ -356,6 +366,24 @@ def build_replay_plan(
     )
 
 
+def _validate_token_feedback_tensors(
+    source: LogicalTensor,
+    target: LogicalTensor,
+) -> None:
+    if source.spec.dtype != target.spec.dtype:
+        raise ValueError(
+            "Replay token feedback requires matching dtypes, got "
+            f"{source.name}={source.spec.dtype} and {target.name}={target.spec.dtype}"
+        )
+    source_nbytes = tensor_nbytes(source.spec)
+    target_nbytes = tensor_nbytes(target.spec)
+    if source_nbytes != target_nbytes:
+        raise ValueError(
+            "Replay token feedback requires matching byte sizes, got "
+            f"{source.name}={source_nbytes} bytes and {target.name}={target_nbytes} bytes"
+        )
+
+
 def rebind_replay_plan(
     rt: RuntimeSession,
     plan: ReplayPlan,
@@ -499,8 +527,12 @@ def _materialize_replay_rebind_tensor(
     field: TensorFieldSpec,
 ) -> None:
     tensor.validate_declaration()
-    if tensor.buffer is not None:
+    if _has_live_buffer(tensor):
         return
+    if tensor.buffer is not None:
+        with tensor.runtime_write_scope():
+            tensor.buffer = None
+            tensor.descriptor_nbytes = None
     if field.io_kind is IOKind.INPUT:
         rt._materialize_read(tensor)
         return
@@ -508,6 +540,50 @@ def _materialize_replay_rebind_tensor(
         rt._materialize_write(tensor, io_kind=field.io_kind)
         return
     rt._materialize_read(tensor)
+
+
+def _canonical_replay_descriptor_tensor(
+    *,
+    tensor: LogicalTensor,
+    record_by_index: Mapping[int, DispatchRecord],
+    tensors_by_name: Mapping[str, LogicalTensor],
+) -> LogicalTensor:
+    if tensor.memory is not MemoryClass.FRAME_WORKSPACE:
+        return tensor
+    alias_owner = _live_non_frame_alias_owner(tensor, tensors_by_name)
+    if alias_owner is not None:
+        return alias_owner
+    if _has_live_buffer(tensor):
+        return tensor
+    writer = tensor.writer
+    if writer is None:
+        return tensor
+    record = record_by_index.get(writer.dispatch_index)
+    if record is None:
+        return tensor
+    for _, written_name in record.logical_writes:
+        written = tensors_by_name[written_name]
+        if tensor_nbytes(written.spec) == tensor_nbytes(tensor.spec):
+            return written
+    return tensor
+
+
+def _has_live_buffer(tensor: LogicalTensor) -> bool:
+    return tensor.buffer is not None and not tensor.buffer.allocation.released
+
+
+def _live_non_frame_alias_owner(
+    tensor: LogicalTensor,
+    tensors_by_name: Mapping[str, LogicalTensor],
+) -> LogicalTensor | None:
+    if not _has_live_buffer(tensor):
+        return None
+    for candidate in tensors_by_name.values():
+        if candidate is tensor or candidate.memory is MemoryClass.FRAME_WORKSPACE:
+            continue
+        if _has_live_buffer(candidate) and candidate.buffer == tensor.buffer:
+            return candidate
+    return None
 
 
 def _validate_replay_rebind_symbols(

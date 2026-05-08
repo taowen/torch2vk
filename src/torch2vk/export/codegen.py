@@ -68,6 +68,7 @@ _DISPATCH_FILE_TEMPLATE = '''"""{{ docstring }}."""
 
 from __future__ import annotations
 
+{{ extra_imports_source }}
 {% for item in shader_imports %}
 from {{ shader_package }}.{{ item.shader }} import {{ item.const }}
 {% endfor %}
@@ -75,7 +76,18 @@ from {{ shader_package }}.{{ item.shader }} import {{ item.const }}
 from {{ tensor_package }}.{{ item.file }} import {{ item.classes_source }}
 {% endfor %}
 from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
+
+
+SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {
+{% for item in shader_imports %}
+    {{ item.shader|tojson }}: {{ item.const }},
+{% endfor %}
+{% for item in extra_shader_variants %}
+    {{ item.name_source }}: {{ item.const }},
+{% endfor %}
+}
 
 
 {{ function_sources_source }}
@@ -311,6 +323,8 @@ def render_dispatch_file(
     shader_imports,
     tensor_imports,
     function_sources: list[str],
+    extra_imports_source: str = "",
+    extra_shader_variants=(),
 ) -> str:
     return _render_template(
         _DISPATCH_FILE_TEMPLATE,
@@ -319,6 +333,8 @@ def render_dispatch_file(
         tensor_package=tensor_package,
         shader_imports=shader_imports,
         tensor_imports=tensor_imports,
+        extra_imports_source=extra_imports_source.rstrip("\n"),
+        extra_shader_variants=extra_shader_variants,
         function_sources_source="\n\n\n".join(function_sources),
     )
 

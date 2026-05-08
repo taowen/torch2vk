@@ -158,12 +158,13 @@ _SOURCE_DECODE_CACHE = """\
 
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
+{{CACHE_POSITION_EXTENSION}}
 
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float q[]; };
 layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
-layout(set = 0, binding = 3) buffer restrict readonly CachePositionBuffer { int cache_position[]; };
+layout(set = 0, binding = 3) buffer restrict readonly CachePositionBuffer { {{CACHE_POSITION_TYPE}} cache_position[]; };
 layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; } pc;
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
@@ -259,7 +260,19 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
     d = q_shape[len(q_shape) - 1]
 
     if node.meta.get("torch2vk_kv_cache") == "decode_attention":
-        return _make_decode_cache_variant(q_shape, k_shape, v_shape, out_shape, nh, nk, t, s, d)
+        cache_position_dtype = str(node.meta.get("torch2vk_cache_position_dtype", ""))
+        return _make_decode_cache_variant(
+            q_shape,
+            k_shape,
+            v_shape,
+            out_shape,
+            nh,
+            nk,
+            t,
+            s,
+            d,
+            cache_position_dtype,
+        )
 
     causal = _is_causal(node)
     masked = _has_mask(node)
@@ -325,10 +338,13 @@ def _make_decode_cache_variant(
     t: int,
     s: int,
     d: int,
+    cache_position_dtype: str,
 ) -> ShaderVariant | None:
     if len(q_shape) != 4 or len(k_shape) != 4 or len(v_shape) != 4 or len(out_shape) != 4:
         return None
     if t != 1 or d > 128:
+        return None
+    if cache_position_dtype not in {"int32", "int64"}:
         return None
     return ShaderVariant(
         name="export_sdpa_decode_cache_f32",
@@ -340,7 +356,7 @@ def _make_decode_cache_variant(
                 TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("B", "NH", "T", "D"))),
                 TensorFieldSpec("k", IOKind.INPUT, "state", TensorContract(dtype="float32", shape=("B", "NK", "S", "D"))),
                 TensorFieldSpec("v", IOKind.INPUT, "state", TensorContract(dtype="float32", shape=("B", "NK", "S", "D"))),
-                TensorFieldSpec("cache_position", IOKind.INPUT, "cache_position", TensorContract(dtype="int32", shape=("T",))),
+                TensorFieldSpec("cache_position", IOKind.INPUT, "cache_position", TensorContract(dtype=cache_position_dtype, shape=("T",))),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=("B", "NH", "T", "D"))),
             ),
             push_constants=PushConstantSpec(
@@ -355,7 +371,22 @@ def _make_decode_cache_variant(
             dispatch=(nh, 1, 1),
         ),
         execution_requirements=ShaderExecutionRequirements(
-            subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)
+            subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
+            require_shader_int64=cache_position_dtype == "int64",
         ),
-        source=_SOURCE_DECODE_CACHE,
+        source=_decode_cache_source(cache_position_dtype),
+    )
+
+
+def _decode_cache_source(cache_position_dtype: str) -> str:
+    cache_position_type = "int64_t" if cache_position_dtype == "int64" else "int"
+    extension = (
+        "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require"
+        if cache_position_dtype == "int64"
+        else ""
+    )
+    return (
+        _SOURCE_DECODE_CACHE
+        .replace("{{CACHE_POSITION_EXTENSION}}", extension)
+        .replace("{{CACHE_POSITION_TYPE}}", cache_position_type)
     )
