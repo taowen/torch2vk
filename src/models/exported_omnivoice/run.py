@@ -9,12 +9,12 @@ Run from project root:
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import math
 from pathlib import Path
 
 import numpy as np
+from safetensors.torch import load_file, save_file
 import torch
 import torch.nn.functional as F
 
@@ -30,7 +30,6 @@ from models.exported_omnivoice.tensors.llm_forward import (
 )
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
 from omnivoice import OmniVoiceConfig
-from torch2vk.runtime.logical import LogicalTensor, TensorRole
 from torch2vk.runtime.session import RuntimeSession
 
 DEFAULT_TEXT = "hello world this is a speech recognition test"
@@ -44,7 +43,6 @@ def _ensure_bfloat16_checkpoint(model_dir: Path) -> Path:
     if dst.exists():
         return bf16_dir
     bf16_dir.mkdir(exist_ok=True)
-    from safetensors.torch import load_file, save_file
     state_dict = load_file(str(model_dir / "model.safetensors"))
     bf16_dict = {}
     for k, v in state_dict.items():
@@ -54,22 +52,6 @@ def _ensure_bfloat16_checkpoint(model_dir: Path) -> Path:
             bf16_dict[k] = v
     save_file(bf16_dict, str(dst))
     return bf16_dir
-
-
-def _materialize_weights(rt: RuntimeSession, tensors_obj: object) -> None:
-    for f in dataclasses.fields(tensors_obj):
-        value = getattr(tensors_obj, f.name)
-        if isinstance(value, list):
-            for item in value:
-                _materialize_weights(rt, item)
-            continue
-        if not isinstance(value, LogicalTensor):
-            continue
-        if value.role is not TensorRole.WEIGHT:
-            continue
-        if value.buffer is not None:
-            continue
-        rt._materialize_weight(value)
 
 
 def _compute_rope(seq_len: int, head_dim: int, batch: int = 2, theta: float = 1_000_000.0) -> tuple[np.ndarray, np.ndarray]:
@@ -221,6 +203,7 @@ def main(
     bf16_dir = _ensure_bfloat16_checkpoint(model_dir)
     rt = RuntimeSession.open(device_index=0, model_dir=bf16_dir)
 
+    print("Declaring tensors...")
     llm_t = create_llm_forward(
         "omnivoice.llm",
         request_state_outputs={LLM_FORWARD_OUTPUT},
@@ -230,15 +213,6 @@ def main(
         input=llm_t.mul_365,
         request_state_outputs={AUDIO_HEAD_OUTPUT},
     )
-
-    print("Materializing weights...")
-    _materialize_weights(rt, llm_t)
-    _materialize_weights(rt, audio_head_t)
-    stats = rt.device.allocation_stats()
-    vram_after_weights = torch.cuda.memory_allocated() / 1024**2
-    print(f"  Vulkan weights: {stats.device_local_live_bytes / 1024**2:.1f} MB")
-    print(f"  PyTorch CUDA (embeddings): {vram_after_weights:.0f} MB")
-    print(f"  Total VRAM: {(stats.device_local_live_bytes / 1024**2 + vram_after_weights):.0f} MB")
 
     # Iterative decoding
     print(f"\n=== Iterative Decoding ({num_steps} steps) ===")

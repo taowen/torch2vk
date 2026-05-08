@@ -48,19 +48,6 @@ from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_ste
 from torch2vk.runtime.session import RuntimeSession
 
 
-def _materialize_weights(rt: RuntimeSession, tensors_obj) -> None:
-    """Upload declared model weights through the runtime checkpoint path."""
-    for f in dataclasses.fields(tensors_obj):
-        value = getattr(tensors_obj, f.name)
-        if isinstance(value, list):
-            continue
-        if value.role is not TensorRole.WEIGHT:
-            continue
-        if value.buffer is not None:
-            continue
-        rt._materialize_weight(value)
-
-
 def _require_gpu_output(tensor: LogicalTensor) -> None:
     if tensor.buffer is None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
@@ -278,8 +265,8 @@ def main(
     max_sequence_length = prepared.prompt_length + 64
     rt = RuntimeSession.open(device_index=0, model_dir=model_dir)
 
-    # === Create all tensor objects upfront and materialize weights ===
-    print("Materializing weights...")
+    # === Create all tensor objects upfront ===
+    print("Declaring tensors...")
 
     # Audio encoder (conv + layers + proj as single dispatch)
     audio_encoder_t = audio_encoder_tensors.create_audio_encoder(
@@ -409,15 +396,6 @@ def main(
         request_state_outputs={decode_lm_head_tensors.DECODE_LM_HEAD_OUTPUT},
     )
 
-    # Materialize all weights to persistent GPU memory
-    _materialize_weights(rt, audio_encoder_t)
-    for layer_t in audio_encoder_t.layers:
-        _materialize_weights(rt, layer_t)
-    _materialize_weights(rt, embed_tokens_t)
-    _materialize_weights(rt, text_norm_t)
-    _materialize_weights(rt, lm_head_t)
-    for t in text_layer_ts:
-        _materialize_weights(rt, t)
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
         dtype=np.float32,
@@ -425,8 +403,6 @@ def main(
     rt.initialize_request_state(
         {cache: zero_cache for cache in key_caches + value_caches}
     )
-    weight_stats = rt.device.allocation_stats()
-    print(f"  Weights materialized: {weight_stats.device_local_live_bytes / 1024**2:.1f} MB on GPU")
 
     # === Audio Tower ===
     print("\n=== Phase 1: Audio Tower ===")
