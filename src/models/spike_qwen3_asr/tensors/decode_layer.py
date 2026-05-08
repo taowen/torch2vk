@@ -31,7 +31,6 @@ class DecodeLayerTensors:
     p_mlp_down_proj_weight: LogicalTensor
     hidden_states: LogicalTensor
     cache_position: LogicalTensor
-    attention_mask: LogicalTensor
     position_embeddings_0: LogicalTensor
     position_embeddings_1: LogicalTensor
     to: LogicalTensor
@@ -110,7 +109,7 @@ DECODE_LAYER_OUTPUT: str = 'add_7'
 
 
 def create_decode_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> DecodeLayerTensors:
-    _validate_bindings(bindings, frozenset(('p_input_layernorm_weight', 'p_post_attention_layernorm_weight', 'p_attn_q_proj_weight', 'p_attn_k_proj_weight', 'p_attn_v_proj_weight', 'p_attn_o_proj_weight', 'p_attn_q_norm_weight', 'p_attn_k_norm_weight', 'p_mlp_gate_proj_weight', 'p_mlp_up_proj_weight', 'p_mlp_down_proj_weight', 'hidden_states', 'cache_position', 'attention_mask', 'position_embeddings_0', 'position_embeddings_1', 'to', 'pow_1', 'mean', 'add', 'rsqrt', 'mul', 'to_1', 'mul_1', 'linear', 'view', 'to_2', 'pow_2', 'mean_1', 'add_1', 'rsqrt_1', 'mul_2', 'to_3', 'mul_3', 'transpose', 'linear_1', 'view_1', 'to_4', 'pow_3', 'mean_2', 'add_2', 'rsqrt_2', 'mul_4', 'to_5', 'mul_5', 'transpose_1', 'linear_2', 'view_2', 'transpose_2', 'unsqueeze', 'unsqueeze_1', 'mul_6', 'slice_1', 'slice_2', 'neg', 'cat', 'mul_7', 'add_3', 'mul_8', 'slice_3', 'slice_4', 'neg_1', 'cat_1', 'mul_9', 'add_4', 'index_copy', 'index_copy_1', 'scaled_dot_product_attention', 'transpose_3', 'reshape', 'linear_3', 'add_5', 'to_6', 'pow_4', 'mean_3', 'add_6', 'rsqrt_3', 'mul_10', 'to_7', 'mul_11', 'linear_4', 'silu', 'linear_5', 'mul_12', 'linear_6', 'add_7')))
+    _validate_bindings(bindings, frozenset(('p_input_layernorm_weight', 'p_post_attention_layernorm_weight', 'p_attn_q_proj_weight', 'p_attn_k_proj_weight', 'p_attn_v_proj_weight', 'p_attn_o_proj_weight', 'p_attn_q_norm_weight', 'p_attn_k_norm_weight', 'p_mlp_gate_proj_weight', 'p_mlp_up_proj_weight', 'p_mlp_down_proj_weight', 'hidden_states', 'cache_position', 'position_embeddings_0', 'position_embeddings_1', 'to', 'pow_1', 'mean', 'add', 'rsqrt', 'mul', 'to_1', 'mul_1', 'linear', 'view', 'to_2', 'pow_2', 'mean_1', 'add_1', 'rsqrt_1', 'mul_2', 'to_3', 'mul_3', 'transpose', 'linear_1', 'view_1', 'to_4', 'pow_3', 'mean_2', 'add_2', 'rsqrt_2', 'mul_4', 'to_5', 'mul_5', 'transpose_1', 'linear_2', 'view_2', 'transpose_2', 'unsqueeze', 'unsqueeze_1', 'mul_6', 'slice_1', 'slice_2', 'neg', 'cat', 'mul_7', 'add_3', 'mul_8', 'slice_3', 'slice_4', 'neg_1', 'cat_1', 'mul_9', 'add_4', 'index_copy', 'index_copy_1', 'scaled_dot_product_attention', 'transpose_3', 'reshape', 'linear_3', 'add_5', 'to_6', 'pow_4', 'mean_3', 'add_6', 'rsqrt_3', 'mul_10', 'to_7', 'mul_11', 'linear_4', 'silu', 'linear_5', 'mul_12', 'linear_6', 'add_7')))
     _validate_request_state_outputs(request_state_outputs, frozenset(('add_7',)))
     return DecodeLayerTensors(
         p_input_layernorm_weight=_bind_tensor(
@@ -267,18 +266,6 @@ def create_decode_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, L
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
             request_state='cache_position' in request_state_outputs,
-            ),
-        ),
-        attention_mask=_bind_tensor(
-            bindings,
-            'attention_mask',
-            _declare_tensor(
-            name=f"{prefix}.attention_mask",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1, 215)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            request_state='attention_mask' in request_state_outputs,
             ),
         ),
         position_embeddings_0=_bind_tensor(

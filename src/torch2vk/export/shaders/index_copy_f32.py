@@ -73,15 +73,97 @@ void main() {
 """
 
 
+_SOURCE_KV_CACHE_WRITE = """\
+#version 450
+layout(std430) buffer;
+layout(set = 0, binding = 0) buffer restrict CacheBuffer { float cache[]; };
+layout(set = 0, binding = 1) buffer restrict readonly CachePositionBuffer { int cache_position[]; };
+layout(set = 0, binding = 2) buffer restrict readonly SrcBuffer { float src[]; };
+layout(push_constant) uniform PushConstants { uint B; uint H; uint S; uint D; uint T; } pc;
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+void main() {
+    const uint idx = gl_GlobalInvocationID.x;
+    const uint total = pc.B * pc.H * pc.T * pc.D;
+    if (idx >= total) { return; }
+
+    uint rem = idx;
+    const uint d = rem % pc.D;
+    rem = rem / pc.D;
+    const uint t = rem % pc.T;
+    rem = rem / pc.T;
+    const uint h = rem % pc.H;
+    const uint b = rem / pc.H;
+
+    const uint dst_t = uint(cache_position[t]);
+    const uint src_idx = ((b * pc.H + h) * pc.T + t) * pc.D + d;
+    const uint dst_idx = ((b * pc.H + h) * pc.S + dst_t) * pc.D + d;
+    cache[dst_idx] = src[src_idx];
+}
+"""
+
+
 def make_index_copy_variant(node: Node) -> ShaderVariant | None:
     if len(node.args) != 4:
         return None
+    if _is_kv_cache_write(node):
+        return _make_kv_cache_write_variant(node)
     dim = node.args[1]
     if dim == 1:
         return _make_index_copy_dim1_3d(node)
     if dim == 2:
         return _make_index_copy_dim2_4d(node)
     return None
+
+
+def _is_kv_cache_write(node: Node) -> bool:
+    return node.meta.get("torch2vk_kv_cache") in {
+        "prefill_key_write",
+        "prefill_value_write",
+        "decode_key_write",
+        "decode_value_write",
+    }
+
+
+def _make_kv_cache_write_variant(node: Node) -> ShaderVariant | None:
+    dim = node.args[1]
+    cache_shape = node_output_shape(node)
+    index_shape = node_input_shape(node, 2)
+    src_shape = node_input_shape(node, 3)
+    if dim != 2:
+        return None
+    if len(cache_shape) != 4 or len(src_shape) != 4 or len(index_shape) != 1:
+        return None
+    if cache_shape[0] != src_shape[0] or cache_shape[1] != src_shape[1] or cache_shape[3] != src_shape[3]:
+        return None
+    if index_shape[0] != src_shape[2]:
+        return None
+
+    total = mul(mul(mul("B", "H"), "T"), "D")
+    return ShaderVariant(
+        name="export_kv_cache_write_f32",
+        family="export",
+        contract=ShaderContract(
+            class_name="ExportKvCacheWriteF32Program",
+            shader_name="export_kv_cache_write_f32",
+            fields=(
+                TensorFieldSpec("cache", IOKind.INOUT, "state", TensorContract(dtype="float32", shape=("B", "H", "S", "D"))),
+                TensorFieldSpec("cache_position", IOKind.INPUT, "cache_position", TensorContract(dtype="int32", shape=("T",))),
+                TensorFieldSpec("src", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("B", "H", "T", "D"))),
+            ),
+            push_constants=PushConstantSpec(
+                size=20,
+                fields=(
+                    PushConstantFieldSpec("B", PushConstantType.UINT32, 0, "B"),
+                    PushConstantFieldSpec("H", PushConstantType.UINT32, 4, "H"),
+                    PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S"),
+                    PushConstantFieldSpec("D", PushConstantType.UINT32, 12, "D"),
+                    PushConstantFieldSpec("T", PushConstantType.UINT32, 16, "T"),
+                ),
+            ),
+            dispatch=(ceil_div(total, 256), 1, 1),
+        ),
+        source=_SOURCE_KV_CACHE_WRITE,
+    )
 
 
 def _make_index_copy_dim2_4d(node: Node) -> ShaderVariant | None:

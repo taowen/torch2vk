@@ -1,4 +1,4 @@
-"""Generated shader: export_index_copy_f32_b94c52aa2e."""
+"""Generated shader: export_kv_cache_write_f32."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-EXPORT_INDEX_COPY_F32_B94C52AA2E = ShaderVariant(
-    name='export_index_copy_f32_b94c52aa2e',
+EXPORT_KV_CACHE_WRITE_F32 = ShaderVariant(
+    name='export_kv_cache_write_f32',
     family='export',
     contract=ShaderContract(
-        class_name='ExportIndexCopyF32Program',
-        shader_name='export_index_copy_f32_b94c52aa2e',
+        class_name='ExportKvCacheWriteF32Program',
+        shader_name='export_kv_cache_write_f32',
         fields=(
             TensorFieldSpec(
                 name='cache',
@@ -30,9 +30,9 @@ EXPORT_INDEX_COPY_F32_B94C52AA2E = ShaderVariant(
                 contract=TensorContract(dtype='float32', shape=('B', 'H', 'S', 'D',)),
             ),
             TensorFieldSpec(
-                name='index',
+                name='cache_position',
                 io_kind=IOKind.INPUT,
-                role='index',
+                role='cache_position',
                 contract=TensorContract(dtype='int32', shape=('T',)),
             ),
             TensorFieldSpec(
@@ -60,7 +60,7 @@ EXPORT_INDEX_COPY_F32_B94C52AA2E = ShaderVariant(
 #version 450
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict CacheBuffer { float cache[]; };
-layout(set = 0, binding = 1) buffer restrict readonly IndexBuffer { int index_values[]; };
+layout(set = 0, binding = 1) buffer restrict readonly CachePositionBuffer { int cache_position[]; };
 layout(set = 0, binding = 2) buffer restrict readonly SrcBuffer { float src[]; };
 layout(push_constant) uniform PushConstants { uint B; uint H; uint S; uint D; uint T; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -77,7 +77,7 @@ void main() {
     const uint h = rem % pc.H;
     const uint b = rem / pc.H;
 
-    const uint dst_t = uint(index_values[t]);
+    const uint dst_t = uint(cache_position[t]);
     const uint src_idx = ((b * pc.H + h) * pc.T + t) * pc.D + d;
     const uint dst_idx = ((b * pc.H + h) * pc.S + dst_t) * pc.D + d;
     cache[dst_idx] = src[src_idx];

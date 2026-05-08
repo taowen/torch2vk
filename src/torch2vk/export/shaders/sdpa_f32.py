@@ -13,6 +13,7 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
 )
+from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements, SubgroupRequirements
 
 _SOURCE_CAUSAL = """\
 #version 450
@@ -152,6 +153,76 @@ void main() {
 """
 
 
+_SOURCE_DECODE_CACHE = """\
+#version 450
+
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(std430) buffer;
+layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float q[]; };
+layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
+layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
+layout(set = 0, binding = 3) buffer restrict readonly CachePositionBuffer { int cache_position[]; };
+layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; } pc;
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+
+const float NEG_INF = -3.4028234663852886e38;
+
+shared float subgroup_dot[4];
+
+void main() {
+    const uint head = gl_WorkGroupID.x;
+    const uint dim = gl_LocalInvocationID.x;
+    if (head >= pc.NH) { return; }
+    const bool valid_dim = dim < pc.D;
+
+    const uint kv_head = head * pc.NK / pc.NH;
+    const float q_value = valid_dim ? q[head * pc.D + dim] : 0.0;
+    const float scale = inversesqrt(float(pc.D));
+
+    float running_max = NEG_INF;
+    float running_sum = 0.0;
+    float acc = 0.0;
+
+    const uint cache_head_base = kv_head * pc.S * pc.D;
+    const uint cache_len = min(uint(cache_position[0]) + 1u, pc.S);
+    for (uint key_pos = 0u; key_pos < cache_len; ++key_pos) {
+        const float k_val = valid_dim ? k[cache_head_base + key_pos * pc.D + dim] : 0.0;
+        const float v_val = valid_dim ? v[cache_head_base + key_pos * pc.D + dim] : 0.0;
+        barrier();
+
+        const float dot_part = valid_dim ? q_value * k_val : 0.0;
+        const float dot_sum = subgroupAdd(dot_part);
+        if (gl_SubgroupInvocationID == 0u) {
+            subgroup_dot[dim / gl_SubgroupSize] = dot_sum;
+        }
+        barrier();
+
+        if (valid_dim) {
+            float dot = 0.0;
+            for (uint i = 0u; i < (pc.D + gl_SubgroupSize - 1u) / gl_SubgroupSize; ++i) {
+                dot += subgroup_dot[i];
+            }
+            const float score = dot * scale;
+            const float next_max = max(running_max, score);
+            const float old_scale = running_max == NEG_INF ? 0.0 : exp(running_max - next_max);
+            const float score_scale = exp(score - next_max);
+            acc = acc * old_scale + score_scale * v_val;
+            running_sum = running_sum * old_scale + score_scale;
+            running_max = next_max;
+        }
+        barrier();
+    }
+
+    if (valid_dim && running_sum > 0.0) {
+        output_values[head * pc.D + dim] = acc / running_sum;
+    }
+}
+"""
+
+
 def _is_causal(node: Node) -> bool:
     if len(node.args) >= 6 and isinstance(node.args[5], bool):
         return node.args[5]
@@ -186,6 +257,9 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
     t = q_shape[len(q_shape) - 2] if len(q_shape) >= 2 else 1
     s = k_shape[len(k_shape) - 2] if len(k_shape) >= 2 else 1
     d = q_shape[len(q_shape) - 1]
+
+    if node.meta.get("torch2vk_kv_cache") == "decode_attention":
+        return _make_decode_cache_variant(q_shape, k_shape, v_shape, out_shape, nh, nk, t, s, d)
 
     causal = _is_causal(node)
     masked = _has_mask(node)
@@ -238,4 +312,50 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
             dispatch=(nh, t, (d + 63) // 64),
         ),
         source=source,
+    )
+
+
+def _make_decode_cache_variant(
+    q_shape: tuple[int, ...],
+    k_shape: tuple[int, ...],
+    v_shape: tuple[int, ...],
+    out_shape: tuple[int, ...],
+    nh: int,
+    nk: int,
+    t: int,
+    s: int,
+    d: int,
+) -> ShaderVariant | None:
+    if len(q_shape) != 4 or len(k_shape) != 4 or len(v_shape) != 4 or len(out_shape) != 4:
+        return None
+    if t != 1 or d > 128:
+        return None
+    return ShaderVariant(
+        name="export_sdpa_decode_cache_f32",
+        family="export",
+        contract=ShaderContract(
+            class_name="ExportSdpaDecodeCacheF32Program",
+            shader_name="export_sdpa_decode_cache_f32",
+            fields=(
+                TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("B", "NH", "T", "D"))),
+                TensorFieldSpec("k", IOKind.INPUT, "state", TensorContract(dtype="float32", shape=("B", "NK", "S", "D"))),
+                TensorFieldSpec("v", IOKind.INPUT, "state", TensorContract(dtype="float32", shape=("B", "NK", "S", "D"))),
+                TensorFieldSpec("cache_position", IOKind.INPUT, "cache_position", TensorContract(dtype="int32", shape=("T",))),
+                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=("B", "NH", "T", "D"))),
+            ),
+            push_constants=PushConstantSpec(
+                size=16,
+                fields=(
+                    PushConstantFieldSpec("NH", PushConstantType.UINT32, 0, nh),
+                    PushConstantFieldSpec("NK", PushConstantType.UINT32, 4, nk),
+                    PushConstantFieldSpec("S", PushConstantType.UINT32, 8, s),
+                    PushConstantFieldSpec("D", PushConstantType.UINT32, 12, d),
+                ),
+            ),
+            dispatch=(nh, 1, 1),
+        ),
+        execution_requirements=ShaderExecutionRequirements(
+            subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)
+        ),
+        source=_SOURCE_DECODE_CACHE,
     )

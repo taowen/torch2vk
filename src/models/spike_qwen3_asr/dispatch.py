@@ -24,7 +24,6 @@ from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_inner_33 i
 from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_last import DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST
 from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_last_11 import DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST_11
 from models.spike_qwen3_asr.shaders.decode_layer_export_mul_broadcast_last_19 import DECODE_LAYER_EXPORT_MUL_BROADCAST_LAST_19
-from models.spike_qwen3_asr.shaders.decode_layer_export_sdpa_masked_f32 import DECODE_LAYER_EXPORT_SDPA_MASKED_F32
 from models.spike_qwen3_asr.shaders.decode_layer_export_slice_f32 import DECODE_LAYER_EXPORT_SLICE_F32
 from models.spike_qwen3_asr.shaders.decode_layer_export_slice_f32_25 import DECODE_LAYER_EXPORT_SLICE_F32_25
 from models.spike_qwen3_asr.shaders.decode_layer_export_slice_f32_30 import DECODE_LAYER_EXPORT_SLICE_F32_30
@@ -45,10 +44,9 @@ from models.spike_qwen3_asr.shaders.export_cat_f32_32 import EXPORT_CAT_F32_32
 from models.spike_qwen3_asr.shaders.export_conv2d_f32 import EXPORT_CONV2D_F32
 from models.spike_qwen3_asr.shaders.export_embedding_f32 import EXPORT_EMBEDDING_F32
 from models.spike_qwen3_asr.shaders.export_gelu_f32 import EXPORT_GELU_F32
-from models.spike_qwen3_asr.shaders.export_index_copy_f32_aced7cb1d3 import EXPORT_INDEX_COPY_F32_ACED7CB1D3
-from models.spike_qwen3_asr.shaders.export_index_copy_f32_b94c52aa2e import EXPORT_INDEX_COPY_F32_B94C52AA2E
 from models.spike_qwen3_asr.shaders.export_index_copy_f32_bd093d5c47 import EXPORT_INDEX_COPY_F32_BD093D5C47
 from models.spike_qwen3_asr.shaders.export_index_select_f32_5f14be2148 import EXPORT_INDEX_SELECT_F32_5F14BE2148
+from models.spike_qwen3_asr.shaders.export_kv_cache_write_f32 import EXPORT_KV_CACHE_WRITE_F32
 from models.spike_qwen3_asr.shaders.export_layer_norm_f32 import EXPORT_LAYER_NORM_F32
 from models.spike_qwen3_asr.shaders.export_linear_bias_f32 import EXPORT_LINEAR_BIAS_F32
 from models.spike_qwen3_asr.shaders.export_linear_bias_f32_10 import EXPORT_LINEAR_BIAS_F32_10
@@ -81,6 +79,7 @@ from models.spike_qwen3_asr.shaders.export_rsqrt_f32 import EXPORT_RSQRT_F32
 from models.spike_qwen3_asr.shaders.export_rsqrt_f32_10 import EXPORT_RSQRT_F32_10
 from models.spike_qwen3_asr.shaders.export_rsqrt_f32_18 import EXPORT_RSQRT_F32_18
 from models.spike_qwen3_asr.shaders.export_sdpa_causal_f32 import EXPORT_SDPA_CAUSAL_F32
+from models.spike_qwen3_asr.shaders.export_sdpa_decode_cache_f32 import EXPORT_SDPA_DECODE_CACHE_F32
 from models.spike_qwen3_asr.shaders.export_sdpa_masked_f32 import EXPORT_SDPA_MASKED_F32
 from models.spike_qwen3_asr.shaders.export_silu_f32 import EXPORT_SILU_F32
 from models.spike_qwen3_asr.shaders.export_slice_f32 import EXPORT_SLICE_F32
@@ -237,8 +236,8 @@ def run_text_layer(rt: RuntimeSession, tensors: TextLayerTensors) -> None:
     EXPORT_CAT_F32_32(rt, a=tensors.neg_1, b=tensors.slice_3, output=tensors.cat_1)
     EXPORT_MUL_BROADCAST_INNER_33(rt, x=tensors.cat_1, y=tensors.unsqueeze_1, output=tensors.mul_9)
     TEXT_LAYER_EXPORT_ADD_F32(rt, x=tensors.mul_8, y=tensors.mul_9, output=tensors.add_4)
-    EXPORT_INDEX_COPY_F32_ACED7CB1D3(rt, cache=tensors.index_copy, index=tensors.cache_position, src=tensors.add_4)
-    EXPORT_INDEX_COPY_F32_ACED7CB1D3(rt, cache=tensors.index_copy_1, index=tensors.cache_position, src=tensors.transpose_2)
+    EXPORT_KV_CACHE_WRITE_F32(rt, cache=tensors.index_copy, cache_position=tensors.cache_position, src=tensors.add_4)
+    EXPORT_KV_CACHE_WRITE_F32(rt, cache=tensors.index_copy_1, cache_position=tensors.cache_position, src=tensors.transpose_2)
     EXPORT_SDPA_CAUSAL_F32(rt, q=tensors.add_3, k=tensors.add_4, v=tensors.transpose_2, output=tensors.scaled_dot_product_attention)
     EXPORT_TRANSPOSE_F32_9E00CA2F33(rt, x=tensors.scaled_dot_product_attention, output=tensors.transpose_3)
     _alias(rt, tensors.transpose_3, tensors.contiguous)
@@ -330,9 +329,9 @@ def run_decode_layer(rt: RuntimeSession, tensors: DecodeLayerTensors) -> None:
     DECODE_LAYER_EXPORT_CAT_F32_32(rt, a=tensors.neg_1, b=tensors.slice_3, output=tensors.cat_1)
     DECODE_LAYER_EXPORT_MUL_BROADCAST_INNER_33(rt, x=tensors.cat_1, y=tensors.unsqueeze_1, output=tensors.mul_9)
     DECODE_LAYER_EXPORT_ADD_F32(rt, x=tensors.mul_8, y=tensors.mul_9, output=tensors.add_4)
-    EXPORT_INDEX_COPY_F32_B94C52AA2E(rt, cache=tensors.index_copy, index=tensors.cache_position, src=tensors.add_4)
-    EXPORT_INDEX_COPY_F32_B94C52AA2E(rt, cache=tensors.index_copy_1, index=tensors.cache_position, src=tensors.transpose_2)
-    DECODE_LAYER_EXPORT_SDPA_MASKED_F32(rt, q=tensors.add_3, k=tensors.index_copy, v=tensors.index_copy_1, mask=tensors.attention_mask, output=tensors.scaled_dot_product_attention)
+    EXPORT_KV_CACHE_WRITE_F32(rt, cache=tensors.index_copy, cache_position=tensors.cache_position, src=tensors.add_4)
+    EXPORT_KV_CACHE_WRITE_F32(rt, cache=tensors.index_copy_1, cache_position=tensors.cache_position, src=tensors.transpose_2)
+    EXPORT_SDPA_DECODE_CACHE_F32(rt, q=tensors.add_3, k=tensors.index_copy, v=tensors.index_copy_1, cache_position=tensors.cache_position, output=tensors.scaled_dot_product_attention)
     EXPORT_TRANSPOSE_F32_9E77B1CEE2(rt, x=tensors.scaled_dot_product_attention, output=tensors.transpose_3)
     _alias(rt, tensors.transpose_3, tensors.reshape)
     DECODE_LAYER_EXPORT_LINEAR_NOBIAS_F32_37(rt, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)

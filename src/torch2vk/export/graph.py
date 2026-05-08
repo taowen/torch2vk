@@ -2,10 +2,22 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
+from typing import Literal
 
 import torch
-from torch.fx import Node
+from torch.fx import Graph, Node
+
+KVCachePhase = Literal["prefill", "decode"]
+
+
+@dataclass(frozen=True, slots=True)
+class KVCacheExportHint:
+    phase: KVCachePhase
+    key_cache: str
+    value_cache: str
+    cache_position: str
 
 ALIAS_OPS = frozenset({
     "aten.view.default",
@@ -25,9 +37,13 @@ def export_submodule(
     args: tuple[torch.Tensor, ...],
     kwargs: dict[str, Any] | None = None,
     *,
+    kv_cache: KVCacheExportHint | None = None,
     strict: bool = False,
 ) -> torch.export.ExportedProgram:
-    return torch.export.export(module, args, kwargs=kwargs, strict=strict)
+    prog = torch.export.export(module, args, kwargs=kwargs, strict=strict)
+    if kv_cache is not None:
+        _annotate_kv_cache(prog, kv_cache)
+    return prog
 
 
 def is_alias_op(node: Node) -> bool:
@@ -40,6 +56,10 @@ def is_alias_op(node: Node) -> bool:
 
 
 def node_input_names(node: Node) -> tuple[str, ...]:
+    override = node.meta.get("torch2vk_shader_inputs")
+    if isinstance(override, tuple):
+        return tuple(str(name) for name in override)
+
     names: list[str] = []
     for arg in node.args:
         if isinstance(arg, Node):
@@ -67,3 +87,108 @@ def _node_input_dtype(node: Node) -> str:
         if isinstance(first_arg, Node):
             return _node_dtype(first_arg)
     return ""
+
+
+def _annotate_kv_cache(prog: torch.export.ExportedProgram, hint: KVCacheExportHint) -> None:
+    graph = prog.graph_module.graph
+    _validate_kv_cache_placeholders(graph, hint)
+    key_write = _find_kv_cache_write(
+        graph,
+        cache_name=hint.key_cache,
+        cache_position_name=hint.cache_position,
+        cache_kind="key",
+        phase=hint.phase,
+    )
+    value_write = _find_kv_cache_write(
+        graph,
+        cache_name=hint.value_cache,
+        cache_position_name=hint.cache_position,
+        cache_kind="value",
+        phase=hint.phase,
+    )
+    if hint.phase == "decode":
+        _annotate_decode_cache_attention(
+            graph,
+            key_write=key_write,
+            value_write=value_write,
+            cache_position_name=hint.cache_position,
+        )
+
+
+def _validate_kv_cache_placeholders(graph: Graph, hint: KVCacheExportHint) -> None:
+    placeholders = {node.name for node in graph.nodes if node.op == "placeholder"}
+    expected = {hint.key_cache, hint.value_cache, hint.cache_position}
+    missing = sorted(expected - placeholders)
+    if missing:
+        raise ValueError(f"KV cache hint references missing placeholders: {missing}")
+
+
+def _find_kv_cache_write(
+    graph: Graph,
+    *,
+    cache_name: str,
+    cache_position_name: str,
+    cache_kind: Literal["key", "value"],
+    phase: KVCachePhase,
+) -> Node:
+    for node in graph.nodes:
+        if node.op != "call_function" or str(node.target) != "aten.index_copy.default":
+            continue
+        if _node_arg_name(node, 0) != cache_name:
+            continue
+        if _node_arg_int(node, 1) != 2:
+            continue
+        if _node_arg_name(node, 2) != cache_position_name:
+            continue
+        node.meta["torch2vk_kv_cache"] = f"{phase}_{cache_kind}_write"
+        return node
+    raise ValueError(
+        "KV cache hint did not match an index_copy write for "
+        f"{cache_kind}_cache={cache_name!r}"
+    )
+
+
+def _annotate_decode_cache_attention(
+    graph: Graph,
+    *,
+    key_write: Node,
+    value_write: Node,
+    cache_position_name: str,
+) -> None:
+    for node in graph.nodes:
+        if node.op != "call_function" or str(node.target) != "aten.scaled_dot_product_attention.default":
+            continue
+        if _node_arg_name(node, 1) != key_write.name:
+            continue
+        if _node_arg_name(node, 2) != value_write.name:
+            continue
+        query_name = _node_arg_name(node, 0)
+        if query_name is None:
+            raise ValueError(f"{node.name} decode cache attention is missing query input")
+        node.meta["torch2vk_kv_cache"] = "decode_attention"
+        node.meta["torch2vk_shader_inputs"] = (
+            query_name,
+            key_write.name,
+            value_write.name,
+            cache_position_name,
+        )
+        return
+    raise ValueError("KV cache hint did not match decode scaled_dot_product_attention")
+
+
+def _node_arg_name(node: Node, index: int) -> str | None:
+    if len(node.args) <= index:
+        return None
+    arg = node.args[index]
+    if isinstance(arg, Node):
+        return arg.name
+    return None
+
+
+def _node_arg_int(node: Node, index: int) -> int | None:
+    if len(node.args) <= index:
+        return None
+    arg = node.args[index]
+    if isinstance(arg, int):
+        return arg
+    return None

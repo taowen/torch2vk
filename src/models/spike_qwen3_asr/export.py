@@ -23,7 +23,7 @@ from torch.fx import Node
 from models.hf_cache import resolve_cached_model
 from models.qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.qwen3_asr.pytorch.example import REPO_ID
-from torch2vk.export import export_submodule
+from torch2vk.export import KVCacheExportHint, export_submodule
 from torch2vk.export.codegen import (
     render_dispatch_file,
     render_dispatch_function,
@@ -582,8 +582,8 @@ def main() -> int:
     all_shader_variants = {}
     all_plans = {}
 
-    def export_and_plan(name, module, args, kwargs=None, weight_prefix=""):
-        prog = export_submodule(module, args=args, kwargs=kwargs)
+    def export_and_plan(name, module, args, kwargs=None, weight_prefix="", kv_cache=None):
+        prog = export_submodule(module, args=args, kwargs=kwargs, kv_cache=kv_cache)
         plan = _extract_plan(prog, weight_prefix)
         _validate_plan_complete(name, plan)
         # Merge shader variants globally; rename on conflict to keep them unique
@@ -790,7 +790,13 @@ def main() -> int:
                         torch.zeros(1, pl, hd, device="meta"),
                         torch.zeros(1, pl, hd, device="meta"),
                     )},
-                    weight_prefix="thinker.model.layers.0.")
+                    weight_prefix="thinker.model.layers.0.",
+                    kv_cache=KVCacheExportHint(
+                        phase="prefill",
+                        key_cache="key_cache",
+                        value_cache="value_cache",
+                        cache_position="cache_position",
+                    ))
     export_and_plan("run_text_norm", model.thinker.model.norm.float(),
                     args=(torch.zeros(1, pl, hs, device="meta"),),
                     weight_prefix="thinker.model.norm.")
@@ -812,7 +818,13 @@ def main() -> int:
                         torch.zeros(1, 1, hd, device="meta"),
                         torch.zeros(1, 1, hd, device="meta"),
                     )},
-                    weight_prefix="thinker.model.layers.0.")
+                    weight_prefix="thinker.model.layers.0.",
+                    kv_cache=KVCacheExportHint(
+                        phase="decode",
+                        key_cache="key_cache",
+                        value_cache="value_cache",
+                        cache_position="cache_position",
+                    ))
     export_and_plan("run_decode_norm", model.thinker.model.norm.float(),
                     args=(torch.zeros(1, 1, hs, device="meta"),),
                     weight_prefix="thinker.model.norm.")

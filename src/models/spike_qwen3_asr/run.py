@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import os
+import time
 from pathlib import Path
 
 import numpy as np
@@ -288,20 +289,36 @@ def main() -> str:
     )
 
     # Decode (non-layered, reuse for all decode steps)
-    decode_embed_t = decode_tensors.create_decode_embed("spike.decode.embed")
+    decode_embed_t = decode_tensors.create_decode_embed(
+        "spike.decode.embed",
+        bindings={"p_weight": embed_tokens_t.p_weight},
+    )
 
     # Decode layers (layered)
     decode_layer_ts = []
     decode_hidden = decode_embed_t.embedding
     for layer_idx in range(tc.num_hidden_layers):
+        prefill_layer_tensors = text_layer_ts[layer_idx]
         bindings = {
+            "p_input_layernorm_weight": prefill_layer_tensors.p_input_layernorm_weight,
+            "p_post_attention_layernorm_weight": (
+                prefill_layer_tensors.p_post_attention_layernorm_weight
+            ),
+            "p_attn_q_proj_weight": prefill_layer_tensors.p_attn_q_proj_weight,
+            "p_attn_k_proj_weight": prefill_layer_tensors.p_attn_k_proj_weight,
+            "p_attn_v_proj_weight": prefill_layer_tensors.p_attn_v_proj_weight,
+            "p_attn_o_proj_weight": prefill_layer_tensors.p_attn_o_proj_weight,
+            "p_attn_q_norm_weight": prefill_layer_tensors.p_attn_q_norm_weight,
+            "p_attn_k_norm_weight": prefill_layer_tensors.p_attn_k_norm_weight,
+            "p_mlp_gate_proj_weight": prefill_layer_tensors.p_mlp_gate_proj_weight,
+            "p_mlp_up_proj_weight": prefill_layer_tensors.p_mlp_up_proj_weight,
+            "p_mlp_down_proj_weight": prefill_layer_tensors.p_mlp_down_proj_weight,
             "hidden_states": decode_hidden,
             "index_copy": key_caches[layer_idx],
             "index_copy_1": value_caches[layer_idx],
         }
         if layer_idx > 0:
             bindings["cache_position"] = decode_layer_ts[0].cache_position
-            bindings["attention_mask"] = decode_layer_ts[0].attention_mask
             bindings["position_embeddings_0"] = decode_layer_ts[0].position_embeddings_0
             bindings["position_embeddings_1"] = decode_layer_ts[0].position_embeddings_1
         layer_tensors = decode_layer_tensors.create_decode_layer(
@@ -313,11 +330,17 @@ def main() -> str:
         decode_hidden = layer_tensors.add_7
     decode_norm_t = decode_tensors.create_decode_norm(
         "spike.decode.norm",
-        bindings={"hidden_states": decode_layer_ts[-1].add_7},
+        bindings={
+            "p_weight": text_norm_t.p_weight,
+            "hidden_states": decode_layer_ts[-1].add_7,
+        },
     )
     decode_lm_head_t = decode_tensors.create_decode_lm_head(
         "spike.decode.lm_head",
-        bindings={"input": decode_norm_t.mul_1},
+        bindings={
+            "p_weight": lm_head_t.p_weight,
+            "input": decode_norm_t.mul_1,
+        },
         request_state_outputs={decode_tensors.DECODE_LM_HEAD_OUTPUT},
     )
 
@@ -330,11 +353,6 @@ def main() -> str:
     _materialize_weights(rt, text_norm_t)
     _materialize_weights(rt, lm_head_t)
     for t in text_layer_ts:
-        _materialize_weights(rt, t)
-    _materialize_weights(rt, decode_embed_t)
-    _materialize_weights(rt, decode_norm_t)
-    _materialize_weights(rt, decode_lm_head_t)
-    for t in decode_layer_ts:
         _materialize_weights(rt, t)
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
@@ -516,6 +534,7 @@ def main() -> str:
     print(f"  Baseline GPU memory: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
           f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB")
 
+    decode_start = time.perf_counter()
     for step in range(max_new_tokens - 1):
         if generated_tokens[-1] in eos_token_set:
             print(f"  EOS at step {step}")
@@ -523,12 +542,6 @@ def main() -> str:
 
         cache_pos = prompt_length + step
         token_input = np.array([[generated_tokens[-1]]], dtype=np.int32)
-        decode_attention_mask = np.full(
-            (1, 1, 1, max_sequence_length),
-            -np.finfo(np.float32).max,
-            dtype=np.float32,
-        )
-        decode_attention_mask[0, 0, 0, : cache_pos + 1] = 0.0
 
         rope_cos, rope_sin = _compute_rope(1, tc.head_dim, start_pos=cache_pos)
 
@@ -537,7 +550,6 @@ def main() -> str:
             {
                 decode_embed_t.input: token_input,
                 decode_layer_ts[0].cache_position: np.array([cache_pos], dtype=np.int32),
-                decode_layer_ts[0].attention_mask: decode_attention_mask,
                 decode_layer_ts[0].position_embeddings_0: rope_cos,
                 decode_layer_ts[0].position_embeddings_1: rope_sin,
             }
@@ -575,6 +587,11 @@ def main() -> str:
         if step < 5 or step % 20 == 0:
             print(f"  Step {step}: token={next_token}  "
                   f"gpu={stats.device_local_live_bytes / 1024**2:.1f}MB")
+
+    decode_elapsed = time.perf_counter() - decode_start
+    decode_steps = len(generated_tokens) - 1
+    print(f"\n  Decode: {decode_steps} steps in {decode_elapsed:.3f}s "
+          f"({decode_elapsed / decode_steps * 1000:.1f} ms/token)" if decode_steps > 0 else "")
 
     # Memory summary
     print("\n=== GPU Memory Trace ===")
