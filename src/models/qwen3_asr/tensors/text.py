@@ -128,6 +128,25 @@ def declare_qwen3_asr_text_tensors(
         )
         for layer in range(decoder_layers)
     )
+    shared_embed_weight = _weight("thinker.model.embed_tokens.weight", (vocab_size, hidden_size))
+    shared_norm_weight = _weight("thinker.model.norm.weight", (hidden_size,))
+    shared_lm_head_weight = _weight("thinker.lm_head.weight", (vocab_size, hidden_size))
+    prefill_layers = tuple(
+        declare_qwen3_asr_text_layer_tensors(
+            frame_prefix="qwen3_asr.text_prefill",
+            layer=layer,
+            sequence_length=prompt_length,
+            max_sequence_length=max_sequence_length,
+            hidden_size=hidden_size,
+            intermediate_size=intermediate_size,
+            num_attention_heads=num_attention_heads,
+            num_key_value_heads=num_key_value_heads,
+            head_dim=head_dim,
+            key_cache=shared_layer_caches[layer][0],
+            value_cache=shared_layer_caches[layer][1],
+        )
+        for layer in range(decoder_layers)
+    )
     prefill = Qwen3AsrTextPrefillTensors(
         input_ids=_input("qwen3_asr.text_prefill.input_ids", "int64", (1, prompt_length)),
         attention_mask=_input("qwen3_asr.text_prefill.attention_mask", "int64", (1, prompt_length)),
@@ -151,35 +170,20 @@ def declare_qwen3_asr_text_tensors(
             (1, prompt_length, hidden_size),
             semantic=TensorSemantic.MASK,
         ),
-        embed_tokens_weight=_weight("thinker.model.embed_tokens.weight", (vocab_size, hidden_size)),
+        embed_tokens_weight=shared_embed_weight,
         inputs_embeds=_comparable_activation(
             "qwen3_asr.text_prefill.inputs_embeds",
             (1, prompt_length, hidden_size),
             probe=PyTorchProbe(kind="module_input", target="model.layers.0", index=0),
         ),
-        layers=tuple(
-            declare_qwen3_asr_text_layer_tensors(
-                frame_prefix="qwen3_asr.text_prefill",
-                layer=layer,
-                sequence_length=prompt_length,
-                max_sequence_length=max_sequence_length,
-                hidden_size=hidden_size,
-                intermediate_size=intermediate_size,
-                num_attention_heads=num_attention_heads,
-                num_key_value_heads=num_key_value_heads,
-                head_dim=head_dim,
-                key_cache=shared_layer_caches[layer][0],
-                value_cache=shared_layer_caches[layer][1],
-            )
-            for layer in range(decoder_layers)
-        ),
-        norm_weight=_weight("thinker.model.norm.weight", (hidden_size,)),
+        layers=prefill_layers,
+        norm_weight=shared_norm_weight,
         final_norm=_comparable_activation(
             "qwen3_asr.text_prefill.final_norm",
             (1, prompt_length, hidden_size),
             probe=PyTorchProbe(kind="module_output", target="model.norm"),
         ),
-        lm_head_weight=_weight("thinker.lm_head.weight", (vocab_size, hidden_size)),
+        lm_head_weight=shared_lm_head_weight,
         logits=LogicalTensor(
             name="qwen3_asr.text_prefill.logits",
             spec=TensorSpec(dtype="float32", shape=(1, prompt_length, vocab_size)),
@@ -198,7 +202,7 @@ def declare_qwen3_asr_text_tensors(
         rope_cos=_state("qwen3_asr.text_decode.rope_cos", "float32", (1, 1, head_dim)),
         rope_sin=_state("qwen3_asr.text_decode.rope_sin", "float32", (1, 1, head_dim)),
         cache_position=_input("qwen3_asr.text_decode.cache_position", "int64", (1,)),
-        embed_tokens_weight=_weight("thinker.model.embed_tokens.weight", (vocab_size, hidden_size)),
+        embed_tokens_weight=shared_embed_weight,
         inputs_embeds=_activation("qwen3_asr.text_decode.inputs_embeds", "float32", (1, 1, hidden_size)),
         layers=tuple(
             declare_qwen3_asr_text_layer_tensors(
@@ -213,16 +217,17 @@ def declare_qwen3_asr_text_tensors(
                 head_dim=head_dim,
                 key_cache=shared_layer_caches[layer][0],
                 value_cache=shared_layer_caches[layer][1],
+                weights_from=prefill_layers[layer],
             )
             for layer in range(decoder_layers)
         ),
-        norm_weight=_weight("thinker.model.norm.weight", (hidden_size,)),
+        norm_weight=shared_norm_weight,
         final_norm=_comparable_activation(
             "qwen3_asr.text_decode.final_norm",
             (1, 1, hidden_size),
             probe=PyTorchProbe(kind="module_output", target="model.norm"),
         ),
-        lm_head_weight=_weight("thinker.lm_head.weight", (vocab_size, hidden_size)),
+        lm_head_weight=shared_lm_head_weight,
         lm_head_select_scratch=LogicalTensor(
             name="qwen3_asr.text_decode.lm_head_select_scratch",
             spec=TensorSpec(dtype="float32", shape=(2 * ((vocab_size + 3) // 4),)),

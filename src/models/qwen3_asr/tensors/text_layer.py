@@ -63,9 +63,9 @@ def declare_qwen3_asr_text_layer_tensors(
     head_dim: int,
     key_cache: LogicalTensor | None = None,
     value_cache: LogicalTensor | None = None,
+    weights_from: Qwen3AsrTextLayerTensors | None = None,
 ) -> Qwen3AsrTextLayerTensors:
     del max_sequence_length
-    weight_prefix = f"thinker.model.layers.{layer}"
     tensor_prefix = f"{frame_prefix}.layers.{layer:02d}"
     hidden_shape = (1, sequence_length, hidden_size)
     q_width = num_attention_heads * head_dim
@@ -73,34 +73,59 @@ def declare_qwen3_asr_text_layer_tensors(
     q_shape = (1, sequence_length, q_width)
     kv_shape = (1, sequence_length, kv_width)
     cache_shape = (1, num_key_value_heads, sequence_length, head_dim)
-    return Qwen3AsrTextLayerTensors(
-        input_layernorm_weight=_weight(f"{weight_prefix}.input_layernorm.weight", (hidden_size,)),
-        post_attention_layernorm_weight=_weight(
+    if weights_from is not None:
+        input_layernorm_weight = weights_from.input_layernorm_weight
+        post_attention_layernorm_weight = weights_from.post_attention_layernorm_weight
+        q_norm_weight = weights_from.q_norm_weight
+        k_norm_weight = weights_from.k_norm_weight
+        q_proj_weight = weights_from.q_proj_weight
+        k_proj_weight = weights_from.k_proj_weight
+        v_proj_weight = weights_from.v_proj_weight
+        o_proj_weight = weights_from.o_proj_weight
+        gate_proj_weight = weights_from.gate_proj_weight
+        up_proj_weight = weights_from.up_proj_weight
+        down_proj_weight = weights_from.down_proj_weight
+    else:
+        weight_prefix = f"thinker.model.layers.{layer}"
+        input_layernorm_weight = _weight(f"{weight_prefix}.input_layernorm.weight", (hidden_size,))
+        post_attention_layernorm_weight = _weight(
             f"{weight_prefix}.post_attention_layernorm.weight", (hidden_size,)
-        ),
-        q_norm_weight=_weight(f"{weight_prefix}.self_attn.q_norm.weight", (head_dim,)),
-        k_norm_weight=_weight(f"{weight_prefix}.self_attn.k_norm.weight", (head_dim,)),
-        q_proj_weight=_weight(
+        )
+        q_norm_weight = _weight(f"{weight_prefix}.self_attn.q_norm.weight", (head_dim,))
+        k_norm_weight = _weight(f"{weight_prefix}.self_attn.k_norm.weight", (head_dim,))
+        q_proj_weight = _weight(
             f"{weight_prefix}.self_attn.q_proj.weight", (q_width, hidden_size)
-        ),
-        k_proj_weight=_weight(
+        )
+        k_proj_weight = _weight(
             f"{weight_prefix}.self_attn.k_proj.weight", (kv_width, hidden_size),
-        ),
-        v_proj_weight=_weight(
+        )
+        v_proj_weight = _weight(
             f"{weight_prefix}.self_attn.v_proj.weight", (kv_width, hidden_size),
-        ),
-        o_proj_weight=_weight(
+        )
+        o_proj_weight = _weight(
             f"{weight_prefix}.self_attn.o_proj.weight", (hidden_size, q_width)
-        ),
-        gate_proj_weight=_weight(
+        )
+        gate_proj_weight = _weight(
             f"{weight_prefix}.mlp.gate_proj.weight", (intermediate_size, hidden_size)
-        ),
-        up_proj_weight=_weight(
+        )
+        up_proj_weight = _weight(
             f"{weight_prefix}.mlp.up_proj.weight", (intermediate_size, hidden_size)
-        ),
-        down_proj_weight=_weight(
+        )
+        down_proj_weight = _weight(
             f"{weight_prefix}.mlp.down_proj.weight", (hidden_size, intermediate_size)
-        ),
+        )
+    return Qwen3AsrTextLayerTensors(
+        input_layernorm_weight=input_layernorm_weight,
+        post_attention_layernorm_weight=post_attention_layernorm_weight,
+        q_norm_weight=q_norm_weight,
+        k_norm_weight=k_norm_weight,
+        q_proj_weight=q_proj_weight,
+        k_proj_weight=k_proj_weight,
+        v_proj_weight=v_proj_weight,
+        o_proj_weight=o_proj_weight,
+        gate_proj_weight=gate_proj_weight,
+        up_proj_weight=up_proj_weight,
+        down_proj_weight=down_proj_weight,
         input_layernorm=_probed(
             f"{tensor_prefix}.input_layernorm", hidden_shape,
             target=f"model.layers.{layer}.input_layernorm",
