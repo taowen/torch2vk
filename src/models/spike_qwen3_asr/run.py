@@ -56,12 +56,6 @@ def _materialize_weights(rt: RuntimeSession, tensors_obj, weights) -> None:
         rt._model_allocations.append(alloc)
 
 
-def _readback_materialized(rt: RuntimeSession, tensor: LogicalTensor) -> np.ndarray:
-    if tensor.buffer is None:
-        raise RuntimeError(f"{tensor.name} is not materialized on GPU")
-    return rt.readback(tensor)
-
-
 def _require_gpu_output(tensor: LogicalTensor) -> None:
     if tensor.buffer is None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
@@ -206,23 +200,29 @@ def main() -> str:
     conv_out_t = at_tensors.create_conv_out(
         "spike.audio.conv_out",
         bindings={"x": conv2d3_t.gelu},
-        request_state_outputs={at_tensors.CONV_OUT_OUTPUT},
+    )
+    audio_position_compact_t = at_tensors.create_audio_position_compact(
+        "spike.audio.position_compact",
+        bindings={"x": conv_out_t.linear},
+        request_state_outputs={at_tensors.AUDIO_POSITION_COMPACT_OUTPUT},
     )
 
     # Encoder layers (layered)
     encoder_layer_ts = []
-    encoder_hidden = None
+    encoder_hidden = audio_position_compact_t.index_select
+    encoder_attention_mask = None
     for layer_idx in range(ac.encoder_layers):
-        bindings = {}
-        if encoder_hidden is not None:
-            bindings["hidden_states"] = encoder_hidden
-            bindings["attention_mask"] = encoder_layer_ts[0].attention_mask
+        bindings = {"hidden_states": encoder_hidden}
+        if encoder_attention_mask is not None:
+            bindings["attention_mask"] = encoder_attention_mask
         layer_tensors = enc_tensors.create_encoder_layer(
             f"spike.audio.enc.{layer_idx}",
             layer_idx=layer_idx,
             bindings=bindings,
         )
         encoder_layer_ts.append(layer_tensors)
+        if encoder_attention_mask is None:
+            encoder_attention_mask = layer_tensors.attention_mask
         encoder_hidden = layer_tensors.add_1
     ln_post_t = at_tensors.create_ln_post(
         "spike.audio.ln_post",
@@ -240,6 +240,13 @@ def main() -> str:
 
     # Text (non-layered)
     embed_tokens_t = text_tensors.create_embed_tokens("spike.text.embed")
+    audio_inject_t = text_tensors.create_audio_inject(
+        "spike.text.audio_inject",
+        bindings={
+            "audio_features": proj2_t.linear,
+            "index_copy": embed_tokens_t.embedding,
+        },
+    )
     key_caches = tuple(
         _request_state_tensor(
             f"spike.text.layers.{layer_idx}.key_cache",
@@ -261,14 +268,14 @@ def main() -> str:
 
     # Text layers (layered)
     text_layer_ts = []
-    text_hidden = None
+    text_hidden = audio_inject_t.index_copy
     for layer_idx in range(tc.num_hidden_layers):
         bindings = {
+            "hidden_states": text_hidden,
             "index_copy": key_caches[layer_idx],
             "index_copy_1": value_caches[layer_idx],
         }
-        if text_hidden is not None:
-            bindings["hidden_states"] = text_hidden
+        if layer_idx > 0:
             bindings["cache_position"] = text_layer_ts[0].cache_position
             bindings["position_embeddings_0"] = text_layer_ts[0].position_embeddings_0
             bindings["position_embeddings_1"] = text_layer_ts[0].position_embeddings_1
@@ -372,29 +379,22 @@ def main() -> str:
     for i, chunk in enumerate(chunks):
         padded_feature[i, 0, :, :chunk.shape[0]] = chunk.T
 
-    # Conv layers
-    print(f"  conv stack ({padded_feature.shape})...")
-    rt._inputs.clear()
-    rt.register_inputs({conv2d1_t.x: padded_feature})
-    with rt.frame("spike.audio.conv_stack"):
-        dispatch.run_conv2d1(rt, conv2d1_t)
-        dispatch.run_conv2d2(rt, conv2d2_t)
-        dispatch.run_conv2d3(rt, conv2d3_t)
-        dispatch.run_conv_out(rt, conv_out_t)
-    conv_out_result = _readback_materialized(rt, conv_out_t.linear)
-    b, t_dim, _ = conv_out_result.shape
-
     # Positional embedding + compact
+    conv_out_shape = tuple(int(dim) for dim in conv_out_t.linear.spec.shape)
+    _, t_dim, _ = conv_out_shape
     pos_emb = _compute_positional_embedding(t_dim, ac.d_model)
-    padded_embed = conv_out_result + pos_emb[None, :t_dim, :]
+    position_embedding = np.ascontiguousarray(
+        np.broadcast_to(pos_emb[None, :t_dim, :], conv_out_shape),
+        dtype=np.float32,
+    )
 
     feature_lens_after_cnn = _get_feat_extract_output_lengths(chunk_lengths)
     valid_positions = []
     for i, fl in enumerate(feature_lens_after_cnn):
         for j in range(int(fl)):
-            valid_positions.append((i, j))
-    hidden_states = np.array([padded_embed[i, j] for i, j in valid_positions], dtype=np.float32)
-    print(f"  hidden_states after compact: {hidden_states.shape}")
+            valid_positions.append(i * t_dim + j)
+    compact_index = np.array(valid_positions, dtype=np.int32)
+    print(f"  hidden_states after compact: {audio_position_compact_t.index_select.spec.shape}")
 
     # cu_seqlens
     n_window_infer = 800
@@ -410,18 +410,35 @@ def main() -> str:
     cu_seqlens = np.cumsum(cu_chunk_lens, dtype=np.int32)
 
     # Build block-diagonal attention mask from cu_seqlens
-    seq_len = hidden_states.shape[0]
+    seq_len = compact_index.shape[0]
     attention_mask = np.full((1, 1, seq_len, seq_len), -np.finfo(np.float32).max, dtype=np.float32)
     for i in range(1, len(cu_seqlens)):
         s, e = int(cu_seqlens[i - 1]), int(cu_seqlens[i])
         attention_mask[0, 0, s:e, s:e] = 0.0
+
+    # Conv layers + compact stay on GPU; only host-prepared indices/position are uploaded.
+    print(f"  conv stack ({padded_feature.shape})...")
+    rt._inputs.clear()
+    rt.register_inputs(
+        {
+            conv2d1_t.x: padded_feature,
+            audio_position_compact_t.position_embedding: position_embedding,
+            audio_position_compact_t.compact_index: compact_index,
+        }
+    )
+    with rt.frame("spike.audio.conv_stack"):
+        dispatch.run_conv2d1(rt, conv2d1_t)
+        dispatch.run_conv2d2(rt, conv2d2_t)
+        dispatch.run_conv2d3(rt, conv2d3_t)
+        dispatch.run_conv_out(rt, conv_out_t)
+        dispatch.run_audio_position_compact(rt, audio_position_compact_t)
+    _require_gpu_output(audio_position_compact_t.index_select)
 
     # Encoder layers + projection stay in one GPU frame.
     print("  encoder + projection...")
     rt._inputs.clear()
     rt.register_inputs(
         {
-            encoder_layer_ts[0].hidden_states: hidden_states,
             encoder_layer_ts[0].attention_mask: attention_mask,
         }
     )
@@ -435,44 +452,36 @@ def main() -> str:
         dispatch.run_proj2(rt, proj2_t)
     audio_hidden_t = proj2_t.linear
     _require_gpu_output(audio_hidden_t)
-    audio_hidden = rt.read_request_state(audio_hidden_t)
     print(f"  Audio tower output: {audio_hidden_t.spec.shape}")
 
     # === Text Prefill ===
     print("\n=== Phase 2: Text Prefill ===")
     prompt_length = prepared.prompt_length
 
-    print("  embed_tokens...")
-    rt._inputs.clear()
-    rt.register_inputs({embed_tokens_t.input: prepared.input_ids.astype(np.int32)})
-    with rt.frame("spike.text.embed"):
-        dispatch.run_embed_tokens(rt, embed_tokens_t)
-        embedded = _readback_materialized(rt, embed_tokens_t.embedding)
-
-    # Inject audio
     ids_flat = prepared.input_ids.flatten()
-    audio_positions = np.where(ids_flat == 151676)[0]
+    audio_positions = np.where(ids_flat == 151676)[0].astype(np.int32)
     if len(audio_positions) > 0:
         audio_start = int(audio_positions[0])
-        audio_end = audio_start + audio_hidden.shape[0]
+        audio_end = audio_start + len(audio_positions)
         print(f"    Injecting audio [{audio_start}:{audio_end}]")
-        embedded[0, audio_start:audio_end, :] = audio_hidden
 
     rope_cos, rope_sin = _compute_rope(prompt_length, tc.head_dim)
 
-    # Decoder layers
-    hidden_states = embedded
-    print(f"  Decoder layers x {tc.num_hidden_layers}...")
+    # Embedding, audio injection, and decoder layers stay on GPU.
+    print(f"  embed + audio inject + decoder layers x {tc.num_hidden_layers}...")
     rt._inputs.clear()
     rt.register_inputs(
         {
-            text_layer_ts[0].hidden_states: hidden_states,
+            embed_tokens_t.input: prepared.input_ids.astype(np.int32),
+            audio_inject_t.audio_positions: audio_positions,
             text_layer_ts[0].cache_position: np.arange(prompt_length, dtype=np.int32),
             text_layer_ts[0].position_embeddings_0: rope_cos,
             text_layer_ts[0].position_embeddings_1: rope_sin,
         }
     )
-    with rt.frame("spike.text.layers_norm"):
+    with rt.frame("spike.text.prefill"):
+        dispatch.run_embed_tokens(rt, embed_tokens_t)
+        dispatch.run_audio_inject(rt, audio_inject_t)
         for layer_idx, layer_tensors in enumerate(text_layer_ts):
             dispatch.run_text_layer(rt, layer_tensors)
             if layer_idx % 7 == 6:

@@ -341,6 +341,100 @@ def create_conv_out(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None
 
 
 @dataclass(frozen=True, slots=True)
+class AudioPositionCompactTensors:
+    x: LogicalTensor
+    position_embedding: LogicalTensor
+    compact_index: LogicalTensor
+    add: LogicalTensor
+    reshape: LogicalTensor
+    index_select: LogicalTensor
+
+
+AUDIO_POSITION_COMPACT_OUTPUT: str = 'index_select'
+
+
+def create_audio_position_compact(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> AudioPositionCompactTensors:
+    _validate_bindings(bindings, frozenset(('x', 'position_embedding', 'compact_index', 'add', 'reshape', 'index_select')))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('index_select',)))
+    return AudioPositionCompactTensors(
+        x=_bind_tensor(
+            bindings,
+            'x',
+            _declare_tensor(
+            name=f"{prefix}.x",
+            spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
+            role=TensorRole.INPUT,
+            memory=MemoryClass.HOST_INPUT,
+            lifetime=TensorLifetime.FRAME,
+            request_state='x' in request_state_outputs,
+            ),
+        ),
+        position_embedding=_bind_tensor(
+            bindings,
+            'position_embedding',
+            _declare_tensor(
+            name=f"{prefix}.position_embedding",
+            spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
+            role=TensorRole.INPUT,
+            memory=MemoryClass.HOST_INPUT,
+            lifetime=TensorLifetime.FRAME,
+            request_state='position_embedding' in request_state_outputs,
+            ),
+        ),
+        compact_index=_bind_tensor(
+            bindings,
+            'compact_index',
+            _declare_tensor(
+            name=f"{prefix}.compact_index",
+            spec=TensorSpec(dtype='int32', shape=(133,)),
+            role=TensorRole.INPUT,
+            memory=MemoryClass.HOST_INPUT,
+            lifetime=TensorLifetime.FRAME,
+            request_state='compact_index' in request_state_outputs,
+            ),
+        ),
+        add=_bind_tensor(
+            bindings,
+            'add',
+            _declare_tensor(
+            name=f"{prefix}.add",
+            spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='add' in request_state_outputs,
+            ),
+        ),
+        reshape=_bind_tensor(
+            bindings,
+            'reshape',
+            _declare_tensor(
+            name=f"{prefix}.reshape",
+            spec=TensorSpec(dtype='float32', shape=(143, 896)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='reshape' in request_state_outputs,
+            ),
+        ),
+        index_select=_bind_tensor(
+            bindings,
+            'index_select',
+            _declare_tensor(
+            name=f"{prefix}.index_select",
+            spec=TensorSpec(dtype='float32', shape=(133, 896)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='index_select' in request_state_outputs,
+            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
+            pytorch_probe=PyTorchProbe(kind="module_output", target="", index=0),
+            ),
+        ),
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class LnPostTensors:
     p_weight: LogicalTensor
     p_bias: LogicalTensor

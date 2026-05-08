@@ -32,6 +32,7 @@ from models.spike_qwen3_asr.shaders.decode_layer_export_slice_f32_31 import DECO
 from models.spike_qwen3_asr.shaders.decode_lm_head_export_linear_nobias_f32 import DECODE_LM_HEAD_EXPORT_LINEAR_NOBIAS_F32
 from models.spike_qwen3_asr.shaders.decode_norm_export_mean_dim_f32 import DECODE_NORM_EXPORT_MEAN_DIM_F32
 from models.spike_qwen3_asr.shaders.decode_norm_export_mul_broadcast_last import DECODE_NORM_EXPORT_MUL_BROADCAST_LAST
+from models.spike_qwen3_asr.shaders.encoder_layer_export_add_f32 import ENCODER_LAYER_EXPORT_ADD_F32
 from models.spike_qwen3_asr.shaders.encoder_layer_export_gelu_f32 import ENCODER_LAYER_EXPORT_GELU_F32
 from models.spike_qwen3_asr.shaders.export_add_f32 import EXPORT_ADD_F32
 from models.spike_qwen3_asr.shaders.export_add_f32_38 import EXPORT_ADD_F32_38
@@ -46,6 +47,8 @@ from models.spike_qwen3_asr.shaders.export_embedding_f32 import EXPORT_EMBEDDING
 from models.spike_qwen3_asr.shaders.export_gelu_f32 import EXPORT_GELU_F32
 from models.spike_qwen3_asr.shaders.export_index_copy_f32_aced7cb1d3 import EXPORT_INDEX_COPY_F32_ACED7CB1D3
 from models.spike_qwen3_asr.shaders.export_index_copy_f32_b94c52aa2e import EXPORT_INDEX_COPY_F32_B94C52AA2E
+from models.spike_qwen3_asr.shaders.export_index_copy_f32_bd093d5c47 import EXPORT_INDEX_COPY_F32_BD093D5C47
+from models.spike_qwen3_asr.shaders.export_index_select_f32_5f14be2148 import EXPORT_INDEX_SELECT_F32_5F14BE2148
 from models.spike_qwen3_asr.shaders.export_layer_norm_f32 import EXPORT_LAYER_NORM_F32
 from models.spike_qwen3_asr.shaders.export_linear_bias_f32 import EXPORT_LINEAR_BIAS_F32
 from models.spike_qwen3_asr.shaders.export_linear_bias_f32_10 import EXPORT_LINEAR_BIAS_F32_10
@@ -98,11 +101,11 @@ from models.spike_qwen3_asr.shaders.proj1_export_gelu_f32 import PROJ1_EXPORT_GE
 from models.spike_qwen3_asr.shaders.proj2_export_linear_bias_f32 import PROJ2_EXPORT_LINEAR_BIAS_F32
 from models.spike_qwen3_asr.shaders.text_layer_export_add_f32 import TEXT_LAYER_EXPORT_ADD_F32
 from models.spike_qwen3_asr.shaders.text_layer_export_linear_nobias_f32 import TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32
-from models.spike_qwen3_asr.tensors.audio_tower import Conv2d1Tensors, Conv2d2Tensors, Conv2d3Tensors, ConvOutTensors, LnPostTensors, Proj1Tensors, Proj2Tensors
+from models.spike_qwen3_asr.tensors.audio_tower import AudioPositionCompactTensors, Conv2d1Tensors, Conv2d2Tensors, Conv2d3Tensors, ConvOutTensors, LnPostTensors, Proj1Tensors, Proj2Tensors
 from models.spike_qwen3_asr.tensors.decode import DecodeEmbedTensors, DecodeLmHeadTensors, DecodeNormTensors
 from models.spike_qwen3_asr.tensors.decode_layer import DecodeLayerTensors
 from models.spike_qwen3_asr.tensors.encoder_layer import EncoderLayerTensors
-from models.spike_qwen3_asr.tensors.text import EmbedTokensTensors, LmHeadTensors, TextNormTensors
+from models.spike_qwen3_asr.tensors.text import AudioInjectTensors, EmbedTokensTensors, LmHeadTensors, TextNormTensors
 from models.spike_qwen3_asr.tensors.text_layer import TextLayerTensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
@@ -129,6 +132,12 @@ def run_conv_out(rt: RuntimeSession, tensors: ConvOutTensors) -> None:
     EXPORT_LINEAR_NOBIAS_F32(rt, x=tensors.transpose, weight=tensors.p_weight, output=tensors.linear)
 
 
+def run_audio_position_compact(rt: RuntimeSession, tensors: AudioPositionCompactTensors) -> None:
+    EXPORT_ADD_F32(rt, x=tensors.x, y=tensors.position_embedding, output=tensors.add)
+    _alias(rt, tensors.add, tensors.reshape)
+    EXPORT_INDEX_SELECT_F32_5F14BE2148(rt, x=tensors.reshape, index=tensors.compact_index, output=tensors.index_select)
+
+
 def run_encoder_layer(rt: RuntimeSession, tensors: EncoderLayerTensors) -> None:
     EXPORT_LAYER_NORM_F32(rt, x=tensors.hidden_states, weight=tensors.p_attn_layer_norm_weight, bias=tensors.p_attn_layer_norm_bias, output=tensors.layer_norm)
     EXPORT_LINEAR_BIAS_F32(rt, x=tensors.layer_norm, weight=tensors.p_attn_q_proj_weight, bias=tensors.p_attn_q_proj_bias, output=tensors.linear)
@@ -148,12 +157,12 @@ def run_encoder_layer(rt: RuntimeSession, tensors: EncoderLayerTensors) -> None:
     _alias(rt, tensors.transpose_3, tensors.contiguous)
     _alias(rt, tensors.contiguous, tensors.reshape_3)
     EXPORT_LINEAR_BIAS_F32(rt, x=tensors.reshape_3, weight=tensors.p_attn_out_proj_weight, bias=tensors.p_attn_out_proj_bias, output=tensors.linear_3)
-    EXPORT_ADD_F32(rt, x=tensors.hidden_states, y=tensors.linear_3, output=tensors.add)
+    ENCODER_LAYER_EXPORT_ADD_F32(rt, x=tensors.hidden_states, y=tensors.linear_3, output=tensors.add)
     EXPORT_LAYER_NORM_F32(rt, x=tensors.add, weight=tensors.p_final_layer_norm_weight, bias=tensors.p_final_layer_norm_bias, output=tensors.layer_norm_1)
     EXPORT_LINEAR_BIAS_F32_10(rt, x=tensors.layer_norm_1, weight=tensors.p_fc1_weight, bias=tensors.p_fc1_bias, output=tensors.linear_4)
     ENCODER_LAYER_EXPORT_GELU_F32(rt, x=tensors.linear_4, output=tensors.gelu)
     EXPORT_LINEAR_BIAS_F32_12(rt, x=tensors.gelu, weight=tensors.p_fc2_weight, bias=tensors.p_fc2_bias, output=tensors.linear_5)
-    EXPORT_ADD_F32(rt, x=tensors.add, y=tensors.linear_5, output=tensors.add_1)
+    ENCODER_LAYER_EXPORT_ADD_F32(rt, x=tensors.add, y=tensors.linear_5, output=tensors.add_1)
 
 
 def run_ln_post(rt: RuntimeSession, tensors: LnPostTensors) -> None:
@@ -171,6 +180,11 @@ def run_proj2(rt: RuntimeSession, tensors: Proj2Tensors) -> None:
 
 def run_embed_tokens(rt: RuntimeSession, tensors: EmbedTokensTensors) -> None:
     EXPORT_EMBEDDING_F32(rt, weight=tensors.p_weight, indices=tensors.input, output=tensors.embedding)
+
+
+def run_audio_inject(rt: RuntimeSession, tensors: AudioInjectTensors) -> None:
+    _alias(rt, tensors.audio_features, tensors.unsqueeze)
+    EXPORT_INDEX_COPY_F32_BD093D5C47(rt, cache=tensors.index_copy, index=tensors.audio_positions, src=tensors.unsqueeze)
 
 
 def run_text_layer(rt: RuntimeSession, tensors: TextLayerTensors) -> None:

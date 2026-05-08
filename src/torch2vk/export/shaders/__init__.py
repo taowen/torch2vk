@@ -7,6 +7,7 @@ from torch2vk.export.shaders.conv2d_f32 import make_conv2d_variant
 from torch2vk.export.shaders.embedding_f32 import make_embedding_variant
 from torch2vk.export.shaders.gelu_f32 import make_gelu_variant
 from torch2vk.export.shaders.index_copy_f32 import make_index_copy_variant
+from torch2vk.export.shaders.index_select_f32 import make_index_select_variant
 from torch2vk.export.shaders.layer_norm_f32 import make_layer_norm_variant
 from torch2vk.export.shaders.linear_bias_f32 import make_linear_bias_variant
 from torch2vk.export.shaders.linear_nobias_f32 import make_linear_nobias_variant
@@ -30,6 +31,7 @@ __all__ = [
     "make_embedding_variant",
     "make_gelu_variant",
     "make_index_copy_variant",
+    "make_index_select_variant",
     "make_layer_norm_variant",
     "make_linear_bias_variant",
     "make_linear_nobias_variant",

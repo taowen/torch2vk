@@ -334,11 +334,13 @@ PLAN_TO_FILE: dict[str, str] = {
     "run_conv2d2": "audio_tower",
     "run_conv2d3": "audio_tower",
     "run_conv_out": "audio_tower",
+    "run_audio_position_compact": "audio_tower",
     "run_ln_post": "audio_tower",
     "run_proj1": "audio_tower",
     "run_proj2": "audio_tower",
     "run_encoder_layer": "encoder_layer",
     "run_embed_tokens": "text",
+    "run_audio_inject": "text",
     "run_text_norm": "text",
     "run_lm_head": "text",
     "run_text_layer": "text_layer",
@@ -540,6 +542,7 @@ def _load_model_and_shapes():
         "conv2d1_out": (chunk_num, 480, h1, w1),
         "conv2d2_out": (chunk_num, 480, h2, w2),
         "conv2d3_out": (chunk_num, 480, h3, w3),
+        "conv_out": (chunk_num, w3, ac.d_model),
         "enc_seq_len": enc_seq_len,
         "cu_seqlens_len": cu_seqlens_len,
         "d_model": ac.d_model,
@@ -627,6 +630,16 @@ def main() -> int:
             b, c, f, t = x.shape
             x = x.reshape(b, c * f, t).transpose(1, 2)
             return torch.nn.functional.linear(x, self.weight, None)
+
+    class _AudioPositionCompact(torch.nn.Module):
+        def forward(self, x, position_embedding, compact_index):
+            x = x + position_embedding
+            x = x.reshape(-1, x.shape[-1])
+            return torch.index_select(x, 0, compact_index)
+
+    class _AudioInject(torch.nn.Module):
+        def forward(self, inputs_embeds, audio_positions, audio_features):
+            return torch.index_copy(inputs_embeds, 1, audio_positions, audio_features.unsqueeze(0))
 
     def _rotate_half(x):
         x1 = x[..., : x.shape[-1] // 2]
@@ -728,6 +741,10 @@ def main() -> int:
     export_and_plan("run_conv_out", _ConvOutFromCnn(at.conv_out).float(),
                     args=(torch.zeros(*shapes["conv2d3_out"], device="meta"),),
                     weight_prefix="thinker.audio_tower.conv_out.")
+    export_and_plan("run_audio_position_compact", _AudioPositionCompact(),
+                    args=(torch.zeros(*shapes["conv_out"], device="meta"),
+                          torch.zeros(*shapes["conv_out"], device="meta"),
+                          torch.zeros(shapes["enc_seq_len"], dtype=torch.long, device="meta")))
     enc_seq = shapes["enc_seq_len"]
     export_and_plan("run_encoder_layer", at.layers[0].float(),
                     args=(torch.zeros(enc_seq, shapes["d_model"], device="meta"),
@@ -753,6 +770,10 @@ def main() -> int:
     export_and_plan("run_embed_tokens", model.thinker.model.embed_tokens.float(),
                     args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
                     weight_prefix="thinker.model.embed_tokens.")
+    export_and_plan("run_audio_inject", _AudioInject(),
+                    args=(torch.zeros(1, pl, hs, device="meta"),
+                          torch.zeros(shapes["enc_seq_len"], dtype=torch.long, device="meta"),
+                          torch.zeros(shapes["enc_seq_len"], hs, device="meta")))
     export_and_plan("run_text_layer", _TextLayerPrefillWithCache(model.thinker.model.layers[0]),
                     args=(torch.zeros(1, pl, hs, device="meta"),
                           torch.zeros(pl, dtype=torch.long, device="meta"),
