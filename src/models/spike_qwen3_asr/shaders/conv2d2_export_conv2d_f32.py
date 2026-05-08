@@ -32,13 +32,13 @@ CONV2D2_EXPORT_CONV2D_F32 = ShaderVariant(
                 name='weight',
                 io_kind=IOKind.INPUT,
                 role='weight',
-                contract=TensorContract(dtype='float32', shape=('Co', 'Ci2', 'Kh', 'Kw',)),
+                contract=TensorContract(dtype='bfloat16', shape=('Co', 'Ci2', 'Kh', 'Kw',)),
             ),
             TensorFieldSpec(
                 name='bias',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('Co3',)),
+                contract=TensorContract(dtype='bfloat16', shape=('Co3',)),
             ),
             TensorFieldSpec(
                 name='output',
@@ -66,15 +66,16 @@ CONV2D2_EXPORT_CONV2D_F32 = ShaderVariant(
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(4224000, 256), 1, 1),
+        dispatch=(ceil_div(800, 16), ceil_div(480, 16), 11),
     ),
     execution_requirements=None,
     source="""\
 #version 450
+#extension GL_EXT_bfloat16 : require
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { float weight[]; };
-layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { float bias[]; };
+layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
+layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { bfloat16_t bias[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint batch; uint in_c; uint in_h; uint in_w;
@@ -82,17 +83,15 @@ layout(push_constant) uniform PushConstants {
     uint kh; uint kw; uint stride_h; uint stride_w;
     uint pad_h; uint pad_w;
 } pc;
-layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 void main() {
-    const uint idx = gl_GlobalInvocationID.x;
-    const uint total = pc.batch * pc.out_c * pc.out_h * pc.out_w;
-    if (idx >= total) return;
-    uint rem = idx;
-    const uint ow = rem % pc.out_w; rem /= pc.out_w;
-    const uint oh = rem % pc.out_h; rem /= pc.out_h;
-    const uint oc = rem % pc.out_c; rem /= pc.out_c;
-    const uint b = rem;
-    float acc = bias[oc];
+    const uint spatial = gl_WorkGroupID.x * 16u + gl_LocalInvocationID.x;
+    const uint oc = gl_WorkGroupID.y * 16u + gl_LocalInvocationID.y;
+    const uint b = gl_WorkGroupID.z;
+    if (b >= pc.batch || oc >= pc.out_c || spatial >= pc.out_h * pc.out_w) return;
+    const uint oh = spatial / pc.out_w;
+    const uint ow = spatial - oh * pc.out_w;
+    float acc = fma(1.0, bias[oc], 0.0);
     for (uint ic = 0u; ic < pc.in_c; ++ic) {
         for (uint fh = 0u; fh < pc.kh; ++fh) {
             for (uint fw = 0u; fw < pc.kw; ++fw) {
@@ -101,12 +100,12 @@ void main() {
                 if (ih < pc.in_h && iw < pc.in_w) {
                     const uint x_idx = ((b * pc.in_c + ic) * pc.in_h + ih) * pc.in_w + iw;
                     const uint w_idx = ((oc * pc.in_c + ic) * pc.kh + fh) * pc.kw + fw;
-                    acc += x[x_idx] * weight[w_idx];
+                    acc = fma(x[x_idx], weight[w_idx], acc);
                 }
             }
         }
     }
-    output_values[idx] = acc;
+    output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = acc;
 }
 """,
 )

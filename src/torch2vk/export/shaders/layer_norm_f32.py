@@ -18,10 +18,11 @@ from torch2vk.runtime.shader import (
 
 _SOURCE = """\
 #version 450
+#extension GL_EXT_bfloat16 : require
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { float weight[]; };
-layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { float bias[]; };
+layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
+layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { bfloat16_t bias[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint ROWS; uint COLS; float eps; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -53,7 +54,7 @@ void main() {
     float inv_std = inversesqrt(var + pc.eps);
     for (uint c = tid; c < pc.COLS; c += 256u) {
         uint idx = row * pc.COLS + c;
-        output_values[idx] = (x[idx] - mean) * inv_std * weight[c] + bias[c];
+        output_values[idx] = fma((x[idx] - mean) * inv_std, weight[c], bias[c]);
     }
 }
 """
@@ -98,8 +99,8 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
             shader_name="export_layer_norm_f32",
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
-                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="float32", shape=("W0",))),
-                TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("W0",))),
+                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="bfloat16", shape=("W0",))),
+                TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype="bfloat16", shape=("W0",))),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
             ),
             push_constants=PushConstantSpec(

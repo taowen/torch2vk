@@ -17,10 +17,11 @@ from torch2vk.runtime.shader import (
 
 _SOURCE = """\
 #version 450
+#extension GL_EXT_bfloat16 : require
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { float weight[]; };
-layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { float bias[]; };
+layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
+layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { bfloat16_t bias[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint batch; uint in_c; uint in_h; uint in_w;
@@ -28,17 +29,15 @@ layout(push_constant) uniform PushConstants {
     uint kh; uint kw; uint stride_h; uint stride_w;
     uint pad_h; uint pad_w;
 } pc;
-layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 void main() {
-    const uint idx = gl_GlobalInvocationID.x;
-    const uint total = pc.batch * pc.out_c * pc.out_h * pc.out_w;
-    if (idx >= total) return;
-    uint rem = idx;
-    const uint ow = rem % pc.out_w; rem /= pc.out_w;
-    const uint oh = rem % pc.out_h; rem /= pc.out_h;
-    const uint oc = rem % pc.out_c; rem /= pc.out_c;
-    const uint b = rem;
-    float acc = bias[oc];
+    const uint spatial = gl_WorkGroupID.x * 16u + gl_LocalInvocationID.x;
+    const uint oc = gl_WorkGroupID.y * 16u + gl_LocalInvocationID.y;
+    const uint b = gl_WorkGroupID.z;
+    if (b >= pc.batch || oc >= pc.out_c || spatial >= pc.out_h * pc.out_w) return;
+    const uint oh = spatial / pc.out_w;
+    const uint ow = spatial - oh * pc.out_w;
+    float acc = fma(1.0, bias[oc], 0.0);
     for (uint ic = 0u; ic < pc.in_c; ++ic) {
         for (uint fh = 0u; fh < pc.kh; ++fh) {
             for (uint fw = 0u; fw < pc.kw; ++fw) {
@@ -47,12 +46,12 @@ void main() {
                 if (ih < pc.in_h && iw < pc.in_w) {
                     const uint x_idx = ((b * pc.in_c + ic) * pc.in_h + ih) * pc.in_w + iw;
                     const uint w_idx = ((oc * pc.in_c + ic) * pc.kh + fh) * pc.kw + fw;
-                    acc += x[x_idx] * weight[w_idx];
+                    acc = fma(x[x_idx], weight[w_idx], acc);
                 }
             }
         }
     }
-    output_values[idx] = acc;
+    output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = acc;
 }
 """
 
@@ -91,13 +90,12 @@ def make_conv2d_variant(node: Node) -> ShaderVariant | None:
 
     fields = [
         TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=x_contract)),
-        TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="float32", shape=w_contract)),
+        TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="bfloat16", shape=w_contract)),
     ]
     if has_bias:
-        fields.append(TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("Co3",))))
+        fields.append(TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype="bfloat16", shape=("Co3",))))
     fields.append(TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)))
 
-    total = batch * out_c * out_h * out_w
     return ShaderVariant(
         name="export_conv2d_f32",
         family="export",
@@ -123,7 +121,7 @@ def make_conv2d_variant(node: Node) -> ShaderVariant | None:
                     PushConstantFieldSpec("pad_w", PushConstantType.UINT32, 48, padding[1]),
                 ),
             ),
-            dispatch=(ceil_div(total, 256), 1, 1),
+            dispatch=(ceil_div(out_h * out_w, 16), ceil_div(out_c, 16), batch),
         ),
         source=_SOURCE,
     )

@@ -27,7 +27,7 @@ EXPORT_MUL_LEFT_BROADCAST_12 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('D',)),
+                contract=TensorContract(dtype='bfloat16', shape=('D',)),
             ),
             TensorFieldSpec(
                 name='y',
@@ -55,15 +55,16 @@ EXPORT_MUL_LEFT_BROADCAST_12 = ShaderVariant(
     execution_requirements=None,
     source="""\
 #version 450
+#extension GL_EXT_bfloat16 : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { bfloat16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint N; uint H; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) { output_values[idx] = x[idx % pc.H] * y[idx]; }
+    if (idx < pc.N) { output_values[idx] = fma(y[idx], x[idx % pc.H], 0.0); }
 }
 """,
 )

@@ -22,11 +22,12 @@ layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint NH; uint NK; uint T; uint S; uint D; } pc;
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint head = gl_WorkGroupID.x;
     const uint row = gl_WorkGroupID.y;
-    if (head >= pc.NH || row >= pc.T) { return; }
+    const uint d_out = gl_WorkGroupID.z * 64u + gl_LocalInvocationID.x;
+    if (head >= pc.NH || row >= pc.T || d_out >= pc.D) { return; }
     const uint kv_head = head * pc.NK / pc.NH;
     const float scale = inversesqrt(float(pc.D));
     float max_score = -1.0e38;
@@ -45,18 +46,16 @@ void main() {
         }
         sum_exp += exp(dot * scale - max_score);
     }
-    for (uint d = 0u; d < pc.D; ++d) {
-        float acc = 0.0;
-        for (uint col = 0u; col <= row && col < pc.S; ++col) {
-            float dot = 0.0;
-            for (uint dd = 0u; dd < pc.D; ++dd) {
-                dot += q[(head * pc.T + row) * pc.D + dd] * k[(kv_head * pc.S + col) * pc.D + dd];
-            }
-            float w = exp(dot * scale - max_score) / sum_exp;
-            acc += w * v[(kv_head * pc.S + col) * pc.D + d];
+    float acc = 0.0;
+    for (uint col = 0u; col <= row && col < pc.S; ++col) {
+        float dot = 0.0;
+        for (uint dd = 0u; dd < pc.D; ++dd) {
+            dot += q[(head * pc.T + row) * pc.D + dd] * k[(kv_head * pc.S + col) * pc.D + dd];
         }
-        output_values[(head * pc.T + row) * pc.D + d] = acc;
+        float w = exp(dot * scale - max_score) / sum_exp;
+        acc += w * v[(kv_head * pc.S + col) * pc.D + d_out];
     }
+    output_values[(head * pc.T + row) * pc.D + d_out] = acc;
 }
 """
 
@@ -68,11 +67,12 @@ layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint NH; uint NK; uint T; uint S; uint D; } pc;
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint head = gl_WorkGroupID.x;
     const uint row = gl_WorkGroupID.y;
-    if (head >= pc.NH || row >= pc.T) { return; }
+    const uint d_out = gl_WorkGroupID.z * 64u + gl_LocalInvocationID.x;
+    if (head >= pc.NH || row >= pc.T || d_out >= pc.D) { return; }
     const uint kv_head = head * pc.NK / pc.NH;
     const float scale = inversesqrt(float(pc.D));
     float max_score = -1.0e38;
@@ -91,18 +91,16 @@ void main() {
         }
         sum_exp += exp(dot * scale - max_score);
     }
-    for (uint d = 0u; d < pc.D; ++d) {
-        float acc = 0.0;
-        for (uint col = 0u; col < pc.S; ++col) {
-            float dot = 0.0;
-            for (uint dd = 0u; dd < pc.D; ++dd) {
-                dot += q[(head * pc.T + row) * pc.D + dd] * k[(kv_head * pc.S + col) * pc.D + dd];
-            }
-            float w = exp(dot * scale - max_score) / sum_exp;
-            acc += w * v[(kv_head * pc.S + col) * pc.D + d];
+    float acc = 0.0;
+    for (uint col = 0u; col < pc.S; ++col) {
+        float dot = 0.0;
+        for (uint dd = 0u; dd < pc.D; ++dd) {
+            dot += q[(head * pc.T + row) * pc.D + dd] * k[(kv_head * pc.S + col) * pc.D + dd];
         }
-        output_values[(head * pc.T + row) * pc.D + d] = acc;
+        float w = exp(dot * scale - max_score) / sum_exp;
+        acc += w * v[(kv_head * pc.S + col) * pc.D + d_out];
     }
+    output_values[(head * pc.T + row) * pc.D + d_out] = acc;
 }
 """
 
@@ -115,11 +113,12 @@ layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
 layout(set = 0, binding = 3) buffer restrict readonly MaskBuffer { float mask[]; };
 layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint NH; uint NK; uint T; uint S; uint D; } pc;
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint head = gl_WorkGroupID.x;
     const uint row = gl_WorkGroupID.y;
-    if (head >= pc.NH || row >= pc.T) { return; }
+    const uint d_out = gl_WorkGroupID.z * 64u + gl_LocalInvocationID.x;
+    if (head >= pc.NH || row >= pc.T || d_out >= pc.D) { return; }
     const uint kv_head = head * pc.NK / pc.NH;
     const float scale = inversesqrt(float(pc.D));
     float max_score = -1.0e38;
@@ -139,18 +138,16 @@ void main() {
         }
         sum_exp += exp(dot * scale + mask[row * pc.S + col] - max_score);
     }
-    for (uint d = 0u; d < pc.D; ++d) {
-        float acc = 0.0;
-        for (uint col = 0u; col < pc.S; ++col) {
-            float dot = 0.0;
-            for (uint dd = 0u; dd < pc.D; ++dd) {
-                dot += q[(head * pc.T + row) * pc.D + dd] * k[(kv_head * pc.S + col) * pc.D + dd];
-            }
-            float w = exp(dot * scale + mask[row * pc.S + col] - max_score) / sum_exp;
-            acc += w * v[(kv_head * pc.S + col) * pc.D + d];
+    float acc = 0.0;
+    for (uint col = 0u; col < pc.S; ++col) {
+        float dot = 0.0;
+        for (uint dd = 0u; dd < pc.D; ++dd) {
+            dot += q[(head * pc.T + row) * pc.D + dd] * k[(kv_head * pc.S + col) * pc.D + dd];
         }
-        output_values[(head * pc.T + row) * pc.D + d] = acc;
+        float w = exp(dot * scale + mask[row * pc.S + col] - max_score) / sum_exp;
+        acc += w * v[(kv_head * pc.S + col) * pc.D + d_out];
     }
+    output_values[(head * pc.T + row) * pc.D + d_out] = acc;
 }
 """
 
@@ -238,7 +235,7 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
                     PushConstantFieldSpec("D", PushConstantType.UINT32, 16, d),
                 ),
             ),
-            dispatch=(nh, t, 1),
+            dispatch=(nh, t, (d + 63) // 64),
         ),
         source=source,
     )

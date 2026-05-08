@@ -118,7 +118,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_input_layernorm_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.input_layernorm.weight",
-            spec=TensorSpec(dtype='float32', shape=(1024,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -130,7 +130,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_post_attention_layernorm_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.post_attention_layernorm.weight",
-            spec=TensorSpec(dtype='float32', shape=(1024,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -142,7 +142,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_attn_q_proj_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.q_proj.weight",
-            spec=TensorSpec(dtype='float32', shape=(2048, 1024)),
+            spec=TensorSpec(dtype='bfloat16', shape=(2048, 1024)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -154,7 +154,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_attn_k_proj_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.k_proj.weight",
-            spec=TensorSpec(dtype='float32', shape=(1024, 1024)),
+            spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -166,7 +166,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_attn_v_proj_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.v_proj.weight",
-            spec=TensorSpec(dtype='float32', shape=(1024, 1024)),
+            spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -178,7 +178,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_attn_o_proj_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.o_proj.weight",
-            spec=TensorSpec(dtype='float32', shape=(1024, 2048)),
+            spec=TensorSpec(dtype='bfloat16', shape=(1024, 2048)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -190,7 +190,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_attn_q_norm_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.q_norm.weight",
-            spec=TensorSpec(dtype='float32', shape=(128,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(128,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -202,7 +202,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_attn_k_norm_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.self_attn.k_norm.weight",
-            spec=TensorSpec(dtype='float32', shape=(128,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(128,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -214,7 +214,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_mlp_gate_proj_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.mlp.gate_proj.weight",
-            spec=TensorSpec(dtype='float32', shape=(3072, 1024)),
+            spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -226,7 +226,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_mlp_up_proj_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.mlp.up_proj.weight",
-            spec=TensorSpec(dtype='float32', shape=(3072, 1024)),
+            spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -238,7 +238,7 @@ def create_text_layer(prefix: str, layer_idx: int, *, bindings: Mapping[str, Log
             'p_mlp_down_proj_weight',
             _declare_tensor(
             name=f"thinker.model.layers.{layer_idx}.mlp.down_proj.weight",
-            spec=TensorSpec(dtype='float32', shape=(1024, 3072)),
+            spec=TensorSpec(dtype='bfloat16', shape=(1024, 3072)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,

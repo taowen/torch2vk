@@ -188,7 +188,11 @@ def _variant_bindings_match_tensor_dtypes(
         if tensor_name is None:
             continue
         expected = field.contract.dtype
-        actual = _runtime_dtype(tensors[tensor_name]["dtype"])
+        actual = (
+            "bfloat16"
+            if tensors[tensor_name]["kind"] == "parameter"
+            else _runtime_dtype(tensors[tensor_name]["dtype"])
+        )
         if isinstance(expected, str):
             if actual != expected:
                 return False
@@ -368,8 +372,11 @@ def _generate_tensor_class(plan_name: str, plan: dict) -> str:
     tensor_entries = []
     for name, meta in plan["tensors"].items():
         shape = tuple(meta["shape"])
-        dtype = "int32" if meta["dtype"] in ("int64", "int32") else "float32"
         kind = meta["kind"]
+        if kind == "parameter":
+            dtype = "bfloat16"
+        else:
+            dtype = "int32" if meta["dtype"] in ("int64", "int32") else "float32"
 
         if kind == "parameter":
             role, memory, lifetime = "TensorRole.WEIGHT", "MemoryClass.MODEL_WEIGHT", "TensorLifetime.MODEL"

@@ -37,7 +37,7 @@ def create_conv2d1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             'p_weight',
             _declare_tensor(
             name="thinker.audio_tower.conv2d1.weight",
-            spec=TensorSpec(dtype='float32', shape=(480, 1, 3, 3)),
+            spec=TensorSpec(dtype='bfloat16', shape=(480, 1, 3, 3)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -49,7 +49,7 @@ def create_conv2d1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             'p_bias',
             _declare_tensor(
             name="thinker.audio_tower.conv2d1.bias",
-            spec=TensorSpec(dtype='float32', shape=(480,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(480,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -118,7 +118,7 @@ def create_conv2d2(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             'p_weight',
             _declare_tensor(
             name="thinker.audio_tower.conv2d2.weight",
-            spec=TensorSpec(dtype='float32', shape=(480, 480, 3, 3)),
+            spec=TensorSpec(dtype='bfloat16', shape=(480, 480, 3, 3)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -130,7 +130,7 @@ def create_conv2d2(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             'p_bias',
             _declare_tensor(
             name="thinker.audio_tower.conv2d2.bias",
-            spec=TensorSpec(dtype='float32', shape=(480,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(480,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -199,7 +199,7 @@ def create_conv2d3(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             'p_weight',
             _declare_tensor(
             name="thinker.audio_tower.conv2d3.weight",
-            spec=TensorSpec(dtype='float32', shape=(480, 480, 3, 3)),
+            spec=TensorSpec(dtype='bfloat16', shape=(480, 480, 3, 3)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -211,7 +211,7 @@ def create_conv2d3(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             'p_bias',
             _declare_tensor(
             name="thinker.audio_tower.conv2d3.bias",
-            spec=TensorSpec(dtype='float32', shape=(480,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(480,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -280,7 +280,7 @@ def create_conv_out(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None
             'p_weight',
             _declare_tensor(
             name="thinker.audio_tower.conv_out.weight",
-            spec=TensorSpec(dtype='float32', shape=(896, 7680)),
+            spec=TensorSpec(dtype='bfloat16', shape=(896, 7680)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -454,7 +454,7 @@ def create_ln_post(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             'p_weight',
             _declare_tensor(
             name="thinker.audio_tower.ln_post.weight",
-            spec=TensorSpec(dtype='float32', shape=(896,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(896,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -466,7 +466,7 @@ def create_ln_post(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             'p_bias',
             _declare_tensor(
             name="thinker.audio_tower.ln_post.bias",
-            spec=TensorSpec(dtype='float32', shape=(896,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(896,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -523,7 +523,7 @@ def create_proj1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = 
             'p_weight',
             _declare_tensor(
             name="thinker.audio_tower.proj1.weight",
-            spec=TensorSpec(dtype='float32', shape=(896, 896)),
+            spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -535,7 +535,7 @@ def create_proj1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = 
             'p_bias',
             _declare_tensor(
             name="thinker.audio_tower.proj1.bias",
-            spec=TensorSpec(dtype='float32', shape=(896,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(896,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -603,7 +603,7 @@ def create_proj2(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = 
             'p_weight',
             _declare_tensor(
             name="thinker.audio_tower.proj2.weight",
-            spec=TensorSpec(dtype='float32', shape=(1024, 896)),
+            spec=TensorSpec(dtype='bfloat16', shape=(1024, 896)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -615,7 +615,7 @@ def create_proj2(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = 
             'p_bias',
             _declare_tensor(
             name="thinker.audio_tower.proj2.bias",
-            spec=TensorSpec(dtype='float32', shape=(1024,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,

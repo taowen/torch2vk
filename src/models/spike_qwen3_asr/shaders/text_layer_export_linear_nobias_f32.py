@@ -32,7 +32,7 @@ TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32 = ShaderVariant(
                 name='weight',
                 io_kind=IOKind.INPUT,
                 role='weight',
-                contract=TensorContract(dtype='float32', shape=('W0', 'W1',)),
+                contract=TensorContract(dtype='bfloat16', shape=('W0', 'W1',)),
             ),
             TensorFieldSpec(
                 name='output',
@@ -56,14 +56,15 @@ TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32 = ShaderVariant(
     source="""\
 #version 450
 #extension GL_EXT_control_flow_attributes : enable
+#extension GL_EXT_bfloat16 : require
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { float weight[]; };
+layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 const uint TILE_M = 16u; const uint TILE_N = 16u; const uint TILE_K = 32u;
-shared float tile_x[16 * 32]; shared float tile_w[32 * 16];
+shared float tile_x[16 * 32]; shared bfloat16_t tile_w[32 * 16];
 void main() {
     const uint local_col = gl_LocalInvocationID.x;
     const uint local_row = gl_LocalInvocationID.y;
@@ -80,11 +81,11 @@ void main() {
         for (uint i = lane; i < TILE_K * TILE_N; i += TILE_M * TILE_N) {
             const uint tk = i / TILE_N; const uint tc = i - tk * TILE_N;
             const uint gk = k0 + tk; const uint gc = gl_WorkGroupID.y * TILE_N + tc;
-            tile_w[i] = (gc < pc.N && gk < pc.K) ? weight[gc * pc.K + gk] : 0.0;
+            tile_w[i] = (gc < pc.N && gk < pc.K) ? weight[gc * pc.K + gk] : bfloat16_t(0.0);
         }
         barrier();
         [[unroll]] for (uint k = 0u; k < TILE_K; ++k) {
-            acc += tile_x[local_row * TILE_K + k] * tile_w[k * TILE_N + local_col];
+            acc = fma(tile_x[local_row * TILE_K + k], tile_w[k * TILE_N + local_col], acc);
         }
         barrier();
     }

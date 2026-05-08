@@ -17,8 +17,9 @@ from torch2vk.runtime.shader import (
 
 _SOURCE = """\
 #version 450
+#extension GL_EXT_bfloat16 : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly WeightBuffer { float weight[]; };
+layout(set = 0, binding = 0) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
 layout(set = 0, binding = 1) buffer restrict readonly IndicesBuffer { int indices[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint num_indices; uint embedding_dim; } pc;
@@ -29,7 +30,7 @@ void main() {
     const uint token_idx = idx / pc.embedding_dim;
     const uint dim_idx = idx - token_idx * pc.embedding_dim;
     const int token_id = indices[token_idx];
-    output_values[idx] = weight[uint(token_id) * pc.embedding_dim + dim_idx];
+    output_values[idx] = float(weight[uint(token_id) * pc.embedding_dim + dim_idx]);
 }
 """
 
@@ -61,7 +62,7 @@ def make_embedding_variant(node: Node) -> ShaderVariant | None:
             class_name="ExportEmbeddingProgram",
             shader_name="export_embedding_f32",
             fields=(
-                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="float32", shape=w_contract)),
+                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="bfloat16", shape=w_contract)),
                 TensorFieldSpec("indices", IOKind.INPUT, "input", TensorContract(dtype="int32", shape=idx_contract)),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
             ),

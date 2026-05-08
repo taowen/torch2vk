@@ -199,6 +199,12 @@ def run_qwen3_asr_greedy_decode_loop(
 
     prompt_length = prefill.input_ids.concrete_shape[-1]
     decode = tensors.decode
+
+    baseline_stats = rt.device.allocation_stats()
+    print(f"  [memory] Decode baseline: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
+          f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB")
+    memory_trace: list[tuple[int, float, float]] = []
+
     for step in range(max_new_tokens - 1):
         next_token = rt.read_request_state(tensors.token_select.next_token)
         _ensure_kv_cache_capacity(rt, tensors, required_length=prompt_length + step + 1)
@@ -231,8 +237,26 @@ def run_qwen3_asr_greedy_decode_loop(
             stopped=stopped,
             stop_on_eos=stop_on_eos,
         )
+
+        stats = rt.device.allocation_stats()
+        memory_trace.append((step, stats.device_local_live_bytes / 1024**2, stats.device_local_reserved_bytes / 1024**2))
+        if step < 5 or step % 20 == 0:
+            print(f"  [memory] Step {step}: gpu={stats.device_local_live_bytes / 1024**2:.1f}MB")
+
         if stop_on_eos and _token_select_done(rt, tensors):
             break
+
+    final_stats = rt.device.allocation_stats()
+    print(f"\n  [memory] === GPU Memory Trace ===")
+    print(f"  [memory] Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB")
+    print(f"  [memory] Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB")
+    print(f"  [memory] Final device_local live: {final_stats.device_local_live_bytes / 1024**2:.1f} MB")
+    print(f"  [memory] Steps sampled: {len(memory_trace)}")
+    print(f"  [memory] Step | GPU Live (MB) | GPU Reserved (MB)")
+    print(f"  [memory] -----|---------------|------------------")
+    for s, live, reserved in memory_trace:
+        print(f"  [memory] {s:4d} | {live:13.1f} | {reserved:17.1f}")
+
     return tensors.token_select.generated_tokens
 
 

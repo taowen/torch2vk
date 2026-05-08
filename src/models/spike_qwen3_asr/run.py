@@ -14,7 +14,6 @@ from pathlib import Path
 import numpy as np
 import torch
 from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRConfig
-from safetensors import safe_open
 
 from models.hf_cache import resolve_cached_model
 from models.qwen3_asr.execution import prepare_qwen3_asr_inputs
@@ -38,22 +37,15 @@ from torch2vk.runtime.logical import (
 from torch2vk.runtime.session import RuntimeSession
 
 
-def _materialize_weights(rt: RuntimeSession, tensors_obj, weights) -> None:
-    """Upload float32-converted weights to persistent GPU memory (once per tensor)."""
+def _materialize_weights(rt: RuntimeSession, tensors_obj) -> None:
+    """Upload declared model weights through the runtime checkpoint path."""
     for f in dataclasses.fields(tensors_obj):
         tensor: LogicalTensor = getattr(tensors_obj, f.name)
         if tensor.role is not TensorRole.WEIGHT:
             continue
         if tensor.buffer is not None:
             continue
-        data = weights.get_tensor(tensor.name).float().numpy()
-        ((slice_, alloc),) = rt.device.upload_numpy_arrays_with_allocations(
-            [(tensor.name, data)]
-        )
-        with tensor.runtime_write_scope():
-            tensor.buffer = slice_
-            tensor.descriptor_nbytes = slice_.nbytes
-        rt._model_allocations.append(alloc)
+        rt._materialize_weight(tensor)
 
 
 def _require_gpu_output(tensor: LogicalTensor) -> None:
@@ -181,7 +173,6 @@ def main() -> str:
 
     processor, prepared = prepare_qwen3_asr_inputs(model_dir=model_dir, wav=str(wav_path))
     max_sequence_length = prepared.prompt_length + max_new_tokens
-    weights = safe_open(str(Path(model_dir) / "model.safetensors"), framework="pt", device="cpu")
     rt = RuntimeSession.open(device_index=0, model_dir=model_dir)
 
     # === Create all tensor objects upfront and materialize weights ===
@@ -332,19 +323,19 @@ def main() -> str:
 
     # Materialize all weights to persistent GPU memory
     for t in [conv2d1_t, conv2d2_t, conv2d3_t, conv_out_t, ln_post_t, proj1_t, proj2_t]:
-        _materialize_weights(rt, t, weights)
+        _materialize_weights(rt, t)
     for t in encoder_layer_ts:
-        _materialize_weights(rt, t, weights)
-    _materialize_weights(rt, embed_tokens_t, weights)
-    _materialize_weights(rt, text_norm_t, weights)
-    _materialize_weights(rt, lm_head_t, weights)
+        _materialize_weights(rt, t)
+    _materialize_weights(rt, embed_tokens_t)
+    _materialize_weights(rt, text_norm_t)
+    _materialize_weights(rt, lm_head_t)
     for t in text_layer_ts:
-        _materialize_weights(rt, t, weights)
-    _materialize_weights(rt, decode_embed_t, weights)
-    _materialize_weights(rt, decode_norm_t, weights)
-    _materialize_weights(rt, decode_lm_head_t, weights)
+        _materialize_weights(rt, t)
+    _materialize_weights(rt, decode_embed_t)
+    _materialize_weights(rt, decode_norm_t)
+    _materialize_weights(rt, decode_lm_head_t)
     for t in decode_layer_ts:
-        _materialize_weights(rt, t, weights)
+        _materialize_weights(rt, t)
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
         dtype=np.float32,
@@ -352,7 +343,8 @@ def main() -> str:
     rt.initialize_request_state(
         {cache: zero_cache for cache in key_caches + value_caches}
     )
-    print("  Weights materialized.")
+    weight_stats = rt.device.allocation_stats()
+    print(f"  Weights materialized: {weight_stats.device_local_live_bytes / 1024**2:.1f} MB on GPU")
 
     # === Audio Tower ===
     print("\n=== Phase 1: Audio Tower ===")
@@ -518,6 +510,12 @@ def main() -> str:
     eos_token_set = set(eos_token_ids)
     generated_tokens = [first_token]
 
+    # Memory sampling
+    memory_trace: list[tuple[int, float, float, float]] = []
+    baseline_stats = rt.device.allocation_stats()
+    print(f"  Baseline GPU memory: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
+          f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB")
+
     for step in range(max_new_tokens - 1):
         if generated_tokens[-1] in eos_token_set:
             print(f"  EOS at step {step}")
@@ -564,8 +562,34 @@ def main() -> str:
         )
         generated_tokens.append(next_token)
 
+        stats = rt.device.allocation_stats()
+        memory_trace.append(
+            (
+                step,
+                stats.device_local_live_bytes / 1024**2,
+                stats.device_local_reserved_bytes / 1024**2,
+                stats.host_upload_live_bytes / 1024**2,
+            )
+        )
+
         if step < 5 or step % 20 == 0:
-            print(f"  Step {step}: token={next_token}")
+            print(f"  Step {step}: token={next_token}  "
+                  f"gpu={stats.device_local_live_bytes / 1024**2:.1f}MB")
+
+    # Memory summary
+    print("\n=== GPU Memory Trace ===")
+    if memory_trace:
+        final_stats = rt.device.allocation_stats()
+        print(f"  Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB")
+        print(f"  Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB")
+        print(f"  Final device_local live: {final_stats.device_local_live_bytes / 1024**2:.1f} MB")
+        print(f"  Steps sampled: {len(memory_trace)}")
+        print()
+        print("  Step | GPU Live (MB) | GPU Reserved (MB) | Host Upload (MB)")
+        print("  -----|---------------|-------------------|------------------")
+        for step, device_local_live_mb, device_local_reserved_mb, host_upload_live_mb in memory_trace:
+            print(f"  {step:4d} | {device_local_live_mb:13.1f} | "
+                  f"{device_local_reserved_mb:17.1f} | {host_upload_live_mb:.1f}")
 
     # Decode text
     print("\n=== Result ===")

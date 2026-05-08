@@ -26,7 +26,7 @@ DECODE_EMBED_EXPORT_EMBEDDING_F32 = ShaderVariant(
                 name='weight',
                 io_kind=IOKind.INPUT,
                 role='weight',
-                contract=TensorContract(dtype='float32', shape=('W0', 'W1',)),
+                contract=TensorContract(dtype='bfloat16', shape=('W0', 'W1',)),
             ),
             TensorFieldSpec(
                 name='indices',
@@ -54,8 +54,9 @@ DECODE_EMBED_EXPORT_EMBEDDING_F32 = ShaderVariant(
     execution_requirements=None,
     source="""\
 #version 450
+#extension GL_EXT_bfloat16 : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly WeightBuffer { float weight[]; };
+layout(set = 0, binding = 0) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
 layout(set = 0, binding = 1) buffer restrict readonly IndicesBuffer { int indices[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint num_indices; uint embedding_dim; } pc;
@@ -66,7 +67,7 @@ void main() {
     const uint token_idx = idx / pc.embedding_dim;
     const uint dim_idx = idx - token_idx * pc.embedding_dim;
     const int token_id = indices[token_idx];
-    output_values[idx] = weight[uint(token_id) * pc.embedding_dim + dim_idx];
+    output_values[idx] = float(weight[uint(token_id) * pc.embedding_dim + dim_idx]);
 }
 """,
 )

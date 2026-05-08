@@ -35,7 +35,7 @@ def create_decode_embed(prefix: str, *, bindings: Mapping[str, LogicalTensor] | 
             'p_weight',
             _declare_tensor(
             name="thinker.model.embed_tokens.weight",
-            spec=TensorSpec(dtype='float32', shape=(151936, 1024)),
+            spec=TensorSpec(dtype='bfloat16', shape=(151936, 1024)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -97,7 +97,7 @@ def create_decode_norm(prefix: str, *, bindings: Mapping[str, LogicalTensor] | N
             'p_weight',
             _declare_tensor(
             name="thinker.model.norm.weight",
-            spec=TensorSpec(dtype='float32', shape=(1024,)),
+            spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
@@ -236,7 +236,7 @@ def create_decode_lm_head(prefix: str, *, bindings: Mapping[str, LogicalTensor] 
             'p_weight',
             _declare_tensor(
             name="thinker.lm_head.weight",
-            spec=TensorSpec(dtype='float32', shape=(151936, 1024)),
+            spec=TensorSpec(dtype='bfloat16', shape=(151936, 1024)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
