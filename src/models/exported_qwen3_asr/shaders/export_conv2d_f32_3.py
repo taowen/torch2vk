@@ -1,4 +1,4 @@
-"""Generated shader: conv2d3_export_conv2d_f32."""
+"""Generated shader: export_conv2d_f32_3."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-CONV2D3_EXPORT_CONV2D_F32 = ShaderVariant(
-    name='conv2d3_export_conv2d_f32',
+EXPORT_CONV2D_F32_3 = ShaderVariant(
+    name='export_conv2d_f32_3',
     family='export',
     contract=ShaderContract(
         class_name='ExportConv2dProgram',
-        shader_name='conv2d3_export_conv2d_f32',
+        shader_name='export_conv2d_f32_3',
         fields=(
             TensorFieldSpec(
                 name='x',

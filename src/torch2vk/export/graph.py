@@ -19,6 +19,19 @@ class KVCacheExportHint:
     value_cache: str
     cache_position: str
 
+
+@dataclass(frozen=True, slots=True)
+class KVCacheInjectHint:
+    """Hint for injecting KV cache ops into a graph exported without past_key_values.
+
+    Used when exporting upstream modules directly (past_key_values=None).
+    The graph has pure attention (SDPA on current k/v). This hint tells the
+    framework to inject index_copy (cache write) and modify SDPA for decode.
+    """
+
+    phase: KVCachePhase
+    max_seq_len: int
+
 ALIAS_OPS = frozenset({
     "aten.view.default",
     "aten.unsqueeze.default",
@@ -201,3 +214,132 @@ def _node_arg_int(node: Node, index: int) -> int | None:
     if isinstance(arg, int):
         return arg
     return None
+
+
+def inject_kv_cache(prog: torch.export.ExportedProgram, hint: KVCacheInjectHint) -> None:
+    """Inject KV cache ops into a graph exported with past_key_values=None.
+
+    Adds key_cache, value_cache, cache_position placeholders and index_copy nodes.
+    For decode phase, also modifies SDPA to use the full cache.
+    After injection, calls _annotate_kv_cache so codegen handles it correctly.
+    """
+    from torch.export.graph_signature import InputKind, InputSpec, TensorArgument
+
+    graph = prog.graph_module.graph
+
+    sdpa_node = _find_sdpa_node(graph)
+    k_node = sdpa_node.args[1]
+    v_node = sdpa_node.args[2]
+    k_meta = k_node.meta["tensor_meta"]
+    v_meta = v_node.meta["tensor_meta"]
+
+    batch, num_kv_heads, seq_len, head_dim = k_meta.shape
+    cache_shape = (batch, num_kv_heads, hint.max_seq_len, head_dim)
+    cache_position_shape = (seq_len,) if hint.phase == "prefill" else (1,)
+
+    last_placeholder = _find_last_placeholder(graph)
+
+    def _make_tensor_meta(shape, dtype):
+        from torch.fx.passes.shape_prop import TensorMetadata
+        return TensorMetadata(
+            shape=torch.Size(shape), dtype=dtype,
+            requires_grad=False, stride=tuple(range(len(shape), 0, -1)),
+            memory_format=None, is_quantized=False, qparams={},
+        )
+
+    with graph.inserting_after(last_placeholder):
+        key_cache_node = graph.placeholder("key_cache")
+    key_cache_node.meta["tensor_meta"] = _make_tensor_meta(cache_shape, torch.float32)
+    key_cache_node.meta["val"] = torch.empty(cache_shape, dtype=torch.float32, device="meta")
+
+    with graph.inserting_after(key_cache_node):
+        value_cache_node = graph.placeholder("value_cache")
+    value_cache_node.meta["tensor_meta"] = _make_tensor_meta(cache_shape, torch.float32)
+    value_cache_node.meta["val"] = torch.empty(cache_shape, dtype=torch.float32, device="meta")
+
+    with graph.inserting_after(value_cache_node):
+        cache_position_node = graph.placeholder("cache_position")
+    cache_position_node.meta["tensor_meta"] = _make_tensor_meta(cache_position_shape, torch.int64)
+    cache_position_node.meta["val"] = torch.empty(cache_position_shape, dtype=torch.int64, device="meta")
+
+    with graph.inserting_before(sdpa_node):
+        index_copy_key = graph.call_function(
+            torch.ops.aten.index_copy.default,
+            args=(key_cache_node, 2, cache_position_node, k_node),
+        )
+        index_copy_key.name = "index_copy"
+        index_copy_key.meta["tensor_meta"] = _make_tensor_meta(cache_shape, torch.float32)
+
+        index_copy_value = graph.call_function(
+            torch.ops.aten.index_copy.default,
+            args=(value_cache_node, 2, cache_position_node, v_node),
+        )
+        index_copy_value.name = "index_copy_1"
+        index_copy_value.meta["tensor_meta"] = _make_tensor_meta(cache_shape, torch.float32)
+
+    if hint.phase == "decode":
+        sdpa_node.args = (
+            sdpa_node.args[0],
+            index_copy_key,
+            index_copy_value,
+            *sdpa_node.args[3:],
+        )
+
+    output_node = _find_output_node(graph)
+    current_outputs = output_node.args[0]
+    if isinstance(current_outputs, tuple):
+        new_outputs = (*current_outputs, index_copy_key, index_copy_value)
+    else:
+        new_outputs = (current_outputs, index_copy_key, index_copy_value)
+    output_node.args = (new_outputs,)
+
+    sig = prog.graph_signature
+    sig.input_specs.append(InputSpec(
+        kind=InputKind.USER_INPUT,
+        arg=TensorArgument(name="key_cache"),
+        target=None,
+        persistent=None,
+    ))
+    sig.input_specs.append(InputSpec(
+        kind=InputKind.USER_INPUT,
+        arg=TensorArgument(name="value_cache"),
+        target=None,
+        persistent=None,
+    ))
+    sig.input_specs.append(InputSpec(
+        kind=InputKind.USER_INPUT,
+        arg=TensorArgument(name="cache_position"),
+        target=None,
+        persistent=None,
+    ))
+
+    _annotate_kv_cache(prog, KVCacheExportHint(
+        phase=hint.phase,
+        key_cache="key_cache",
+        value_cache="value_cache",
+        cache_position="cache_position",
+    ))
+
+
+def _find_sdpa_node(graph: Graph) -> Node:
+    for node in graph.nodes:
+        if node.op == "call_function" and str(node.target) == "aten.scaled_dot_product_attention.default":
+            return node
+    raise ValueError("Graph does not contain scaled_dot_product_attention")
+
+
+def _find_last_placeholder(graph: Graph) -> Node:
+    last = None
+    for node in graph.nodes:
+        if node.op == "placeholder":
+            last = node
+    if last is None:
+        raise ValueError("Graph has no placeholder nodes")
+    return last
+
+
+def _find_output_node(graph: Graph) -> Node:
+    for node in graph.nodes:
+        if node.op == "output":
+            return node
+    raise ValueError("Graph has no output node")

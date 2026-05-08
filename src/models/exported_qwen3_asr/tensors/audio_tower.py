@@ -17,43 +17,120 @@ from torch2vk.vulkan.types import TensorSpec
 
 
 @dataclass(frozen=True, slots=True)
-class Conv2d1Tensors:
-    p_weight: LogicalTensor
-    p_bias: LogicalTensor
+class AudioConvStackTensors:
+    p_conv2d1_weight: LogicalTensor
+    p_conv2d1_bias: LogicalTensor
+    p_conv2d2_weight: LogicalTensor
+    p_conv2d2_bias: LogicalTensor
+    p_conv2d3_weight: LogicalTensor
+    p_conv2d3_bias: LogicalTensor
+    p_conv_out_weight: LogicalTensor
     x: LogicalTensor
+    position_embedding: LogicalTensor
+    compact_index: LogicalTensor
     conv2d: LogicalTensor
     gelu: LogicalTensor
+    conv2d_1: LogicalTensor
+    gelu_1: LogicalTensor
+    conv2d_2: LogicalTensor
+    gelu_2: LogicalTensor
+    reshape: LogicalTensor
+    transpose: LogicalTensor
+    linear: LogicalTensor
+    add: LogicalTensor
+    reshape_1: LogicalTensor
+    index_select: LogicalTensor
 
 
-CONV2D1_OUTPUT: str = 'gelu'
+AUDIO_CONV_STACK_OUTPUT: str = 'index_select'
 
 
-def create_conv2d1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> Conv2d1Tensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'p_bias', 'x', 'conv2d', 'gelu')))
-    _validate_request_state_outputs(request_state_outputs, frozenset(('gelu',)))
-    return Conv2d1Tensors(
-        p_weight=_bind_tensor(
+def create_audio_conv_stack(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> AudioConvStackTensors:
+    _validate_bindings(bindings, frozenset(('p_conv2d1_weight', 'p_conv2d1_bias', 'p_conv2d2_weight', 'p_conv2d2_bias', 'p_conv2d3_weight', 'p_conv2d3_bias', 'p_conv_out_weight', 'x', 'position_embedding', 'compact_index', 'conv2d', 'gelu', 'conv2d_1', 'gelu_1', 'conv2d_2', 'gelu_2', 'reshape', 'transpose', 'linear', 'add', 'reshape_1', 'index_select')))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('index_select',)))
+    return AudioConvStackTensors(
+        p_conv2d1_weight=_bind_tensor(
             bindings,
-            'p_weight',
+            'p_conv2d1_weight',
             _declare_tensor(
             name="thinker.audio_tower.conv2d1.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(480, 1, 3, 3)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
-            request_state='p_weight' in request_state_outputs,
+            request_state='p_conv2d1_weight' in request_state_outputs,
             ),
         ),
-        p_bias=_bind_tensor(
+        p_conv2d1_bias=_bind_tensor(
             bindings,
-            'p_bias',
+            'p_conv2d1_bias',
             _declare_tensor(
             name="thinker.audio_tower.conv2d1.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(480,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
-            request_state='p_bias' in request_state_outputs,
+            request_state='p_conv2d1_bias' in request_state_outputs,
+            ),
+        ),
+        p_conv2d2_weight=_bind_tensor(
+            bindings,
+            'p_conv2d2_weight',
+            _declare_tensor(
+            name="thinker.audio_tower.conv2d2.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(480, 480, 3, 3)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_conv2d2_weight' in request_state_outputs,
+            ),
+        ),
+        p_conv2d2_bias=_bind_tensor(
+            bindings,
+            'p_conv2d2_bias',
+            _declare_tensor(
+            name="thinker.audio_tower.conv2d2.bias",
+            spec=TensorSpec(dtype='bfloat16', shape=(480,)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_conv2d2_bias' in request_state_outputs,
+            ),
+        ),
+        p_conv2d3_weight=_bind_tensor(
+            bindings,
+            'p_conv2d3_weight',
+            _declare_tensor(
+            name="thinker.audio_tower.conv2d3.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(480, 480, 3, 3)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_conv2d3_weight' in request_state_outputs,
+            ),
+        ),
+        p_conv2d3_bias=_bind_tensor(
+            bindings,
+            'p_conv2d3_bias',
+            _declare_tensor(
+            name="thinker.audio_tower.conv2d3.bias",
+            spec=TensorSpec(dtype='bfloat16', shape=(480,)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_conv2d3_bias' in request_state_outputs,
+            ),
+        ),
+        p_conv_out_weight=_bind_tensor(
+            bindings,
+            'p_conv_out_weight',
+            _declare_tensor(
+            name="thinker.audio_tower.conv_out.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(896, 7680)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_conv_out_weight' in request_state_outputs,
             ),
         ),
         x=_bind_tensor(
@@ -68,6 +145,30 @@ def create_conv2d1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             request_state='x' in request_state_outputs,
             ),
         ),
+        position_embedding=_bind_tensor(
+            bindings,
+            'position_embedding',
+            _declare_tensor(
+            name=f"{prefix}.position_embedding",
+            spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
+            role=TensorRole.INPUT,
+            memory=MemoryClass.HOST_INPUT,
+            lifetime=TensorLifetime.FRAME,
+            request_state='position_embedding' in request_state_outputs,
+            ),
+        ),
+        compact_index=_bind_tensor(
+            bindings,
+            'compact_index',
+            _declare_tensor(
+            name=f"{prefix}.compact_index",
+            spec=TensorSpec(dtype='int64', shape=(133,)),
+            role=TensorRole.INPUT,
+            memory=MemoryClass.HOST_INPUT,
+            lifetime=TensorLifetime.FRAME,
+            request_state='compact_index' in request_state_outputs,
+            ),
+        ),
         conv2d=_bind_tensor(
             bindings,
             'conv2d',
@@ -92,205 +193,52 @@ def create_conv2d1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None 
             request_state='gelu' in request_state_outputs,
             ),
         ),
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class Conv2d2Tensors:
-    p_weight: LogicalTensor
-    p_bias: LogicalTensor
-    x: LogicalTensor
-    conv2d: LogicalTensor
-    gelu: LogicalTensor
-
-
-CONV2D2_OUTPUT: str = 'gelu'
-
-
-def create_conv2d2(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> Conv2d2Tensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'p_bias', 'x', 'conv2d', 'gelu')))
-    _validate_request_state_outputs(request_state_outputs, frozenset(('gelu',)))
-    return Conv2d2Tensors(
-        p_weight=_bind_tensor(
+        conv2d_1=_bind_tensor(
             bindings,
-            'p_weight',
+            'conv2d_1',
             _declare_tensor(
-            name="thinker.audio_tower.conv2d2.weight",
-            spec=TensorSpec(dtype='bfloat16', shape=(480, 480, 3, 3)),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-            request_state='p_weight' in request_state_outputs,
-            ),
-        ),
-        p_bias=_bind_tensor(
-            bindings,
-            'p_bias',
-            _declare_tensor(
-            name="thinker.audio_tower.conv2d2.bias",
-            spec=TensorSpec(dtype='bfloat16', shape=(480,)),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-            request_state='p_bias' in request_state_outputs,
-            ),
-        ),
-        x=_bind_tensor(
-            bindings,
-            'x',
-            _declare_tensor(
-            name=f"{prefix}.x",
-            spec=TensorSpec(dtype='float32', shape=(11, 480, 64, 50)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            request_state='x' in request_state_outputs,
-            ),
-        ),
-        conv2d=_bind_tensor(
-            bindings,
-            'conv2d',
-            _declare_tensor(
-            name=f"{prefix}.conv2d",
+            name=f"{prefix}.conv2d_1",
             spec=TensorSpec(dtype='float32', shape=(11, 480, 32, 25)),
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
-            request_state='conv2d' in request_state_outputs,
+            request_state='conv2d_1' in request_state_outputs,
             ),
         ),
-        gelu=_bind_tensor(
+        gelu_1=_bind_tensor(
             bindings,
-            'gelu',
+            'gelu_1',
             _declare_tensor(
-            name=f"{prefix}.gelu",
+            name=f"{prefix}.gelu_1",
             spec=TensorSpec(dtype='float32', shape=(11, 480, 32, 25)),
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
-            request_state='gelu' in request_state_outputs,
+            request_state='gelu_1' in request_state_outputs,
             ),
         ),
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class Conv2d3Tensors:
-    p_weight: LogicalTensor
-    p_bias: LogicalTensor
-    x: LogicalTensor
-    conv2d: LogicalTensor
-    gelu: LogicalTensor
-
-
-CONV2D3_OUTPUT: str = 'gelu'
-
-
-def create_conv2d3(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> Conv2d3Tensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'p_bias', 'x', 'conv2d', 'gelu')))
-    _validate_request_state_outputs(request_state_outputs, frozenset(('gelu',)))
-    return Conv2d3Tensors(
-        p_weight=_bind_tensor(
+        conv2d_2=_bind_tensor(
             bindings,
-            'p_weight',
+            'conv2d_2',
             _declare_tensor(
-            name="thinker.audio_tower.conv2d3.weight",
-            spec=TensorSpec(dtype='bfloat16', shape=(480, 480, 3, 3)),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-            request_state='p_weight' in request_state_outputs,
-            ),
-        ),
-        p_bias=_bind_tensor(
-            bindings,
-            'p_bias',
-            _declare_tensor(
-            name="thinker.audio_tower.conv2d3.bias",
-            spec=TensorSpec(dtype='bfloat16', shape=(480,)),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-            request_state='p_bias' in request_state_outputs,
-            ),
-        ),
-        x=_bind_tensor(
-            bindings,
-            'x',
-            _declare_tensor(
-            name=f"{prefix}.x",
-            spec=TensorSpec(dtype='float32', shape=(11, 480, 32, 25)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            request_state='x' in request_state_outputs,
-            ),
-        ),
-        conv2d=_bind_tensor(
-            bindings,
-            'conv2d',
-            _declare_tensor(
-            name=f"{prefix}.conv2d",
+            name=f"{prefix}.conv2d_2",
             spec=TensorSpec(dtype='float32', shape=(11, 480, 16, 13)),
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
-            request_state='conv2d' in request_state_outputs,
+            request_state='conv2d_2' in request_state_outputs,
             ),
         ),
-        gelu=_bind_tensor(
+        gelu_2=_bind_tensor(
             bindings,
-            'gelu',
+            'gelu_2',
             _declare_tensor(
-            name=f"{prefix}.gelu",
+            name=f"{prefix}.gelu_2",
             spec=TensorSpec(dtype='float32', shape=(11, 480, 16, 13)),
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
-            request_state='gelu' in request_state_outputs,
-            ),
-        ),
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class ConvOutTensors:
-    p_weight: LogicalTensor
-    x: LogicalTensor
-    reshape: LogicalTensor
-    transpose: LogicalTensor
-    linear: LogicalTensor
-
-
-CONV_OUT_OUTPUT: str = 'linear'
-
-
-def create_conv_out(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> ConvOutTensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'x', 'reshape', 'transpose', 'linear')))
-    _validate_request_state_outputs(request_state_outputs, frozenset(('linear',)))
-    return ConvOutTensors(
-        p_weight=_bind_tensor(
-            bindings,
-            'p_weight',
-            _declare_tensor(
-            name="thinker.audio_tower.conv_out.weight",
-            spec=TensorSpec(dtype='bfloat16', shape=(896, 7680)),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-            request_state='p_weight' in request_state_outputs,
-            ),
-        ),
-        x=_bind_tensor(
-            bindings,
-            'x',
-            _declare_tensor(
-            name=f"{prefix}.x",
-            spec=TensorSpec(dtype='float32', shape=(11, 480, 16, 13)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            request_state='x' in request_state_outputs,
+            request_state='gelu_2' in request_state_outputs,
             ),
         ),
         reshape=_bind_tensor(
@@ -329,62 +277,6 @@ def create_conv_out(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None
             request_state='linear' in request_state_outputs,
             ),
         ),
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class AudioPositionCompactTensors:
-    x: LogicalTensor
-    position_embedding: LogicalTensor
-    compact_index: LogicalTensor
-    add: LogicalTensor
-    reshape: LogicalTensor
-    index_select: LogicalTensor
-
-
-AUDIO_POSITION_COMPACT_OUTPUT: str = 'index_select'
-
-
-def create_audio_position_compact(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> AudioPositionCompactTensors:
-    _validate_bindings(bindings, frozenset(('x', 'position_embedding', 'compact_index', 'add', 'reshape', 'index_select')))
-    _validate_request_state_outputs(request_state_outputs, frozenset(('index_select',)))
-    return AudioPositionCompactTensors(
-        x=_bind_tensor(
-            bindings,
-            'x',
-            _declare_tensor(
-            name=f"{prefix}.x",
-            spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            request_state='x' in request_state_outputs,
-            ),
-        ),
-        position_embedding=_bind_tensor(
-            bindings,
-            'position_embedding',
-            _declare_tensor(
-            name=f"{prefix}.position_embedding",
-            spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            request_state='position_embedding' in request_state_outputs,
-            ),
-        ),
-        compact_index=_bind_tensor(
-            bindings,
-            'compact_index',
-            _declare_tensor(
-            name=f"{prefix}.compact_index",
-            spec=TensorSpec(dtype='int64', shape=(133,)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            request_state='compact_index' in request_state_outputs,
-            ),
-        ),
         add=_bind_tensor(
             bindings,
             'add',
@@ -397,16 +289,16 @@ def create_audio_position_compact(prefix: str, *, bindings: Mapping[str, Logical
             request_state='add' in request_state_outputs,
             ),
         ),
-        reshape=_bind_tensor(
+        reshape_1=_bind_tensor(
             bindings,
-            'reshape',
+            'reshape_1',
             _declare_tensor(
-            name=f"{prefix}.reshape",
+            name=f"{prefix}.reshape_1",
             spec=TensorSpec(dtype='float32', shape=(143, 896)),
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
-            request_state='reshape' in request_state_outputs,
+            request_state='reshape_1' in request_state_outputs,
             ),
         ),
         index_select=_bind_tensor(
@@ -425,109 +317,97 @@ def create_audio_position_compact(prefix: str, *, bindings: Mapping[str, Logical
 
 
 @dataclass(frozen=True, slots=True)
-class LnPostTensors:
-    p_weight: LogicalTensor
-    p_bias: LogicalTensor
-    input: LogicalTensor
+class AudioProjTensors:
+    p_ln_post_weight: LogicalTensor
+    p_ln_post_bias: LogicalTensor
+    p_proj1_weight: LogicalTensor
+    p_proj1_bias: LogicalTensor
+    p_proj2_weight: LogicalTensor
+    p_proj2_bias: LogicalTensor
+    x: LogicalTensor
     layer_norm: LogicalTensor
+    linear: LogicalTensor
+    gelu: LogicalTensor
+    linear_1: LogicalTensor
 
 
-LN_POST_OUTPUT: str = 'layer_norm'
+AUDIO_PROJ_OUTPUT: str = 'linear_1'
 
 
-def create_ln_post(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> LnPostTensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'p_bias', 'input', 'layer_norm')))
-    _validate_request_state_outputs(request_state_outputs, frozenset(('layer_norm',)))
-    return LnPostTensors(
-        p_weight=_bind_tensor(
+def create_audio_proj(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> AudioProjTensors:
+    _validate_bindings(bindings, frozenset(('p_ln_post_weight', 'p_ln_post_bias', 'p_proj1_weight', 'p_proj1_bias', 'p_proj2_weight', 'p_proj2_bias', 'x', 'layer_norm', 'linear', 'gelu', 'linear_1')))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('linear_1',)))
+    return AudioProjTensors(
+        p_ln_post_weight=_bind_tensor(
             bindings,
-            'p_weight',
+            'p_ln_post_weight',
             _declare_tensor(
             name="thinker.audio_tower.ln_post.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
-            request_state='p_weight' in request_state_outputs,
+            request_state='p_ln_post_weight' in request_state_outputs,
             ),
         ),
-        p_bias=_bind_tensor(
+        p_ln_post_bias=_bind_tensor(
             bindings,
-            'p_bias',
+            'p_ln_post_bias',
             _declare_tensor(
             name="thinker.audio_tower.ln_post.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
-            request_state='p_bias' in request_state_outputs,
+            request_state='p_ln_post_bias' in request_state_outputs,
             ),
         ),
-        input=_bind_tensor(
+        p_proj1_weight=_bind_tensor(
             bindings,
-            'input',
-            _declare_tensor(
-            name=f"{prefix}.input",
-            spec=TensorSpec(dtype='float32', shape=(133, 896)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            request_state='input' in request_state_outputs,
-            ),
-        ),
-        layer_norm=_bind_tensor(
-            bindings,
-            'layer_norm',
-            _declare_tensor(
-            name=f"{prefix}.layer_norm",
-            spec=TensorSpec(dtype='float32', shape=(133, 896)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            request_state='layer_norm' in request_state_outputs,
-            ),
-        ),
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class Proj1Tensors:
-    p_weight: LogicalTensor
-    p_bias: LogicalTensor
-    x: LogicalTensor
-    linear: LogicalTensor
-    gelu: LogicalTensor
-
-
-PROJ1_OUTPUT: str = 'gelu'
-
-
-def create_proj1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> Proj1Tensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'p_bias', 'x', 'linear', 'gelu')))
-    _validate_request_state_outputs(request_state_outputs, frozenset(('gelu',)))
-    return Proj1Tensors(
-        p_weight=_bind_tensor(
-            bindings,
-            'p_weight',
+            'p_proj1_weight',
             _declare_tensor(
             name="thinker.audio_tower.proj1.weight",
             spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
-            request_state='p_weight' in request_state_outputs,
+            request_state='p_proj1_weight' in request_state_outputs,
             ),
         ),
-        p_bias=_bind_tensor(
+        p_proj1_bias=_bind_tensor(
             bindings,
-            'p_bias',
+            'p_proj1_bias',
             _declare_tensor(
             name="thinker.audio_tower.proj1.bias",
             spec=TensorSpec(dtype='bfloat16', shape=(896,)),
             role=TensorRole.WEIGHT,
             memory=MemoryClass.MODEL_WEIGHT,
             lifetime=TensorLifetime.MODEL,
-            request_state='p_bias' in request_state_outputs,
+            request_state='p_proj1_bias' in request_state_outputs,
+            ),
+        ),
+        p_proj2_weight=_bind_tensor(
+            bindings,
+            'p_proj2_weight',
+            _declare_tensor(
+            name="thinker.audio_tower.proj2.weight",
+            spec=TensorSpec(dtype='bfloat16', shape=(1024, 896)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_proj2_weight' in request_state_outputs,
+            ),
+        ),
+        p_proj2_bias=_bind_tensor(
+            bindings,
+            'p_proj2_bias',
+            _declare_tensor(
+            name="thinker.audio_tower.proj2.bias",
+            spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
+            role=TensorRole.WEIGHT,
+            memory=MemoryClass.MODEL_WEIGHT,
+            lifetime=TensorLifetime.MODEL,
+            request_state='p_proj2_bias' in request_state_outputs,
             ),
         ),
         x=_bind_tensor(
@@ -540,6 +420,18 @@ def create_proj1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = 
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
             request_state='x' in request_state_outputs,
+            ),
+        ),
+        layer_norm=_bind_tensor(
+            bindings,
+            'layer_norm',
+            _declare_tensor(
+            name=f"{prefix}.layer_norm",
+            spec=TensorSpec(dtype='float32', shape=(133, 896)),
+            role=TensorRole.ACTIVATION,
+            memory=MemoryClass.FRAME_WORKSPACE,
+            lifetime=TensorLifetime.FRAME,
+            request_state='layer_norm' in request_state_outputs,
             ),
         ),
         linear=_bind_tensor(
@@ -566,70 +458,16 @@ def create_proj1(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = 
             request_state='gelu' in request_state_outputs,
             ),
         ),
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class Proj2Tensors:
-    p_weight: LogicalTensor
-    p_bias: LogicalTensor
-    input: LogicalTensor
-    linear: LogicalTensor
-
-
-PROJ2_OUTPUT: str = 'linear'
-
-
-def create_proj2(prefix: str, *, bindings: Mapping[str, LogicalTensor] | None = None, request_state_outputs: Collection[str] = frozenset()) -> Proj2Tensors:
-    _validate_bindings(bindings, frozenset(('p_weight', 'p_bias', 'input', 'linear')))
-    _validate_request_state_outputs(request_state_outputs, frozenset(('linear',)))
-    return Proj2Tensors(
-        p_weight=_bind_tensor(
+        linear_1=_bind_tensor(
             bindings,
-            'p_weight',
+            'linear_1',
             _declare_tensor(
-            name="thinker.audio_tower.proj2.weight",
-            spec=TensorSpec(dtype='bfloat16', shape=(1024, 896)),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-            request_state='p_weight' in request_state_outputs,
-            ),
-        ),
-        p_bias=_bind_tensor(
-            bindings,
-            'p_bias',
-            _declare_tensor(
-            name="thinker.audio_tower.proj2.bias",
-            spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-            request_state='p_bias' in request_state_outputs,
-            ),
-        ),
-        input=_bind_tensor(
-            bindings,
-            'input',
-            _declare_tensor(
-            name=f"{prefix}.input",
-            spec=TensorSpec(dtype='float32', shape=(133, 896)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            request_state='input' in request_state_outputs,
-            ),
-        ),
-        linear=_bind_tensor(
-            bindings,
-            'linear',
-            _declare_tensor(
-            name=f"{prefix}.linear",
+            name=f"{prefix}.linear_1",
             spec=TensorSpec(dtype='float32', shape=(133, 1024)),
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
-            request_state='linear' in request_state_outputs,
+            request_state='linear_1' in request_state_outputs,
             compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
             pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="last_hidden_state"),
             ),

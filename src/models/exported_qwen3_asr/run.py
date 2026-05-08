@@ -275,32 +275,17 @@ def main(
     # === Create all tensor objects upfront and materialize weights ===
     print("Materializing weights...")
 
-    # Audio tower (non-layered)
-    conv2d1_t = at_tensors.create_conv2d1("spike.audio.conv2d1")
-    conv2d2_t = at_tensors.create_conv2d2(
-        "spike.audio.conv2d2",
-        bindings={"x": conv2d1_t.gelu},
-    )
-    conv2d3_t = at_tensors.create_conv2d3(
-        "spike.audio.conv2d3",
-        bindings={"x": conv2d2_t.gelu},
-    )
-    conv_out_t = at_tensors.create_conv_out(
-        "spike.audio.conv_out",
-        bindings={"x": conv2d3_t.gelu},
-    )
-    audio_position_compact_t = at_tensors.create_audio_position_compact(
-        "spike.audio.position_compact",
-        bindings={"x": conv_out_t.linear},
-        request_state_outputs={at_tensors.AUDIO_POSITION_COMPACT_OUTPUT},
+    # Audio tower (merged conv stack + encoder layers + merged proj)
+    audio_conv_stack_t = at_tensors.create_audio_conv_stack(
+        "spike.audio.conv_stack",
+        request_state_outputs={at_tensors.AUDIO_CONV_STACK_OUTPUT},
     )
 
-    # Encoder layers (layered)
     encoder_layer_ts = []
-    encoder_hidden = audio_position_compact_t.index_select
+    encoder_hidden = audio_conv_stack_t.index_select
     encoder_attention_mask = None
     for layer_idx in range(ac.encoder_layers):
-        bindings = {"hidden_states": encoder_hidden}
+        bindings: dict[str, LogicalTensor] = {"hidden_states": encoder_hidden}
         if encoder_attention_mask is not None:
             bindings["attention_mask"] = encoder_attention_mask
         layer_tensors = enc_tensors.create_encoder_layer(
@@ -312,18 +297,11 @@ def main(
         if encoder_attention_mask is None:
             encoder_attention_mask = layer_tensors.attention_mask
         encoder_hidden = layer_tensors.add_1
-    ln_post_t = at_tensors.create_ln_post(
-        "spike.audio.ln_post",
-        bindings={"input": encoder_layer_ts[-1].add_1},
-    )
-    proj1_t = at_tensors.create_proj1(
-        "spike.audio.proj1",
-        bindings={"x": ln_post_t.layer_norm},
-    )
-    proj2_t = at_tensors.create_proj2(
-        "spike.audio.proj2",
-        bindings={"input": proj1_t.gelu},
-        request_state_outputs={at_tensors.PROJ2_OUTPUT},
+
+    audio_proj_t = at_tensors.create_audio_proj(
+        "spike.audio.proj",
+        bindings={"x": encoder_layer_ts[-1].add_1},
+        request_state_outputs={at_tensors.AUDIO_PROJ_OUTPUT},
     )
 
     # Text (non-layered)
@@ -331,7 +309,7 @@ def main(
     audio_inject_t = text_tensors.create_audio_inject(
         "spike.text.audio_inject",
         bindings={
-            "audio_features": proj2_t.linear,
+            "audio_features": audio_proj_t.linear_1,
             "index_copy": embed_tokens_t.embedding,
         },
     )
@@ -463,10 +441,10 @@ def main(
     )
 
     # Materialize all weights to persistent GPU memory
-    for t in [conv2d1_t, conv2d2_t, conv2d3_t, conv_out_t, ln_post_t, proj1_t, proj2_t]:
-        _materialize_weights(rt, t)
+    _materialize_weights(rt, audio_conv_stack_t)
     for t in encoder_layer_ts:
         _materialize_weights(rt, t)
+    _materialize_weights(rt, audio_proj_t)
     _materialize_weights(rt, embed_tokens_t)
     _materialize_weights(rt, text_norm_t)
     _materialize_weights(rt, lm_head_t)
@@ -509,11 +487,11 @@ def main(
         padded_feature[i, 0, :, :chunk.shape[0]] = chunk.T
 
     # Positional embedding + compact
-    conv_out_shape = tuple(int(dim) for dim in conv_out_t.linear.spec.shape)
-    _, t_dim, _ = conv_out_shape
+    conv_stack_pos_shape = tuple(int(dim) for dim in audio_conv_stack_t.position_embedding.spec.shape)
+    _, t_dim, _ = conv_stack_pos_shape
     pos_emb = _compute_positional_embedding(t_dim, ac.d_model)
     position_embedding = np.ascontiguousarray(
-        np.broadcast_to(pos_emb[None, :t_dim, :], conv_out_shape),
+        np.broadcast_to(pos_emb[None, :t_dim, :], conv_stack_pos_shape),
         dtype=np.float32,
     )
 
@@ -523,7 +501,7 @@ def main(
         for j in range(int(fl)):
             valid_positions.append(i * t_dim + j)
     compact_index = np.array(valid_positions, dtype=np.int64)
-    print(f"  hidden_states after compact: {audio_position_compact_t.index_select.spec.shape}")
+    print(f"  hidden_states after compact: {audio_conv_stack_t.index_select.spec.shape}")
 
     # cu_seqlens
     n_window_infer = 800
@@ -550,18 +528,14 @@ def main(
     rt._inputs.clear()
     rt.register_inputs(
         {
-            conv2d1_t.x: padded_feature,
-            audio_position_compact_t.position_embedding: position_embedding,
-            audio_position_compact_t.compact_index: compact_index,
+            audio_conv_stack_t.x: padded_feature,
+            audio_conv_stack_t.position_embedding: position_embedding,
+            audio_conv_stack_t.compact_index: compact_index,
         }
     )
     with rt.frame("spike.audio.conv_stack"):
-        dispatch.run_conv2d1(rt, conv2d1_t)
-        dispatch.run_conv2d2(rt, conv2d2_t)
-        dispatch.run_conv2d3(rt, conv2d3_t)
-        dispatch.run_conv_out(rt, conv_out_t)
-        dispatch.run_audio_position_compact(rt, audio_position_compact_t)
-    _require_gpu_output(audio_position_compact_t.index_select)
+        dispatch.run_audio_conv_stack(rt, audio_conv_stack_t)
+    _require_gpu_output(audio_conv_stack_t.index_select)
 
     # Encoder layers + projection stay in one GPU frame.
     print("  encoder + projection...")
@@ -585,10 +559,8 @@ def main(
             dispatch.run_encoder_layer(rt, layer_tensors)
             if layer_idx % 6 == 5:
                 print(f"    layer {layer_idx} done")
-        dispatch.run_ln_post(rt, ln_post_t)
-        dispatch.run_proj1(rt, proj1_t)
-        dispatch.run_proj2(rt, proj2_t)
-    audio_hidden_t = proj2_t.linear
+        dispatch.run_audio_proj(rt, audio_proj_t)
+    audio_hidden_t = audio_proj_t.linear_1
     _require_gpu_output(audio_hidden_t)
     print(f"  Audio tower output: {audio_hidden_t.spec.shape}")
 
@@ -655,6 +627,7 @@ def main(
                 print(f"    layer {layer_idx} done")
         dispatch.run_text_norm(rt, text_norm_t)
         dispatch.run_lm_head(rt, lm_head_t)
+
 
     print("  lm_head + token_select...")
     logits_t = lm_head_t.linear

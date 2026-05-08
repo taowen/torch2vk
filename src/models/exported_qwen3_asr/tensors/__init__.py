@@ -1,13 +1,7 @@
 """Generated tensor declarations."""
 
-from models.exported_qwen3_asr.tensors.audio_tower import Conv2d1Tensors  # noqa: F401
-from models.exported_qwen3_asr.tensors.audio_tower import Conv2d2Tensors  # noqa: F401
-from models.exported_qwen3_asr.tensors.audio_tower import Conv2d3Tensors  # noqa: F401
-from models.exported_qwen3_asr.tensors.audio_tower import ConvOutTensors  # noqa: F401
-from models.exported_qwen3_asr.tensors.audio_tower import AudioPositionCompactTensors  # noqa: F401
-from models.exported_qwen3_asr.tensors.audio_tower import LnPostTensors  # noqa: F401
-from models.exported_qwen3_asr.tensors.audio_tower import Proj1Tensors  # noqa: F401
-from models.exported_qwen3_asr.tensors.audio_tower import Proj2Tensors  # noqa: F401
+from models.exported_qwen3_asr.tensors.audio_tower import AudioConvStackTensors  # noqa: F401
+from models.exported_qwen3_asr.tensors.audio_tower import AudioProjTensors  # noqa: F401
 from models.exported_qwen3_asr.tensors.decode import DecodeEmbedTensors  # noqa: F401
 from models.exported_qwen3_asr.tensors.decode import DecodeNormTensors  # noqa: F401
 from models.exported_qwen3_asr.tensors.decode import DecodeLmHeadTensors  # noqa: F401

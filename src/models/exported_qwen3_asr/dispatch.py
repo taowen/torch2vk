@@ -8,8 +8,7 @@ import numpy as np
 
 from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
-from models.exported_qwen3_asr.shaders.conv2d2_export_conv2d_f32 import CONV2D2_EXPORT_CONV2D_F32
-from models.exported_qwen3_asr.shaders.conv2d3_export_conv2d_f32 import CONV2D3_EXPORT_CONV2D_F32
+from models.exported_qwen3_asr.shaders.audio_proj_export_gelu_f32 import AUDIO_PROJ_EXPORT_GELU_F32
 from models.exported_qwen3_asr.shaders.decode_embed_export_embedding_f32 import DECODE_EMBED_EXPORT_EMBEDDING_F32
 from models.exported_qwen3_asr.shaders.decode_layer_export_add_f32 import DECODE_LAYER_EXPORT_ADD_F32
 from models.exported_qwen3_asr.shaders.decode_layer_export_cat_f32 import DECODE_LAYER_EXPORT_CAT_F32
@@ -48,6 +47,8 @@ from models.exported_qwen3_asr.shaders.export_add_scalar_9 import EXPORT_ADD_SCA
 from models.exported_qwen3_asr.shaders.export_cat_f32 import EXPORT_CAT_F32
 from models.exported_qwen3_asr.shaders.export_cat_f32_32 import EXPORT_CAT_F32_32
 from models.exported_qwen3_asr.shaders.export_conv2d_f32 import EXPORT_CONV2D_F32
+from models.exported_qwen3_asr.shaders.export_conv2d_f32_2 import EXPORT_CONV2D_F32_2
+from models.exported_qwen3_asr.shaders.export_conv2d_f32_3 import EXPORT_CONV2D_F32_3
 from models.exported_qwen3_asr.shaders.export_embedding_f32 import EXPORT_EMBEDDING_F32
 from models.exported_qwen3_asr.shaders.export_gelu_f32 import EXPORT_GELU_F32
 from models.exported_qwen3_asr.shaders.export_index_copy_f32_7ba4f1ff13 import EXPORT_INDEX_COPY_F32_7BA4F1FF13
@@ -57,6 +58,7 @@ from models.exported_qwen3_asr.shaders.export_layer_norm_f32 import EXPORT_LAYER
 from models.exported_qwen3_asr.shaders.export_linear_bias_f32 import EXPORT_LINEAR_BIAS_F32
 from models.exported_qwen3_asr.shaders.export_linear_bias_f32_10 import EXPORT_LINEAR_BIAS_F32_10
 from models.exported_qwen3_asr.shaders.export_linear_bias_f32_12 import EXPORT_LINEAR_BIAS_F32_12
+from models.exported_qwen3_asr.shaders.export_linear_bias_f32_3 import EXPORT_LINEAR_BIAS_F32_3
 from models.exported_qwen3_asr.shaders.export_linear_nobias_f32 import EXPORT_LINEAR_NOBIAS_F32
 from models.exported_qwen3_asr.shaders.export_linear_nobias_f32_14 import EXPORT_LINEAR_NOBIAS_F32_14
 from models.exported_qwen3_asr.shaders.export_linear_nobias_f32_22 import EXPORT_LINEAR_NOBIAS_F32_22
@@ -102,12 +104,10 @@ from models.exported_qwen3_asr.shaders.export_transpose_f32_9e77b1cee2 import EX
 from models.exported_qwen3_asr.shaders.export_transpose_f32_d509518b4f import EXPORT_TRANSPOSE_F32_D509518B4F
 from models.exported_qwen3_asr.shaders.export_transpose_f32_d95ce920ac import EXPORT_TRANSPOSE_F32_D95CE920AC
 from models.exported_qwen3_asr.shaders.lm_head_export_linear_nobias_f32 import LM_HEAD_EXPORT_LINEAR_NOBIAS_F32
-from models.exported_qwen3_asr.shaders.proj1_export_gelu_f32 import PROJ1_EXPORT_GELU_F32
-from models.exported_qwen3_asr.shaders.proj2_export_linear_bias_f32 import PROJ2_EXPORT_LINEAR_BIAS_F32
 from models.exported_qwen3_asr.shaders.text_layer_export_add_f32 import TEXT_LAYER_EXPORT_ADD_F32
 from models.exported_qwen3_asr.shaders.text_layer_export_linear_nobias_f32 import TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32
 
-from models.exported_qwen3_asr.tensors.audio_tower import AudioPositionCompactTensors, Conv2d1Tensors, Conv2d2Tensors, Conv2d3Tensors, ConvOutTensors, LnPostTensors, Proj1Tensors, Proj2Tensors
+from models.exported_qwen3_asr.tensors.audio_tower import AudioConvStackTensors, AudioProjTensors
 from models.exported_qwen3_asr.tensors.decode import DecodeEmbedTensors, DecodeLmHeadTensors, DecodeNormTensors
 from models.exported_qwen3_asr.tensors.decode_layer import DecodeLayerTensors
 from models.exported_qwen3_asr.tensors.encoder_layer import EncoderLayerTensors
@@ -119,8 +119,7 @@ from torch2vk.runtime.session import RuntimeSession
 
 
 SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {
-    'conv2d2_export_conv2d_f32': CONV2D2_EXPORT_CONV2D_F32,
-    'conv2d3_export_conv2d_f32': CONV2D3_EXPORT_CONV2D_F32,
+    'audio_proj_export_gelu_f32': AUDIO_PROJ_EXPORT_GELU_F32,
     'decode_embed_export_embedding_f32': DECODE_EMBED_EXPORT_EMBEDDING_F32,
     'decode_layer_export_add_f32': DECODE_LAYER_EXPORT_ADD_F32,
     'decode_layer_export_cat_f32': DECODE_LAYER_EXPORT_CAT_F32,
@@ -159,6 +158,8 @@ SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {
     'export_cat_f32': EXPORT_CAT_F32,
     'export_cat_f32_32': EXPORT_CAT_F32_32,
     'export_conv2d_f32': EXPORT_CONV2D_F32,
+    'export_conv2d_f32_2': EXPORT_CONV2D_F32_2,
+    'export_conv2d_f32_3': EXPORT_CONV2D_F32_3,
     'export_embedding_f32': EXPORT_EMBEDDING_F32,
     'export_gelu_f32': EXPORT_GELU_F32,
     'export_index_copy_f32_7ba4f1ff13': EXPORT_INDEX_COPY_F32_7BA4F1FF13,
@@ -168,6 +169,7 @@ SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {
     'export_linear_bias_f32': EXPORT_LINEAR_BIAS_F32,
     'export_linear_bias_f32_10': EXPORT_LINEAR_BIAS_F32_10,
     'export_linear_bias_f32_12': EXPORT_LINEAR_BIAS_F32_12,
+    'export_linear_bias_f32_3': EXPORT_LINEAR_BIAS_F32_3,
     'export_linear_nobias_f32': EXPORT_LINEAR_NOBIAS_F32,
     'export_linear_nobias_f32_14': EXPORT_LINEAR_NOBIAS_F32_14,
     'export_linear_nobias_f32_22': EXPORT_LINEAR_NOBIAS_F32_22,
@@ -213,8 +215,6 @@ SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {
     'export_transpose_f32_d509518b4f': EXPORT_TRANSPOSE_F32_D509518B4F,
     'export_transpose_f32_d95ce920ac': EXPORT_TRANSPOSE_F32_D95CE920AC,
     'lm_head_export_linear_nobias_f32': LM_HEAD_EXPORT_LINEAR_NOBIAS_F32,
-    'proj1_export_gelu_f32': PROJ1_EXPORT_GELU_F32,
-    'proj2_export_linear_bias_f32': PROJ2_EXPORT_LINEAR_BIAS_F32,
     'text_layer_export_add_f32': TEXT_LAYER_EXPORT_ADD_F32,
     'text_layer_export_linear_nobias_f32': TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32,
     QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name: QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
@@ -222,31 +222,19 @@ SHADER_VARIANTS_BY_NAME: dict[str, ShaderVariant] = {
 }
 
 
-def run_conv2d1(rt: RuntimeSession, tensors: Conv2d1Tensors) -> None:
-    EXPORT_CONV2D_F32(rt, x=tensors.x, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.conv2d)
+def run_audio_conv_stack(rt: RuntimeSession, tensors: AudioConvStackTensors) -> None:
+    EXPORT_CONV2D_F32(rt, x=tensors.x, weight=tensors.p_conv2d1_weight, bias=tensors.p_conv2d1_bias, output=tensors.conv2d)
     EXPORT_GELU_F32(rt, x=tensors.conv2d, output=tensors.gelu)
-
-
-def run_conv2d2(rt: RuntimeSession, tensors: Conv2d2Tensors) -> None:
-    CONV2D2_EXPORT_CONV2D_F32(rt, x=tensors.x, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.conv2d)
-    EXPORT_GELU_F32(rt, x=tensors.conv2d, output=tensors.gelu)
-
-
-def run_conv2d3(rt: RuntimeSession, tensors: Conv2d3Tensors) -> None:
-    CONV2D3_EXPORT_CONV2D_F32(rt, x=tensors.x, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.conv2d)
-    EXPORT_GELU_F32(rt, x=tensors.conv2d, output=tensors.gelu)
-
-
-def run_conv_out(rt: RuntimeSession, tensors: ConvOutTensors) -> None:
-    _alias(rt, tensors.x, tensors.reshape)
+    EXPORT_CONV2D_F32_2(rt, x=tensors.gelu, weight=tensors.p_conv2d2_weight, bias=tensors.p_conv2d2_bias, output=tensors.conv2d_1)
+    EXPORT_GELU_F32(rt, x=tensors.conv2d_1, output=tensors.gelu_1)
+    EXPORT_CONV2D_F32_3(rt, x=tensors.gelu_1, weight=tensors.p_conv2d3_weight, bias=tensors.p_conv2d3_bias, output=tensors.conv2d_2)
+    EXPORT_GELU_F32(rt, x=tensors.conv2d_2, output=tensors.gelu_2)
+    _alias(rt, tensors.gelu_2, tensors.reshape)
     EXPORT_TRANSPOSE_F32_D95CE920AC(rt, x=tensors.reshape, output=tensors.transpose)
-    EXPORT_LINEAR_NOBIAS_F32(rt, x=tensors.transpose, weight=tensors.p_weight, output=tensors.linear)
-
-
-def run_audio_position_compact(rt: RuntimeSession, tensors: AudioPositionCompactTensors) -> None:
-    EXPORT_ADD_F32(rt, x=tensors.x, y=tensors.position_embedding, output=tensors.add)
-    _alias(rt, tensors.add, tensors.reshape)
-    EXPORT_INDEX_SELECT_F32_C6680F8D95(rt, x=tensors.reshape, index=tensors.compact_index, output=tensors.index_select)
+    EXPORT_LINEAR_NOBIAS_F32(rt, x=tensors.transpose, weight=tensors.p_conv_out_weight, output=tensors.linear)
+    EXPORT_ADD_F32(rt, x=tensors.linear, y=tensors.position_embedding, output=tensors.add)
+    _alias(rt, tensors.add, tensors.reshape_1)
+    EXPORT_INDEX_SELECT_F32_C6680F8D95(rt, x=tensors.reshape_1, index=tensors.compact_index, output=tensors.index_select)
 
 
 def run_encoder_layer(rt: RuntimeSession, tensors: EncoderLayerTensors) -> None:
@@ -276,17 +264,11 @@ def run_encoder_layer(rt: RuntimeSession, tensors: EncoderLayerTensors) -> None:
     ENCODER_LAYER_EXPORT_ADD_F32(rt, x=tensors.add, y=tensors.linear_5, output=tensors.add_1)
 
 
-def run_ln_post(rt: RuntimeSession, tensors: LnPostTensors) -> None:
-    EXPORT_LAYER_NORM_F32(rt, x=tensors.input, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.layer_norm)
-
-
-def run_proj1(rt: RuntimeSession, tensors: Proj1Tensors) -> None:
-    EXPORT_LINEAR_BIAS_F32(rt, x=tensors.x, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.linear)
-    PROJ1_EXPORT_GELU_F32(rt, x=tensors.linear, output=tensors.gelu)
-
-
-def run_proj2(rt: RuntimeSession, tensors: Proj2Tensors) -> None:
-    PROJ2_EXPORT_LINEAR_BIAS_F32(rt, x=tensors.input, weight=tensors.p_weight, bias=tensors.p_bias, output=tensors.linear)
+def run_audio_proj(rt: RuntimeSession, tensors: AudioProjTensors) -> None:
+    EXPORT_LAYER_NORM_F32(rt, x=tensors.x, weight=tensors.p_ln_post_weight, bias=tensors.p_ln_post_bias, output=tensors.layer_norm)
+    EXPORT_LINEAR_BIAS_F32(rt, x=tensors.layer_norm, weight=tensors.p_proj1_weight, bias=tensors.p_proj1_bias, output=tensors.linear)
+    AUDIO_PROJ_EXPORT_GELU_F32(rt, x=tensors.linear, output=tensors.gelu)
+    EXPORT_LINEAR_BIAS_F32_3(rt, x=tensors.gelu, weight=tensors.p_proj2_weight, bias=tensors.p_proj2_bias, output=tensors.linear_1)
 
 
 def run_embed_tokens(rt: RuntimeSession, tensors: EmbedTokensTensors) -> None:

@@ -1,7 +1,6 @@
 """Generated shader index."""
 
-from models.exported_qwen3_asr.shaders.conv2d2_export_conv2d_f32 import CONV2D2_EXPORT_CONV2D_F32  # noqa: F401
-from models.exported_qwen3_asr.shaders.conv2d3_export_conv2d_f32 import CONV2D3_EXPORT_CONV2D_F32  # noqa: F401
+from models.exported_qwen3_asr.shaders.audio_proj_export_gelu_f32 import AUDIO_PROJ_EXPORT_GELU_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.decode_embed_export_embedding_f32 import DECODE_EMBED_EXPORT_EMBEDDING_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.decode_layer_export_add_f32 import DECODE_LAYER_EXPORT_ADD_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.decode_layer_export_cat_f32 import DECODE_LAYER_EXPORT_CAT_F32  # noqa: F401
@@ -40,6 +39,8 @@ from models.exported_qwen3_asr.shaders.export_add_scalar_9 import EXPORT_ADD_SCA
 from models.exported_qwen3_asr.shaders.export_cat_f32 import EXPORT_CAT_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_cat_f32_32 import EXPORT_CAT_F32_32  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_conv2d_f32 import EXPORT_CONV2D_F32  # noqa: F401
+from models.exported_qwen3_asr.shaders.export_conv2d_f32_2 import EXPORT_CONV2D_F32_2  # noqa: F401
+from models.exported_qwen3_asr.shaders.export_conv2d_f32_3 import EXPORT_CONV2D_F32_3  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_embedding_f32 import EXPORT_EMBEDDING_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_gelu_f32 import EXPORT_GELU_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_index_copy_f32_7ba4f1ff13 import EXPORT_INDEX_COPY_F32_7BA4F1FF13  # noqa: F401
@@ -49,6 +50,7 @@ from models.exported_qwen3_asr.shaders.export_layer_norm_f32 import EXPORT_LAYER
 from models.exported_qwen3_asr.shaders.export_linear_bias_f32 import EXPORT_LINEAR_BIAS_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_linear_bias_f32_10 import EXPORT_LINEAR_BIAS_F32_10  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_linear_bias_f32_12 import EXPORT_LINEAR_BIAS_F32_12  # noqa: F401
+from models.exported_qwen3_asr.shaders.export_linear_bias_f32_3 import EXPORT_LINEAR_BIAS_F32_3  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_linear_nobias_f32 import EXPORT_LINEAR_NOBIAS_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_linear_nobias_f32_14 import EXPORT_LINEAR_NOBIAS_F32_14  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_linear_nobias_f32_22 import EXPORT_LINEAR_NOBIAS_F32_22  # noqa: F401
@@ -94,7 +96,5 @@ from models.exported_qwen3_asr.shaders.export_transpose_f32_9e77b1cee2 import EX
 from models.exported_qwen3_asr.shaders.export_transpose_f32_d509518b4f import EXPORT_TRANSPOSE_F32_D509518B4F  # noqa: F401
 from models.exported_qwen3_asr.shaders.export_transpose_f32_d95ce920ac import EXPORT_TRANSPOSE_F32_D95CE920AC  # noqa: F401
 from models.exported_qwen3_asr.shaders.lm_head_export_linear_nobias_f32 import LM_HEAD_EXPORT_LINEAR_NOBIAS_F32  # noqa: F401
-from models.exported_qwen3_asr.shaders.proj1_export_gelu_f32 import PROJ1_EXPORT_GELU_F32  # noqa: F401
-from models.exported_qwen3_asr.shaders.proj2_export_linear_bias_f32 import PROJ2_EXPORT_LINEAR_BIAS_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.text_layer_export_add_f32 import TEXT_LAYER_EXPORT_ADD_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.text_layer_export_linear_nobias_f32 import TEXT_LAYER_EXPORT_LINEAR_NOBIAS_F32  # noqa: F401

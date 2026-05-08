@@ -22,6 +22,7 @@ from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
 from torch2vk.export import (
     KVCacheExportHint,
+    KVCacheInjectHint,
     export_submodule,
     generate_dispatch_function_source,
     generate_tensor_class_source,
@@ -36,24 +37,18 @@ from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
 PLAN_TO_FILE: dict[str, str] = {
-    "run_conv2d1": "audio_tower",
-    "run_conv2d2": "audio_tower",
-    "run_conv2d3": "audio_tower",
-    "run_conv_out": "audio_tower",
-    "run_audio_position_compact": "audio_tower",
-    "run_ln_post": "audio_tower",
-    "run_proj1": "audio_tower",
-    "run_proj2": "audio_tower",
+    "run_audio_conv_stack": "audio_tower",
     "run_encoder_layer": "encoder_layer",
+    "run_audio_proj": "audio_tower",
     "run_embed_tokens": "text",
     "run_audio_inject": "text",
+    "run_text_layer": "text_layer",
     "run_text_norm": "text",
     "run_lm_head": "text",
-    "run_text_layer": "text_layer",
     "run_decode_embed": "decode",
+    "run_decode_layer": "decode_layer",
     "run_decode_norm": "decode",
     "run_decode_lm_head": "decode",
-    "run_decode_layer": "decode_layer",
 }
 
 
@@ -63,7 +58,7 @@ def _to_class_name(plan_name: str) -> str:
 
 
 def _compare_extra_lines(plan_name: str, tensor_name: str) -> tuple[str, ...]:
-    if plan_name == "run_proj2" and tensor_name == "linear":
+    if plan_name == "run_audio_proj" and tensor_name == "linear_1":
         return (
             'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
             'pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="last_hidden_state"),',
@@ -312,8 +307,11 @@ def main() -> int:
     tensor_file_classes: dict[str, list[str]] = {}  # file_group → [class names]
     dispatch_sources: list[str] = []
 
-    def export_one(name, module, args, kwargs=None, weight_prefix="", kv_cache=None):
+    def export_one(name, module, args, kwargs=None, weight_prefix="", kv_cache=None, kv_inject=None):
         prog = export_submodule(module, args=args, kwargs=kwargs, kv_cache=kv_cache)
+        if kv_inject is not None:
+            from torch2vk.export.graph import KVCacheInjectHint, inject_kv_cache
+            inject_kv_cache(prog, kv_inject)
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
         group = PLAN_TO_FILE.get(name, "misc")
@@ -382,166 +380,61 @@ def main() -> int:
     # Wrapper classes for export
     nc = shapes["num_chunks"]
 
-    class _ConvGelu(torch.nn.Module):
-        def __init__(self, conv):
+    class _AudioConvStack(torch.nn.Module):
+        def __init__(self, at):
             super().__init__()
-            self.weight = conv.weight
-            self.bias = conv.bias
-            self._stride = conv.stride
-            self._padding = conv.padding
-        def forward(self, x):
-            return torch.nn.functional.gelu(
-                torch.nn.functional.conv2d(x, self.weight, self.bias, stride=self._stride, padding=self._padding)
-            )
+            self.conv2d1 = at.conv2d1
+            self.conv2d2 = at.conv2d2
+            self.conv2d3 = at.conv2d3
+            self.conv_out = at.conv_out
 
-    class _LinearAct(torch.nn.Module):
-        def __init__(self, linear, act):
-            super().__init__()
-            self.weight = linear.weight
-            self.bias = linear.bias
-            self._act = act
-        def forward(self, x):
-            return self._act(torch.nn.functional.linear(x, self.weight, self.bias))
-
-    class _ConvOutFromCnn(torch.nn.Module):
-        def __init__(self, linear):
-            super().__init__()
-            self.weight = linear.weight
-        def forward(self, x):
-            b, c, f, t = x.shape
-            x = x.reshape(b, c * f, t).transpose(1, 2)
-            return torch.nn.functional.linear(x, self.weight, None)
-
-    class _AudioPositionCompact(torch.nn.Module):
         def forward(self, x, position_embedding, compact_index):
+            F = torch.nn.functional
+            x = F.gelu(F.conv2d(x, self.conv2d1.weight, self.conv2d1.bias,
+                                stride=self.conv2d1.stride, padding=self.conv2d1.padding))
+            x = F.gelu(F.conv2d(x, self.conv2d2.weight, self.conv2d2.bias,
+                                stride=self.conv2d2.stride, padding=self.conv2d2.padding))
+            x = F.gelu(F.conv2d(x, self.conv2d3.weight, self.conv2d3.bias,
+                                stride=self.conv2d3.stride, padding=self.conv2d3.padding))
+            b, c, f, t = x.shape
+            x = F.linear(x.reshape(b, c * f, t).transpose(1, 2), self.conv_out.weight, None)
             x = x + position_embedding
             x = x.reshape(-1, x.shape[-1])
             return torch.index_select(x, 0, compact_index)
+
+    class _AudioProj(torch.nn.Module):
+        def __init__(self, at):
+            super().__init__()
+            self.ln_post = at.ln_post
+            self.proj1 = at.proj1
+            self.proj2 = at.proj2
+            self._act = at.act
+
+        def forward(self, x):
+            F = torch.nn.functional
+            x = self.ln_post(x)
+            x = self._act(F.linear(x, self.proj1.weight, self.proj1.bias))
+            return F.linear(x, self.proj2.weight, self.proj2.bias)
 
     class _AudioInject(torch.nn.Module):
         def forward(self, inputs_embeds, audio_positions, audio_features):
             return torch.index_copy(inputs_embeds, 1, audio_positions, audio_features.unsqueeze(0))
 
-    def _rotate_half(x):
-        x1 = x[..., : x.shape[-1] // 2]
-        x2 = x[..., x.shape[-1] // 2 :]
-        return torch.cat((-x2, x1), dim=-1)
-
-    def _apply_rope(q, k, position_embeddings):
-        cos, sin = position_embeddings
-        cos = cos.unsqueeze(1)
-        sin = sin.unsqueeze(1)
-        return (q * cos) + (_rotate_half(q) * sin), (k * cos) + (_rotate_half(k) * sin)
-
-    class _TextLayerBase(torch.nn.Module):
-        def __init__(self, layer):
-            super().__init__()
-            self.input_layernorm = layer.input_layernorm
-            self.post_attention_layernorm = layer.post_attention_layernorm
-            self.self_attn = layer.self_attn
-            self.mlp = layer.mlp
-            self.head_dim = layer.self_attn.head_dim
-
-        def _qkv(self, hidden_states, position_embeddings):
-            input_shape = hidden_states.shape[:-1]
-            hidden_shape = (*input_shape, -1, self.head_dim)
-            query_states = self.self_attn.q_norm(
-                self.self_attn.q_proj(hidden_states).view(hidden_shape)
-            ).transpose(1, 2)
-            key_states = self.self_attn.k_norm(
-                self.self_attn.k_proj(hidden_states).view(hidden_shape)
-            ).transpose(1, 2)
-            value_states = self.self_attn.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
-            query_states, key_states = _apply_rope(query_states, key_states, position_embeddings)
-            return query_states, key_states, value_states, input_shape
-
-        def _finish(self, residual, attn_output, input_shape):
-            hidden_states = attn_output.transpose(1, 2).contiguous().reshape(*input_shape, -1)
-            hidden_states = self.self_attn.o_proj(hidden_states)
-            hidden_states = residual + hidden_states
-            residual = hidden_states
-            hidden_states = self.post_attention_layernorm(hidden_states)
-            hidden_states = self.mlp(hidden_states)
-            return residual + hidden_states
-
-    class _TextLayerPrefillWithCache(_TextLayerBase):
-        def forward(self, hidden_states, cache_position, key_cache, value_cache, position_embeddings):
-            residual = hidden_states
-            hidden_states = self.input_layernorm(hidden_states)
-            query_states, key_states, value_states, input_shape = self._qkv(
-                hidden_states, position_embeddings
-            )
-            key_cache = torch.index_copy(key_cache, 2, cache_position, key_states)
-            value_cache = torch.index_copy(value_cache, 2, cache_position, value_states)
-            attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states,
-                key_states,
-                value_states,
-                None,
-                0.0,
-                True,
-                enable_gqa=True,
-            )
-            return self._finish(residual, attn_output, input_shape), key_cache, value_cache
-
-    class _TextLayerDecodeWithCache(_TextLayerBase):
-        def forward(
-            self,
-            hidden_states,
-            cache_position,
-            key_cache,
-            value_cache,
-            attention_mask,
-            position_embeddings,
-        ):
-            residual = hidden_states
-            hidden_states = self.input_layernorm(hidden_states)
-            query_states, key_states, value_states, input_shape = self._qkv(
-                hidden_states, position_embeddings
-            )
-            key_cache = torch.index_copy(key_cache, 2, cache_position, key_states)
-            value_cache = torch.index_copy(value_cache, 2, cache_position, value_states)
-            attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states,
-                key_cache,
-                value_cache,
-                attention_mask,
-                enable_gqa=True,
-            )
-            return self._finish(residual, attn_output, input_shape), key_cache, value_cache
-
     # Audio tower exports
-    export_one("run_conv2d1", _ConvGelu(at.conv2d1).float(),
-               args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),),
-               weight_prefix="thinker.audio_tower.conv2d1.")
-    export_one("run_conv2d2", _ConvGelu(at.conv2d2).float(),
-               args=(torch.zeros(*shapes["conv2d1_out"], device="meta"),),
-               weight_prefix="thinker.audio_tower.conv2d2.")
-    export_one("run_conv2d3", _ConvGelu(at.conv2d3).float(),
-               args=(torch.zeros(*shapes["conv2d2_out"], device="meta"),),
-               weight_prefix="thinker.audio_tower.conv2d3.")
-    export_one("run_conv_out", _ConvOutFromCnn(at.conv_out).float(),
-               args=(torch.zeros(*shapes["conv2d3_out"], device="meta"),),
-               weight_prefix="thinker.audio_tower.conv_out.")
-    export_one("run_audio_position_compact", _AudioPositionCompact(),
-               args=(torch.zeros(*shapes["conv_out"], device="meta"),
-                     torch.zeros(*shapes["conv_out"], device="meta"),
-                     torch.zeros(shapes["enc_seq_len"], dtype=torch.long, device="meta")))
     enc_seq = shapes["enc_seq_len"]
+    export_one("run_audio_conv_stack", _AudioConvStack(at).float(),
+               args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),
+                     torch.zeros(*shapes["conv_out"], device="meta"),
+                     torch.zeros(enc_seq, dtype=torch.long, device="meta")),
+               weight_prefix="thinker.audio_tower.")
     export_one("run_encoder_layer", at.layers[0].float(),
                args=(torch.zeros(enc_seq, shapes["d_model"], device="meta"),
                      torch.zeros(shapes["cu_seqlens_len"], dtype=torch.int32, device="meta")),
                kwargs={"attention_mask": torch.zeros(1, 1, enc_seq, enc_seq, device="meta")},
                weight_prefix="thinker.audio_tower.layers.0.")
-    export_one("run_ln_post", at.ln_post.float(),
-               args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
-               weight_prefix="thinker.audio_tower.ln_post.")
-    export_one("run_proj1", _LinearAct(at.proj1, at.act).float(),
-               args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
-               weight_prefix="thinker.audio_tower.proj1.")
-    export_one("run_proj2", at.proj2.float(),
-               args=(torch.zeros(shapes["enc_seq_len"], shapes["d_model"], device="meta"),),
-               weight_prefix="thinker.audio_tower.proj2.")
+    export_one("run_audio_proj", _AudioProj(at).float(),
+               args=(torch.zeros(enc_seq, shapes["d_model"], device="meta"),),
+               weight_prefix="thinker.audio_tower.")
 
     # Text pipeline exports
     pl = shapes["prompt_length"]
@@ -554,24 +447,15 @@ def main() -> int:
                weight_prefix="thinker.model.embed_tokens.")
     export_one("run_audio_inject", _AudioInject(),
                args=(torch.zeros(1, pl, hs, device="meta"),
-                     torch.zeros(shapes["enc_seq_len"], dtype=torch.long, device="meta"),
-                     torch.zeros(shapes["enc_seq_len"], hs, device="meta")))
-    export_one("run_text_layer", _TextLayerPrefillWithCache(model.thinker.model.layers[0]),
+                     torch.zeros(enc_seq, dtype=torch.long, device="meta"),
+                     torch.zeros(enc_seq, hs, device="meta")))
+    export_one("run_text_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, pl, hs, device="meta"),
-                     torch.zeros(pl, dtype=torch.long, device="meta"),
-                     torch.zeros(1, nh, max_seq, hd, device="meta"),
-                     torch.zeros(1, nh, max_seq, hd, device="meta")),
-               kwargs={"position_embeddings": (
-                   torch.zeros(1, pl, hd, device="meta"),
-                   torch.zeros(1, pl, hd, device="meta"),
-               )},
+                     (torch.zeros(1, pl, hd, device="meta"),
+                      torch.zeros(1, pl, hd, device="meta"))),
+               kwargs={"past_key_values": None, "attention_mask": None},
                weight_prefix="thinker.model.layers.0.",
-               kv_cache=KVCacheExportHint(
-                   phase="prefill",
-                   key_cache="key_cache",
-                   value_cache="value_cache",
-                   cache_position="cache_position",
-               ))
+               kv_inject=KVCacheInjectHint(phase="prefill", max_seq_len=max_seq))
     export_one("run_text_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, pl, hs, device="meta"),),
                weight_prefix="thinker.model.norm.")
@@ -583,23 +467,13 @@ def main() -> int:
     export_one("run_decode_embed", model.thinker.model.embed_tokens.float(),
                args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.")
-    export_one("run_decode_layer", _TextLayerDecodeWithCache(model.thinker.model.layers[0]),
+    export_one("run_decode_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, 1, hs, device="meta"),
-                     torch.zeros(1, dtype=torch.long, device="meta"),
-                     torch.zeros(1, nh, max_seq, hd, device="meta"),
-                     torch.zeros(1, nh, max_seq, hd, device="meta"),
-                     torch.zeros(1, 1, 1, max_seq, device="meta")),
-               kwargs={"position_embeddings": (
-                   torch.zeros(1, 1, hd, device="meta"),
-                   torch.zeros(1, 1, hd, device="meta"),
-               )},
+                     (torch.zeros(1, 1, hd, device="meta"),
+                      torch.zeros(1, 1, hd, device="meta"))),
+               kwargs={"past_key_values": None, "attention_mask": None},
                weight_prefix="thinker.model.layers.0.",
-               kv_cache=KVCacheExportHint(
-                   phase="decode",
-                   key_cache="key_cache",
-                   value_cache="value_cache",
-                   cache_position="cache_position",
-               ))
+               kv_inject=KVCacheInjectHint(phase="decode", max_seq_len=max_seq))
     export_one("run_decode_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, 1, hs, device="meta"),),
                weight_prefix="thinker.model.norm.")

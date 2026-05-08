@@ -1,4 +1,4 @@
-"""Generated shader: proj1_export_gelu_f32."""
+"""Generated shader: audio_proj_export_gelu_f32."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-PROJ1_EXPORT_GELU_F32 = ShaderVariant(
-    name='proj1_export_gelu_f32',
+AUDIO_PROJ_EXPORT_GELU_F32 = ShaderVariant(
+    name='audio_proj_export_gelu_f32',
     family='export',
     contract=ShaderContract(
         class_name='ExportGeluF32Program',
-        shader_name='proj1_export_gelu_f32',
+        shader_name='audio_proj_export_gelu_f32',
         fields=(
             TensorFieldSpec(
                 name='x',
