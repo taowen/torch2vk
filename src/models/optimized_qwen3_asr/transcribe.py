@@ -20,6 +20,7 @@ from models.optimized_qwen3_asr.execution import (
     run_qwen3_asr_replay_decode_loop,
 )
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
+from models.optimized_qwen3_asr.shaders import model_shaders
 from models.optimized_qwen3_asr.tensors.audio_tower import (
     Qwen3AsrAudioTowerTensors,
     declare_qwen3_asr_audio_tower_tensors,
@@ -284,6 +285,7 @@ class Qwen3AsrRecognizer:
             model_dir=self._model_dir,
             profile_dir=self._profile_dir,
             model_tensors=(audio_tensors, text_tensors),
+            model_shaders=model_shaders(),
         )
         self._topology_key = key
         self._audio_tensors = audio_tensors

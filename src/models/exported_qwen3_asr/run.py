@@ -26,6 +26,7 @@ from models.exported_qwen3_asr.debug_audio_tower import (
     DebugAudioTower,
     preprocess_audio_inputs,
 )
+from models.exported_qwen3_asr.shaders import model_shaders
 from models.exported_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
@@ -94,11 +95,9 @@ def _build_decode_replay_plan(
     token_feedback_target: LogicalTensor,
 ) -> ReplayPlan:
     warmup_records = rt.dispatch_records[dispatch_start:dispatch_end]
-    variants = [dispatch.shader_variant(record.shader) for record in warmup_records]
     plan = rt.build_replay_plan(
         name="exported_qwen3_asr_decode_step",
         frame_dispatch_records=list(warmup_records),
-        variants=variants,
         token_feedback_source=token_feedback_source,
         token_feedback_target=token_feedback_target,
     )
@@ -173,6 +172,7 @@ def main(
         device_index=0,
         model_dir=model_dir,
         model_tensors=model_tensors(),
+        model_shaders=model_shaders(),
     )
     debug_audio_tower = None
     pytorch_thinker = None

@@ -23,6 +23,7 @@ from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerMo
 
 from models.hf_cache import resolve_cached_model
 from models.exported_omnivoice import dispatch
+from models.exported_omnivoice.shaders import model_shaders
 from models.exported_omnivoice.tensors.model import create_model_tensors, model_tensors
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
@@ -109,7 +110,6 @@ def _build_generation_replay_plan(
     plan = rt.build_replay_plan(
         name="exported_omnivoice_generation_step",
         frame_dispatch_records=list(warmup_records),
-        variants=[dispatch.shader_variant(record.shader) for record in warmup_records],
     )
     if plan.readback_slots:
         raise RuntimeError("OmniVoice generation replay must not use readback slots")
@@ -215,6 +215,7 @@ def main(
         device_index=0,
         model_dir=bf16_dir,
         model_tensors=model_tensors(),
+        model_shaders=model_shaders(),
     )
 
     # Iterative decoding

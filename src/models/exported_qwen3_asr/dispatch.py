@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-from typing import cast
 
 import numpy as np
 
@@ -121,12 +119,7 @@ from models.exported_qwen3_asr.tensors.lm_head import LmHeadTensors
 from models.exported_qwen3_asr.tensors.text_layer import TextLayerTensors
 from models.exported_qwen3_asr.tensors.text_norm import TextNormTensors
 from torch2vk.runtime.logical import LogicalTensor
-from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
-
-
-def shader_variant(shader_name: str) -> ShaderVariant:
-    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
 
 
 def _run_audio_encoder_with_tensors(rt: RuntimeSession, tensors: AudioEncoderTensors) -> None:

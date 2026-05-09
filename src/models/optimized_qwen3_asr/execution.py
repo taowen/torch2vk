@@ -30,7 +30,6 @@ from torch2vk.runtime.rope_table import (
     run_rope_table_f32,
 )
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.runtime.shader import ShaderVariant
 
 if TYPE_CHECKING:
     from torch2vk.runtime.replay import ReplayPlan
@@ -587,17 +586,9 @@ def run_qwen3_asr_replay_decode_loop(
     # Phase 4: Build replay plan from the warm-up dispatches
     warmup_records = rt.dispatch_records[dispatch_start:dispatch_end]
 
-    variant_by_shader: dict[str, ShaderVariant] = {}
-    _collect_decode_variants(variant_by_shader)
-    _collect_token_select_variants(variant_by_shader)
-    _collect_token_store_variants(variant_by_shader, stop_on_eos=stop_on_eos)
-
-    variants = [variant_by_shader[r.shader] for r in warmup_records]
-
     plan = rt.build_replay_plan(
         name="qwen3_asr_decode_step",
         frame_dispatch_records=list(warmup_records),
-        variants=variants,
         dynamic_symbol_names=("S",),
     )
     if plan.readback_slots:
@@ -794,63 +785,3 @@ def _require_supported_mrope_section(mrope_section: tuple[int, ...]) -> None:
         )
 
 
-def _collect_decode_variants(out: dict[str, "ShaderVariant"]) -> None:
-    from models.optimized_qwen3_asr.shaders.text_add_3d_f32 import QWEN3_ASR_TEXT_ADD_3D_F32
-    from models.optimized_qwen3_asr.shaders.text_attention_decode_f32 import QWEN3_ASR_TEXT_ATTENTION_DECODE_F32
-    from models.optimized_qwen3_asr.shaders.text_embed_lookup_f32 import QWEN3_ASR_TEXT_EMBED_LOOKUP_F32
-    from models.optimized_qwen3_asr.shaders.text_gate_up_swiglu_t1_f32 import (
-        QWEN3_ASR_TEXT_GATE_UP_SWIGLU_T1_F32,
-    )
-    from models.optimized_qwen3_asr.shaders.text_kv_cache_write_f32 import QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32
-    from models.optimized_qwen3_asr.shaders.text_linear_nobias_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32
-    from models.optimized_qwen3_asr.shaders.text_linear_nobias_t1_f32 import QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32
-    from models.optimized_qwen3_asr.shaders.text_linear_nobias_t1_splitk4_f32 import (
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32,
-    )
-    from models.optimized_qwen3_asr.shaders.text_lm_head_select_t1_f32 import (
-        QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32,
-        QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32,
-    )
-    from models.optimized_qwen3_asr.shaders.text_qk_norm_f32 import QWEN3_ASR_TEXT_QK_NORM_F32
-    from models.optimized_qwen3_asr.shaders.text_qkv_proj_t1_f32 import QWEN3_ASR_TEXT_QKV_PROJ_T1_F32
-    from models.optimized_qwen3_asr.shaders.text_rms_norm_f32 import QWEN3_ASR_TEXT_RMS_NORM_F32
-    from models.optimized_qwen3_asr.shaders.text_rope_f32 import QWEN3_ASR_TEXT_ROPE_F32
-    from models.optimized_qwen3_asr.shaders.text_swiglu_f32 import QWEN3_ASR_TEXT_SWIGLU_F32
-
-    for v in (
-        QWEN3_ASR_TEXT_ADD_3D_F32,
-        QWEN3_ASR_TEXT_ATTENTION_DECODE_F32,
-        QWEN3_ASR_TEXT_EMBED_LOOKUP_F32,
-        QWEN3_ASR_TEXT_GATE_UP_SWIGLU_T1_F32,
-        QWEN3_ASR_TEXT_KV_CACHE_WRITE_DECODE_F32,
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_F32,
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_F32,
-        QWEN3_ASR_TEXT_LINEAR_NOBIAS_T1_SPLITK4_F32,
-        QWEN3_ASR_TEXT_LM_HEAD_SELECT_PARTIAL_T1_F32,
-        QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32,
-        QWEN3_ASR_TEXT_QK_NORM_F32,
-        QWEN3_ASR_TEXT_QKV_PROJ_T1_F32,
-        QWEN3_ASR_TEXT_RMS_NORM_F32,
-        QWEN3_ASR_TEXT_ROPE_F32,
-        QWEN3_ASR_TEXT_SWIGLU_F32,
-    ):
-        out[v.name] = v
-
-
-def _collect_token_select_variants(out: dict[str, "ShaderVariant"]) -> None:
-    from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
-    out[QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name] = QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
-
-
-def _collect_token_store_variants(
-    out: dict[str, "ShaderVariant"],
-    *,
-    stop_on_eos: bool,
-) -> None:
-    from models.optimized_qwen3_asr.shaders.token_store_f32 import (
-        QWEN3_ASR_TOKEN_STORE_EOS_F32,
-        QWEN3_ASR_TOKEN_STORE_F32,
-    )
-
-    variant = QWEN3_ASR_TOKEN_STORE_EOS_F32 if stop_on_eos else QWEN3_ASR_TOKEN_STORE_F32
-    out[variant.name] = variant

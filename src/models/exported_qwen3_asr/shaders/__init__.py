@@ -1,5 +1,11 @@
 """Generated shader index."""
 
+from __future__ import annotations
+
+import sys
+
+from torch2vk.runtime.shader import ShaderVariant, collect_shader_variants
+
 from models.exported_qwen3_asr.shaders.add_f32 import ADD_F32  # noqa: F401
 from models.exported_qwen3_asr.shaders.add_f32_17 import ADD_F32_17  # noqa: F401
 from models.exported_qwen3_asr.shaders.add_f32_21 import ADD_F32_21  # noqa: F401
@@ -99,3 +105,12 @@ from models.exported_qwen3_asr.shaders.transpose_f32_9e00ca2f33 import TRANSPOSE
 from models.exported_qwen3_asr.shaders.transpose_f32_9e77b1cee2 import TRANSPOSE_F32_9E77B1CEE2  # noqa: F401
 from models.exported_qwen3_asr.shaders.transpose_f32_d509518b4f import TRANSPOSE_F32_D509518B4F  # noqa: F401
 from models.exported_qwen3_asr.shaders.transpose_f32_d95ce920ac import TRANSPOSE_F32_D95CE920AC  # noqa: F401
+
+_MODEL_SHADERS: dict[str, ShaderVariant] | None = None
+
+
+def model_shaders() -> dict[str, ShaderVariant]:
+    global _MODEL_SHADERS
+    if _MODEL_SHADERS is None:
+        _MODEL_SHADERS = collect_shader_variants(sys.modules[__name__])
+    return _MODEL_SHADERS

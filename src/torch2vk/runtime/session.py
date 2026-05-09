@@ -45,6 +45,7 @@ class RuntimeSession:
         model_dir: str | Path | None = None,
         profile_dir: str | Path | None = None,
         model_tensors: object | None = None,
+        model_shaders: dict[str, ShaderVariant] | None = None,
     ) -> None:
         from torch2vk.runtime.profile import RuntimeProfiler
 
@@ -58,6 +59,7 @@ class RuntimeSession:
         if model_tensors is not None:
             collect_named_logical_tensors(model_tensors)
         self._model_tensors = model_tensors
+        self._model_shaders = model_shaders
         self._inputs: dict[LogicalTensor, object] = {}
         self._frame_stack: list[FrameContext] = []
         self._frame_history: dict[str, FrameContext] = {}
@@ -81,12 +83,14 @@ class RuntimeSession:
         model_dir: str | Path | None = None,
         profile_dir: str | Path | None = None,
         model_tensors: object | None = None,
+        model_shaders: dict[str, ShaderVariant] | None = None,
     ) -> "RuntimeSession":
         return cls(
             device_index=device_index,
             artifact_dir=artifact_dir,
             model_dir=model_dir,
             profile_dir=profile_dir,
+            model_shaders=model_shaders,
             model_tensors=model_tensors,
         )
 
@@ -232,7 +236,6 @@ class RuntimeSession:
         *,
         name: str,
         frame_dispatch_records: Sequence[DispatchRecord],
-        variants: Sequence[ShaderVariant],
         dynamic_symbol_names: tuple[str, ...] = (),
         readback_tensors: Mapping[str, LogicalTensor] | None = None,
         token_feedback_source: LogicalTensor | None = None,
@@ -244,7 +247,6 @@ class RuntimeSession:
             self,
             name=name,
             frame_dispatch_records=frame_dispatch_records,
-            variants=variants,
             dynamic_symbol_names=dynamic_symbol_names,
             readback_tensors=readback_tensors,
             token_feedback_source=token_feedback_source,
@@ -331,6 +333,13 @@ class RuntimeSession:
                 "Replay requires RuntimeSession.open(..., model_tensors=...)"
             )
         return collect_named_logical_tensors(self._model_tensors)
+
+    def _named_model_shaders(self) -> dict[str, ShaderVariant]:
+        if self._model_shaders is None:
+            raise RuntimeError(
+                "Replay requires RuntimeSession.open(..., model_shaders=...)"
+            )
+        return self._model_shaders
 
     def _bind_shape_symbols(
         self,

@@ -200,6 +200,15 @@ class ShaderVariant:
         dispatch(self, **arguments)
 
 
+def collect_shader_variants(source: object) -> dict[str, "ShaderVariant"]:
+    variants: dict[str, ShaderVariant] = {}
+    for attr_name in dir(source):
+        value = getattr(source, attr_name)
+        if isinstance(value, ShaderVariant):
+            variants[value.name] = value
+    return variants
+
+
 @dataclass(frozen=True, slots=True)
 class DispatchTensorSnapshot:
     field: str

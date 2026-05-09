@@ -56,7 +56,6 @@ def build_replay_plan(
     *,
     name: str,
     frame_dispatch_records: Sequence[DispatchRecord],
-    variants: Sequence[ShaderVariant],
     dynamic_symbol_names: tuple[str, ...] = (),
     readback_tensors: Mapping[str, LogicalTensor] | None = None,
     token_feedback_source: LogicalTensor | None = None,
@@ -67,6 +66,7 @@ def build_replay_plan(
     num_dispatches = len(frame_dispatch_records)
     if num_dispatches == 0:
         raise ValueError("Cannot build replay plan with zero dispatches")
+    model_shaders = rt._named_model_shaders()
 
     if (token_feedback_source is None) != (token_feedback_target is None):
         raise ValueError(
@@ -98,12 +98,8 @@ def build_replay_plan(
     workspace_allocations: list[BufferAllocation] = []
     params_allocations: list[BufferAllocation] = []
 
-    for i, (record, variant) in enumerate(zip(frame_dispatch_records, variants, strict=True)):
-        if record.shader != variant.name:
-            raise ValueError(
-                f"Replay record {record.index} shader {record.shader!r} "
-                f"does not match variant {variant.name!r}"
-            )
+    for i, record in enumerate(frame_dispatch_records):
+        variant = model_shaders[record.shader]
         contract = variant.contract
         pipeline = rt._pipeline_for_variant(variant)
         record_symbols = dict(record.symbols)

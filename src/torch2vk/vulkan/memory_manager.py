@@ -596,17 +596,19 @@ class TemporaryTensorPool:
         class_key = (spec.dtype, self._size_class(requested_nbytes))
         class_bucket = self._free_size_class.get(class_key)
         if class_bucket:
-            allocation = class_bucket.pop()
-            recycled_key = self._recycled_spec_by_allocation_id.pop(id(allocation), None)
-            if recycled_key is not None:
-                recycled_bucket = self._free_exact.get(recycled_key)
-                if recycled_bucket:
-                    for index in range(len(recycled_bucket) - 1, -1, -1):
-                        if recycled_bucket[index] is allocation:
-                            del recycled_bucket[index]
-                            break
-            self._note_reuse(allocation)
-            return _slice_for_spec(spec=spec, allocation=allocation), allocation
+            for i in range(len(class_bucket) - 1, -1, -1):
+                if class_bucket[i].size >= requested_nbytes:
+                    allocation = class_bucket.pop(i)
+                    recycled_key = self._recycled_spec_by_allocation_id.pop(id(allocation), None)
+                    if recycled_key is not None:
+                        recycled_bucket = self._free_exact.get(recycled_key)
+                        if recycled_bucket:
+                            for index in range(len(recycled_bucket) - 1, -1, -1):
+                                if recycled_bucket[index] is allocation:
+                                    del recycled_bucket[index]
+                                    break
+                    self._note_reuse(allocation)
+                    return _slice_for_spec(spec=spec, allocation=allocation), allocation
 
         allocation = self._allocate_device_local(requested_nbytes)
         return _slice_for_spec(spec=spec, allocation=allocation), allocation

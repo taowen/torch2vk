@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-from typing import cast
-
 from models.exported_omnivoice.tensors.model import model_tensors
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from models.exported_omnivoice.shaders.add_f32 import ADD_F32
@@ -57,12 +54,7 @@ from models.exported_omnivoice.shaders.transpose_f32_c943282b28 import TRANSPOSE
 from models.exported_omnivoice.shaders.transpose_f32_f3e8fdf2d4 import TRANSPOSE_F32_F3E8FDF2D4
 from models.exported_omnivoice.tensors.audio_head import AudioHeadTensors
 from models.exported_omnivoice.tensors.llm_forward import LlmForwardTensors
-from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
-
-
-def shader_variant(shader_name: str) -> ShaderVariant:
-    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
 
 
 def _run_llm_forward_with_tensors(rt: RuntimeSession, tensors: LlmForwardTensors) -> None:
