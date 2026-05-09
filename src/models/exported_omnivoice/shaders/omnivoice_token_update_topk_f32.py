@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from torch2vk.runtime.shader import (
-    ceil_div,
     IOKind,
-    mul,
     PushConstantFieldSpec,
     PushConstantSpec,
     PushConstantType,
@@ -13,6 +11,8 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
+    ceil_div,
+    mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,

@@ -26,6 +26,8 @@ from models.exported_omnivoice import dispatch
 from models.exported_omnivoice.tensors.model import create_model_tensors, model_tensors
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
+from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
 from torch2vk.runtime.session import RuntimeSession
 
 DEFAULT_TEXT = "hello world this is a speech recognition test"
@@ -88,6 +90,30 @@ class DebugOmniVoiceStep(nn.Module):
             return_dict=True,
         )
         return self.audio_heads(llm_outputs[0])
+
+
+def _generation_step_inputs(step: int, unmask_count: int) -> dict[LogicalTensor, np.ndarray]:
+    return {
+        model_tensors().step_index: np.array([step], dtype=np.uint32),
+        model_tensors().unmask_count: np.array([unmask_count], dtype=np.uint32),
+    }
+
+
+def _build_generation_replay_plan(
+    rt: RuntimeSession,
+    *,
+    dispatch_start: int,
+    dispatch_end: int,
+) -> ReplayPlan:
+    warmup_records = rt.dispatch_records[dispatch_start:dispatch_end]
+    plan = rt.build_replay_plan(
+        name="exported_omnivoice_generation_step",
+        frame_dispatch_records=list(warmup_records),
+        variants=[dispatch.shader_variant(record.shader) for record in warmup_records],
+    )
+    if plan.readback_slots:
+        raise RuntimeError("OmniVoice generation replay must not use readback slots")
+    return plan
 
 
 def main(
@@ -241,18 +267,36 @@ def main(
     dispatch.run_rope_table(rt, frame_name="omnivoice.rope")
 
     unmasked = 0
+    generation_replay_plan: ReplayPlan | None = None
+    use_replay = debug_step is None and num_steps > 1
     for step in range(num_steps):
         k = schedule[step]
         if k <= 0:
             continue
 
-        rt.register_inputs(
-            {
-                model_tensors().step_index: np.array([step], dtype=np.uint32),
-                model_tensors().unmask_count: np.array([k], dtype=np.uint32),
-            }
-        )
-        dispatch.run_generation_step(rt, step=step, pytorch_model=debug_step)
+        step_inputs = _generation_step_inputs(step, k)
+        if generation_replay_plan is None:
+            dispatch_start = len(rt.dispatch_records)
+            rt.register_inputs(step_inputs)
+            dispatch.run_generation_step(rt, step=step, pytorch_model=debug_step)
+            dispatch_end = len(rt.dispatch_records)
+            if use_replay:
+                generation_replay_plan = _build_generation_replay_plan(
+                    rt,
+                    dispatch_start=dispatch_start,
+                    dispatch_end=dispatch_end,
+                )
+        else:
+            stage_replay_step_inputs(
+                rt,
+                plan=generation_replay_plan,
+                inputs=step_inputs,
+                write_through=(
+                    model_tensors().step_index,
+                    model_tensors().unmask_count,
+                ),
+            )
+            execute_replay(generation_replay_plan)
         unmasked += k
 
         if step % 8 == 0 or step == num_steps - 1:
@@ -261,11 +305,12 @@ def main(
 
     # Decode audio tokens
     print("\nDecoding audio tokens...")
+    generated_tokens = rt.read_request_state(model_tensors().tokens)
+    rt.close()
     audio_tokenizer_path = model_dir / "audio_tokenizer"
     audio_tokenizer = HiggsAudioV2TokenizerModel.from_pretrained(
         str(audio_tokenizer_path), device_map="cuda"
     )
-    generated_tokens = rt.read_request_state(model_tensors().tokens)
     audio_output = cast(
         _AudioDecodeOutput,
         audio_tokenizer.decode(torch.from_numpy(generated_tokens).cuda()),

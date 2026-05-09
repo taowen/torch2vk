@@ -50,7 +50,7 @@ LINEAR_NOBIAS_F32 = ShaderVariant(
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(600, 16), ceil_div(2048, 16), 1),
+        dispatch=(ceil_div(600, 16), ceil_div(2048, 32), 1),
     ),
     execution_requirements=None,
     source="""\
@@ -63,33 +63,38 @@ layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { bfloat16_t 
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
-const uint TILE_M = 16u; const uint TILE_N = 16u; const uint TILE_K = 32u;
-shared float tile_x[16 * 32]; shared bfloat16_t tile_w[32 * 16];
+const uint TILE_M = 16u; const uint TILE_N = 32u; const uint TILE_K = 32u;
+shared float tile_x[16 * 32]; shared bfloat16_t tile_w[32 * 32];
 void main() {
     const uint local_col = gl_LocalInvocationID.x;
     const uint local_row = gl_LocalInvocationID.y;
-    const uint lane = local_row * TILE_N + local_col;
+    const uint lane = local_row * 16u + local_col;
     const uint row = gl_WorkGroupID.x * TILE_M + local_row;
-    const uint col = gl_WorkGroupID.y * TILE_N + local_col;
-    float acc = 0.0;
+    const uint col0 = gl_WorkGroupID.y * TILE_N + local_col;
+    const uint col1 = col0 + 16u;
+    float acc0 = 0.0;
+    float acc1 = 0.0;
     for (uint k0 = 0u; k0 < pc.K; k0 += TILE_K) {
-        for (uint i = lane; i < TILE_M * TILE_K; i += TILE_M * TILE_N) {
+        for (uint i = lane; i < TILE_M * TILE_K; i += 256u) {
             const uint tr = i / TILE_K; const uint tk = i - tr * TILE_K;
             const uint gr = gl_WorkGroupID.x * TILE_M + tr; const uint gk = k0 + tk;
             tile_x[i] = (gr < pc.M && gk < pc.K) ? x[gr * pc.K + gk] : 0.0;
         }
-        for (uint i = lane; i < TILE_K * TILE_N; i += TILE_M * TILE_N) {
+        for (uint i = lane; i < TILE_K * TILE_N; i += 256u) {
             const uint tk = i / TILE_N; const uint tc = i - tk * TILE_N;
             const uint gk = k0 + tk; const uint gc = gl_WorkGroupID.y * TILE_N + tc;
             tile_w[i] = (gc < pc.N && gk < pc.K) ? weight[gc * pc.K + gk] : bfloat16_t(0.0);
         }
         barrier();
         [[unroll]] for (uint k = 0u; k < TILE_K; ++k) {
-            acc = fma(tile_x[local_row * TILE_K + k], tile_w[k * TILE_N + local_col], acc);
+            const float x_value = tile_x[local_row * TILE_K + k];
+            acc0 = fma(x_value, tile_w[k * TILE_N + local_col], acc0);
+            acc1 = fma(x_value, tile_w[k * TILE_N + local_col + 16u], acc1);
         }
         barrier();
     }
-    if (row < pc.M && col < pc.N) { output_values[row * pc.N + col] = acc; }
+    if (row < pc.M && col0 < pc.N) { output_values[row * pc.N + col0] = acc0; }
+    if (row < pc.M && col1 < pc.N) { output_values[row * pc.N + col1] = acc1; }
 }
 """,
 )
