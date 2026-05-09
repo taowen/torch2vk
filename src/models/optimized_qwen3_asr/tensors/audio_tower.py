@@ -12,6 +12,7 @@ from torch2vk.runtime.logical import (
     TensorLifetime,
     TensorRole,
     TensorSpec,
+    bind_logical_tensor_names,
 )
 from models.optimized_qwen3_asr.tensors.audio_tower_layer import (
     Qwen3AsrAudioEncoderLayerTensors,
@@ -91,43 +92,43 @@ def declare_qwen3_asr_audio_tower_tensors(
         "lifetime": TensorLifetime.FRAME,
     }
 
-    def weight(name: str, shape: tuple[int, ...]) -> LogicalTensor:
+    def weight(checkpoint_key: str, shape: tuple[int, ...]) -> LogicalTensor:
         return LogicalTensor(
-            name=name, spec=TensorSpec(dtype="bfloat16", shape=shape), **weight_common
+            spec=TensorSpec(dtype="bfloat16", shape=shape),
+            checkpoint_key=checkpoint_key,
+            **weight_common,
         )
 
-    def activation(name: str, shape: tuple[int, ...]) -> LogicalTensor:
+    def activation(shape: tuple[int, ...]) -> LogicalTensor:
         return LogicalTensor(
-            name=name, spec=TensorSpec(dtype="float32", shape=shape), **activation_common
+            spec=TensorSpec(dtype="float32", shape=shape),
+            **activation_common,
         )
 
     padded_hidden_shape = (batch, conv3_width, hidden_size)
     hidden_shape = (hidden_rows, hidden_size)
 
-    return Qwen3AsrAudioTowerTensors(
+    tensors = Qwen3AsrAudioTowerTensors(
         input_features=LogicalTensor(
-            name="qwen3_asr.audio_tower.input_features",
             spec=TensorSpec(dtype="float32", shape=(input_height, input_width)),
             role=TensorRole.INPUT,
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
         ),
         feature_lens=LogicalTensor(
-            name="qwen3_asr.audio_tower.feature_lens",
             spec=TensorSpec(dtype="int64", shape=(1,)),
             role=TensorRole.INPUT,
             memory=MemoryClass.HOST_INPUT,
             lifetime=TensorLifetime.FRAME,
         ),
         padded_feature=activation(
-            "qwen3_asr.audio_tower.padded_feature", (batch, 1, input_height, chunk_width)
+            (batch, 1, input_height, chunk_width)
         ),
         conv2d1_weight=weight(
             "thinker.audio_tower.conv2d1.weight", (downsample_hidden_size, 1, 3, 3)
         ),
         conv2d1_bias=weight("thinker.audio_tower.conv2d1.bias", (downsample_hidden_size,)),
         conv2d1_gelu=LogicalTensor(
-            name="qwen3_asr.audio_tower.conv2d1.gelu",
             spec=TensorSpec(
                 dtype="float32",
                 shape=(batch, downsample_hidden_size, conv1_height, conv1_chunk_width),
@@ -140,7 +141,6 @@ def declare_qwen3_asr_audio_tower_tensors(
         ),
         conv2d2_bias=weight("thinker.audio_tower.conv2d2.bias", (downsample_hidden_size,)),
         conv2d2_gelu=LogicalTensor(
-            name="qwen3_asr.audio_tower.conv2d2.gelu",
             spec=TensorSpec(
                 dtype="float32",
                 shape=(batch, downsample_hidden_size, conv2_height, conv2_chunk_width),
@@ -153,7 +153,6 @@ def declare_qwen3_asr_audio_tower_tensors(
         ),
         conv2d3_bias=weight("thinker.audio_tower.conv2d3.bias", (downsample_hidden_size,)),
         conv2d3_gelu=LogicalTensor(
-            name="qwen3_asr.audio_tower.conv2d3.gelu",
             spec=TensorSpec(
                 dtype="float32", shape=(batch, downsample_hidden_size, conv3_height, conv3_width)
             ),
@@ -163,19 +162,16 @@ def declare_qwen3_asr_audio_tower_tensors(
             "thinker.audio_tower.conv_out.weight", (hidden_size, conv_out_input_features)
         ),
         conv_out=LogicalTensor(
-            name="qwen3_asr.audio_tower.conv_out",
             spec=TensorSpec(dtype="float32", shape=padded_hidden_shape),
             compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
             pytorch_probe=PyTorchProbe(kind="module_output", target="conv_out"),
             **output_common,
         ),
         conv_out_add_position=LogicalTensor(
-            name="qwen3_asr.audio_tower.conv_out.add_position",
             spec=TensorSpec(dtype="float32", shape=padded_hidden_shape),
             **output_common,
         ),
         hidden_states=LogicalTensor(
-            name="qwen3_asr.audio_tower.hidden_states",
             spec=TensorSpec(dtype="float32", shape=hidden_shape),
             compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
             pytorch_probe=PyTorchProbe(
@@ -186,7 +182,6 @@ def declare_qwen3_asr_audio_tower_tensors(
             **output_common,
         ),
         cu_seqlens=LogicalTensor(
-            name="qwen3_asr.audio_tower.cu_seqlens",
             spec=TensorSpec(dtype="uint32", shape=(cu_seqlens_count,)),
             compare=ComparePolicy(kind="tensor", rtol=0.0, atol=0.0) if encoder_layers else None,
             pytorch_probe=PyTorchProbe(kind="module_input", target="layers.0", index=1)
@@ -208,7 +203,6 @@ def declare_qwen3_asr_audio_tower_tensors(
         ln_post_weight=weight("thinker.audio_tower.ln_post.weight", (hidden_size,)),
         ln_post_bias=weight("thinker.audio_tower.ln_post.bias", (hidden_size,)),
         ln_post=LogicalTensor(
-            name="qwen3_asr.audio_tower.ln_post",
             spec=TensorSpec(dtype="float32", shape=hidden_shape),
             compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
             pytorch_probe=PyTorchProbe(kind="module_output", target="ln_post"),
@@ -217,14 +211,12 @@ def declare_qwen3_asr_audio_tower_tensors(
         proj1_weight=weight("thinker.audio_tower.proj1.weight", (hidden_size, hidden_size)),
         proj1_bias=weight("thinker.audio_tower.proj1.bias", (hidden_size,)),
         proj1_gelu=LogicalTensor(
-            name="qwen3_asr.audio_tower.proj1.gelu",
             spec=TensorSpec(dtype="float32", shape=hidden_shape),
             **output_common,
         ),
         proj2_weight=weight("thinker.audio_tower.proj2.weight", (output_size, hidden_size)),
         proj2_bias=weight("thinker.audio_tower.proj2.bias", (output_size,)),
         last_hidden_state=LogicalTensor(
-            name="qwen3_asr.audio_tower.last_hidden_state",
             spec=TensorSpec(dtype="float32", shape=(hidden_rows, output_size)),
             role=TensorRole.OUTPUT,
             memory=MemoryClass.REQUEST_STATE,
@@ -235,6 +227,8 @@ def declare_qwen3_asr_audio_tower_tensors(
             ),
         ),
     )
+    bind_logical_tensor_names(tensors, "qwen3_asr.audio_tower")
+    return tensors
 
 
 def _conv_downsample_len(length: int) -> int:

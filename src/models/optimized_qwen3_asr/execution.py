@@ -32,6 +32,7 @@ from torch2vk.runtime.logical import (
     TensorRole,
     TensorSemantic,
     TensorSpec,
+    bind_logical_tensor_names,
 )
 from torch2vk.runtime.rope_table import (
     declare_rope_start_position_tensor,
@@ -800,46 +801,50 @@ def _qwen3_asr_decode_dynamic_symbols(
 
 
 def _replay_generated_tokens_tensor(max_new_tokens: int) -> LogicalTensor:
-    return LogicalTensor(
-        name="qwen3_asr.replay.generated_tokens",
+    tensor = LogicalTensor(
         spec=TensorSpec(dtype="int64", shape=(1, max_new_tokens)),
         role=TensorRole.STATE,
         memory=MemoryClass.REQUEST_STATE,
         lifetime=TensorLifetime.REQUEST,
         semantic=TensorSemantic.TOKEN,
     )
+    bind_logical_tensor_names(tensor, "qwen3_asr.replay.generated_tokens")
+    return tensor
 
 
 def _replay_generated_length_tensor() -> LogicalTensor:
-    return LogicalTensor(
-        name="qwen3_asr.replay.generated_length",
+    tensor = LogicalTensor(
         spec=TensorSpec(dtype="uint32", shape=(1,)),
         role=TensorRole.STATE,
         memory=MemoryClass.REQUEST_STATE,
         lifetime=TensorLifetime.REQUEST,
         semantic=TensorSemantic.TOKEN,
     )
+    bind_logical_tensor_names(tensor, "qwen3_asr.replay.generated_length")
+    return tensor
 
 
 def _replay_stopped_tensor() -> LogicalTensor:
-    return LogicalTensor(
-        name="qwen3_asr.replay.stopped",
+    tensor = LogicalTensor(
         spec=TensorSpec(dtype="uint32", shape=(1,)),
         role=TensorRole.STATE,
         memory=MemoryClass.REQUEST_STATE,
         lifetime=TensorLifetime.REQUEST,
         semantic=TensorSemantic.TOKEN,
     )
+    bind_logical_tensor_names(tensor, "qwen3_asr.replay.stopped")
+    return tensor
 
 
 def _replay_token_index_tensor() -> LogicalTensor:
-    return LogicalTensor(
-        name="qwen3_asr.replay.token_index",
+    tensor = LogicalTensor(
         spec=TensorSpec(dtype="int64", shape=(1,)),
         role=TensorRole.INPUT,
         memory=MemoryClass.HOST_INPUT,
         lifetime=TensorLifetime.FRAME,
     )
+    bind_logical_tensor_names(tensor, "qwen3_asr.replay.token_index")
+    return tensor
 
 
 def _run_qwen3_asr_token_store(

@@ -12,6 +12,7 @@ from torch2vk.runtime.logical import (
     PyTorchProbe,
     TensorLifetime,
     TensorRole,
+    bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import TensorSpec
 
@@ -49,127 +50,129 @@ def create_decode_norm(
     request_state_outputs: Collection[str] = frozenset(),
 ) -> DecodeNormTensors:
     _validate_request_state_outputs(request_state_outputs, frozenset(('mul_1',)))
-    return DecodeNormTensors(
+    tensors = DecodeNormTensors(
         p_weight=_bind_tensor(
             p_weight,
             _declare_tensor(
-            name="thinker.model.norm.weight",
-            spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
-            role=TensorRole.WEIGHT,
-            memory=MemoryClass.MODEL_WEIGHT,
-            lifetime=TensorLifetime.MODEL,
-            request_state='p_weight' in request_state_outputs,
+                checkpoint_key="thinker.model.norm.weight",
+                spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_weight' in request_state_outputs,
             ),
         ),
         hidden_states=_bind_tensor(
             hidden_states,
             _declare_tensor(
-            name=f"{prefix}.hidden_states",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
-            role=TensorRole.INPUT,
-            memory=MemoryClass.HOST_INPUT,
-            lifetime=TensorLifetime.FRAME,
-            request_state='hidden_states' in request_state_outputs,
+                checkpoint_key=None,
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                role=TensorRole.INPUT,
+                memory=MemoryClass.HOST_INPUT,
+                lifetime=TensorLifetime.FRAME,
+                request_state='hidden_states' in request_state_outputs,
             ),
         ),
         to=_bind_tensor(
             to,
             _declare_tensor(
-            name=f"{prefix}.to",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            request_state='to' in request_state_outputs,
+                checkpoint_key=None,
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='to' in request_state_outputs,
             ),
         ),
         pow_1=_bind_tensor(
             pow_1,
             _declare_tensor(
-            name=f"{prefix}.pow_1",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            request_state='pow_1' in request_state_outputs,
+                checkpoint_key=None,
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='pow_1' in request_state_outputs,
             ),
         ),
         mean=_bind_tensor(
             mean,
             _declare_tensor(
-            name=f"{prefix}.mean",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            request_state='mean' in request_state_outputs,
+                checkpoint_key=None,
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='mean' in request_state_outputs,
             ),
         ),
         add=_bind_tensor(
             add,
             _declare_tensor(
-            name=f"{prefix}.add",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            request_state='add' in request_state_outputs,
+                checkpoint_key=None,
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='add' in request_state_outputs,
             ),
         ),
         rsqrt=_bind_tensor(
             rsqrt,
             _declare_tensor(
-            name=f"{prefix}.rsqrt",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            request_state='rsqrt' in request_state_outputs,
+                checkpoint_key=None,
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='rsqrt' in request_state_outputs,
             ),
         ),
         mul=_bind_tensor(
             mul,
             _declare_tensor(
-            name=f"{prefix}.mul",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            request_state='mul' in request_state_outputs,
+                checkpoint_key=None,
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='mul' in request_state_outputs,
             ),
         ),
         to_1=_bind_tensor(
             to_1,
             _declare_tensor(
-            name=f"{prefix}.to_1",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            request_state='to_1' in request_state_outputs,
+                checkpoint_key=None,
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='to_1' in request_state_outputs,
             ),
         ),
         mul_1=_bind_tensor(
             mul_1,
             _declare_tensor(
-            name=f"{prefix}.mul_1",
-            spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
-            role=TensorRole.ACTIVATION,
-            memory=MemoryClass.FRAME_WORKSPACE,
-            lifetime=TensorLifetime.FRAME,
-            request_state='mul_1' in request_state_outputs,
+                checkpoint_key=None,
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='mul_1' in request_state_outputs,
             ),
         ),
     )
+    bind_logical_tensor_names(tensors, prefix)
+    return tensors
 
 
 def _declare_tensor(
     *,
-    name: str,
     spec: TensorSpec,
     role: TensorRole,
     memory: MemoryClass,
     lifetime: TensorLifetime,
+    checkpoint_key: str | None = None,
     request_state: bool = False,
     compare: ComparePolicy | None = None,
     pytorch_probe: PyTorchProbe | None = None,
@@ -179,13 +182,13 @@ def _declare_tensor(
         memory = MemoryClass.REQUEST_STATE
         lifetime = TensorLifetime.REQUEST
     return LogicalTensor(
-        name=name,
         spec=spec,
         role=role,
         memory=memory,
         lifetime=lifetime,
         compare=compare,
         pytorch_probe=pytorch_probe,
+        checkpoint_key=checkpoint_key,
     )
 
 
@@ -196,7 +199,9 @@ def _bind_tensor(
     if bound is None:
         return tensor
     if bound.spec != tensor.spec:
-        raise ValueError(f"{bound.name} spec {bound.spec} does not match {tensor.name} spec {tensor.spec}")
+        bound_name = bound.name or "<bound>"
+        tensor_name = tensor.name or "<declared>"
+        raise ValueError(f"{bound_name} spec {bound.spec} does not match {tensor_name} spec {tensor.spec}")
     return bound
 
 

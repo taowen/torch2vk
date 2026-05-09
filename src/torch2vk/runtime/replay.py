@@ -125,6 +125,7 @@ class ReplayDescriptorBinding:
     """One shader field descriptor recorded in a replay command buffer."""
 
     field: TensorFieldSpec
+    tensor: "LogicalTensor"
     tensor_name: str
     buffer: DescriptorBufferBinding
     rebindable: bool
@@ -228,7 +229,7 @@ def stage_replay_step_inputs(
     rt: "RuntimeSession",
     *,
     plan: ReplayPlan,
-    tensors_by_name: Mapping[str, "LogicalTensor"],
+    tensors_by_name: Mapping[str, "LogicalTensor"] | None = None,
     inputs: Mapping["LogicalTensor", np.ndarray],
     write_through: tuple["LogicalTensor", ...] = (),
 ) -> None:

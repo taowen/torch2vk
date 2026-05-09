@@ -6,6 +6,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field
+from dataclasses import fields
+from dataclasses import is_dataclass
 from enum import StrEnum
 from typing import Literal
 
@@ -93,16 +95,17 @@ class DispatchWriter:
 
 @dataclass(slots=True, eq=False)
 class LogicalTensor:
-    name: str
     spec: TensorSpec
     role: TensorRole
     memory: MemoryClass
     lifetime: TensorLifetime
+    name: str = ""
     layout: TensorLayout = CONTIGUOUS_LAYOUT
     semantic: TensorSemantic | None = None
     compare: ComparePolicy | None = None
     pytorch_probe: PyTorchProbe | None = None
     checkpoint: str | None = None
+    checkpoint_key: str | None = None
     _runtime_writable: bool = field(default=False, init=False, repr=False)
     _buffer: BufferSlice | None = field(default=None, init=False, repr=False)
     _descriptor_nbytes: int | None = field(default=None, init=False, repr=False)
@@ -113,7 +116,6 @@ class LogicalTensor:
         if name == "spec" and hasattr(self, "_runtime_writable"):
             self._require_runtime_writable("spec")
         object.__setattr__(self, name, value)
-
 
     @property
     def runtime_writable(self) -> bool:
@@ -178,6 +180,8 @@ class LogicalTensor:
             or "MISSING_VALUE" in self.spec.shape
         ):
             raise ValueError(f"{self.name} has unresolved missing LogicalTensor metadata")
+        if self.role is TensorRole.WEIGHT and not self.checkpoint_key:
+            raise ValueError(f"{self.name} is a weight tensor but checkpoint_key is not set")
         dtype_nbytes(self.spec.dtype)
         if not self.spec.shape:
             raise ValueError(f"{self.name} shape must have fixed rank")
@@ -209,6 +213,35 @@ class LogicalTensor:
                 f"{self.name}.{field_name} is runtime state and cannot be written during "
                 "LogicalTensor declaration"
             )
+
+
+def bind_logical_tensor_names(root: object, prefix: str = "", *, overwrite: bool = True) -> None:
+    seen: set[int] = set()
+
+    def bind(value: object, path: str) -> None:
+        if isinstance(value, LogicalTensor):
+            value_id = id(value)
+            if value_id in seen:
+                return
+            seen.add(value_id)
+            if not overwrite and value.name:
+                return
+            if not path:
+                raise ValueError("LogicalTensor root cannot be named from an empty path")
+            with value.runtime_write_scope():
+                value.name = path
+            return
+        if is_dataclass(value) and not isinstance(value, type):
+            for field_info in fields(value):
+                child_path = field_info.name if not path else f"{path}.{field_info.name}"
+                bind(getattr(value, field_info.name), child_path)
+            return
+        if isinstance(value, tuple | list):
+            for index, item in enumerate(value):
+                child_path = str(index) if not path else f"{path}.{index}"
+                bind(item, child_path)
+
+    bind(root, prefix)
 
 
 def _validate_role_memory_lifetime(tensor: LogicalTensor) -> None:

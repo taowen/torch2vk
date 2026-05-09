@@ -57,7 +57,7 @@ def build_replay_plan(
     name: str,
     frame_dispatch_records: Sequence[DispatchRecord],
     variants: Sequence[ShaderVariant],
-    tensors_by_name: Mapping[str, LogicalTensor],
+    tensors_by_name: Mapping[str, LogicalTensor] | None = None,
     dynamic_symbol_names: tuple[str, ...] = (),
     readback_tensors: Mapping[str, LogicalTensor] | None = None,
     token_feedback_source: LogicalTensor | None = None,
@@ -78,6 +78,11 @@ def build_replay_plan(
             token_feedback_source,
             token_feedback_target,
         )
+    resolved_tensors_by_name = (
+        _collect_replay_tensors_by_name(rt, frame_dispatch_records)
+        if tensors_by_name is None
+        else tensors_by_name
+    )
 
     use_indirect_dispatch = len(dynamic_symbol_names) > 0
     indirect_buffer: BufferAllocation | None = None
@@ -111,7 +116,7 @@ def build_replay_plan(
         logical_by_field = dict(record.logical_reads)
         logical_by_field.update(record.logical_writes)
         tensors = {
-            field.name: tensors_by_name[logical_by_field[field.name]]
+            field.name: resolved_tensors_by_name[logical_by_field[field.name]]
             for field in contract.fields
         }
 
@@ -122,7 +127,7 @@ def build_replay_plan(
             descriptor_tensor = _canonical_replay_descriptor_tensor(
                 tensor=tensor,
                 record_by_index=record_by_index,
-                tensors_by_name=tensors_by_name,
+                tensors_by_name=resolved_tensors_by_name,
             )
             if (
                 token_feedback_source is not None
@@ -160,6 +165,7 @@ def build_replay_plan(
             descriptor_bindings.append(
                 ReplayDescriptorBinding(
                     field=field,
+                    tensor=descriptor_tensor,
                     tensor_name=descriptor_tensor.name,
                     buffer=descriptor_binding,
                     rebindable=descriptor_rebindable,
@@ -384,11 +390,38 @@ def _validate_token_feedback_tensors(
         )
 
 
+def _collect_replay_tensors_by_name(
+    rt: RuntimeSession,
+    records: Sequence[DispatchRecord],
+) -> dict[str, LogicalTensor]:
+    tensors_by_name: dict[str, LogicalTensor] = {}
+    frame_names = {record.frame for record in records}
+
+    def collect(tensor: LogicalTensor) -> None:
+        existing = tensors_by_name.get(tensor.name)
+        if existing is not None and existing is not tensor:
+            raise RuntimeError(
+                f"Replay record has multiple LogicalTensor objects named {tensor.name!r}"
+            )
+        tensors_by_name[tensor.name] = tensor
+
+    for record in records:
+        for _, tensor in (*record.reads, *record.writes):
+            collect(tensor)
+    for frame_name in frame_names:
+        frame = rt._frame_history.get(frame_name)
+        if frame is None:
+            continue
+        for tensor in (*frame.registered_inputs, *frame.used_tensors, *frame.written_tensors):
+            collect(tensor)
+    return tensors_by_name
+
+
 def rebind_replay_plan(
     rt: RuntimeSession,
     plan: ReplayPlan,
     *,
-    tensors_by_name: Mapping[str, LogicalTensor],
+    tensors_by_name: Mapping[str, LogicalTensor] | None = None,
 ) -> None:
     """Retarget replay descriptors to a compatible tensor set without recording."""
     rt._require_open()
@@ -408,13 +441,16 @@ def rebind_replay_plan(
             if not descriptor.rebindable:
                 rebound_descriptors.append(descriptor)
                 continue
-            try:
-                tensor = tensors_by_name[descriptor.tensor_name]
-            except KeyError as exc:
-                raise KeyError(
-                    f"ReplayPlan {plan.name!r} rebind is missing tensor "
-                    f"{descriptor.tensor_name!r}"
-                ) from exc
+            if tensors_by_name is None:
+                tensor = descriptor.tensor
+            else:
+                try:
+                    tensor = tensors_by_name[descriptor.tensor_name]
+                except KeyError as exc:
+                    raise KeyError(
+                        f"ReplayPlan {plan.name!r} rebind is missing tensor "
+                        f"{descriptor.tensor_name!r}"
+                    ) from exc
             _materialize_replay_rebind_tensor(rt, tensor, field=descriptor.field)
             if tensor.buffer is None:
                 raise RuntimeError(f"{tensor.name} is not materialized for replay rebind")

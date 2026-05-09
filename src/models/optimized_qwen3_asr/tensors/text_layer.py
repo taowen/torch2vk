@@ -66,7 +66,7 @@ def declare_qwen3_asr_text_layer_tensors(
     weights_from: Qwen3AsrTextLayerTensors | None = None,
 ) -> Qwen3AsrTextLayerTensors:
     del max_sequence_length
-    tensor_prefix = f"{frame_prefix}.layers.{layer:02d}"
+    del frame_prefix
     hidden_shape = (1, sequence_length, hidden_size)
     q_width = num_attention_heads * head_dim
     kv_width = num_key_value_heads * head_dim
@@ -127,37 +127,34 @@ def declare_qwen3_asr_text_layer_tensors(
         up_proj_weight=up_proj_weight,
         down_proj_weight=down_proj_weight,
         input_layernorm=_probed(
-            f"{tensor_prefix}.input_layernorm", hidden_shape,
+            hidden_shape,
             target=f"model.layers.{layer}.input_layernorm",
         ),
         q_proj=_probed(
-            f"{tensor_prefix}.self_attn.q_proj", q_shape,
+            q_shape,
             target=f"model.layers.{layer}.self_attn.q_proj",
         ),
         k_proj=_probed(
-            f"{tensor_prefix}.self_attn.k_proj", kv_shape,
+            kv_shape,
             target=f"model.layers.{layer}.self_attn.k_proj",
         ),
         v_proj=_probed(
-            f"{tensor_prefix}.self_attn.v_proj", kv_shape,
+            kv_shape,
             target=f"model.layers.{layer}.self_attn.v_proj",
         ),
-        q_normed=_activation(f"{tensor_prefix}.self_attn.q_normed", q_shape),
-        k_normed=_activation(f"{tensor_prefix}.self_attn.k_normed", kv_shape),
-        q_roped=_activation(f"{tensor_prefix}.self_attn.q_roped", q_shape),
-        k_roped=_activation(f"{tensor_prefix}.self_attn.k_roped", kv_shape),
+        q_normed=_activation(q_shape),
+        k_normed=_activation(kv_shape),
+        q_roped=_activation(q_shape),
+        k_roped=_activation(kv_shape),
         key_cache=key_cache or _state(
-            f"qwen3_asr.text.layers.{layer:02d}.key_cache",
             cache_shape,
             semantic=TensorSemantic.KV_CACHE,
         ),
         value_cache=value_cache or _state(
-            f"qwen3_asr.text.layers.{layer:02d}.value_cache",
             cache_shape,
             semantic=TensorSemantic.KV_CACHE,
         ),
         attention=LogicalTensor(
-            name=f"{tensor_prefix}.self_attn",
             spec=TensorSpec(dtype="float32", shape=(1, sequence_length, q_width)),
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
@@ -170,31 +167,28 @@ def declare_qwen3_asr_text_layer_tensors(
             ),
         ),
         o_proj=_probed(
-            f"{tensor_prefix}.self_attn.o_proj", hidden_shape,
+            hidden_shape,
             target=f"model.layers.{layer}.self_attn.o_proj",
         ),
-        attn_residual=_activation(f"{tensor_prefix}.attn_residual", hidden_shape),
+        attn_residual=_activation(hidden_shape),
         post_attention_layernorm=_probed(
-            f"{tensor_prefix}.post_attention_layernorm", hidden_shape,
+            hidden_shape,
             target=f"model.layers.{layer}.post_attention_layernorm",
         ),
         gate_proj=_probed(
-            f"{tensor_prefix}.mlp.gate_proj", (1, sequence_length, intermediate_size),
+            (1, sequence_length, intermediate_size),
             target=f"model.layers.{layer}.mlp.gate_proj",
         ),
         up_proj=_probed(
-            f"{tensor_prefix}.mlp.up_proj", (1, sequence_length, intermediate_size),
+            (1, sequence_length, intermediate_size),
             target=f"model.layers.{layer}.mlp.up_proj",
         ),
-        swiglu=_activation(
-            f"{tensor_prefix}.mlp.swiglu", (1, sequence_length, intermediate_size)
-        ),
+        swiglu=_activation((1, sequence_length, intermediate_size)),
         down_proj=_probed(
-            f"{tensor_prefix}.mlp.down_proj", hidden_shape,
+            hidden_shape,
             target=f"model.layers.{layer}.mlp.down_proj",
         ),
         output=LogicalTensor(
-            name=f"{tensor_prefix}.output",
             spec=TensorSpec(dtype="float32", shape=hidden_shape),
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
@@ -207,17 +201,16 @@ def declare_qwen3_asr_text_layer_tensors(
 
 def _weight(name: str, shape: tuple[int, ...]) -> LogicalTensor:
     return LogicalTensor(
-        name=name,
         spec=TensorSpec(dtype="bfloat16", shape=shape),
         role=TensorRole.WEIGHT,
         memory=MemoryClass.MODEL_WEIGHT,
         lifetime=TensorLifetime.MODEL,
+        checkpoint_key=name,
     )
 
 
-def _probed(name: str, shape: tuple[int, ...], *, target: str) -> LogicalTensor:
+def _probed(shape: tuple[int, ...], *, target: str) -> LogicalTensor:
     return LogicalTensor(
-        name=name,
         spec=TensorSpec(dtype="float32", shape=shape),
         role=TensorRole.ACTIVATION,
         memory=MemoryClass.FRAME_WORKSPACE,
@@ -227,9 +220,8 @@ def _probed(name: str, shape: tuple[int, ...], *, target: str) -> LogicalTensor:
     )
 
 
-def _activation(name: str, shape: tuple[int, ...]) -> LogicalTensor:
+def _activation(shape: tuple[int, ...]) -> LogicalTensor:
     return LogicalTensor(
-        name=name,
         spec=TensorSpec(dtype="float32", shape=shape),
         role=TensorRole.ACTIVATION,
         memory=MemoryClass.FRAME_WORKSPACE,
@@ -238,13 +230,11 @@ def _activation(name: str, shape: tuple[int, ...]) -> LogicalTensor:
 
 
 def _state(
-    name: str,
     shape: tuple[int, ...],
     *,
     semantic: TensorSemantic,
 ) -> LogicalTensor:
     return LogicalTensor(
-        name=name,
         spec=TensorSpec(dtype="float32", shape=shape),
         role=TensorRole.STATE,
         memory=MemoryClass.REQUEST_STATE,

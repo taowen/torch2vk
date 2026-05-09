@@ -156,24 +156,26 @@ class {{ class_name }}:
 
 {{ signature }}
     _validate_request_state_outputs(request_state_outputs, frozenset(({{ output_name_source }},)))
-    return {{ class_name }}(
+    tensors = {{ class_name }}(
 {% for tensor in tensors %}
         {{ tensor.name }}=_bind_tensor(
             {{ tensor.name }},
             _declare_tensor(
-            name={{ tensor.name_expr }},
-            spec=TensorSpec(dtype={{ tensor.dtype_source }}, shape={{ tensor.shape_source }}),
-            role={{ tensor.role }},
-            memory={{ tensor.memory }},
-            lifetime={{ tensor.lifetime }},
-            request_state={{ tensor.name_source }} in request_state_outputs,
+                checkpoint_key={{ tensor.checkpoint_key_expr }},
+                spec=TensorSpec(dtype={{ tensor.dtype_source }}, shape={{ tensor.shape_source }}),
+                role={{ tensor.role }},
+                memory={{ tensor.memory }},
+                lifetime={{ tensor.lifetime }},
+                request_state={{ tensor.name_source }} in request_state_outputs,
 {% for extra_line in tensor.extra_lines %}
-            {{ extra_line }}
+                {{ extra_line }}
 {% endfor %}
             ),
         ),
 {% endfor %}
     )
+    bind_logical_tensor_names(tensors, prefix)
+    return tensors
 """
 
 _TENSOR_MODULE_TEMPLATE = '''"""Generated tensor declarations."""
@@ -190,6 +192,7 @@ from torch2vk.runtime.logical import (
     PyTorchProbe,
     TensorLifetime,
     TensorRole,
+    bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import TensorSpec
 
@@ -201,11 +204,11 @@ from torch2vk.vulkan.types import TensorSpec
 
 _TENSOR_HELPERS_TEMPLATE = '''def _declare_tensor(
     *,
-    name: str,
     spec: TensorSpec,
     role: TensorRole,
     memory: MemoryClass,
     lifetime: TensorLifetime,
+    checkpoint_key: str | None = None,
     request_state: bool = False,
     compare: ComparePolicy | None = None,
     pytorch_probe: PyTorchProbe | None = None,
@@ -215,13 +218,13 @@ _TENSOR_HELPERS_TEMPLATE = '''def _declare_tensor(
         memory = MemoryClass.REQUEST_STATE
         lifetime = TensorLifetime.REQUEST
     return LogicalTensor(
-        name=name,
         spec=spec,
         role=role,
         memory=memory,
         lifetime=lifetime,
         compare=compare,
         pytorch_probe=pytorch_probe,
+        checkpoint_key=checkpoint_key,
     )
 
 
@@ -232,7 +235,9 @@ def _bind_tensor(
     if bound is None:
         return tensor
     if bound.spec != tensor.spec:
-        raise ValueError(f"{bound.name} spec {bound.spec} does not match {tensor.name} spec {tensor.spec}")
+        bound_name = bound.name or "<bound>"
+        tensor_name = tensor.name or "<declared>"
+        raise ValueError(f"{bound_name} spec {bound.spec} does not match {tensor_name} spec {tensor.spec}")
     return bound
 
 
@@ -910,26 +915,26 @@ def generate_tensor_class_source(
             safetensors_key = param_map[name]
             if is_layered:
                 name_template = re.sub(r"\.layers\.(\d+)\.", ".layers.{layer_idx}.", safetensors_key)
-                name_expr = f'f"{name_template}"'
+                checkpoint_key_expr = f'f"{name_template}"'
             else:
-                name_expr = f'"{safetensors_key}"'
+                checkpoint_key_expr = f'"{safetensors_key}"'
         elif kind == _TensorKind.USER_INPUT:
             role = "TensorRole.INPUT"
             memory = "MemoryClass.HOST_INPUT"
             lifetime = "TensorLifetime.FRAME"
-            name_expr = f'f"{{prefix}}.{name}"'
+            checkpoint_key_expr = "None"
         else:
             role = "TensorRole.ACTIVATION"
             memory = "MemoryClass.FRAME_WORKSPACE"
             lifetime = "TensorLifetime.FRAME"
-            name_expr = f'f"{{prefix}}.{name}"'
+            checkpoint_key_expr = "None"
 
         extra = extra_lines_fn(name) if extra_lines_fn else ()
 
         tensor_entries.append({
             "name": name,
             "name_source": repr(name),
-            "name_expr": name_expr,
+            "checkpoint_key_expr": checkpoint_key_expr,
             "dtype_source": repr(dtype),
             "shape_source": repr(shape),
             "role": role,

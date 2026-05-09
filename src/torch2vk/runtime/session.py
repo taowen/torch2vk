@@ -222,7 +222,7 @@ class RuntimeSession:
         name: str,
         frame_dispatch_records: Sequence[DispatchRecord],
         variants: Sequence[ShaderVariant],
-        tensors_by_name: Mapping[str, LogicalTensor],
+        tensors_by_name: Mapping[str, LogicalTensor] | None = None,
         dynamic_symbol_names: tuple[str, ...] = (),
         readback_tensors: Mapping[str, LogicalTensor] | None = None,
         token_feedback_source: LogicalTensor | None = None,
@@ -246,7 +246,7 @@ class RuntimeSession:
         self,
         plan: "ReplayPlan",
         *,
-        tensors_by_name: Mapping[str, LogicalTensor],
+        tensors_by_name: Mapping[str, LogicalTensor] | None = None,
     ) -> None:
         from torch2vk.runtime.replay_builder import rebind_replay_plan
 

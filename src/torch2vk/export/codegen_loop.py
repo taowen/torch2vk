@@ -565,7 +565,7 @@ def _render_layer_class(
             tensor_entries.append({
                 "name": name,
                 "name_source": repr(name),
-                "name_expr": f'f"{name_template}"',
+                "checkpoint_key_expr": f'f"{name_template}"',
                 "dtype_source": repr(dtype),
                 "shape_source": repr(meta.shape),
                 "role": "TensorRole.WEIGHT",
@@ -577,7 +577,7 @@ def _render_layer_class(
             tensor_entries.append({
                 "name": name,
                 "name_source": repr(name),
-                "name_expr": f'f"{{prefix}}.layers.{{layer_idx}}.{name}"',
+                "checkpoint_key_expr": "None",
                 "dtype_source": repr(dtype),
                 "shape_source": repr(meta.shape),
                 "role": "TensorRole.ACTIVATION",
@@ -631,7 +631,7 @@ def _render_parent_class(
             tensor_entries.append({
                 "name": name,
                 "name_source": repr(name),
-                "name_expr": f'"{param_map[name]}"',
+                "checkpoint_key_expr": f'"{param_map[name]}"',
                 "dtype_source": repr(dtype),
                 "shape_source": repr(meta.shape),
                 "role": "TensorRole.WEIGHT",
@@ -643,7 +643,7 @@ def _render_parent_class(
             tensor_entries.append({
                 "name": name,
                 "name_source": repr(name),
-                "name_expr": f'f"{{prefix}}.{name}"',
+                "checkpoint_key_expr": "None",
                 "dtype_source": repr(dtype),
                 "shape_source": repr(meta.shape),
                 "role": "TensorRole.INPUT",
@@ -655,7 +655,7 @@ def _render_parent_class(
             tensor_entries.append({
                 "name": name,
                 "name_source": repr(name),
-                "name_expr": f'f"{{prefix}}.{name}"',
+                "checkpoint_key_expr": "None",
                 "dtype_source": repr(dtype),
                 "shape_source": repr(meta.shape),
                 "role": "TensorRole.ACTIVATION",
@@ -692,21 +692,23 @@ def _render_parent_class(
         layered=False,
     ))
     lines.append(f"    _validate_request_state_outputs(request_state_outputs, frozenset(({output_name!r},)))")
-    lines.append(f"    return {class_name}(")
+    lines.append(f"    tensors = {class_name}(")
     for entry in tensor_entries:
         lines.append(f"        {entry['name']}=_bind_tensor(")
         lines.append(f"            {entry['name']},")
         lines.append("            _declare_tensor(")
-        lines.append(f"            name={entry['name_expr']},")
-        lines.append(f"            spec=TensorSpec(dtype={entry['dtype_source']}, shape={entry['shape_source']}),")
-        lines.append(f"            role={entry['role']},")
-        lines.append(f"            memory={entry['memory']},")
-        lines.append(f"            lifetime={entry['lifetime']},")
-        lines.append(f"            request_state={entry['name_source']} in request_state_outputs,")
+        lines.append(f"                checkpoint_key={entry['checkpoint_key_expr']},")
+        lines.append(f"                spec=TensorSpec(dtype={entry['dtype_source']}, shape={entry['shape_source']}),")
+        lines.append(f"                role={entry['role']},")
+        lines.append(f"                memory={entry['memory']},")
+        lines.append(f"                lifetime={entry['lifetime']},")
+        lines.append(f"                request_state={entry['name_source']} in request_state_outputs,")
         for extra_line in entry["extra_lines"]:
-            lines.append(f"            {extra_line}")
+            lines.append(f"                {extra_line}")
         lines.append("            ),")
         lines.append("        ),")
     lines.append(f"        layers=[{layer_function_name}(prefix, layer_idx=i) for i in range({num_layers})],")
     lines.append("    )")
+    lines.append("    bind_logical_tensor_names(tensors, prefix)")
+    lines.append("    return tensors")
     return "\n".join(lines)

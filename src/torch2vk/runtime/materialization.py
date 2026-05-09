@@ -138,10 +138,13 @@ def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOK
 def materialize_weight(rt: RuntimeSession, tensor: LogicalTensor) -> None:
     tensor.validate_declaration()
     checkpoint = resolve_weight_checkpoint(rt, tensor)
+    tensor_key = tensor.checkpoint_key
+    if not tensor_key:
+        raise RuntimeError(f"{tensor.name} is a weight tensor but checkpoint_key is not set")
     with open_safetensors_mmap(checkpoint) as storage:
         checkpoint_tensor = CheckpointTensor.open(
             storage=storage,
-            tensor_key=tensor.name,
+            tensor_key=tensor_key,
             dtype=tensor.spec.dtype,
             shape=tensor.concrete_shape,
             layout=tensor.layout,

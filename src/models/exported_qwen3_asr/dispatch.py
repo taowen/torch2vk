@@ -366,43 +366,43 @@ def _run_decode_lm_head_with_tensors(rt: RuntimeSession, tensors: DecodeLmHeadTe
 
 
 def run_audio_encoder(rt: RuntimeSession) -> None:
-    _run_audio_encoder_with_tensors(rt, model_tensors().audio_encoder_t)
+    _run_audio_encoder_with_tensors(rt, model_tensors().audio_encoder)
 
 
 def run_embed_tokens(rt: RuntimeSession) -> None:
-    _run_embed_tokens_with_tensors(rt, model_tensors().embed_tokens_t)
+    _run_embed_tokens_with_tensors(rt, model_tensors().embed_tokens)
 
 
 def run_audio_inject(rt: RuntimeSession) -> None:
-    _run_audio_inject_with_tensors(rt, model_tensors().audio_inject_t)
+    _run_audio_inject_with_tensors(rt, model_tensors().audio_inject)
 
 
 def run_text_layer(rt: RuntimeSession, layer_idx: int) -> None:
-    _run_text_layer_with_tensors(rt, model_tensors().text_layer_ts[layer_idx])
+    _run_text_layer_with_tensors(rt, model_tensors().text_layers[layer_idx])
 
 
 def run_text_norm(rt: RuntimeSession) -> None:
-    _run_text_norm_with_tensors(rt, model_tensors().text_norm_t)
+    _run_text_norm_with_tensors(rt, model_tensors().text_norm)
 
 
 def run_lm_head(rt: RuntimeSession) -> None:
-    _run_lm_head_with_tensors(rt, model_tensors().lm_head_t)
+    _run_lm_head_with_tensors(rt, model_tensors().lm_head)
 
 
 def run_decode_embed(rt: RuntimeSession) -> None:
-    _run_decode_embed_with_tensors(rt, model_tensors().decode_embed_t)
+    _run_decode_embed_with_tensors(rt, model_tensors().decode_embed)
 
 
 def run_decode_layer(rt: RuntimeSession, layer_idx: int) -> None:
-    _run_decode_layer_with_tensors(rt, model_tensors().decode_layer_ts[layer_idx])
+    _run_decode_layer_with_tensors(rt, model_tensors().decode_layers[layer_idx])
 
 
 def run_decode_norm(rt: RuntimeSession) -> None:
-    _run_decode_norm_with_tensors(rt, model_tensors().decode_norm_t)
+    _run_decode_norm_with_tensors(rt, model_tensors().decode_norm)
 
 
 def run_decode_lm_head(rt: RuntimeSession) -> None:
-    _run_decode_lm_head_with_tensors(rt, model_tensors().decode_lm_head_t)
+    _run_decode_lm_head_with_tensors(rt, model_tensors().decode_lm_head)
 
 
 def run_rope_table(
@@ -413,9 +413,9 @@ def run_rope_table(
 ) -> None:
     tensors = model_tensors()
     if phase == "prefill":
-        rope_t = tensors.prefill_rope_t
+        rope_t = tensors.prefill_rope
     elif phase == "decode":
-        rope_t = tensors.decode_rope_t
+        rope_t = tensors.decode_rope
     else:
         raise ValueError(f"unknown rope phase: {phase}")
     run_rope_table_f32(
@@ -436,13 +436,13 @@ def decode_step_inputs(
     token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
-    if not tensors.decode_layer_ts:
-        raise ValueError("decode_layer_ts must not be empty")
+    if not tensors.decode_layers:
+        raise ValueError("decode_layers must not be empty")
     return {
-        tensors.decode_embed_t.input: np.array([[token]], dtype=np.int64),
-        tensors.decode_layer_ts[0].cache_position: np.array([cache_position], dtype=np.int64),
-        tensors.eos_token_ids_t: np.ascontiguousarray(eos_token_array, dtype=np.int64),
-        tensors.token_index_t: np.array([token_index_value], dtype=np.int64),
+        tensors.decode_embed.input: np.array([[token]], dtype=np.int64),
+        tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
+        tensors.eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
+        tensors.token_index: np.array([token_index_value], dtype=np.int64),
     }
 
 
@@ -452,31 +452,31 @@ def run_decode_step(
     step: int,
 ) -> int:
     tensors = model_tensors()
-    if not tensors.decode_layer_ts:
-        raise ValueError("decode_layer_ts must not be empty")
+    if not tensors.decode_layers:
+        raise ValueError("decode_layers must not be empty")
     with rt.frame(f"spike.decode.{step:04d}"):
         run_decode_embed(rt)
-        for layer_idx in range(len(tensors.decode_layer_ts)):
+        for layer_idx in range(len(tensors.decode_layers)):
             run_decode_layer(rt, layer_idx)
         run_decode_norm(rt)
         run_decode_lm_head(rt)
         QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
             rt,
-            logits=tensors.decode_lm_head_t.linear,
-            eos_token_ids=tensors.eos_token_ids_t,
-            next_token=tensors.next_token_t,
-            done=tensors.done_t,
+            logits=tensors.decode_lm_head.linear,
+            eos_token_ids=tensors.eos_token_ids,
+            next_token=tensors.next_token,
+            done=tensors.done,
         )
         QWEN3_ASR_TOKEN_STORE_EOS_F32(
             rt,
-            next_token=tensors.next_token_t,
-            token_index=tensors.token_index_t,
-            done=tensors.done_t,
-            generated_tokens=tensors.generated_tokens_t,
-            generated_length=tensors.generated_length_t,
-            stopped=tensors.stopped_t,
+            next_token=tensors.next_token,
+            token_index=tensors.token_index,
+            done=tensors.done,
+            generated_tokens=tensors.generated_tokens,
+            generated_length=tensors.generated_length,
+            stopped=tensors.stopped,
         )
-    return int(rt.read_request_state(tensors.next_token_t).reshape(-1)[0])
+    return int(rt.read_request_state(tensors.next_token).reshape(-1)[0])
 
 
 def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:
