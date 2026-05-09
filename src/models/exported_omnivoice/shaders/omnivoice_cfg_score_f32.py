@@ -1,0 +1,282 @@
+"""Generated shader: omnivoice_cfg_score_f32."""
+
+from __future__ import annotations
+
+from torch2vk.runtime.shader import (
+    IOKind,
+    PushConstantFieldSpec,
+    PushConstantSpec,
+    PushConstantType,
+    ShaderContract,
+    ShaderVariant,
+    TensorContract,
+    TensorFieldSpec,
+)
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+)
+
+
+OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
+    name='omnivoice_cfg_score_f32',
+    family='omnivoice',
+    contract=ShaderContract(
+        class_name='OmniVoiceCfgScoreF32Program',
+        shader_name='omnivoice_cfg_score_f32',
+        fields=(
+            TensorFieldSpec(
+                name='logits',
+                io_kind=IOKind.INPUT,
+                role='logits',
+                contract=TensorContract(dtype='float32', shape=(2, 'S', 'CV',)),
+            ),
+            TensorFieldSpec(
+                name='tokens',
+                io_kind=IOKind.INPUT,
+                role='tokens',
+                contract=TensorContract(dtype='int64', shape=(1, 'C', 'T',)),
+            ),
+            TensorFieldSpec(
+                name='audio_mask_id',
+                io_kind=IOKind.INPUT,
+                role='mask_id',
+                contract=TensorContract(dtype='int64', shape=(1,)),
+            ),
+            TensorFieldSpec(
+                name='rng_seed',
+                io_kind=IOKind.INPUT,
+                role='seed',
+                contract=TensorContract(dtype='uint32', shape=(1,)),
+            ),
+            TensorFieldSpec(
+                name='step_index',
+                io_kind=IOKind.INPUT,
+                role='step',
+                contract=TensorContract(dtype='uint32', shape=(1,)),
+            ),
+            TensorFieldSpec(
+                name='candidate_tokens',
+                io_kind=IOKind.OUTPUT,
+                role='candidate_tokens',
+                contract=TensorContract(dtype='int64', shape=('C', 'T',)),
+            ),
+            TensorFieldSpec(
+                name='candidate_scores',
+                io_kind=IOKind.OUTPUT,
+                role='candidate_scores',
+                contract=TensorContract(dtype='float32', shape=('C', 'T',)),
+            ),
+        ),
+        push_constants=PushConstantSpec(
+            size=28,
+            fields=(
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 0, 'S', dynamic=False),
+                PushConstantFieldSpec('C', PushConstantType.UINT32, 4, 'C', dynamic=False),
+                PushConstantFieldSpec('T', PushConstantType.UINT32, 8, 'T', dynamic=False),
+                PushConstantFieldSpec('V', PushConstantType.UINT32, 12, 1025, dynamic=False),
+                PushConstantFieldSpec('guidance_scale', PushConstantType.FLOAT32, 16, 2.0, dynamic=False),
+                PushConstantFieldSpec('layer_penalty', PushConstantType.FLOAT32, 20, 5.0, dynamic=False),
+                PushConstantFieldSpec('position_temperature', PushConstantType.FLOAT32, 24, 5.0, dynamic=False),
+            ),
+        ),
+        params_buffer=None,
+        dispatch=('C', 'T', 1),
+    ),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+    source="""\
+#version 450
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+layout(std430) buffer;
+
+layout(set = 0, binding = 0) buffer restrict readonly LogitsBuffer {
+    float logits[];
+};
+
+layout(set = 0, binding = 1) buffer restrict readonly TokensBuffer {
+    int64_t tokens[];
+};
+
+layout(set = 0, binding = 2) buffer restrict readonly AudioMaskIdBuffer {
+    int64_t audio_mask_id[];
+};
+
+layout(set = 0, binding = 3) buffer restrict readonly RngSeedBuffer {
+    uint rng_seed[];
+};
+
+layout(set = 0, binding = 4) buffer restrict readonly StepIndexBuffer {
+    uint step_index[];
+};
+
+layout(set = 0, binding = 5) buffer restrict writeonly CandidateTokensBuffer {
+    int64_t candidate_tokens[];
+};
+
+layout(set = 0, binding = 6) buffer restrict writeonly CandidateScoresBuffer {
+    float candidate_scores[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint S;
+    uint C;
+    uint T;
+    uint V;
+    float guidance_scale;
+    float layer_penalty;
+    float position_temperature;
+} pc;
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+shared float shared_float[256];
+shared uint shared_uint[256];
+
+float reduce_max(float value) {
+    const uint tid = gl_LocalInvocationID.x;
+    shared_float[tid] = value;
+    barrier();
+    for (uint stride = 128u; stride > 0u; stride >>= 1u) {
+        if (tid < stride) {
+            shared_float[tid] = max(shared_float[tid], shared_float[tid + stride]);
+        }
+        barrier();
+    }
+    return shared_float[0];
+}
+
+float reduce_sum(float value) {
+    const uint tid = gl_LocalInvocationID.x;
+    shared_float[tid] = value;
+    barrier();
+    for (uint stride = 128u; stride > 0u; stride >>= 1u) {
+        if (tid < stride) {
+            shared_float[tid] += shared_float[tid + stride];
+        }
+        barrier();
+    }
+    return shared_float[0];
+}
+
+bool better_pair(float lhs_score, uint lhs_token, float rhs_score, uint rhs_token) {
+    return lhs_score > rhs_score || (lhs_score == rhs_score && lhs_token < rhs_token);
+}
+
+void reduce_best(inout float best_score, inout uint best_token) {
+    const uint tid = gl_LocalInvocationID.x;
+    shared_float[tid] = best_score;
+    shared_uint[tid] = best_token;
+    barrier();
+    for (uint stride = 128u; stride > 0u; stride >>= 1u) {
+        if (tid < stride && better_pair(
+            shared_float[tid + stride],
+            shared_uint[tid + stride],
+            shared_float[tid],
+            shared_uint[tid]
+        )) {
+            shared_float[tid] = shared_float[tid + stride];
+            shared_uint[tid] = shared_uint[tid + stride];
+        }
+        barrier();
+    }
+    best_score = shared_float[0];
+    best_token = shared_uint[0];
+}
+
+uint hash_u32(uint x) {
+    x ^= x >> 16u;
+    x *= 0x7feb352du;
+    x ^= x >> 15u;
+    x *= 0x846ca68bu;
+    x ^= x >> 16u;
+    return x;
+}
+
+float uniform01(uint x) {
+    return (float(hash_u32(x) & 0x00ffffffu) + 0.5) * (1.0 / 16777216.0);
+}
+
+float gumbel_noise(uint flat_pos) {
+    uint x = rng_seed[0] ^ (step_index[0] * 0x9e3779b9u) ^ (flat_pos * 0x85ebca6bu);
+    const float u = clamp(uniform01(x), 1.0e-7, 1.0 - 1.0e-7);
+    return -log(-log(u));
+}
+
+float guided_logit(uint batch, uint seq, uint codebook, uint token, float c_max, float c_sum, float u_max, float u_sum) {
+    const uint offset = codebook * pc.V + token;
+    const float c_logit = logits[(0u * pc.S + seq) * (pc.C * pc.V) + offset];
+    const float u_logit = logits[(1u * pc.S + batch) * (pc.C * pc.V) + offset];
+    const float c_log_prob = c_logit - c_max - log(c_sum);
+    const float u_log_prob = u_logit - u_max - log(u_sum);
+    return c_log_prob + pc.guidance_scale * (c_log_prob - u_log_prob);
+}
+
+void main() {
+    const uint tid = gl_LocalInvocationID.x;
+    const uint codebook = gl_WorkGroupID.x;
+    const uint target = gl_WorkGroupID.y;
+    const uint cond_seq = pc.S - pc.T + target;
+    const uint uncond_seq = target;
+    const uint vocab_offset = codebook * pc.V;
+    const uint flat_pos = codebook * pc.T + target;
+    const uint mask_token = uint(audio_mask_id[0]);
+
+    float local_c_max = -3.4028234663852886e+38;
+    float local_u_max = -3.4028234663852886e+38;
+    for (uint token = tid; token < pc.V; token += 256u) {
+        const uint offset = vocab_offset + token;
+        local_c_max = max(local_c_max, logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset]);
+        local_u_max = max(local_u_max, logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset]);
+    }
+    const float c_max = reduce_max(local_c_max);
+    const float u_max = reduce_max(local_u_max);
+
+    float local_c_sum = 0.0;
+    float local_u_sum = 0.0;
+    for (uint token = tid; token < pc.V; token += 256u) {
+        const uint offset = vocab_offset + token;
+        local_c_sum += exp(logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset] - c_max);
+        local_u_sum += exp(logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset] - u_max);
+    }
+    const float c_sum = reduce_sum(local_c_sum);
+    const float u_sum = reduce_sum(local_u_sum);
+
+    float local_guided_max = -3.4028234663852886e+38;
+    for (uint token = tid; token < pc.V; token += 256u) {
+        local_guided_max = max(
+            local_guided_max,
+            guided_logit(uncond_seq, cond_seq, codebook, token, c_max, c_sum, u_max, u_sum)
+        );
+    }
+    const float guided_max = reduce_max(local_guided_max);
+
+    float local_guided_sum = 0.0;
+    float best_score = -3.4028234663852886e+38;
+    uint best_token = 0xffffffffu;
+    for (uint token = tid; token < pc.V; token += 256u) {
+        const float score = guided_logit(uncond_seq, cond_seq, codebook, token, c_max, c_sum, u_max, u_sum);
+        local_guided_sum += exp(score - guided_max);
+        if (token != mask_token && better_pair(score, token, best_score, best_token)) {
+            best_score = score;
+            best_token = token;
+        }
+    }
+    const float guided_sum = reduce_sum(local_guided_sum);
+    reduce_best(best_score, best_token);
+
+    if (tid == 0u) {
+        float confidence = best_score - guided_max - log(guided_sum);
+        confidence -= float(codebook) * pc.layer_penalty;
+        if (pc.position_temperature > 0.0) {
+            confidence += gumbel_noise(flat_pos) * pc.position_temperature;
+        }
+        if (tokens[flat_pos] != audio_mask_id[0]) {
+            confidence = -3.4028234663852886e+38;
+        }
+        candidate_tokens[flat_pos] = int64_t(best_token);
+        candidate_scores[flat_pos] = confidence;
+    }
+}
+""",
+)

@@ -69,6 +69,8 @@ def create_audio_head(
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
                 request_state='linear' in request_state_outputs,
+                compare=ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),
+                pytorch_probe=PyTorchProbe(kind="module_output", target=""),
             ),
         ),
     )

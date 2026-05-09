@@ -12,14 +12,20 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import cast
 
 import torch
 import transformers.integrations.sdpa_attention as _sdpa_attn_mod
-from jinja2 import Environment, StrictUndefined
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
+from models.exported_omnivoice.custom_shaders import (
+    OMNIVOICE_CFG_SCORE_F32,
+    OMNIVOICE_INPUT_EMBED_F32,
+    OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
+)
 from models.hf_cache import resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
-from omnivoice import OmniVoice, OmniVoiceConfig
+from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
 from torch2vk.export import (
     LayerLoopHint,
     export_submodule,
@@ -39,8 +45,11 @@ from torch2vk.export.codegen_loop import (
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
+_TEMPLATE_DIR = Path(__file__).with_name("templates")
+
 _JINJA = Environment(
     autoescape=False,
+    loader=FileSystemLoader(_TEMPLATE_DIR),
     keep_trailing_newline=True,
     lstrip_blocks=True,
     trim_blocks=True,
@@ -53,6 +62,24 @@ def _to_class_name(plan_name: str) -> str:
     return "".join(p.capitalize() for p in base.split("_")) + "Tensors"
 
 
+def _render_template(name: str, **context: object) -> str:
+    return _JINJA.get_template(name).render(**context)
+
+
+def _compare_extra_lines(plan_name: str, tensor_name: str) -> tuple[str, ...]:
+    if plan_name == "run_llm_forward" and tensor_name == "mul_365":
+        return (
+            'compare=ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),',
+            'pytorch_probe=PyTorchProbe(kind="module_output", target="llm", selector="last_hidden_state"),',
+        )
+    if plan_name == "run_audio_head" and tensor_name == "linear":
+        return (
+            'compare=ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),',
+            'pytorch_probe=PyTorchProbe(kind="module_output", target=""),',
+        )
+    return ()
+
+
 # ==============================================================
 # Model loading + shape computation
 # ==============================================================
@@ -61,9 +88,11 @@ def _load_model_and_shapes():
     model_dir = resolve_cached_model(REPO_ID)
     config_data = json.loads((model_dir / "config.json").read_text())
     config = OmniVoiceConfig(**config_data)
-    model = OmniVoice(config).float().cuda()
+    model = cast(OmniVoice, OmniVoice(config).float().cuda())  # pyright: ignore[reportCallIssue]
 
     llm_config = config.llm_config
+    if llm_config is None:
+        raise ValueError("OmniVoice config requires llm_config")
     seq_len = 300
 
     shapes = {
@@ -74,6 +103,7 @@ def _load_model_and_shapes():
         "num_attention_heads": llm_config.num_attention_heads,
         "num_key_value_heads": llm_config.num_key_value_heads,
         "num_hidden_layers": llm_config.num_hidden_layers,
+        "text_vocab_size": cast(torch.nn.Embedding, model.get_input_embeddings()).weight.shape[0],
         "num_audio_codebook": config.num_audio_codebook,
         "audio_vocab_size": config.audio_vocab_size,
     }
@@ -84,37 +114,20 @@ def _load_model_and_shapes():
 # Output file assembly
 # ==============================================================
 
-_DISPATCH_FILE_TEMPLATE = '''"""Generated dispatch functions for OmniVoice submodules."""
-
-from __future__ import annotations
-
-import sys
-from typing import cast
-
-{% for item in shader_imports %}
-from models.exported_omnivoice.shaders.{{ item.shader }} import {{ item.const }}
-{% endfor %}
-{% for item in tensor_imports %}
-from models.exported_omnivoice.tensors.{{ item.file }} import {{ item.classes_source }}
-{% endfor %}
-from torch2vk.runtime.shader import ShaderVariant
-from torch2vk.runtime.session import RuntimeSession
-
-
-def shader_variant(shader_name: str) -> ShaderVariant:
-    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
-
-
-{{ dispatch_sources_source }}
-'''
-
 
 def _combine_dispatch(
     dispatch_sources: list[str],
     all_shader_imports: dict[str, str],
     tensor_file_classes: dict[str, list[str]],
 ) -> str:
-    dispatch_body = "\n\n\n".join(dispatch_sources)
+    bound_dispatch_sources = [_bind_dispatch_source(source) for source in dispatch_sources]
+    dispatch_sources_source = "\n\n\n".join(bound_dispatch_sources)
+    dispatch_body = _render_template(
+        "dispatch.py.j2",
+        shader_imports=(),
+        tensor_imports=(),
+        dispatch_sources_source=dispatch_sources_source,
+    )
     tensor_imports = tuple(
         {"file": target_file, "classes_source": classes}
         for target_file in sorted(tensor_file_classes)
@@ -126,14 +139,27 @@ def _combine_dispatch(
         )
         if classes
     )
-    return _JINJA.from_string(_DISPATCH_FILE_TEMPLATE).render(
+    return _render_template(
+        "dispatch.py.j2",
         shader_imports=tuple(
             {"shader": shader_name, "const": all_shader_imports[shader_name]}
             for shader_name in sorted(all_shader_imports)
         ),
         tensor_imports=tensor_imports,
-        dispatch_sources_source=dispatch_body,
+        dispatch_sources_source=dispatch_sources_source,
     )
+
+
+def _bind_dispatch_source(source: str) -> str:
+    bound = re.sub(
+        r"def (run_\w+)\(rt: RuntimeSession, tensors: (\w+)\) -> None:",
+        r"def _\1_with_tensors(rt: RuntimeSession, tensors: \2) -> None:",
+        source,
+        count=1,
+    )
+    if bound == source:
+        raise ValueError("generated dispatch source does not match tensor-bound signature")
+    return bound
 
 
 # ==============================================================
@@ -156,8 +182,17 @@ def main() -> int:
     D = shapes["head_dim"]
     num_layers = shapes["num_hidden_layers"]
 
-    all_shader_imports: dict[str, str] = {}
-    all_shader_variants: dict[str, ShaderVariant] = {}
+    custom_variants = (
+        OMNIVOICE_INPUT_EMBED_F32,
+        OMNIVOICE_CFG_SCORE_F32,
+        OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
+    )
+    all_shader_imports: dict[str, str] = {
+        variant.name: variant.name.upper() for variant in custom_variants
+    }
+    all_shader_variants: dict[str, ShaderVariant] = {
+        variant.name: variant for variant in custom_variants
+    }
     tensor_sources: dict[str, list[str]] = {}
     tensor_file_classes: dict[str, list[str]] = {}
     dispatch_sources: list[str] = []
@@ -180,6 +215,7 @@ def main() -> int:
                 layer_function_name=layer_func_name,
                 weight_prefix=weight_prefix,
                 hint=layer_loop,
+                extra_lines_fn=lambda t: _compare_extra_lines(name, t),
             )
             tensor_sources.setdefault(group, []).append(layer_src)
             tensor_sources.setdefault(group, []).append(parent_src)
@@ -200,6 +236,7 @@ def main() -> int:
                 class_name=cls_name,
                 function_name=f"create_{func_name}",
                 weight_prefix=weight_prefix,
+                extra_lines_fn=lambda t: _compare_extra_lines(name, t),
             )
             tensor_sources.setdefault(group, []).append(tensor_src)
             tensor_file_classes.setdefault(group, []).append(cls_name)
@@ -250,24 +287,6 @@ def main() -> int:
         all_shader_imports.update(shader_imports)
 
         print(f"  {name}: {len(used_variants)} shaders")
-
-    # --- Text embedding ---
-    export_one(
-        "run_text_embed",
-        model.llm.get_input_embeddings().float(),
-        args=(torch.zeros(B, S, dtype=torch.long, device="cuda"),),
-        weight_prefix="llm.embed_tokens.",
-    )
-
-    # --- Audio embedding (per codebook, summed) ---
-    # Host-side prepares shifted_ids for each codebook separately.
-    # We export audio_embeddings with flat input (B, S) and call 8 times.
-    export_one(
-        "run_audio_embed",
-        model.audio_embeddings.float(),
-        args=(torch.zeros(B, S, dtype=torch.long, device="cuda"),),
-        weight_prefix="audio_embeddings.",
-    )
 
     # --- LLM forward (layers + norm) ---
     # Patch use_gqa_in_sdpa to return True so repeat_kv is skipped and K/V pass
@@ -338,6 +357,23 @@ def main() -> int:
             tensor_init_imports.append(
                 f"from models.exported_omnivoice.tensors.{group} import {cls}  # noqa: F401"
             )
+    model_source = _render_template(
+        "model.py.j2",
+        seq_len=shapes["seq_len"],
+        batch_size=shapes["batch_size"],
+        hidden_size=shapes["hidden_size"],
+        head_dim=shapes["head_dim"],
+        text_vocab_size=shapes["text_vocab_size"],
+        num_audio_codebook=shapes["num_audio_codebook"],
+        audio_vocab_size=shapes["audio_vocab_size"],
+    )
+    (tensors_dir / "model.py").write_text(model_source)
+    tensor_init_imports.append(
+        "from models.exported_omnivoice.tensors.model import create_model_tensors  # noqa: F401"
+    )
+    tensor_init_imports.append(
+        "from models.exported_omnivoice.tensors.model import model_tensors  # noqa: F401"
+    )
     (tensors_dir / "__init__.py").write_text(render_simple_init("Generated tensor declarations", tensor_init_imports))
     print(f"  tensors/ written ({len(tensor_sources)} files)")
 

@@ -1260,6 +1260,8 @@ def create_llm_forward(
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
                 request_state='mul_365' in request_state_outputs,
+                compare=ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),
+                pytorch_probe=PyTorchProbe(kind="module_output", target="llm", selector="last_hidden_state"),
             ),
         ),
         layers=[create_llm_layer(prefix, layer_idx=i) for i in range(28)],

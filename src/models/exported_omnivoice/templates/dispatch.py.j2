@@ -1,0 +1,101 @@
+"""Generated dispatch functions for OmniVoice."""
+
+from __future__ import annotations
+
+import sys
+from typing import cast
+
+from models.exported_omnivoice.tensors.model import model_tensors
+from torch2vk.runtime.rope_table import run_rope_table_f32
+{% for item in shader_imports %}
+from models.exported_omnivoice.shaders.{{ item.shader }} import {{ item.const }}
+{% endfor %}
+{% for item in tensor_imports %}
+from models.exported_omnivoice.tensors.{{ item.file }} import {{ item.classes_source }}
+{% endfor %}
+from torch2vk.runtime.shader import ShaderVariant
+from torch2vk.runtime.session import RuntimeSession
+
+
+def shader_variant(shader_name: str) -> ShaderVariant:
+    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
+
+
+{{ dispatch_sources_source }}
+
+
+def run_rope_table(rt: RuntimeSession, *, frame_name: str) -> None:
+    rope_t = model_tensors().rope
+    run_rope_table_f32(
+        rt,
+        start_position=rope_t.start_position,
+        theta=rope_t.theta,
+        cos=rope_t.cos,
+        sin=rope_t.sin,
+        frame_name=frame_name,
+    )
+
+
+def run_input_embed(rt: RuntimeSession) -> None:
+    tensors = model_tensors()
+    OMNIVOICE_INPUT_EMBED_F32(
+        rt,
+        text_weight=tensors.text_embedding_weight,
+        audio_weight=tensors.audio_embedding_weight,
+        batch_input_ids=tensors.batch_input_ids,
+        batch_audio_mask=tensors.batch_audio_mask,
+        hidden_states=tensors.llm_forward.hidden_states,
+    )
+
+
+def run_llm_forward(rt: RuntimeSession) -> None:
+    _run_llm_forward_with_tensors(rt, model_tensors().llm_forward)
+
+
+def run_audio_head(rt: RuntimeSession) -> None:
+    _run_audio_head_with_tensors(rt, model_tensors().audio_head)
+
+
+def run_token_score(rt: RuntimeSession) -> None:
+    tensors = model_tensors()
+    OMNIVOICE_CFG_SCORE_F32(
+        rt,
+        logits=tensors.audio_head.linear,
+        tokens=tensors.tokens,
+        audio_mask_id=tensors.audio_mask_id,
+        rng_seed=tensors.rng_seed,
+        step_index=tensors.step_index,
+        candidate_tokens=tensors.candidate_tokens,
+        candidate_scores=tensors.candidate_scores,
+    )
+
+
+def run_token_update(rt: RuntimeSession) -> None:
+    tensors = model_tensors()
+    OMNIVOICE_TOKEN_UPDATE_TOPK_F32(
+        rt,
+        candidate_tokens=tensors.candidate_tokens,
+        candidate_scores=tensors.candidate_scores,
+        unmask_count=tensors.unmask_count,
+        tokens=tensors.tokens,
+        batch_input_ids=tensors.batch_input_ids,
+    )
+
+
+def run_generation_step(rt: RuntimeSession, *, step: int, pytorch_model: object | None = None) -> None:
+    if pytorch_model is not None:
+        with rt.frame(f"omnivoice.step.{step:04d}", pytorch_model=pytorch_model):
+            run_input_embed(rt)
+            run_llm_forward(rt)
+            run_audio_head(rt)
+            run_token_score(rt)
+        with rt.frame(f"omnivoice.step.{step:04d}.token_update"):
+            run_token_update(rt)
+        return
+
+    with rt.frame(f"omnivoice.step.{step:04d}", pytorch_model=pytorch_model):
+        run_input_embed(rt)
+        run_llm_forward(rt)
+        run_audio_head(rt)
+        run_token_score(rt)
+        run_token_update(rt)
