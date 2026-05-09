@@ -12,6 +12,7 @@ from torch2vk.runtime.logical import (
     PyTorchProbe,
     TensorLifetime,
     TensorRole,
+    bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import TensorSpec
@@ -163,6 +164,8 @@ def create_decode_norm(
         ),
     )
     bind_logical_tensor_names(tensors, prefix)
+    _bind_alias_source(tensors.hidden_states, tensors.to)
+    _bind_alias_source(tensors.mul, tensors.to_1)
     return tensors
 
 
@@ -203,6 +206,10 @@ def _bind_tensor(
         tensor_name = tensor.name or "<declared>"
         raise ValueError(f"{bound_name} spec {bound.spec} does not match {tensor_name} spec {tensor.spec}")
     return bound
+
+
+def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
+    bind_logical_tensor_alias(src, dst)
 
 
 def _validate_request_state_outputs(

@@ -97,7 +97,6 @@ from models.exported_omnivoice.shaders.{{ item.shader }} import {{ item.const }}
 {% for item in tensor_imports %}
 from models.exported_omnivoice.tensors.{{ item.file }} import {{ item.classes_source }}
 {% endfor %}
-from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
 
@@ -107,19 +106,6 @@ def shader_variant(shader_name: str) -> ShaderVariant:
 
 
 {{ dispatch_sources_source }}
-
-
-def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:
-    rt._materialize_read(src)
-    with dst.runtime_write_scope():
-        dst.buffer = src.buffer
-        dst.descriptor_nbytes = src.descriptor_nbytes
-        dst.version = src.version
-        dst.writer = src.writer
-        dst.alias_source = src
-    frame = rt._current_frame()
-    frame.used_tensors.append(src)
-    frame.written_tensors.append(dst)
 '''
 
 

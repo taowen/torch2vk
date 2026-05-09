@@ -55,6 +55,8 @@ class RuntimeSession:
             ".cache/torch2vk/generated" if artifact_dir is None else artifact_dir
         )
         self.model_dir = None if model_dir is None else Path(model_dir).expanduser().resolve()
+        if model_tensors is not None:
+            collect_named_logical_tensors(model_tensors)
         self._model_tensors = model_tensors
         self._inputs: dict[LogicalTensor, object] = {}
         self._frame_stack: list[FrameContext] = []
@@ -119,10 +121,6 @@ class RuntimeSession:
             self._inputs[tensor] = value
             self._invalidate_input_materialization(tensor)
             self._record_frame_input(tensor)
-
-    def set_model_tensors(self, model_tensors: object) -> None:
-        collect_named_logical_tensors(model_tensors)
-        self._model_tensors = model_tensors
 
     def initialize_request_state(self, states: Mapping[LogicalTensor, object]) -> None:
         from torch2vk.runtime.request_state import initialize_request_state
@@ -330,8 +328,7 @@ class RuntimeSession:
     def _named_model_tensors(self) -> dict[str, LogicalTensor]:
         if self._model_tensors is None:
             raise RuntimeError(
-                "Replay requires RuntimeSession.open(..., model_tensors=...) "
-                "or rt.set_model_tensors(...)"
+                "Replay requires RuntimeSession.open(..., model_tensors=...)"
             )
         return collect_named_logical_tensors(self._model_tensors)
 

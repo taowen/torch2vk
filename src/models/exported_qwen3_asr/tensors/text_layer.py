@@ -12,6 +12,7 @@ from torch2vk.runtime.logical import (
     PyTorchProbe,
     TensorLifetime,
     TensorRole,
+    bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import TensorSpec
@@ -1152,6 +1153,21 @@ def create_text_layer(
         ),
     )
     bind_logical_tensor_names(tensors, prefix)
+    _bind_alias_source(tensors.hidden_states, tensors.to)
+    _bind_alias_source(tensors.mul, tensors.to_1)
+    _bind_alias_source(tensors.linear, tensors.view)
+    _bind_alias_source(tensors.view, tensors.to_2)
+    _bind_alias_source(tensors.mul_2, tensors.to_3)
+    _bind_alias_source(tensors.linear_1, tensors.view_1)
+    _bind_alias_source(tensors.view_1, tensors.to_4)
+    _bind_alias_source(tensors.mul_4, tensors.to_5)
+    _bind_alias_source(tensors.linear_2, tensors.view_2)
+    _bind_alias_source(tensors.position_embeddings_0, tensors.unsqueeze)
+    _bind_alias_source(tensors.position_embeddings_1, tensors.unsqueeze_1)
+    _bind_alias_source(tensors.transpose_3, tensors.contiguous)
+    _bind_alias_source(tensors.contiguous, tensors.reshape)
+    _bind_alias_source(tensors.add_5, tensors.to_6)
+    _bind_alias_source(tensors.mul_10, tensors.to_7)
     return tensors
 
 
@@ -1192,6 +1208,10 @@ def _bind_tensor(
         tensor_name = tensor.name or "<declared>"
         raise ValueError(f"{bound_name} spec {bound.spec} does not match {tensor_name} spec {tensor.spec}")
     return bound
+
+
+def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
+    bind_logical_tensor_alias(src, dst)
 
 
 def _validate_request_state_outputs(

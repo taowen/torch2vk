@@ -12,7 +12,14 @@ from enum import StrEnum
 from typing import Literal
 
 from torch2vk.vulkan.allocation import BufferSlice
-from torch2vk.vulkan.types import CONTIGUOUS_LAYOUT, TensorLayout, TensorSpec, dtype_nbytes, validate_tensor_layout
+from torch2vk.vulkan.types import (
+    CONTIGUOUS_LAYOUT,
+    TensorLayout,
+    TensorSpec,
+    dtype_nbytes,
+    tensor_nbytes,
+    validate_tensor_layout,
+)
 
 
 class TensorRole(StrEnum):
@@ -252,6 +259,20 @@ def bind_logical_tensor_names(root: object, prefix: str = "", *, overwrite: bool
                 bind(item, child_path)
 
     bind(root, prefix)
+
+
+def bind_logical_tensor_alias(src: LogicalTensor, dst: LogicalTensor) -> None:
+    src.validate_declaration()
+    dst.validate_declaration()
+    src_nbytes = tensor_nbytes(src.spec)
+    dst_nbytes = tensor_nbytes(dst.spec)
+    if src_nbytes != dst_nbytes:
+        raise ValueError(
+            f"{dst.name} cannot alias {src.name}: byte size differs "
+            f"({dst_nbytes} != {src_nbytes})"
+        )
+    with dst.runtime_write_scope():
+        dst.alias_source = src
 
 
 def collect_named_logical_tensors(root: object) -> dict[str, LogicalTensor]:

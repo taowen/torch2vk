@@ -97,7 +97,6 @@ _SHADER_FILE_TEMPLATE = '''"""Generated shader: {{ variant_name }}."""
 _DISPATCH_FUNCTION_TEMPLATE = """def {{ function_name }}(rt: RuntimeSession, tensors: {{ class_name }}) -> None:
 {% for op in ops %}
 {% if op.type == "alias" %}
-    _alias(rt, tensors.{{ op.src }}, tensors.{{ op.dst }})
 {% elif op.type == "dispatch" %}
     {{ op.shader_const }}(rt, {{ op.args_source }})
 {% elif op.type == "unsupported" %}
@@ -120,7 +119,6 @@ from {{ shader_package }}.{{ item.shader }} import {{ item.const }}
 {% for item in tensor_imports %}
 from {{ tensor_package }}.{{ item.file }} import {{ item.classes_source }}
 {% endfor %}
-from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
 
@@ -130,19 +128,6 @@ def shader_variant(shader_name: str) -> ShaderVariant:
 
 
 {{ function_sources_source }}
-
-
-def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:
-    rt._materialize_read(src)
-    with dst.runtime_write_scope():
-        dst.buffer = src.buffer
-        dst.descriptor_nbytes = src.descriptor_nbytes
-        dst.version = src.version
-        dst.writer = src.writer
-        dst.alias_source = src
-    frame = rt._current_frame()
-    frame.used_tensors.append(src)
-    frame.written_tensors.append(dst)
 '''
 
 _TENSOR_CLASS_TEMPLATE = """@dataclass(frozen=True, slots=True)
@@ -176,6 +161,9 @@ class {{ class_name }}:
 {% endfor %}
     )
     bind_logical_tensor_names(tensors, prefix)
+{% for alias in alias_ops %}
+    _bind_alias_source(tensors.{{ alias.src }}, tensors.{{ alias.dst }})
+{% endfor %}
     return tensors
 """
 
@@ -193,6 +181,7 @@ from torch2vk.runtime.logical import (
     PyTorchProbe,
     TensorLifetime,
     TensorRole,
+    bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import TensorSpec
@@ -240,6 +229,10 @@ def _bind_tensor(
         tensor_name = tensor.name or "<declared>"
         raise ValueError(f"{bound_name} spec {bound.spec} does not match {tensor_name} spec {tensor.spec}")
     return bound
+
+
+def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
+    bind_logical_tensor_alias(src, dst)
 
 
 def _validate_request_state_outputs(
@@ -375,6 +368,7 @@ def render_tensor_class(
     output_name_source: str,
     signature: str,
     tensors,
+    alias_ops=(),
 ) -> str:
     return _render_template(
         _TENSOR_CLASS_TEMPLATE,
@@ -384,6 +378,7 @@ def render_tensor_class(
         output_name_source=output_name_source,
         signature=signature,
         tensors=tensors,
+        alias_ops=alias_ops,
     ).rstrip("\n")
 
 
@@ -629,9 +624,6 @@ def _generate_dispatch_function(
             continue
 
         if is_alias_op(node):
-            inputs = node_input_names(node)
-            src = inputs[0] if inputs else "???"
-            lines.append(f"    _alias(rt, tensors.{src}, tensors.{node.name})")
             continue
 
         shader = node_variants.get(node.name)
@@ -642,20 +634,6 @@ def _generate_dispatch_function(
 
         args = _build_shader_args(node, shader)
         lines.append(f'    shaders["{node.name}"](rt, {args})')
-
-    lines.append("")
-    lines.append("")
-    lines.append("def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:")
-    lines.append("    rt._materialize_read(src)")
-    lines.append("    with dst.runtime_write_scope():")
-    lines.append("        dst.buffer = src.buffer")
-    lines.append("        dst.descriptor_nbytes = src.descriptor_nbytes")
-    lines.append("        dst.version = src.version")
-    lines.append("        dst.writer = src.writer")
-    lines.append("        dst.alias_source = src")
-    lines.append("    frame = rt._current_frame()")
-    lines.append("    frame.used_tensors.append(src)")
-    lines.append("    frame.written_tensors.append(dst)")
 
     return lines
 
@@ -699,12 +677,14 @@ def _generate_static_dispatch_function(
 
     for op in ops:
         if isinstance(op, _AliasOp):
-            lines.append(f"    _alias(rt, tensors.{op.src}, tensors.{op.dst})")
+            continue
         elif isinstance(op, _DispatchOp):
             const_name = op.variant.name.upper()
             shader_imports[op.variant.name] = const_name
             args = ", ".join(f"{k}={v}" for k, v in op.bindings.items())
             lines.append(f"    {const_name}(rt, {args})")
+    if len(lines) == 1:
+        lines.append("    pass")
 
     return lines, shader_imports
 
@@ -886,6 +866,7 @@ def generate_tensor_class_source(
     if not output_names:
         output_names = [output_name] if output_name else []
     live_ops = _prune_dead_ops(ops, output_names)
+    alias_ops = tuple(op for op in live_ops if isinstance(op, _AliasOp))
     live_tensors = set(output_names)
     for op in live_ops:
         if isinstance(op, _DispatchOp):
@@ -959,6 +940,7 @@ def generate_tensor_class_source(
             layered=is_layered,
         ),
         tensors=tensor_entries,
+        alias_ops=alias_ops,
     )
 
 

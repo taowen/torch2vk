@@ -298,6 +298,12 @@ def generate_looped_dispatch_function_source(
 
     shader_imports: dict[str, str] = {}
     carry_set = frozenset(analysis.carry_inputs)
+    post_carry_targets = _post_carry_targets(analysis.post_ops, classification)
+    uses_carry_in_dispatch = _uses_carry_in_dispatch(
+        analysis=analysis,
+        carry_set=carry_set,
+        post_carry_targets=post_carry_targets,
+    )
 
     def _tensor_ref(tensor_name: str, in_loop: bool) -> str:
         if in_loop and tensor_name in carry_set:
@@ -308,9 +314,7 @@ def generate_looped_dispatch_function_source(
 
     def _emit_op(op: _Op, in_loop: bool, indent: str) -> str:
         if isinstance(op, _AliasOp):
-            src = _tensor_ref(op.src, in_loop)
-            dst = _tensor_ref(op.dst, in_loop)
-            return f"{indent}_alias(rt, {src}, {dst})"
+            return ""
         elif isinstance(op, _DispatchOp):
             const_name = op.variant.name.upper()
             shader_imports[op.variant.name] = const_name
@@ -328,38 +332,32 @@ def generate_looped_dispatch_function_source(
 
     # Pre-loop
     for op in analysis.pre_ops:
-        lines.append(_emit_op(op, False, "    "))
+        line = _emit_op(op, False, "    ")
+        if line:
+            lines.append(line)
 
     # Initialize carry
-    if analysis.carry_inputs:
+    if uses_carry_in_dispatch and analysis.carry_inputs:
         carry_init = analysis.carry_inputs[0]
         lines.append(f"    carry = tensors.{carry_init}")
 
     # Loop
     lines.append("    for layer_t in tensors.layers:")
+    loop_body_lines = 0
     for op in analysis.layer_ops:
-        lines.append(_emit_op(op, True, "        "))
-    if analysis.carry_output:
+        line = _emit_op(op, True, "        ")
+        if line:
+            lines.append(line)
+            loop_body_lines += 1
+    if uses_carry_in_dispatch and analysis.carry_output:
         lines.append(f"        carry = layer_t.{analysis.carry_output}")
-
-    # Post-loop: rewrite references to last layer's output → carry
-    # Find what post ops reference from layer.N-1 and replace with carry
-    post_carry_targets: set[str] = set()
-    for op in analysis.post_ops:
-        if isinstance(op, _DispatchOp):
-            for v in op.bindings.values():
-                t = v.removeprefix("tensors.")
-                if classification.get(t, "").startswith("layer."):
-                    post_carry_targets.add(t)
-        elif isinstance(op, _AliasOp):
-            if classification.get(op.src, "").startswith("layer."):
-                post_carry_targets.add(op.src)
+        loop_body_lines += 1
+    if loop_body_lines == 0:
+        lines.append("        pass")
 
     for op in analysis.post_ops:
         if isinstance(op, _AliasOp):
-            src = "carry" if op.src in post_carry_targets else f"tensors.{op.src}"
-            dst = f"tensors.{op.dst}"
-            lines.append(f"    _alias(rt, {src}, {dst})")
+            continue
         elif isinstance(op, _DispatchOp):
             const_name = op.variant.name.upper()
             shader_imports[op.variant.name] = const_name
@@ -373,13 +371,48 @@ def generate_looped_dispatch_function_source(
             lines.append(f"    {const_name}(rt, {', '.join(bindings)})")
         elif isinstance(op, _UnsupportedOp):
             lines.append(f"    raise RuntimeError({op.message!r})")
-
     used_variants: dict[str, ShaderVariant] = {}
     for op in analysis.pre_ops + analysis.layer_ops + analysis.post_ops:
         if isinstance(op, _DispatchOp):
             used_variants.setdefault(op.variant.name, op.variant)
 
     return "\n".join(lines), shader_imports, used_variants
+
+
+def _post_carry_targets(
+    post_ops: list[_Op],
+    classification: dict[str, str],
+) -> set[str]:
+    targets: set[str] = set()
+    for op in post_ops:
+        if isinstance(op, _DispatchOp):
+            for value in op.bindings.values():
+                tensor_name = value.removeprefix("tensors.")
+                if classification.get(tensor_name, "").startswith("layer."):
+                    targets.add(tensor_name)
+        elif isinstance(op, _AliasOp):
+            if classification.get(op.src, "").startswith("layer."):
+                targets.add(op.src)
+    return targets
+
+
+def _uses_carry_in_dispatch(
+    *,
+    analysis: _LoopAnalysis,
+    carry_set: frozenset[str],
+    post_carry_targets: set[str],
+) -> bool:
+    for op in analysis.layer_ops:
+        if isinstance(op, _DispatchOp):
+            for value in op.bindings.values():
+                if value.removeprefix("tensors.") in carry_set:
+                    return True
+    for op in analysis.post_ops:
+        if isinstance(op, _DispatchOp):
+            for value in op.bindings.values():
+                if value.removeprefix("tensors.") in post_carry_targets:
+                    return True
+    return False
 
 
 def generate_looped_tensor_class_sources(
@@ -529,6 +562,8 @@ def generate_looped_tensor_class_sources(
         num_layers=hint.num_layers,
         output_name=output_name,
         extra_lines_fn=extra_lines_fn,
+        analysis=analysis,
+        classification=classification,
     )
 
     return parent_src, layer_src
@@ -620,6 +655,8 @@ def _render_parent_class(
     num_layers: int,
     output_name: str | None,
     extra_lines_fn: Callable[[str], tuple[str, ...]] | None,
+    analysis: _LoopAnalysis,
+    classification: dict[str, str],
 ) -> str:
     tensor_entries = []
     for name, meta in tensors.items():
@@ -710,5 +747,57 @@ def _render_parent_class(
     lines.append(f"        layers=[{layer_function_name}(prefix, layer_idx=i) for i in range({num_layers})],")
     lines.append("    )")
     lines.append("    bind_logical_tensor_names(tensors, prefix)")
+    lines.extend(_loop_alias_binding_lines(analysis, classification))
     lines.append("    return tensors")
     return "\n".join(lines)
+
+
+def _loop_alias_binding_lines(
+    analysis: _LoopAnalysis,
+    classification: dict[str, str],
+) -> list[str]:
+    lines: list[str] = []
+    carry_set = frozenset(analysis.carry_inputs)
+
+    def tensor_ref(tensor_name: str, in_loop: bool) -> str:
+        if in_loop and tensor_name in carry_set:
+            return "_alias_carry"
+        if in_loop and (
+            tensor_name in analysis.layer_local_tensors
+            or classification.get(tensor_name, "").startswith("layer.")
+        ):
+            return f"layer_t.{tensor_name}"
+        return f"tensors.{tensor_name}"
+
+    for op in analysis.pre_ops:
+        if isinstance(op, _AliasOp):
+            lines.append(
+                f"    _bind_alias_source(tensors.{op.src}, tensors.{op.dst})"
+            )
+
+    layer_aliases = [op for op in analysis.layer_ops if isinstance(op, _AliasOp)]
+    post_aliases = [op for op in analysis.post_ops if isinstance(op, _AliasOp)]
+    if layer_aliases or post_aliases:
+        if analysis.carry_inputs:
+            lines.append(f"    _alias_carry = tensors.{analysis.carry_inputs[0]}")
+        lines.append("    for layer_t in tensors.layers:")
+        if layer_aliases:
+            for op in layer_aliases:
+                lines.append(
+                    "        _bind_alias_source("
+                    f"{tensor_ref(op.src, True)}, {tensor_ref(op.dst, True)})"
+                )
+        else:
+            lines.append("        pass")
+        if analysis.carry_output is not None:
+            lines.append(f"        _alias_carry = layer_t.{analysis.carry_output}")
+
+    for op in post_aliases:
+        src = (
+            "_alias_carry"
+            if classification.get(op.src, "").startswith("layer.")
+            else f"tensors.{op.src}"
+        )
+        lines.append(f"    _bind_alias_source({src}, tensors.{op.dst})")
+
+    return lines

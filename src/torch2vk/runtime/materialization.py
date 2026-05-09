@@ -91,6 +91,17 @@ def bind_shape_symbols(
 
 
 def materialize_read(rt: RuntimeSession, tensor: LogicalTensor) -> None:
+    if tensor.alias_source is not None:
+        source = tensor.alias_source
+        materialize_read(rt, source)
+        if source.buffer is None:
+            raise RuntimeError(f"{tensor.name} alias source {source.name} is not materialized")
+        with tensor.runtime_write_scope():
+            tensor.buffer = source.buffer
+            tensor.descriptor_nbytes = source.descriptor_nbytes
+            tensor.version = source.version
+            tensor.writer = source.writer
+        return
     if tensor.buffer is not None:
         return
     if tensor.role is TensorRole.WEIGHT:
@@ -103,6 +114,8 @@ def materialize_read(rt: RuntimeSession, tensor: LogicalTensor) -> None:
 
 
 def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOKind) -> None:
+    if tensor.alias_source is not None:
+        raise RuntimeError(f"{tensor.name} is an alias of {tensor.alias_source.name} and cannot be written")
     if io_kind is IOKind.INOUT and tensor.buffer is not None:
         return
     size = tensor_nbytes(tensor.spec)

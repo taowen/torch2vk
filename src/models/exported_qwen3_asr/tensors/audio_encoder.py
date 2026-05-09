@@ -12,6 +12,7 @@ from torch2vk.runtime.logical import (
     PyTorchProbe,
     TensorLifetime,
     TensorRole,
+    bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import TensorSpec
@@ -1004,6 +1005,19 @@ def create_audio_encoder(
         layers=[create_encoder_layer(prefix, layer_idx=i) for i in range(18)],
     )
     bind_logical_tensor_names(tensors, prefix)
+    _bind_alias_source(tensors.gelu_2, tensors.reshape)
+    _bind_alias_source(tensors.add, tensors.reshape_1)
+    _alias_carry = tensors.index_select
+    for layer_t in tensors.layers:
+        _bind_alias_source(layer_t.linear_1, layer_t.reshape_2)
+        _bind_alias_source(layer_t.linear_2, layer_t.reshape_3)
+        _bind_alias_source(layer_t.linear_3, layer_t.reshape_4)
+        _bind_alias_source(layer_t.transpose_1, layer_t.unsqueeze)
+        _bind_alias_source(layer_t.transpose_2, layer_t.unsqueeze_1)
+        _bind_alias_source(layer_t.transpose_3, layer_t.unsqueeze_2)
+        _bind_alias_source(layer_t.transpose_4, layer_t.contiguous)
+        _bind_alias_source(layer_t.contiguous, layer_t.reshape_5)
+        _alias_carry = layer_t.add_2
     return tensors
 
 
@@ -1044,6 +1058,10 @@ def _bind_tensor(
         tensor_name = tensor.name or "<declared>"
         raise ValueError(f"{bound_name} spec {bound.spec} does not match {tensor_name} spec {tensor.spec}")
     return bound
+
+
+def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
+    bind_logical_tensor_alias(src, dst)
 
 
 def _validate_request_state_outputs(

@@ -55,7 +55,6 @@ from models.exported_omnivoice.tensors.audio_embed import AudioEmbedTensors
 from models.exported_omnivoice.tensors.audio_head import AudioHeadTensors
 from models.exported_omnivoice.tensors.llm_forward import LlmForwardTensors
 from models.exported_omnivoice.tensors.text_embed import TextEmbedTensors
-from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
 
@@ -73,43 +72,31 @@ def run_audio_embed(rt: RuntimeSession, tensors: AudioEmbedTensors) -> None:
 
 
 def run_llm_forward(rt: RuntimeSession, tensors: LlmForwardTensors) -> None:
-    carry = tensors.hidden_states
     for layer_t in tensors.layers:
-        _alias(rt, carry, layer_t.to)
         EXPORT_POW_SCALAR_F32(rt, x=layer_t.to, output=layer_t.pow_1)
         EXPORT_MEAN_DIM_F32(rt, x=layer_t.pow_1, output=layer_t.mean)
         EXPORT_ADD_SCALAR(rt, x=layer_t.mean, output=layer_t.add)
         EXPORT_RSQRT_F32(rt, x=layer_t.add, output=layer_t.rsqrt)
         EXPORT_MUL_BROADCAST_LAST(rt, x=layer_t.to, y=layer_t.rsqrt, output=layer_t.mul)
-        _alias(rt, layer_t.mul, layer_t.to_1)
         EXPORT_MUL_LEFT_BROADCAST(rt, x=layer_t.p_layers_0_input_layernorm_weight, y=layer_t.to_1, output=layer_t.mul_1)
         EXPORT_LINEAR_NOBIAS_F32(rt, x=layer_t.mul_1, weight=layer_t.p_layers_0_self_attn_q_proj_weight, output=layer_t.linear)
-        _alias(rt, layer_t.linear, layer_t.view)
-        _alias(rt, layer_t.view, layer_t.to_2)
         EXPORT_POW_SCALAR_F32_7(rt, x=layer_t.to_2, output=layer_t.pow_2)
         EXPORT_MEAN_DIM_F32_8(rt, x=layer_t.pow_2, output=layer_t.mean_1)
         EXPORT_ADD_SCALAR_9(rt, x=layer_t.mean_1, output=layer_t.add_1)
         EXPORT_RSQRT_F32_10(rt, x=layer_t.add_1, output=layer_t.rsqrt_1)
         EXPORT_MUL_BROADCAST_LAST_11(rt, x=layer_t.to_2, y=layer_t.rsqrt_1, output=layer_t.mul_2)
-        _alias(rt, layer_t.mul_2, layer_t.to_3)
         EXPORT_MUL_LEFT_BROADCAST_12(rt, x=layer_t.p_layers_0_self_attn_q_norm_weight, y=layer_t.to_3, output=layer_t.mul_3)
         EXPORT_TRANSPOSE_F32_F3E8FDF2D4(rt, x=layer_t.mul_3, output=layer_t.transpose)
         EXPORT_LINEAR_NOBIAS_F32_14(rt, x=layer_t.mul_1, weight=layer_t.p_layers_0_self_attn_k_proj_weight, output=layer_t.linear_1)
-        _alias(rt, layer_t.linear_1, layer_t.view_1)
-        _alias(rt, layer_t.view_1, layer_t.to_4)
         EXPORT_POW_SCALAR_F32_15(rt, x=layer_t.to_4, output=layer_t.pow_3)
         EXPORT_MEAN_DIM_F32_16(rt, x=layer_t.pow_3, output=layer_t.mean_2)
         EXPORT_ADD_SCALAR_17(rt, x=layer_t.mean_2, output=layer_t.add_2)
         EXPORT_RSQRT_F32_18(rt, x=layer_t.add_2, output=layer_t.rsqrt_2)
         EXPORT_MUL_BROADCAST_LAST_19(rt, x=layer_t.to_4, y=layer_t.rsqrt_2, output=layer_t.mul_4)
-        _alias(rt, layer_t.mul_4, layer_t.to_5)
         EXPORT_MUL_LEFT_BROADCAST_20(rt, x=layer_t.p_layers_0_self_attn_k_norm_weight, y=layer_t.to_5, output=layer_t.mul_5)
         EXPORT_TRANSPOSE_F32_C943282B28(rt, x=layer_t.mul_5, output=layer_t.transpose_1)
         EXPORT_LINEAR_NOBIAS_F32_22(rt, x=layer_t.mul_1, weight=layer_t.p_layers_0_self_attn_v_proj_weight, output=layer_t.linear_2)
-        _alias(rt, layer_t.linear_2, layer_t.view_2)
         EXPORT_TRANSPOSE_F32_C943282B28(rt, x=layer_t.view_2, output=layer_t.transpose_2)
-        _alias(rt, tensors.cos, layer_t.unsqueeze)
-        _alias(rt, tensors.sin, layer_t.unsqueeze_1)
         EXPORT_MUL_BROADCAST_INNER(rt, x=layer_t.transpose, y=layer_t.unsqueeze, output=layer_t.mul_6)
         EXPORT_SLICE_F32(rt, x=layer_t.transpose, output=layer_t.slice_1)
         EXPORT_SLICE_F32_25(rt, x=layer_t.transpose, output=layer_t.slice_2)
@@ -126,17 +113,13 @@ def run_llm_forward(rt: RuntimeSession, tensors: LlmForwardTensors) -> None:
         EXPORT_ADD_F32(rt, x=layer_t.mul_8, y=layer_t.mul_9, output=layer_t.add_4)
         EXPORT_SDPA_MASKED_F32(rt, q=layer_t.add_3, k=layer_t.add_4, v=layer_t.transpose_2, mask=tensors.attention_mask, output=layer_t.scaled_dot_product_attention)
         EXPORT_TRANSPOSE_F32_45DE1E4F84(rt, x=layer_t.scaled_dot_product_attention, output=layer_t.transpose_3)
-        _alias(rt, layer_t.transpose_3, layer_t.contiguous)
-        _alias(rt, layer_t.contiguous, layer_t.reshape)
         EXPORT_LINEAR_NOBIAS_F32_36(rt, x=layer_t.reshape, weight=layer_t.p_layers_0_self_attn_o_proj_weight, output=layer_t.linear_3)
         EXPORT_ADD_F32_37(rt, x=layer_t.to, y=layer_t.linear_3, output=layer_t.add_5)
-        _alias(rt, layer_t.add_5, layer_t.to_6)
         EXPORT_POW_SCALAR_F32(rt, x=layer_t.to_6, output=layer_t.pow_4)
         EXPORT_MEAN_DIM_F32(rt, x=layer_t.pow_4, output=layer_t.mean_3)
         EXPORT_ADD_SCALAR(rt, x=layer_t.mean_3, output=layer_t.add_6)
         EXPORT_RSQRT_F32(rt, x=layer_t.add_6, output=layer_t.rsqrt_3)
         EXPORT_MUL_BROADCAST_LAST(rt, x=layer_t.to_6, y=layer_t.rsqrt_3, output=layer_t.mul_10)
-        _alias(rt, layer_t.mul_10, layer_t.to_7)
         EXPORT_MUL_LEFT_BROADCAST(rt, x=layer_t.p_layers_0_post_attention_layernorm_weight, y=layer_t.to_7, output=layer_t.mul_11)
         EXPORT_LINEAR_NOBIAS_F32_38(rt, x=layer_t.mul_11, weight=layer_t.p_layers_0_mlp_gate_proj_weight, output=layer_t.linear_4)
         EXPORT_SILU_F32(rt, x=layer_t.linear_4, output=layer_t.silu)
@@ -144,29 +127,13 @@ def run_llm_forward(rt: RuntimeSession, tensors: LlmForwardTensors) -> None:
         EXPORT_MUL_F32(rt, x=layer_t.silu, y=layer_t.linear_5, output=layer_t.mul_12)
         EXPORT_LINEAR_NOBIAS_F32_42(rt, x=layer_t.mul_12, weight=layer_t.p_layers_0_mlp_down_proj_weight, output=layer_t.linear_6)
         EXPORT_ADD_F32_43(rt, x=layer_t.to_6, y=layer_t.linear_6, output=layer_t.add_7)
-        carry = layer_t.add_7
-    _alias(rt, carry, tensors.to_224)
     EXPORT_POW_SCALAR_F32(rt, x=tensors.to_224, output=tensors.pow_113)
     EXPORT_MEAN_DIM_F32(rt, x=tensors.pow_113, output=tensors.mean_112)
     EXPORT_ADD_SCALAR(rt, x=tensors.mean_112, output=tensors.add_224)
     EXPORT_RSQRT_F32(rt, x=tensors.add_224, output=tensors.rsqrt_112)
     EXPORT_MUL_BROADCAST_LAST(rt, x=tensors.to_224, y=tensors.rsqrt_112, output=tensors.mul_364)
-    _alias(rt, tensors.mul_364, tensors.to_225)
     EXPORT_MUL_LEFT_BROADCAST(rt, x=tensors.p_norm_weight, y=tensors.to_225, output=tensors.mul_365)
 
 
 def run_audio_head(rt: RuntimeSession, tensors: AudioHeadTensors) -> None:
     AUDIO_HEAD_EXPORT_LINEAR_NOBIAS_F32(rt, x=tensors.input, weight=tensors.p_weight, output=tensors.linear)
-
-
-def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:
-    rt._materialize_read(src)
-    with dst.runtime_write_scope():
-        dst.buffer = src.buffer
-        dst.descriptor_nbytes = src.descriptor_nbytes
-        dst.version = src.version
-        dst.writer = src.writer
-        dst.alias_source = src
-    frame = rt._current_frame()
-    frame.used_tensors.append(src)
-    frame.written_tensors.append(dst)

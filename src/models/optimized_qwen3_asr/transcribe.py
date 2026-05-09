@@ -20,7 +20,10 @@ from models.optimized_qwen3_asr.execution import (
     run_qwen3_asr_replay_decode_loop,
 )
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
-from models.optimized_qwen3_asr.tensors.audio_tower import declare_qwen3_asr_audio_tower_tensors
+from models.optimized_qwen3_asr.tensors.audio_tower import (
+    Qwen3AsrAudioTowerTensors,
+    declare_qwen3_asr_audio_tower_tensors,
+)
 from models.optimized_qwen3_asr.tensors.text import (
     Qwen3AsrTextTensors,
     declare_qwen3_asr_text_tensors,
@@ -61,21 +64,37 @@ class _Qwen3AsrRuntimeConfig:
     head_dim: int
 
 
+@dataclass(frozen=True, slots=True)
+class _Qwen3AsrTopologyKey:
+    input_features_shape: tuple[int, int]
+    prompt_length: int
+    max_sequence_length: int
+    max_new_tokens: int
+
+
 class Qwen3AsrRecognizer:
     """Reusable Vulkan-backed Qwen3-ASR recognizer."""
 
     def __init__(
         self,
         *,
-        rt: RuntimeSession,
+        device_index: int,
+        artifact_dir: str | Path | None,
         model_dir: Path,
+        profile_dir: str | Path | None,
         config: _Qwen3AsrRuntimeConfig,
         pytorch_compare: bool,
     ) -> None:
-        self._rt = rt
+        self._device_index = device_index
+        self._artifact_dir = artifact_dir
         self._model_dir = model_dir
+        self._profile_dir = profile_dir
         self._config = config
         self._pytorch_compare = pytorch_compare
+        self._rt: RuntimeSession | None = None
+        self._topology_key: _Qwen3AsrTopologyKey | None = None
+        self._audio_tensors: Qwen3AsrAudioTowerTensors | None = None
+        self._text_tensors: Qwen3AsrTextTensors | None = None
         self._closed = False
 
     @classmethod
@@ -90,15 +109,11 @@ class Qwen3AsrRecognizer:
     ) -> "Qwen3AsrRecognizer":
         resolved_model_dir = resolve_cached_model(REPO_ID, model_dir)
         config = _load_runtime_config(resolved_model_dir)
-        rt = RuntimeSession.open(
+        return cls(
             device_index=device_index,
             artifact_dir=artifact_dir,
             model_dir=resolved_model_dir,
             profile_dir=profile_dir,
-        )
-        return cls(
-            rt=rt,
-            model_dir=resolved_model_dir,
             config=config,
             pytorch_compare=pytorch_compare,
         )
@@ -111,7 +126,9 @@ class Qwen3AsrRecognizer:
 
     def close(self) -> None:
         if not self._closed:
-            self._rt.close()
+            if self._rt is not None:
+                self._rt.close()
+                self._rt = None
             self._closed = True
 
     def transcribe(
@@ -144,7 +161,7 @@ class Qwen3AsrRecognizer:
         compare = self._pytorch_compare if pytorch_compare is None else pytorch_compare
 
         try:
-            processor, text_tensors = self._run_audio_and_prepare_text(
+            processor, rt, text_tensors = self._run_audio_and_prepare_text(
                 wav=wav,
                 language=language,
                 max_new_tokens=max_new_tokens,
@@ -152,7 +169,7 @@ class Qwen3AsrRecognizer:
             )
             if compare:
                 generated = run_qwen3_asr_greedy_decode_loop(
-                    self._rt,
+                    rt,
                     text_tensors,
                     max_new_tokens=max_new_tokens,
                     rope_theta=self._config.rope_theta,
@@ -162,7 +179,7 @@ class Qwen3AsrRecognizer:
                 )
             else:
                 generated = run_qwen3_asr_replay_decode_loop(
-                    self._rt,
+                    rt,
                     text_tensors,
                     max_new_tokens=max_new_tokens,
                     rope_theta=self._config.rope_theta,
@@ -170,11 +187,12 @@ class Qwen3AsrRecognizer:
                     stop_on_eos=True,
                 )
         except CompareAssertionError as exc:
+            rt = self._require_runtime()
             raise Qwen3AsrDebugError(
-                _format_qwen3_asr_compare_failure(exc, artifact_dir=self._rt.artifact_dir),
+                _format_qwen3_asr_compare_failure(exc, artifact_dir=rt.artifact_dir),
                 result=exc.result,
             ) from exc
-        tokens = tuple(int(token) for token in self._rt.read_request_state(generated).flatten())
+        tokens = tuple(int(token) for token in rt.read_request_state(generated).flatten())
         return Qwen3AsrTranscription(
             text=_decode_generated_text(processor, tokens),
             tokens=tokens,
@@ -187,7 +205,7 @@ class Qwen3AsrRecognizer:
         language: str | None,
         max_new_tokens: int,
         pytorch_compare: bool,
-    ) -> tuple[Qwen3AsrProcessorLike, Qwen3AsrTextTensors]:
+    ) -> tuple[Qwen3AsrProcessorLike, RuntimeSession, Qwen3AsrTextTensors]:
         processor, prepared = prepare_qwen3_asr_inputs(
             model_dir=self._model_dir,
             wav=wav,
@@ -198,10 +216,49 @@ class Qwen3AsrRecognizer:
             prepared.input_features[0, :, :audio_feature_len],
             dtype=np.float32,
         )
+        input_features_shape = _expect_2d_shape(input_features.shape, "input_features")
         feature_lens = np.array([audio_feature_len], dtype=np.int64)
 
+        rt, audio_tensors, text_tensors = self._runtime_for_prepared(
+            prepared=prepared,
+            input_features_shape=input_features_shape,
+            max_new_tokens=max_new_tokens,
+        )
+        rt.register_inputs({
+            audio_tensors.input_features: input_features,
+            audio_tensors.feature_lens: feature_lens,
+        })
+        run_qwen3_asr_audio_tower(
+            rt,
+            audio_tensors,
+            pytorch_compare=pytorch_compare,
+        )
+        self._register_text_inputs(rt, text_tensors, prepared=prepared)
+        return processor, rt, text_tensors
+
+    def _runtime_for_prepared(
+        self,
+        *,
+        prepared: Qwen3AsrPreparedInputs,
+        input_features_shape: tuple[int, int],
+        max_new_tokens: int,
+    ) -> tuple[RuntimeSession, Qwen3AsrAudioTowerTensors, Qwen3AsrTextTensors]:
+        key = _Qwen3AsrTopologyKey(
+            input_features_shape=input_features_shape,
+            prompt_length=prepared.prompt_length,
+            max_sequence_length=prepared.prompt_length + max_new_tokens,
+            max_new_tokens=max_new_tokens,
+        )
+        if (
+            self._rt is not None
+            and self._topology_key == key
+            and self._audio_tensors is not None
+            and self._text_tensors is not None
+        ):
+            return self._rt, self._audio_tensors, self._text_tensors
+
         audio_tensors = declare_qwen3_asr_audio_tower_tensors(
-            input_features_shape=input_features.shape,
+            input_features_shape=input_features_shape,
             encoder_layers=self._config.audio_encoder_layers,
         )
         text_tensors = declare_qwen3_asr_text_tensors(
@@ -219,22 +276,28 @@ class Qwen3AsrRecognizer:
             pytorch_input_features_shape=prepared.input_features.shape,
             pytorch_feature_attention_mask_shape=prepared.feature_attention_mask.shape,
         )
-        self._rt.set_model_tensors(text_tensors)
-
-        self._rt.register_inputs({
-            audio_tensors.input_features: input_features,
-            audio_tensors.feature_lens: feature_lens,
-        })
-        run_qwen3_asr_audio_tower(
-            self._rt,
-            audio_tensors,
-            pytorch_compare=pytorch_compare,
+        if self._rt is not None:
+            self._rt.close()
+        self._rt = RuntimeSession.open(
+            device_index=self._device_index,
+            artifact_dir=self._artifact_dir,
+            model_dir=self._model_dir,
+            profile_dir=self._profile_dir,
+            model_tensors=(audio_tensors, text_tensors),
         )
-        self._register_text_inputs(text_tensors, prepared=prepared)
-        return processor, text_tensors
+        self._topology_key = key
+        self._audio_tensors = audio_tensors
+        self._text_tensors = text_tensors
+        return self._rt, audio_tensors, text_tensors
+
+    def _require_runtime(self) -> RuntimeSession:
+        if self._rt is None:
+            raise RuntimeError("Qwen3-ASR runtime has not been initialized")
+        return self._rt
 
     def _register_text_inputs(
         self,
+        rt: RuntimeSession,
         text_tensors: Qwen3AsrTextTensors,
         *,
         prepared: Qwen3AsrPreparedInputs,
@@ -243,7 +306,7 @@ class Qwen3AsrRecognizer:
         prefill_feature_attention_mask = text_tensors.prefill.feature_attention_mask
         if prefill_input_features is None or prefill_feature_attention_mask is None:
             raise RuntimeError("Qwen3-ASR text tensors are missing prefill audio inputs")
-        self._rt.register_inputs({
+        rt.register_inputs({
             text_tensors.prefill.input_ids: prepared.input_ids,
             text_tensors.prefill.attention_mask: prepared.attention_mask,
             prefill_input_features: prepared.input_features,
@@ -369,6 +432,12 @@ def _expect_mapping(value: object, name: str) -> JsonObject:
     if not isinstance(value, Mapping):
         raise TypeError(f"{name} must be a mapping, got {type(value).__name__}")
     return value
+
+
+def _expect_2d_shape(shape: tuple[int, ...], name: str) -> tuple[int, int]:
+    if len(shape) != 2:
+        raise ValueError(f"{name} must be 2D, got shape {shape}")
+    return int(shape[0]), int(shape[1])
 
 
 def _config_int(config: JsonObject, key: str) -> int:

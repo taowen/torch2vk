@@ -12,6 +12,7 @@ from torch2vk.runtime.logical import (
     PyTorchProbe,
     TensorLifetime,
     TensorRole,
+    bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import TensorSpec
@@ -1264,6 +1265,26 @@ def create_llm_forward(
         layers=[create_llm_layer(prefix, layer_idx=i) for i in range(28)],
     )
     bind_logical_tensor_names(tensors, prefix)
+    _alias_carry = tensors.hidden_states
+    for layer_t in tensors.layers:
+        _bind_alias_source(_alias_carry, layer_t.to)
+        _bind_alias_source(layer_t.mul, layer_t.to_1)
+        _bind_alias_source(layer_t.linear, layer_t.view)
+        _bind_alias_source(layer_t.view, layer_t.to_2)
+        _bind_alias_source(layer_t.mul_2, layer_t.to_3)
+        _bind_alias_source(layer_t.linear_1, layer_t.view_1)
+        _bind_alias_source(layer_t.view_1, layer_t.to_4)
+        _bind_alias_source(layer_t.mul_4, layer_t.to_5)
+        _bind_alias_source(layer_t.linear_2, layer_t.view_2)
+        _bind_alias_source(tensors.cos, layer_t.unsqueeze)
+        _bind_alias_source(tensors.sin, layer_t.unsqueeze_1)
+        _bind_alias_source(layer_t.transpose_3, layer_t.contiguous)
+        _bind_alias_source(layer_t.contiguous, layer_t.reshape)
+        _bind_alias_source(layer_t.add_5, layer_t.to_6)
+        _bind_alias_source(layer_t.mul_10, layer_t.to_7)
+        _alias_carry = layer_t.add_7
+    _bind_alias_source(_alias_carry, tensors.to_224)
+    _bind_alias_source(tensors.mul_364, tensors.to_225)
     return tensors
 
 
@@ -1304,6 +1325,10 @@ def _bind_tensor(
         tensor_name = tensor.name or "<declared>"
         raise ValueError(f"{bound_name} spec {bound.spec} does not match {tensor_name} spec {tensor.spec}")
     return bound
+
+
+def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
+    bind_logical_tensor_alias(src, dst)
 
 
 def _validate_request_state_outputs(

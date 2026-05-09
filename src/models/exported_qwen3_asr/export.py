@@ -569,19 +569,6 @@ def shader_variant(shader_name: str) -> ShaderVariant:
 
 
 {{ decode_step_helpers }}
-
-
-def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:
-    rt._materialize_read(src)
-    with dst.runtime_write_scope():
-        dst.buffer = src.buffer
-        dst.descriptor_nbytes = src.descriptor_nbytes
-        dst.version = src.version
-        dst.writer = src.writer
-        dst.alias_source = src
-    frame = rt._current_frame()
-    frame.used_tensors.append(src)
-    frame.written_tensors.append(dst)
 '''
 
 
