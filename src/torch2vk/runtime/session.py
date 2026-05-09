@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -67,8 +67,7 @@ class RuntimeSession:
         self._compare_results: list[TensorCompareResult] = []
         self._pipeline_cache: dict[tuple[object, ...], ComputePipeline] = {}
         self._replay_plan_cache: dict[str, list[ReplayPlan]] = {}
-        self._pytorch_models: dict[object, object] = {}
-        self._pytorch_cache_states: dict[str, object] = {}
+
         self._model_allocations: list[BufferAllocation] = []
         self._request_allocations: list[BufferAllocation] = []
         self._frame_allocations: list[tuple[LogicalTensor, BufferAllocation]] = []
@@ -153,57 +152,24 @@ class RuntimeSession:
         release_request_state(self, tensors)
 
     @contextmanager
-    def frame(
-        self,
-        name: str,
-        *,
-        pytorch_model: object | None = None,
-        pytorch_model_class: object | None = None,
-        pytorch_model_submodule: str | None = None,
-        pytorch_cache_policy: str = "none",
-        pytorch_cache_namespace: str | None = None,
-        pytorch_reset_cache: bool = False,
-    ):
+    def frame(self, name: str):
         if not name:
             raise ValueError("frame name must be non-empty")
-        cache_policy: Literal["none", "hf_dynamic"]
-        if pytorch_cache_policy == "none":
-            cache_policy = "none"
-        elif pytorch_cache_policy == "hf_dynamic":
-            cache_policy = "hf_dynamic"
-        else:
-            raise ValueError(f"Unsupported PyTorch cache policy: {pytorch_cache_policy!r}")
-        if pytorch_model is None and pytorch_model_class is not None:
-            loaded = self._load_pytorch_model(pytorch_model_class)
-            if loaded is not None and pytorch_model_submodule:
-                for attr in pytorch_model_submodule.split("."):
-                    loaded = getattr(loaded, attr)
-            pytorch_model = loaded
         context = FrameContext(
             frame=name,
             start_dispatch_index=len(self._dispatch_records),
             end_dispatch_index=len(self._dispatch_records),
-            pytorch_model=pytorch_model,
-            pytorch_cache_policy=cache_policy,
-            pytorch_cache_namespace=pytorch_cache_namespace,
-            pytorch_reset_cache=pytorch_reset_cache,
         )
         self._frame_stack.append(context)
-        candidate_completed = False
         try:
             yield context
             context.end_dispatch_index = len(self._dispatch_records)
-            candidate_completed = True
         finally:
-            try:
-                if candidate_completed:
-                    self._compare_frame(context)
-            finally:
-                popped = self._frame_stack.pop()
-                if popped is not context:
-                    raise RuntimeError("RuntimeSession frame stack corrupted")
-                self._frame_history[context.frame] = context
-                self._release_frame_allocations()
+            popped = self._frame_stack.pop()
+            if popped is not context:
+                raise RuntimeError("RuntimeSession frame stack corrupted")
+            self._frame_history[context.frame] = context
+            self._release_frame_allocations()
 
     def dispatch(self, variant: ShaderVariant, **arguments: object) -> None:
         from torch2vk.runtime.dispatcher import dispatch
@@ -222,16 +188,6 @@ class RuntimeSession:
 
     def debug_materialization(self, tensor: LogicalTensor) -> BufferSlice | None:
         return tensor.buffer
-
-    def _compare_frame(self, frame: FrameContext) -> None:
-        from torch2vk.runtime.pytorch_debug import compare_frame
-
-        compare_frame(self, frame)
-
-    def _load_pytorch_model(self, model_class: object) -> object | None:
-        from torch2vk.runtime.pytorch_debug import load_pytorch_model
-
-        return load_pytorch_model(self, model_class)
 
     def build_replay_plan(
         self,

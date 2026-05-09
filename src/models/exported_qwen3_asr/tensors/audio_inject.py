@@ -6,10 +6,8 @@ from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
     MemoryClass,
-    PyTorchProbe,
     TensorLifetime,
     TensorRole,
     bind_logical_tensor_alias,
@@ -44,6 +42,7 @@ def create_audio_inject(
             audio_positions,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key=None,
                 spec=TensorSpec(dtype='int64', shape=(133,)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -55,6 +54,7 @@ def create_audio_inject(
             audio_features,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(133, 1024)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -66,6 +66,7 @@ def create_audio_inject(
             unsqueeze,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='unsqueeze',
                 spec=TensorSpec(dtype='float32', shape=(1, 133, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -77,6 +78,7 @@ def create_audio_inject(
             index_copy,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='index_copy',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -97,9 +99,8 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     checkpoint_key: str | None = None,
+    reference_key: str | None = None,
     request_state: bool = False,
-    compare: ComparePolicy | None = None,
-    pytorch_probe: PyTorchProbe | None = None,
 ) -> LogicalTensor:
     if request_state:
         role = TensorRole.OUTPUT
@@ -110,9 +111,8 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
-        compare=compare,
-        pytorch_probe=pytorch_probe,
         checkpoint_key=checkpoint_key,
+        reference_key=reference_key,
     )
 
 

@@ -86,14 +86,6 @@ class ComparePolicy:
 
 
 @dataclass(frozen=True, slots=True)
-class PyTorchProbe:
-    kind: Literal["module_input", "module_output", "manual_hook", "derived"]
-    target: str
-    index: int = 0
-    selector: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class DispatchWriter:
     frame: str
     shader: str
@@ -109,10 +101,9 @@ class LogicalTensor:
     name: str = ""
     layout: TensorLayout = CONTIGUOUS_LAYOUT
     semantic: TensorSemantic | None = None
-    compare: ComparePolicy | None = None
-    pytorch_probe: PyTorchProbe | None = None
     checkpoint: str | None = None
     checkpoint_key: str | None = None
+    reference_key: str | None = None
     _runtime_writable: bool = field(default=False, init=False, repr=False)
     _buffer: BufferSlice | None = field(default=None, init=False, repr=False)
     _descriptor_nbytes: int | None = field(default=None, init=False, repr=False)

@@ -43,20 +43,7 @@ def run_qwen3_asr_text_decode(
         raise ValueError(f"step must be non-negative, got {step}")
     if pytorch_compare and token_select is not None:
         raise ValueError("lm-head token selection fusion requires pytorch_compare=False")
-    if pytorch_compare:
-        from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
-            Qwen3ASRForConditionalGeneration,
-        )
-
-        frame_scope = rt.frame(
-            f"qwen3_asr.text_decode.{step:04d}",
-            pytorch_model_class=Qwen3ASRForConditionalGeneration,
-            pytorch_model_submodule="thinker",
-            pytorch_cache_policy="hf_dynamic",
-            pytorch_cache_namespace="qwen3_asr.text",
-        )
-    else:
-        frame_scope = rt.frame(f"qwen3_asr.text_decode.{step:04d}")
+    frame_scope = rt.frame(f"qwen3_asr.text_decode.{step:04d}")
 
     with frame_scope:
         QWEN3_ASR_TEXT_EMBED_LOOKUP_F32(

@@ -34,6 +34,8 @@ from torch2vk.export import (
     generate_tensor_class_source,
 )
 from torch2vk.export.codegen import (
+    generate_reference_spec,
+    render_reference_specs_module,
     render_shader_file,
     render_simple_init,
     render_tensor_helpers,
@@ -43,6 +45,7 @@ from torch2vk.export.codegen_loop import (
     generate_looped_dispatch_function_source,
     generate_looped_tensor_class_sources,
 )
+from torch2vk.runtime.reference import ReferenceSpec
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
@@ -67,18 +70,6 @@ def _to_class_name(plan_name: str) -> str:
     return "".join(p.capitalize() for p in base.split("_")) + "Tensors"
 
 
-def _compare_extra_lines(plan_name: str, tensor_name: str) -> tuple[str, ...]:
-    if plan_name == "run_audio_proj" and tensor_name == "linear_1":
-        return (
-            'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
-            'pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="last_hidden_state"),',
-        )
-    if plan_name in {"run_lm_head", "run_decode_lm_head"} and tensor_name == "linear":
-        return (
-            'compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),',
-            'pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),',
-        )
-    return ()
 
 
 # ==============================================================
@@ -251,6 +242,10 @@ def main() -> int:
     shaders_dir.mkdir(exist_ok=True)
     tensors_dir = output_dir / "tensors"
     tensors_dir.mkdir(exist_ok=True)
+    reference_programs_dir = output_dir / "reference_programs"
+    reference_programs_dir.mkdir(exist_ok=True)
+    for f in reference_programs_dir.glob("*.pt2"):
+        f.unlink()
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
@@ -262,8 +257,35 @@ def main() -> int:
     tensor_sources: dict[str, list[str]] = {}  # file_group → [class source, ...]
     tensor_file_classes: dict[str, list[str]] = {}  # file_group → [class names]
     dispatch_sources: list[str] = []
+    reference_specs = {}
+    reference_specs["token_select"] = ReferenceSpec(
+        program=None,
+        input_bindings={},
+        output_bindings={"next_token": "next_token", "done": "done"},
+    )
+    reference_specs["token_store"] = ReferenceSpec(
+        program=None,
+        input_bindings={},
+        output_bindings={
+            "generated_tokens": "generated_tokens",
+            "generated_length": "generated_length",
+            "stopped": "stopped",
+        },
+    )
 
-    def export_one(name, module, args, kwargs=None, weight_prefix="", kv_cache=None, kv_inject=None, layer_loop=None):
+    def export_one(
+        name,
+        module,
+        args,
+        kwargs=None,
+        weight_prefix="",
+        kv_cache=None,
+        kv_inject=None,
+        layer_loop=None,
+        save_reference_program=False,
+        reference_input_bindings=None,
+        reference_output_bindings=None,
+    ):
         prog = export_submodule(module, args=args, kwargs=kwargs, kv_cache=kv_cache)
         if kv_inject is not None:
             from torch2vk.export.graph import inject_kv_cache
@@ -271,6 +293,15 @@ def main() -> int:
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
         group = func_name
+        program = f"reference_programs/{func_name}.pt2" if save_reference_program else None
+        if program is not None:
+            torch.export.save(prog, output_dir / program)
+        reference_specs[func_name] = generate_reference_spec(
+            prog,
+            program=program,
+            input_bindings=reference_input_bindings,
+            output_bindings=reference_output_bindings,
+        )
 
         if layer_loop is not None:
             # Looped export: generates parent + layer tensor classes and looped dispatch
@@ -285,7 +316,6 @@ def main() -> int:
                 layer_function_name=layer_func_name,
                 weight_prefix=weight_prefix,
                 hint=layer_loop,
-                extra_lines_fn=lambda t: _compare_extra_lines(name, t),
             )
             tensor_sources.setdefault(group, []).append(layer_src)
             tensor_sources.setdefault(group, []).append(parent_src)
@@ -307,7 +337,6 @@ def main() -> int:
                 class_name=cls_name,
                 function_name=f"create_{func_name}",
                 weight_prefix=weight_prefix,
-                extra_lines_fn=lambda t: _compare_extra_lines(name, t),
             )
             tensor_sources.setdefault(group, []).append(tensor_src)
             tensor_file_classes.setdefault(group, []).append(cls_name)
@@ -383,7 +412,14 @@ def main() -> int:
                layer_loop=LayerLoopHint(
                    layer_prefix="audio_tower.layers",
                    num_layers=num_encoder_layers,
-               ))
+               ),
+               reference_input_bindings={
+                   "x": "x",
+                   "position_embedding": "position_embedding",
+                   "compact_index": "compact_index",
+                   "attention_mask": "attention_mask",
+               },
+               reference_output_bindings={"linear_110": "linear_110"})
 
     # Text pipeline exports
     pl = shapes["prompt_length"]
@@ -392,43 +428,68 @@ def main() -> int:
     hd = shapes["head_dim"]
     export_one("run_embed_tokens", model.thinker.model.embed_tokens.float(),
                args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
-               weight_prefix="thinker.model.embed_tokens.")
+               weight_prefix="thinker.model.embed_tokens.",
+               save_reference_program=True)
     with patched_forward(model.thinker, export_audio_inject_forward):
         export_one("run_audio_inject", model.thinker,
                    args=(torch.zeros(1, pl, hs, device="meta"),
                          torch.zeros(enc_seq, dtype=torch.long, device="meta"),
-                         torch.zeros(enc_seq, hs, device="meta")))
+                         torch.zeros(enc_seq, hs, device="meta")),
+                   reference_input_bindings={
+                       "audio_positions": "audio_positions",
+                       "audio_features": "audio_features",
+                   },
+                   reference_output_bindings={"embedding": "index_copy"})
     export_one("run_text_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, pl, hs, device="meta"),
                      (torch.zeros(1, pl, hd, device="meta"),
                       torch.zeros(1, pl, hd, device="meta"))),
                kwargs={"past_key_values": None, "attention_mask": None},
                weight_prefix="thinker.model.layers.0.",
-               kv_inject=KVCacheInjectHint(phase="prefill", max_seq_len=max_seq))
+               kv_inject=KVCacheInjectHint(phase="prefill", max_seq_len=max_seq),
+               reference_input_bindings={
+                   "hidden_states": "hidden_states",
+                   "position_embeddings_0": "position_embeddings_0",
+                   "position_embeddings_1": "position_embeddings_1",
+                   "cache_position": "cache_position",
+               },
+               reference_output_bindings={"add_7": "add_7"})
     export_one("run_text_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, pl, hs, device="meta"),),
-               weight_prefix="thinker.model.norm.")
+               weight_prefix="thinker.model.norm.",
+               save_reference_program=True)
     export_one("run_lm_head", model.thinker.lm_head.float(),
                args=(torch.zeros(1, pl, hs, device="meta"),),
-               weight_prefix="thinker.lm_head.")
+               weight_prefix="thinker.lm_head.",
+               save_reference_program=True)
 
     # Decode-step exports (seq_len=1)
     export_one("run_decode_embed", model.thinker.model.embed_tokens.float(),
                args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
-               weight_prefix="thinker.model.embed_tokens.")
+               weight_prefix="thinker.model.embed_tokens.",
+               save_reference_program=True)
     export_one("run_decode_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, 1, hs, device="meta"),
                      (torch.zeros(1, 1, hd, device="meta"),
                       torch.zeros(1, 1, hd, device="meta"))),
                kwargs={"past_key_values": None, "attention_mask": None},
                weight_prefix="thinker.model.layers.0.",
-               kv_inject=KVCacheInjectHint(phase="decode", max_seq_len=max_seq))
+               kv_inject=KVCacheInjectHint(phase="decode", max_seq_len=max_seq),
+               reference_input_bindings={
+                   "hidden_states": "hidden_states",
+                   "position_embeddings_0": "position_embeddings_0",
+                   "position_embeddings_1": "position_embeddings_1",
+                   "cache_position": "cache_position",
+               },
+               reference_output_bindings={"add_7": "add_7"})
     export_one("run_decode_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, 1, hs, device="meta"),),
-               weight_prefix="thinker.model.norm.")
+               weight_prefix="thinker.model.norm.",
+               save_reference_program=True)
     export_one("run_decode_lm_head", model.thinker.lm_head.float(),
                args=(torch.zeros(1, 1, hs, device="meta"),),
-               weight_prefix="thinker.lm_head.")
+               weight_prefix="thinker.lm_head.",
+               save_reference_program=True)
 
     # Write shaders/
     for f in shaders_dir.glob("*.py"):
@@ -479,6 +540,9 @@ def main() -> int:
     dispatch_source = _combine_dispatch(dispatch_sources, all_shader_imports, tensor_file_classes)
     (output_dir / "dispatch.py").write_text(dispatch_source)
     print(f"  dispatch.py written ({len(dispatch_sources)} functions)")
+
+    (output_dir / "reference_specs.py").write_text(render_reference_specs_module(reference_specs))
+    print(f"  reference_specs.py written ({len(reference_specs)} specs)")
 
     print("\nDone!")
     return 0

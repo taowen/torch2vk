@@ -34,21 +34,7 @@ def run_qwen3_asr_text_prefill(
     if initial_states:
         rt.initialize_request_state(initial_states)
 
-    if pytorch_compare:
-        from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
-            Qwen3ASRForConditionalGeneration,
-        )
-
-        frame_scope = rt.frame(
-            "qwen3_asr.text_prefill",
-            pytorch_model_class=Qwen3ASRForConditionalGeneration,
-            pytorch_model_submodule="thinker",
-            pytorch_cache_policy="hf_dynamic",
-            pytorch_cache_namespace="qwen3_asr.text",
-            pytorch_reset_cache=True,
-        )
-    else:
-        frame_scope = rt.frame("qwen3_asr.text_prefill")
+    frame_scope = rt.frame("qwen3_asr.text_prefill")
 
     with frame_scope:
         QWEN3_ASR_TEXT_PREFILL_INPUTS_EMBEDS_F32(

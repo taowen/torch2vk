@@ -5,10 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
     MemoryClass,
-    PyTorchProbe,
     TensorLifetime,
     TensorRole,
     TensorSpec,
@@ -163,8 +161,6 @@ def declare_qwen3_asr_audio_tower_tensors(
         ),
         conv_out=LogicalTensor(
             spec=TensorSpec(dtype="float32", shape=padded_hidden_shape),
-            compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="conv_out"),
             **output_common,
         ),
         conv_out_add_position=LogicalTensor(
@@ -173,20 +169,10 @@ def declare_qwen3_asr_audio_tower_tensors(
         ),
         hidden_states=LogicalTensor(
             spec=TensorSpec(dtype="float32", shape=hidden_shape),
-            compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
-            pytorch_probe=PyTorchProbe(
-                kind="module_input",
-                target="layers.0.self_attn_layer_norm" if encoder_layers else "ln_post",
-                index=0,
-            ),
             **output_common,
         ),
         cu_seqlens=LogicalTensor(
             spec=TensorSpec(dtype="uint32", shape=(cu_seqlens_count,)),
-            compare=ComparePolicy(kind="tensor", rtol=0.0, atol=0.0) if encoder_layers else None,
-            pytorch_probe=PyTorchProbe(kind="module_input", target="layers.0", index=1)
-            if encoder_layers
-            else None,
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
@@ -204,8 +190,6 @@ def declare_qwen3_asr_audio_tower_tensors(
         ln_post_bias=weight("thinker.audio_tower.ln_post.bias", (hidden_size,)),
         ln_post=LogicalTensor(
             spec=TensorSpec(dtype="float32", shape=hidden_shape),
-            compare=ComparePolicy(kind="tensor", rtol=2e-3, atol=2e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="ln_post"),
             **output_common,
         ),
         proj1_weight=weight("thinker.audio_tower.proj1.weight", (hidden_size, hidden_size)),
@@ -221,10 +205,6 @@ def declare_qwen3_asr_audio_tower_tensors(
             role=TensorRole.OUTPUT,
             memory=MemoryClass.REQUEST_STATE,
             lifetime=TensorLifetime.REQUEST,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(
-                kind="module_output", target="", selector="last_hidden_state"
-            ),
         ),
     )
     bind_logical_tensor_names(tensors, "qwen3_asr.audio_tower")

@@ -5,10 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
     MemoryClass,
-    PyTorchProbe,
     TensorLifetime,
     TensorRole,
     TensorSemantic,
@@ -159,12 +157,6 @@ def declare_qwen3_asr_text_layer_tensors(
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(
-                kind="module_input",
-                target=f"model.layers.{layer}.self_attn.o_proj",
-                index=0,
-            ),
         ),
         o_proj=_probed(
             hidden_shape,
@@ -193,8 +185,6 @@ def declare_qwen3_asr_text_layer_tensors(
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target=f"model.layers.{layer}"),
         ),
     )
 
@@ -215,8 +205,6 @@ def _probed(shape: tuple[int, ...], *, target: str) -> LogicalTensor:
         role=TensorRole.ACTIVATION,
         memory=MemoryClass.FRAME_WORKSPACE,
         lifetime=TensorLifetime.FRAME,
-        compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-        pytorch_probe=PyTorchProbe(kind="module_output", target=target),
     )
 
 

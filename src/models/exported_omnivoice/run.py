@@ -17,26 +17,72 @@ from typing import Protocol, Sequence, cast
 import numpy as np
 from safetensors.torch import load_file, save_file
 import torch
-from torch import nn
 from transformers import AutoTokenizer
 from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.hf_cache import resolve_cached_model
-from models.exported_omnivoice import dispatch
+from models.exported_omnivoice import dispatch, reference_specs
+from models.exported_omnivoice.pytorch_modules import (
+    AudioHeadModule,
+    InputEmbedModule,
+    LlmForwardModule,
+    TokenScoreModule,
+    TokenUpdateModule,
+)
 from models.exported_omnivoice.shaders import model_shaders
 from models.exported_omnivoice.tensors.model import create_model_tensors, model_tensors
-from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
-from torch2vk.runtime.logical import LogicalTensor
+from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
+from torch2vk.runtime.logical import ComparePolicy, LogicalTensor
+from torch2vk.runtime.pytorch_debug import compare_expected_with_spec
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
 from torch2vk.runtime.session import RuntimeSession
 
 DEFAULT_TEXT = "hello world this is a speech recognition test"
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_exported.wav")
+_LLM_COMPARE_POLICY = ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5)
+_AUDIO_HEAD_COMPARE_POLICY = ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5)
+_TOKEN_COMPARE_POLICY = ComparePolicy(kind="token")
 
 
 class _AudioDecodeOutput(Protocol):
     audio_values: Sequence[torch.Tensor]
+
+
+class _OmniVoiceCompareState:
+    def __init__(
+        self,
+        model: OmniVoice,
+        *,
+        batch_input_ids: np.ndarray,
+        batch_audio_mask: np.ndarray,
+        attention_mask: np.ndarray,
+        tokens: np.ndarray,
+        audio_mask_id: int,
+        rng_seed: int,
+    ) -> None:
+        self.input_embed = InputEmbedModule(model).float().cuda().eval()
+        self.llm_forward = LlmForwardModule(model).float().cuda().eval()
+        self.audio_head = AudioHeadModule(model).float().cuda().eval()
+        self.token_score = TokenScoreModule(
+            num_audio_codebook=model.config.num_audio_codebook,
+            audio_vocab_size=model.config.audio_vocab_size,
+        ).cuda().eval()
+        self.token_update = TokenUpdateModule().cuda().eval()
+        self.batch_input_ids = torch.from_numpy(np.ascontiguousarray(batch_input_ids)).cuda()
+        self.batch_audio_mask = torch.from_numpy(
+            np.ascontiguousarray(batch_audio_mask.astype(np.bool_))
+        ).cuda()
+        self.attention_mask = torch.from_numpy(np.ascontiguousarray(attention_mask)).cuda()
+        self.tokens = torch.from_numpy(np.ascontiguousarray(tokens)).cuda()
+        self.audio_mask_id = torch.tensor([audio_mask_id], dtype=torch.int64, device="cuda")
+        self.rng_seed = torch.tensor([rng_seed], dtype=torch.int64, device="cuda")
+        self.rope_cos, self.rope_sin = _make_rope_table(
+            batch=attention_mask.shape[0],
+            sequence_length=attention_mask.shape[-1],
+            head_dim=128,
+            theta=1_000_000.0,
+        )
 
 
 def _ensure_bfloat16_checkpoint(model_dir: Path) -> Path:
@@ -57,40 +103,138 @@ def _ensure_bfloat16_checkpoint(model_dir: Path) -> Path:
     return bf16_dir
 
 
+def _round_model_float_weights_to_bfloat16(model: torch.nn.Module) -> None:
+    for parameter in model.parameters():
+        if parameter.is_floating_point():
+            parameter.data = parameter.data.to(torch.bfloat16).to(torch.float32)
+    for buffer in model.buffers():
+        if buffer.is_floating_point():
+            buffer.data = buffer.data.to(torch.bfloat16).to(torch.float32)
+
+
+def _make_rope_table(
+    *,
+    batch: int,
+    sequence_length: int,
+    head_dim: int,
+    theta: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    token = torch.arange(sequence_length, device="cuda", dtype=torch.float32).view(1, -1, 1)
+    dim = torch.arange(head_dim, device="cuda", dtype=torch.float32).view(1, 1, -1)
+    half_dim = head_dim // 2
+    freq_idx = torch.remainder(dim, half_dim)
+    inv_freq = torch.pow(
+        torch.tensor(theta, device="cuda", dtype=torch.float32),
+        -(2.0 * freq_idx) / head_dim,
+    )
+    angle = token * inv_freq
+    cos = torch.cos(angle).expand(batch, -1, -1).contiguous()
+    sin = torch.sin(angle).expand(batch, -1, -1).contiguous()
+    return cos, sin
+
+
 def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float) -> np.ndarray:
     t = np.linspace(t_start, t_end, num_step + 1, dtype=np.float64)
     t = t / (t + t_shift - t_shift * t)
     return t.astype(np.float32)
 
 
-class DebugOmniVoiceStep(nn.Module):
-    def __init__(self, model: OmniVoice) -> None:
-        super().__init__()
-        self.text_embeddings = cast(nn.Module, model.get_input_embeddings())
-        self.audio_embeddings = cast(nn.Module, model.audio_embeddings)
-        self.llm = cast(nn.Module, model.llm)
-        self.audio_heads = cast(nn.Module, model.audio_heads)
-        self.codebook_layer_offsets_tensor = cast(torch.Tensor, model.codebook_layer_offsets)
-
-    def forward(
-        self,
-        batch_input_ids: torch.Tensor,
-        batch_audio_mask: torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> torch.Tensor:
-        audio_mask = batch_audio_mask.bool()
-        text_embeds = self.text_embeddings(batch_input_ids[:, 0, :])
-        shifted_ids = (
-            batch_input_ids * audio_mask.unsqueeze(1)
-        ) + self.codebook_layer_offsets_tensor.view(1, -1, 1)
-        audio_embeds = self.audio_embeddings(shifted_ids).sum(dim=1)
-        inputs_embeds = torch.where(audio_mask.unsqueeze(-1), audio_embeds, text_embeds)
-        llm_outputs = self.llm(
-            inputs_embeds=inputs_embeds,
-            attention_mask=attention_mask,
-            return_dict=True,
+def _run_generation_step_with_compare(
+    rt: RuntimeSession,
+    *,
+    step: int,
+    unmask_count: int,
+    refs: _OmniVoiceCompareState,
+) -> None:
+    t = model_tensors()
+    with rt.frame(f"omnivoice.step.{step:04d}"):
+        dispatch.run_input_embed(rt)
+        with torch.no_grad():
+            hidden_states = refs.input_embed(refs.batch_input_ids, refs.batch_audio_mask).float()
+        compare_expected_with_spec(
+            rt,
+            name=f"omnivoice.step.{step:04d}.input_embed",
+            tensors=t,
+            spec=reference_specs.INPUT_EMBED_SPEC,
+            expected={"hidden_states": hidden_states},
+            policy=_LLM_COMPARE_POLICY,
         )
-        return self.audio_heads(llm_outputs[0])
+
+        dispatch.run_llm_forward(rt)
+        with torch.no_grad():
+            llm_output = refs.llm_forward(
+                hidden_states,
+                refs.rope_cos,
+                refs.rope_sin,
+                refs.attention_mask,
+            ).float()
+        compare_expected_with_spec(
+            rt,
+            name=f"omnivoice.step.{step:04d}.llm_forward",
+            tensors=t,
+            spec=reference_specs.LLM_FORWARD_SPEC,
+            expected={"mul_365": llm_output},
+            policy=_LLM_COMPARE_POLICY,
+        )
+
+        dispatch.run_audio_head(rt)
+        with torch.no_grad():
+            logits = refs.audio_head(llm_output).float()
+        compare_expected_with_spec(
+            rt,
+            name=f"omnivoice.step.{step:04d}.audio_head",
+            tensors=t,
+            spec=reference_specs.AUDIO_HEAD_SPEC,
+            expected={"linear": logits},
+            policy=_AUDIO_HEAD_COMPARE_POLICY,
+        )
+
+        step_index = torch.tensor([step], dtype=torch.int64, device="cuda")
+        dispatch.run_token_score(rt)
+        with torch.no_grad():
+            candidate_tokens, candidate_scores = refs.token_score(
+                logits,
+                refs.tokens,
+                refs.audio_mask_id,
+                refs.rng_seed,
+                step_index,
+            )
+        compare_expected_with_spec(
+            rt,
+            name=f"omnivoice.step.{step:04d}.token_score",
+            tensors=t,
+            spec=reference_specs.TOKEN_SCORE_SPEC,
+            expected={
+                "candidate_tokens": candidate_tokens,
+                "candidate_scores": candidate_scores,
+            },
+            policy={
+                "candidate_tokens": _TOKEN_COMPARE_POLICY,
+                "candidate_scores": _LLM_COMPARE_POLICY,
+            },
+        )
+
+        dispatch.run_token_update(rt)
+        unmask_count_t = torch.tensor([unmask_count], dtype=torch.uint32, device="cuda")
+        with torch.no_grad():
+            refs.tokens, refs.batch_input_ids = refs.token_update(
+                refs.tokens,
+                refs.batch_input_ids,
+                candidate_tokens,
+                candidate_scores,
+                unmask_count_t,
+            )
+        compare_expected_with_spec(
+            rt,
+            name=f"omnivoice.step.{step:04d}.token_update",
+            tensors=t,
+            spec=reference_specs.TOKEN_UPDATE_SPEC,
+            expected={
+                "tokens": refs.tokens,
+                "batch_input_ids": refs.batch_input_ids,
+            },
+            policy=_TOKEN_COMPARE_POLICY,
+        )
 
 
 def _generation_step_inputs(step: int, unmask_count: int) -> dict[LogicalTensor, np.ndarray]:
@@ -236,16 +380,26 @@ def main(
         schedule.append(int(num))
         rem -= int(num)
 
-    debug_step = None
+    compare_refs = None
+    rng_seed = 0x1234ABCD
     if pytorch_compare:
         print("Loading PyTorch reference for compare...")
-        pytorch_model = OmniVoice.from_pretrained(
+        ref_model = OmniVoice.from_pretrained(
             str(model_dir),
             dtype=torch.float32,
             device_map="cuda",
             train=True,
         ).eval()
-        debug_step = DebugOmniVoiceStep(pytorch_model)
+        _round_model_float_weights_to_bfloat16(ref_model)
+        compare_refs = _OmniVoiceCompareState(
+            ref_model,
+            batch_input_ids=batch_input_ids,
+            batch_audio_mask=batch_audio_mask,
+            attention_mask=attn_mask_np,
+            tokens=tokens,
+            audio_mask_id=audio_mask_id,
+            rng_seed=rng_seed,
+        )
 
     rt.initialize_request_state(
         {
@@ -253,7 +407,7 @@ def main(
             model_tensors().batch_audio_mask: batch_audio_mask,
             model_tensors().attention_mask: attn_mask_np,
             model_tensors().audio_mask_id: np.array([audio_mask_id], dtype=np.int64),
-            model_tensors().rng_seed: np.array([0x1234ABCD], dtype=np.uint32),
+            model_tensors().rng_seed: np.array([rng_seed], dtype=np.uint32),
             model_tensors().tokens: tokens,
         }
     )
@@ -267,7 +421,7 @@ def main(
 
     unmasked = 0
     generation_replay_plan: ReplayPlan | None = None
-    use_replay = debug_step is None and num_steps > 1
+    use_replay = compare_refs is None and num_steps > 1
     for step in range(num_steps):
         k = schedule[step]
         if k <= 0:
@@ -276,7 +430,15 @@ def main(
         step_inputs = _generation_step_inputs(step, k)
         if generation_replay_plan is None:
             rt.register_inputs(step_inputs)
-            dispatch.run_generation_step(rt, step=step, pytorch_model=debug_step)
+            if compare_refs is not None:
+                _run_generation_step_with_compare(
+                    rt,
+                    step=step,
+                    unmask_count=k,
+                    refs=compare_refs,
+                )
+            else:
+                dispatch.run_generation_step(rt, step=step)
             if use_replay:
                 generation_replay_plan = _build_generation_replay_plan(
                     rt,

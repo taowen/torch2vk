@@ -26,18 +26,7 @@ def run_qwen3_asr_audio_tower(
     pytorch_compare: bool = True,
 ) -> LogicalTensor:
     """Run the audio encoder as one PyTorch-comparable frame."""
-    if pytorch_compare:
-        from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
-            Qwen3ASRForConditionalGeneration,
-        )
-
-        frame_scope = rt.frame(
-            "qwen3_asr.audio_tower",
-            pytorch_model_class=Qwen3ASRForConditionalGeneration,
-            pytorch_model_submodule="thinker.audio_tower",
-        )
-    else:
-        frame_scope = rt.frame("qwen3_asr.audio_tower")
+    frame_scope = rt.frame("qwen3_asr.audio_tower")
 
     with frame_scope:
         QWEN3_ASR_PAD_FEATURE_F32(

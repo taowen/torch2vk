@@ -19,7 +19,7 @@ execution.py 串联 frame/pipeline
 
 1. 声明权重 tensor 的 name/spec/layout，让 runtime 推断 checkpoint key 并托管加载和校验；
 2. 声明 storage/lifetime，让 runtime 托管显存分配和释放；
-3. 声明 compare/probe，让 runtime 和 PyTorch 对拍；
+3. 生成 `ReferenceSpec`，让 runtime 输出和 PyTorch reference 对拍；
 4. 声明 spec/layout，让 runtime 校验 shader contract 匹配。
 
 不影响这四件事的模型语义不要放进核心执行规则。`LOGITS`、`TOKEN`、`KV_CACHE` 等可以作为 semantic metadata 服务 debug、compare 和报告。
@@ -100,7 +100,7 @@ src/models/omnivoice/
 2. 声明 `LogicalTensor`；
 3. 声明 shader contract 和 `ShaderVariant`；
 4. 写每个 PyTorch model.forward 对应的 frame function；
-5. 在 `LogicalTensor.pytorch_probe` 中声明 probe metadata；
+5. 在生成的 tensor/spec 中声明 reference binding metadata；
 6. 写 pipeline/frame 的调用顺序。
 
 模型 adapter 不负责：
@@ -149,29 +149,16 @@ with RuntimeSession.open(device_index=0, model_dir=model_dir) as rt:
 `register_inputs()` 的 key 是声明好的 `LogicalTensor` 对象，不是 logical name 字符串。这样输入绑定和
 shader dispatch 使用的是同一批 tensor 对象，不需要额外的 input key 映射。
 
-PyTorch lockstep 对拍也使用同一批 `register_inputs()` 输入，不允许再通过 `pytorch_input`、
-`pytorch_args` 或 `pytorch_kwargs` 旁路传第二份数据。RuntimeSession 在 frame exit 执行
-`pytorch_model.forward` 前，会根据当前 frame name 和 PyTorch forward 签名自动推断 kwargs：
-
-```text
-frame = "qwen3_asr.audio_tower"
-LogicalTensor.name = "qwen3_asr.audio_tower.input_features"
-forward(..., input_features, feature_lens=None)
-=> input_features=<registered value>
-```
-
-只有 `role == INPUT`、已经通过 `register_inputs()` 注册、logical name 以当前 frame name 加 `.` 为前缀
-或以 frame 显式声明的 `pytorch_input_prefixes` 为前缀，且前缀后的 basename 命中 PyTorch forward 参数名的
-tensor 会被传给 PyTorch。没有命中 forward 参数名的输入可以作为当前 Vulkan 临时入口继续存在，例如当前
-qwen3_asr 的 `qwen3_asr.audio_tower.padded_feature`，
-它只被 shader 消费，不会传给 PyTorch。
+PyTorch lockstep 对拍也应使用同一份业务输入，但不由 RuntimeSession 自动调用 PyTorch。模型 `run.py`
+显式推进 reference state，得到 expected dict 后调用 `compare_expected_with_spec()`。这样长流程生成任务可以让
+PyTorch reference 和 Vulkan candidate 同步推进，而不是依赖 frame exit 的隐式行为。
 
 `RuntimeSession.open(..., model_dir=...)` 设置权重 checkpoint 根目录。`LogicalTensor` 的
 name/dtype/shape/layout、role、memory、lifetime 等声明组合在实际使用点校验：`register_inputs()` 校验输入 tensor，
 `RuntimeSession.dispatch()` 校验本次 shader 调用传入的 tensor，并在 record/eager 阶段按需 materialize
 本次实际读写的 tensors。
 
-Runtime 不维护 `name -> LogicalTensor` registry，也不把 compare/probe/debug metadata 复制到另一份表里。后续
+Runtime 不维护 `name -> LogicalTensor` registry，也不把 compare/debug metadata 复制到另一份表里。后续
 dispatch、readback、compare 和 replay 都必须继续拿着原始 `LogicalTensor` 对象走。Frame 中实际执行了哪些
 tensor，由 `ShaderVariant(rt, ...)` 调用在运行时收集到 dispatch records。
 
@@ -185,7 +172,7 @@ pool/arena 中取得 slice 后写回对应 `LogicalTensor`。
 
 ## execution.py
 
-`execution.py` 表达完整 pipeline 的 eager 顺序。它不直接写 shader sequence，也不直接管理 PyTorch hooks；它调用同级的具体 frame function 文件。
+`execution.py` 表达完整 pipeline 的 eager 顺序。它不直接写 shader sequence，也不直接管理 PyTorch reference；它调用同级的具体 frame function 文件。
 
 它负责：
 
@@ -470,18 +457,17 @@ audio_token_selector.py
 audio_codec_decoder.py
 ```
 
-每个 frame function 必须显式接收对应的 PyTorch model。RuntimeSession 在 Vulkan shader sequence 执行完成后，用本 Frame 实际写出的 LogicalTensors 收集可对拍候选，默认只激活一个边界 target；如果 mismatch，再沿 writer graph 按需激活直接输入的 compare/probe。RuntimeSession 根据被激活 LogicalTensor 自带的 `pytorch_probe` metadata hook 传入的 PyTorch model，并 lockstep 执行这一次对应的 PyTorch `model.forward`。
-PyTorch forward 的输入来自 `register_inputs()` 中按 logical name 规则匹配到的 `LogicalTensor`，frame function
-不传 `pytorch_input`、`pytorch_args` 或 `pytorch_kwargs`。
+每个 frame function 只表达 Vulkan shader sequence。PyTorch reference 由模型 `run.py` 或同级 helper 显式执行，
+再通过 `ReferenceSpec.output_bindings` 和 `compare_expected_with_spec()` 对齐 Vulkan 输出。
 
 frame function 的职责：
 
-1. 进入 `with rt.frame(..., pytorch_model=...)`；
+1. 进入 `with rt.frame(...)`；
 2. 在 frame 内调用 `ShaderVariant`；
 3. 把输入、权重、中间 activation、输出 `LogicalTensor` 传给 `ShaderVariant`；
 4. 返回 output dataclass；
-5. 不手动安装 hooks；
-6. 不维护独立 probe 列表；
+5. 不维护独立 compare binding 列表；
+6. 不绕过 `ReferenceSpec` 手写 tensor path；
 7. 不手动 materialize tensor。
 
 示例：
@@ -520,23 +506,22 @@ def run_audio_codec_decoder_frame(
         return AudioCodecDecoderOutput(waveform=tensors.decoder.waveform)
 ```
 
-## PyTorchProbe metadata
+## ReferenceSpec metadata
 
-`PyTorchProbe` 是 `LogicalTensor` 的字段。probe metadata 必须跟 tensor 声明在一起，不能在 `probes.py` 或其它平行 registry 里再维护一份。
+`ReferenceSpec` 由 export 生成，描述 reference key 到 tensor dataclass 字段路径的绑定。它必须和生成的 tensor
+tree 一起维护，不能在 `probes.py` 或其它平行 registry 里再维护一份。
 
 流程：
 
 ```text
-candidate frame 结束后得到 written LogicalTensors
-  -> 过滤 compare != None 且 pytorch_probe != None
-  -> RuntimeSession 读取每个 LogicalTensor.pytorch_probe
-  -> 在当前 frame 传入的 PyTorch model 上安装 hooks
-  -> lockstep 执行当前 frame 对应的 PyTorch model.forward
-  -> hook 收集 PyTorch artifacts
-  -> RuntimeSession 移除 hooks
+Vulkan frame 写出 LogicalTensors
+  -> run.py 显式执行 PyTorch reference
+  -> compare_expected_with_spec() 读取 ReferenceSpec.output_bindings
+  -> RuntimeSession readback 对应 LogicalTensor
+  -> compare helper 写出 pass/fail 和 artifacts
 ```
 
-`pytorch_probe.target` 应该直接描述 PyTorch model 内的 module path 或 hook target。不同模型确实需要不同 hook target，但这些 target 仍然属于对应 LogicalTensor 的 metadata。
+`ReferenceSpec.program` 有值时表示该 reference 可以从 `.pt2` 加载；为空时表示调用方负责显式计算 expected。
 
 禁止手写 candidate 公式：
 
@@ -631,13 +616,12 @@ Frame 结束后：
 
 ```text
 used tensors = all read tensors + all written tensors
-compare candidates = written tensors where compare != None and pytorch_probe != None
-active compare target = default boundary candidate, normally the last written candidate
-drilldown targets = direct reads of the failed writer, activated on demand
+written tensors = shader outputs in this frame
+dispatch records = replay/debug/liveness source of truth
 ```
 
-声明 compare/probe 只表示这个 tensor 可被对拍，不表示每次 frame exit 都 readback。通常只从 written tensors
-选择默认边界，因为它们是 Vulkan candidate 产生的值；writer 直接输入只在 mismatch drilldown 时按需对拍。
+是否对拍由调用方显式决定。调用方执行 PyTorch reference 后，用 `ReferenceSpec.output_bindings` 定位
+candidate tensor，并传入明确的 `ComparePolicy`。
 
 ## 最小数据流
 
@@ -646,27 +630,23 @@ pytest or script defines run inputs
         |
 tensors/ reads config.json/checkpoint metadata and builds the logical tensor tree
         |
-tensors/ declares LogicalTensors with probe/compare metadata
+tensors/ declares LogicalTensors and generated reference specs
         |
 RuntimeSession registers model declarations and runtime inputs
         |
 execution.py calls concrete frame files, such as audio_codec_decoder.py
         |
-concrete frame file enters rt.frame(..., pytorch_model=...) and calls ShaderVariant objects
+concrete frame file enters rt.frame(...) and calls ShaderVariant objects
         |
 RuntimeSession.dispatch validates contract and resolves/materializes reads/writes from pools/arenas
         |
 RuntimeSession records dispatch facts
         |
-Frame exit collects written compare tensors
+run.py computes PyTorch expected values at the same logical step
         |
-RuntimeSession selects the default active compare target
+compare_expected_with_spec locates output tensors from ReferenceSpec
         |
-RuntimeSession installs hooks from active LogicalTensor.pytorch_probe on the frame pytorch_model
-        |
-RuntimeSession lockstep-runs the frame pytorch_model.forward
-        |
-RuntimeSession readbacks the active candidate LogicalTensor and compares artifacts
+RuntimeSession readbacks candidate LogicalTensors and compares artifacts
         |
 On mismatch, RuntimeSession drills down through writer.reads on demand
         |
@@ -708,15 +688,15 @@ text_llm.decode.audio_token_005.cond.layer.03.output
 
 1. 建通用 `src/torch2vk` core：`LogicalTensor`、`FrameContext`、`ShaderContract`、dry-run `RuntimeSession`。
 2. 建 `src/models/omnivoice/tensors/spec.py` 和 `tensors/audio_codec_decoder.py`，只生成 declarations。
-3. 建 `audio_codec_decoder.py`，表达一次 audio codec decoder PyTorch model.forward 边界，并接收 `pytorch_model`。
+3. 建 `audio_codec_decoder.py`，表达一次 audio codec decoder Vulkan frame 边界。
 4. 建 `shaders/embedding_sum_f32.py`、`conv1d_f32.py`、`snake_f32.py` 的 contract 和 `ShaderVariant`。
 5. `execution.py` 先只调用 `run_audio_codec_decoder_frame(...)`。
 6. dry-run dispatch 先只校验 contract、materialization rules、dispatch record。
 7. 接入 Vulkan 后执行最短 audio codec decoder 子链路。
-8. candidate 跑完后从 dispatch records 收集 written compare/probe candidates，并选择默认边界 target。
-9. RuntimeSession 根据 active `LogicalTensor.pytorch_probe` 在传入的 audio codec decoder PyTorch model 上安装 hooks。
-10. RuntimeSession lockstep 执行该 frame 的 PyTorch model.forward。
-11. RuntimeSession frame exit readback + compare；mismatch 时沿 writer graph 自动 drilldown。
+8. candidate 跑完后显式执行同粒度 PyTorch reference。
+9. 用 `ReferenceSpec.output_bindings` 定位 candidate tensor。
+10. 调用 `compare_expected_with_spec()` 完成 readback + compare。
+11. mismatch 时报告 writer shader 和 artifact path。
 12. audio codec decoder 稳定后再接 audio token selector、audio token predictor、Text LLM decode/prefill。
 
 ## MVP 验收
@@ -725,13 +705,13 @@ text_llm.decode.audio_token_005.cond.layer.03.output
 
 1. `tensors/audio_codec_decoder.py` 可以不启动 Vulkan 生成 declarations；
 2. `shaders/` 可以不加载 OmniVoice 就校验 contract；
-3. `audio_codec_decoder.py` 表达一次 PyTorch model.forward 边界，并在内部使用 `with rt.frame(..., pytorch_model=...)`；
+3. `audio_codec_decoder.py` 表达一次 Vulkan frame 边界，并在内部使用 `with rt.frame(...)`；
 4. `execution.py` 只串联具体 frame function，不直接写 shader sequence；
 5. 模型代码没有调用 `RuntimeSession.empty/load_weight/free`；
 6. dispatch 时 RuntimeSession 能 resolve/materialize read/write LogicalTensors；record/eager 可按需 allocation，replay 用录制结果优化；
 7. candidate forward 后能从 dispatch records 收集 written LogicalTensors；
-8. 当前 frame 传入的 PyTorch model 根据 active LogicalTensors 动态安装 hooks 并 lockstep 执行；
-9. compare 默认只比较一个 candidate 边界；mismatch 后只对 failed writer 的直接输入按需 readback/compare；
+8. 调用方可以显式执行 PyTorch reference 并通过 `ReferenceSpec` 对拍；
+9. compare 输出包含 candidate、expected、summary artifacts；
 10. 没有 `frame.workspace.*.activation(name)` 这种 API；
 11. 权重 dtype/shape/layout 必须和 checkpoint 声明一致，不做 silent cast；
 12. Frame exit 后 FRAME_WORKSPACE 被释放或复用，MODEL/REQUEST 生命周期资源保留。

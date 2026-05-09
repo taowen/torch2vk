@@ -8,7 +8,6 @@ generates a dispatch function with an actual loop.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from torch.export import ExportedProgram
@@ -424,7 +423,6 @@ def generate_looped_tensor_class_sources(
     layer_function_name: str,
     weight_prefix: str = "",
     hint: LayerLoopHint,
-    extra_lines_fn: Callable[[str], tuple[str, ...]] | None = None,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
 ) -> tuple[str, str]:
     """Generate parent + layer tensor classes.
@@ -547,7 +545,6 @@ def generate_looped_tensor_class_sources(
         class_name=layer_class_name,
         function_name=layer_function_name,
         weight_prefix=weight_prefix,
-        extra_lines_fn=extra_lines_fn,
     )
 
     # Generate parent tensor class
@@ -561,7 +558,6 @@ def generate_looped_tensor_class_sources(
         layer_function_name=layer_function_name,
         num_layers=hint.num_layers,
         output_name=output_name,
-        extra_lines_fn=extra_lines_fn,
         analysis=analysis,
         classification=classification,
     )
@@ -586,7 +582,6 @@ def _render_layer_class(
     class_name: str,
     function_name: str,
     weight_prefix: str,
-    extra_lines_fn: Callable[[str], tuple[str, ...]] | None,
 ) -> str:
     tensor_entries = []
     for name, meta in tensors.items():
@@ -601,24 +596,24 @@ def _render_layer_class(
                 "name": name,
                 "name_source": repr(name),
                 "checkpoint_key_expr": f'f"{name_template}"',
+                "reference_key_expr": "None",
                 "dtype_source": repr(dtype),
                 "shape_source": repr(meta.shape),
                 "role": "TensorRole.WEIGHT",
                 "memory": "MemoryClass.MODEL_WEIGHT",
                 "lifetime": "TensorLifetime.MODEL",
-                "extra_lines": extra_lines_fn(name) if extra_lines_fn else (),
             })
         else:
             tensor_entries.append({
                 "name": name,
                 "name_source": repr(name),
                 "checkpoint_key_expr": "None",
+                "reference_key_expr": repr(name),
                 "dtype_source": repr(dtype),
                 "shape_source": repr(meta.shape),
                 "role": "TensorRole.ACTIVATION",
                 "memory": "MemoryClass.FRAME_WORKSPACE",
                 "lifetime": "TensorLifetime.FRAME",
-                "extra_lines": extra_lines_fn(name) if extra_lines_fn else (),
             })
 
     output_name = next(
@@ -654,7 +649,6 @@ def _render_parent_class(
     layer_function_name: str,
     num_layers: int,
     output_name: str | None,
-    extra_lines_fn: Callable[[str], tuple[str, ...]] | None,
     analysis: _LoopAnalysis,
     classification: dict[str, str],
 ) -> str:
@@ -669,36 +663,36 @@ def _render_parent_class(
                 "name": name,
                 "name_source": repr(name),
                 "checkpoint_key_expr": f'"{param_map[name]}"',
+                "reference_key_expr": "None",
                 "dtype_source": repr(dtype),
                 "shape_source": repr(meta.shape),
                 "role": "TensorRole.WEIGHT",
                 "memory": "MemoryClass.MODEL_WEIGHT",
                 "lifetime": "TensorLifetime.MODEL",
-                "extra_lines": extra_lines_fn(name) if extra_lines_fn else (),
             })
         elif kind == _TensorKind.USER_INPUT:
             tensor_entries.append({
                 "name": name,
                 "name_source": repr(name),
                 "checkpoint_key_expr": "None",
+                "reference_key_expr": "None",
                 "dtype_source": repr(dtype),
                 "shape_source": repr(meta.shape),
                 "role": "TensorRole.INPUT",
                 "memory": "MemoryClass.HOST_INPUT",
                 "lifetime": "TensorLifetime.FRAME",
-                "extra_lines": extra_lines_fn(name) if extra_lines_fn else (),
             })
         else:
             tensor_entries.append({
                 "name": name,
                 "name_source": repr(name),
                 "checkpoint_key_expr": "None",
+                "reference_key_expr": repr(name),
                 "dtype_source": repr(dtype),
                 "shape_source": repr(meta.shape),
                 "role": "TensorRole.ACTIVATION",
                 "memory": "MemoryClass.FRAME_WORKSPACE",
                 "lifetime": "TensorLifetime.FRAME",
-                "extra_lines": extra_lines_fn(name) if extra_lines_fn else (),
             })
 
     if output_name is None:
@@ -735,13 +729,12 @@ def _render_parent_class(
         lines.append(f"            {entry['name']},")
         lines.append("            _declare_tensor(")
         lines.append(f"                checkpoint_key={entry['checkpoint_key_expr']},")
+        lines.append(f"                reference_key={entry['reference_key_expr']},")
         lines.append(f"                spec=TensorSpec(dtype={entry['dtype_source']}, shape={entry['shape_source']}),")
         lines.append(f"                role={entry['role']},")
         lines.append(f"                memory={entry['memory']},")
         lines.append(f"                lifetime={entry['lifetime']},")
         lines.append(f"                request_state={entry['name_source']} in request_state_outputs,")
-        for extra_line in entry["extra_lines"]:
-            lines.append(f"                {extra_line}")
         lines.append("            ),")
         lines.append("        ),")
     lines.append(f"        layers=[{layer_function_name}(prefix, layer_idx=i) for i in range({num_layers})],")

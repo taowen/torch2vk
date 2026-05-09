@@ -6,10 +6,8 @@ from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
     MemoryClass,
-    PyTorchProbe,
     TensorLifetime,
     TensorRole,
     bind_logical_tensor_alias,
@@ -209,6 +207,7 @@ def create_text_layer(
             p_attn_q_proj_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.self_attn.q_proj.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(2048, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -220,6 +219,7 @@ def create_text_layer(
             p_attn_k_proj_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.self_attn.k_proj.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -231,6 +231,7 @@ def create_text_layer(
             p_attn_v_proj_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.self_attn.v_proj.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -242,6 +243,7 @@ def create_text_layer(
             p_attn_o_proj_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.self_attn.o_proj.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024, 2048)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -253,6 +255,7 @@ def create_text_layer(
             p_attn_q_norm_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.self_attn.q_norm.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -264,6 +267,7 @@ def create_text_layer(
             p_attn_k_norm_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.self_attn.k_norm.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -275,6 +279,7 @@ def create_text_layer(
             p_mlp_gate_proj_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.mlp.gate_proj.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -286,6 +291,7 @@ def create_text_layer(
             p_mlp_up_proj_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.mlp.up_proj.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -297,6 +303,7 @@ def create_text_layer(
             p_mlp_down_proj_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.mlp.down_proj.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024, 3072)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -308,6 +315,7 @@ def create_text_layer(
             p_input_layernorm_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.input_layernorm.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -319,6 +327,7 @@ def create_text_layer(
             p_post_attention_layernorm_weight,
             _declare_tensor(
                 checkpoint_key=f"thinker.model.layers.{layer_idx}.post_attention_layernorm.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -330,6 +339,7 @@ def create_text_layer(
             hidden_states,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -341,6 +351,7 @@ def create_text_layer(
             position_embeddings_0,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 128)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -352,6 +363,7 @@ def create_text_layer(
             position_embeddings_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 128)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -363,6 +375,7 @@ def create_text_layer(
             cache_position,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key=None,
                 spec=TensorSpec(dtype='int64', shape=(151,)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -374,6 +387,7 @@ def create_text_layer(
             to,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='to',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -385,6 +399,7 @@ def create_text_layer(
             pow_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='pow_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -396,6 +411,7 @@ def create_text_layer(
             mean,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mean',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -407,6 +423,7 @@ def create_text_layer(
             add,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='add',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -418,6 +435,7 @@ def create_text_layer(
             rsqrt,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='rsqrt',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -429,6 +447,7 @@ def create_text_layer(
             mul,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -440,6 +459,7 @@ def create_text_layer(
             to_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='to_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -451,6 +471,7 @@ def create_text_layer(
             mul_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -462,6 +483,7 @@ def create_text_layer(
             linear,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='linear',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 2048)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -473,6 +495,7 @@ def create_text_layer(
             view,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='view',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -484,6 +507,7 @@ def create_text_layer(
             to_2,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='to_2',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -495,6 +519,7 @@ def create_text_layer(
             pow_2,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='pow_2',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -506,6 +531,7 @@ def create_text_layer(
             mean_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mean_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -517,6 +543,7 @@ def create_text_layer(
             add_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='add_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -528,6 +555,7 @@ def create_text_layer(
             rsqrt_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='rsqrt_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -539,6 +567,7 @@ def create_text_layer(
             mul_2,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_2',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -550,6 +579,7 @@ def create_text_layer(
             to_3,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='to_3',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -561,6 +591,7 @@ def create_text_layer(
             mul_3,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_3',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -572,6 +603,7 @@ def create_text_layer(
             transpose,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='transpose',
                 spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -583,6 +615,7 @@ def create_text_layer(
             linear_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='linear_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -594,6 +627,7 @@ def create_text_layer(
             view_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='view_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -605,6 +639,7 @@ def create_text_layer(
             to_4,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='to_4',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -616,6 +651,7 @@ def create_text_layer(
             pow_3,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='pow_3',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -627,6 +663,7 @@ def create_text_layer(
             mean_2,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mean_2',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -638,6 +675,7 @@ def create_text_layer(
             add_2,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='add_2',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -649,6 +687,7 @@ def create_text_layer(
             rsqrt_2,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='rsqrt_2',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -660,6 +699,7 @@ def create_text_layer(
             mul_4,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_4',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -671,6 +711,7 @@ def create_text_layer(
             to_5,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='to_5',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -682,6 +723,7 @@ def create_text_layer(
             mul_5,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_5',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -693,6 +735,7 @@ def create_text_layer(
             transpose_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='transpose_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -704,6 +747,7 @@ def create_text_layer(
             linear_2,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='linear_2',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -715,6 +759,7 @@ def create_text_layer(
             view_2,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='view_2',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -726,6 +771,7 @@ def create_text_layer(
             transpose_2,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='transpose_2',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -737,6 +783,7 @@ def create_text_layer(
             unsqueeze,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='unsqueeze',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -748,6 +795,7 @@ def create_text_layer(
             unsqueeze_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='unsqueeze_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -759,6 +807,7 @@ def create_text_layer(
             mul_6,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_6',
                 spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -770,6 +819,7 @@ def create_text_layer(
             slice_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='slice_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -781,6 +831,7 @@ def create_text_layer(
             slice_2,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='slice_2',
                 spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -792,6 +843,7 @@ def create_text_layer(
             neg,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='neg',
                 spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -803,6 +855,7 @@ def create_text_layer(
             cat,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='cat',
                 spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -814,6 +867,7 @@ def create_text_layer(
             mul_7,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_7',
                 spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -825,6 +879,7 @@ def create_text_layer(
             add_3,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='add_3',
                 spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -836,6 +891,7 @@ def create_text_layer(
             mul_8,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_8',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -847,6 +903,7 @@ def create_text_layer(
             slice_3,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='slice_3',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -858,6 +915,7 @@ def create_text_layer(
             slice_4,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='slice_4',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -869,6 +927,7 @@ def create_text_layer(
             neg_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='neg_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -880,6 +939,7 @@ def create_text_layer(
             cat_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='cat_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -891,6 +951,7 @@ def create_text_layer(
             mul_9,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_9',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -902,6 +963,7 @@ def create_text_layer(
             add_4,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='add_4',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -913,6 +975,7 @@ def create_text_layer(
             index_copy,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='index_copy',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 215, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -924,6 +987,7 @@ def create_text_layer(
             index_copy_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='index_copy_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 8, 215, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -935,6 +999,7 @@ def create_text_layer(
             scaled_dot_product_attention,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='scaled_dot_product_attention',
                 spec=TensorSpec(dtype='float32', shape=(1, 16, 151, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -946,6 +1011,7 @@ def create_text_layer(
             transpose_3,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='transpose_3',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -957,6 +1023,7 @@ def create_text_layer(
             contiguous,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='contiguous',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -968,6 +1035,7 @@ def create_text_layer(
             reshape,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='reshape',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 2048)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -979,6 +1047,7 @@ def create_text_layer(
             linear_3,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='linear_3',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -990,6 +1059,7 @@ def create_text_layer(
             add_5,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='add_5',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1001,6 +1071,7 @@ def create_text_layer(
             to_6,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='to_6',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1012,6 +1083,7 @@ def create_text_layer(
             pow_4,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='pow_4',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1023,6 +1095,7 @@ def create_text_layer(
             mean_3,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mean_3',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1034,6 +1107,7 @@ def create_text_layer(
             add_6,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='add_6',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1045,6 +1119,7 @@ def create_text_layer(
             rsqrt_3,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='rsqrt_3',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1056,6 +1131,7 @@ def create_text_layer(
             mul_10,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_10',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1067,6 +1143,7 @@ def create_text_layer(
             to_7,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='to_7',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1078,6 +1155,7 @@ def create_text_layer(
             mul_11,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_11',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1089,6 +1167,7 @@ def create_text_layer(
             linear_4,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='linear_4',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 3072)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1100,6 +1179,7 @@ def create_text_layer(
             silu,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='silu',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 3072)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1111,6 +1191,7 @@ def create_text_layer(
             linear_5,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='linear_5',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 3072)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1122,6 +1203,7 @@ def create_text_layer(
             mul_12,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_12',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 3072)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1133,6 +1215,7 @@ def create_text_layer(
             linear_6,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='linear_6',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1144,6 +1227,7 @@ def create_text_layer(
             add_7,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='add_7',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1178,9 +1262,8 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     checkpoint_key: str | None = None,
+    reference_key: str | None = None,
     request_state: bool = False,
-    compare: ComparePolicy | None = None,
-    pytorch_probe: PyTorchProbe | None = None,
 ) -> LogicalTensor:
     if request_state:
         role = TensorRole.OUTPUT
@@ -1191,9 +1274,8 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
-        compare=compare,
-        pytorch_probe=pytorch_probe,
         checkpoint_key=checkpoint_key,
+        reference_key=reference_key,
     )
 
 

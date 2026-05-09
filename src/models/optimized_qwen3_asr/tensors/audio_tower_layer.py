@@ -5,10 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
     MemoryClass,
-    PyTorchProbe,
     TensorLifetime,
     TensorRole,
     TensorSpec,
@@ -74,7 +72,6 @@ def declare_qwen3_asr_audio_encoder_layer_tensors(
     def comparable_activation(
         shape: tuple[int, ...],
         *,
-        probe: PyTorchProbe,
         rtol: float = 2e-3,
         atol: float = 2e-2,
     ) -> LogicalTensor:
@@ -83,8 +80,6 @@ def declare_qwen3_asr_audio_encoder_layer_tensors(
             role=TensorRole.ACTIVATION,
             memory=MemoryClass.FRAME_WORKSPACE,
             lifetime=TensorLifetime.FRAME,
-            compare=ComparePolicy(kind="tensor", rtol=rtol, atol=atol),
-            pytorch_probe=probe,
         )
 
     return Qwen3AsrAudioEncoderLayerTensors(
@@ -116,49 +111,15 @@ def declare_qwen3_asr_audio_encoder_layer_tensors(
         fc1_bias=weight(f"{weight_prefix}.fc1.bias", (encoder_ffn_dim,)),
         fc2_weight=weight(f"{weight_prefix}.fc2.weight", (hidden_size, encoder_ffn_dim)),
         fc2_bias=weight(f"{weight_prefix}.fc2.bias", (hidden_size,)),
-        self_attn_layer_norm=comparable_activation(
-            hidden_shape,
-            probe=PyTorchProbe(kind="module_output", target=f"layers.{layer}.self_attn_layer_norm"),
-        ),
-        q_proj=comparable_activation(
-            hidden_shape,
-            probe=PyTorchProbe(kind="module_output", target=f"layers.{layer}.self_attn.q_proj"),
-        ),
-        k_proj=comparable_activation(
-            hidden_shape,
-            probe=PyTorchProbe(kind="module_output", target=f"layers.{layer}.self_attn.k_proj"),
-        ),
-        v_proj=comparable_activation(
-            hidden_shape,
-            probe=PyTorchProbe(kind="module_output", target=f"layers.{layer}.self_attn.v_proj"),
-        ),
-        self_attn=comparable_activation(
-            hidden_shape,
-            probe=PyTorchProbe(
-                kind="module_input", target=f"layers.{layer}.self_attn.out_proj", index=0
-            ),
-        ),
-        out_proj=comparable_activation(
-            hidden_shape,
-            probe=PyTorchProbe(kind="module_output", target=f"layers.{layer}.self_attn"),
-        ),
-        self_attn_residual=comparable_activation(
-            hidden_shape,
-            probe=PyTorchProbe(
-                kind="module_input", target=f"layers.{layer}.final_layer_norm", index=0
-            ),
-        ),
-        final_layer_norm=comparable_activation(
-            hidden_shape,
-            probe=PyTorchProbe(kind="module_output", target=f"layers.{layer}.final_layer_norm"),
-        ),
+        self_attn_layer_norm=comparable_activation(hidden_shape),
+        q_proj=comparable_activation(hidden_shape),
+        k_proj=comparable_activation(hidden_shape),
+        v_proj=comparable_activation(hidden_shape),
+        self_attn=comparable_activation(hidden_shape),
+        out_proj=comparable_activation(hidden_shape),
+        self_attn_residual=comparable_activation(hidden_shape),
+        final_layer_norm=comparable_activation(hidden_shape),
         fc1_gelu=activation((hidden_shape[0], encoder_ffn_dim)),
-        fc2=comparable_activation(
-            hidden_shape,
-            probe=PyTorchProbe(kind="module_output", target=f"layers.{layer}.fc2"),
-        ),
-        output=comparable_activation(
-            hidden_shape,
-            probe=PyTorchProbe(kind="module_output", target=f"layers.{layer}", index=0),
-        ),
+        fc2=comparable_activation(hidden_shape),
+        output=comparable_activation(hidden_shape),
     )

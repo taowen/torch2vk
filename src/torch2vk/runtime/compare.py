@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
 import re
-from typing import Any, Protocol, TypeGuard
+from typing import Protocol, TypeGuard
 
 import numpy as np
 
@@ -85,18 +84,19 @@ class CompareAssertionError(AssertionError):
         super().__init__(_compare_error_message(policy=policy, result=result))
 
 
+_DEFAULT_COMPARE_POLICY = ComparePolicy(kind="tensor", rtol=1e-4, atol=1e-4)
+
+
 def compare_arrays(
     *,
     tensor: LogicalTensor,
     frame: str,
     candidate: object,
     expected: object,
+    policy: ComparePolicy = _DEFAULT_COMPARE_POLICY,
     artifact_dir: str | Path | None = None,
     nearest_upstream_artifact_key: str | None = None,
 ) -> TensorCompareResult:
-    if tensor.compare is None:
-        raise ValueError(f"{tensor.name} has no ComparePolicy")
-    policy = tensor.compare
     candidate_array = _as_numpy(candidate)
     expected_array = _as_numpy(expected)
     artifact_key = f"{frame}/{tensor.name}"
@@ -181,18 +181,6 @@ def compare_arrays(
     return result
 
 
-def normalize_reference_outputs(outputs: Mapping[object, object]) -> dict[str, object]:
-    normalized: dict[str, object] = {}
-    for key, value in outputs.items():
-        if isinstance(key, LogicalTensor):
-            normalized[key.name] = value
-        elif isinstance(key, str):
-            normalized[key] = value
-        else:
-            raise TypeError(
-                f"Reference output key must be LogicalTensor or str, got {type(key).__name__}"
-            )
-    return normalized
 
 
 def as_numpy_array(value: object) -> np.ndarray:
@@ -372,17 +360,6 @@ def _dump_mismatch_artifacts(
     )
 
 
-def select_probe_value(value: object, *, index: int, selector: str | None) -> Any:
-    selected = value
-    if isinstance(selected, (tuple, list)):
-        selected = selected[index]
-    elif index != 0:
-        raise IndexError(f"Probe index {index} requested for non-sequence value")
-    if selector is None:
-        return selected
-    if isinstance(selected, Mapping):
-        return selected[selector]
-    return getattr(selected, selector)
 
 
 def _tensor_mismatches(

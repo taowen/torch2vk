@@ -183,18 +183,8 @@ def run_token_update(rt: RuntimeSession) -> None:
     )
 
 
-def run_generation_step(rt: RuntimeSession, *, step: int, pytorch_model: object | None = None) -> None:
-    if pytorch_model is not None:
-        with rt.frame(f"omnivoice.step.{step:04d}", pytorch_model=pytorch_model):
-            run_input_embed(rt)
-            run_llm_forward(rt)
-            run_audio_head(rt)
-            run_token_score(rt)
-        with rt.frame(f"omnivoice.step.{step:04d}.token_update"):
-            run_token_update(rt)
-        return
-
-    with rt.frame(f"omnivoice.step.{step:04d}", pytorch_model=pytorch_model):
+def run_generation_step(rt: RuntimeSession, *, step: int) -> None:
+    with rt.frame(f"omnivoice.step.{step:04d}"):
         run_input_embed(rt)
         run_llm_forward(rt)
         run_audio_head(rt)

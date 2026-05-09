@@ -12,3 +12,7 @@ _EXPECTED_ASKNOT_TEXT = (
 
 def test_exported_qwen3_asr_transcribes_asknot() -> None:
     assert main() == _EXPECTED_ASKNOT_TEXT
+
+
+def test_exported_qwen3_asr_pytorch_compare_decode_step() -> None:
+    assert main(pytorch_compare=True, max_new_tokens=2) == "And so"

@@ -11,6 +11,8 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
+    ceil_div,
+    mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,
@@ -80,7 +82,7 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
             ),
         ),
         params_buffer=None,
-        dispatch=('C', 'T', 1),
+        dispatch=(ceil_div(mul('C', 'T'), 256), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
     source="""\
@@ -130,58 +132,8 @@ layout(push_constant) uniform PushConstants {
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
-shared float shared_float[256];
-shared uint shared_uint[256];
-
-float reduce_max(float value) {
-    const uint tid = gl_LocalInvocationID.x;
-    shared_float[tid] = value;
-    barrier();
-    for (uint stride = 128u; stride > 0u; stride >>= 1u) {
-        if (tid < stride) {
-            shared_float[tid] = max(shared_float[tid], shared_float[tid + stride]);
-        }
-        barrier();
-    }
-    return shared_float[0];
-}
-
-float reduce_sum(float value) {
-    const uint tid = gl_LocalInvocationID.x;
-    shared_float[tid] = value;
-    barrier();
-    for (uint stride = 128u; stride > 0u; stride >>= 1u) {
-        if (tid < stride) {
-            shared_float[tid] += shared_float[tid + stride];
-        }
-        barrier();
-    }
-    return shared_float[0];
-}
-
 bool better_pair(float lhs_score, uint lhs_token, float rhs_score, uint rhs_token) {
     return lhs_score > rhs_score || (lhs_score == rhs_score && lhs_token < rhs_token);
-}
-
-void reduce_best(inout float best_score, inout uint best_token) {
-    const uint tid = gl_LocalInvocationID.x;
-    shared_float[tid] = best_score;
-    shared_uint[tid] = best_token;
-    barrier();
-    for (uint stride = 128u; stride > 0u; stride >>= 1u) {
-        if (tid < stride && better_pair(
-            shared_float[tid + stride],
-            shared_uint[tid + stride],
-            shared_float[tid],
-            shared_uint[tid]
-        )) {
-            shared_float[tid] = shared_float[tid + stride];
-            shared_uint[tid] = shared_uint[tid + stride];
-        }
-        barrier();
-    }
-    best_score = shared_float[0];
-    best_token = shared_uint[0];
 }
 
 uint hash_u32(uint x) {
@@ -213,70 +165,65 @@ float guided_logit(uint batch, uint seq, uint codebook, uint token, float c_max,
 }
 
 void main() {
-    const uint tid = gl_LocalInvocationID.x;
-    const uint codebook = gl_WorkGroupID.x;
-    const uint target = gl_WorkGroupID.y;
+    const uint flat_pos = gl_GlobalInvocationID.x;
+    const uint total = pc.C * pc.T;
+    if (flat_pos >= total) {
+        return;
+    }
+
+    const uint codebook = flat_pos / pc.T;
+    const uint target = flat_pos - codebook * pc.T;
     const uint cond_seq = pc.S - pc.T + target;
     const uint uncond_seq = target;
     const uint vocab_offset = codebook * pc.V;
-    const uint flat_pos = codebook * pc.T + target;
     const uint mask_token = uint(audio_mask_id[0]);
 
-    float local_c_max = -3.4028234663852886e+38;
-    float local_u_max = -3.4028234663852886e+38;
-    for (uint token = tid; token < pc.V; token += 256u) {
+    float c_max = -3.4028234663852886e+38;
+    float u_max = -3.4028234663852886e+38;
+    for (uint token = 0u; token < pc.V; ++token) {
         const uint offset = vocab_offset + token;
-        local_c_max = max(local_c_max, logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset]);
-        local_u_max = max(local_u_max, logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset]);
+        c_max = max(c_max, logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset]);
+        u_max = max(u_max, logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset]);
     }
-    const float c_max = reduce_max(local_c_max);
-    const float u_max = reduce_max(local_u_max);
 
-    float local_c_sum = 0.0;
-    float local_u_sum = 0.0;
-    for (uint token = tid; token < pc.V; token += 256u) {
+    float c_sum = 0.0;
+    float u_sum = 0.0;
+    for (uint token = 0u; token < pc.V; ++token) {
         const uint offset = vocab_offset + token;
-        local_c_sum += exp(logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset] - c_max);
-        local_u_sum += exp(logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset] - u_max);
+        c_sum += exp(logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset] - c_max);
+        u_sum += exp(logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset] - u_max);
     }
-    const float c_sum = reduce_sum(local_c_sum);
-    const float u_sum = reduce_sum(local_u_sum);
 
-    float local_guided_max = -3.4028234663852886e+38;
-    for (uint token = tid; token < pc.V; token += 256u) {
-        local_guided_max = max(
-            local_guided_max,
+    float guided_max = -3.4028234663852886e+38;
+    for (uint token = 0u; token < pc.V; ++token) {
+        guided_max = max(
+            guided_max,
             guided_logit(uncond_seq, cond_seq, codebook, token, c_max, c_sum, u_max, u_sum)
         );
     }
-    const float guided_max = reduce_max(local_guided_max);
 
-    float local_guided_sum = 0.0;
+    float guided_sum = 0.0;
     float best_score = -3.4028234663852886e+38;
     uint best_token = 0xffffffffu;
-    for (uint token = tid; token < pc.V; token += 256u) {
+    for (uint token = 0u; token < pc.V; ++token) {
         const float score = guided_logit(uncond_seq, cond_seq, codebook, token, c_max, c_sum, u_max, u_sum);
-        local_guided_sum += exp(score - guided_max);
+        guided_sum += exp(score - guided_max);
         if (token != mask_token && better_pair(score, token, best_score, best_token)) {
             best_score = score;
             best_token = token;
         }
     }
-    const float guided_sum = reduce_sum(local_guided_sum);
-    reduce_best(best_score, best_token);
 
-    if (tid == 0u) {
-        float confidence = best_score - guided_max - log(guided_sum);
-        confidence -= float(codebook) * pc.layer_penalty;
-        if (pc.position_temperature > 0.0) {
-            confidence += gumbel_noise(flat_pos) * pc.position_temperature;
-        }
-        if (tokens[flat_pos] != audio_mask_id[0]) {
-            confidence = -3.4028234663852886e+38;
-        }
-        candidate_tokens[flat_pos] = int64_t(best_token);
-        candidate_scores[flat_pos] = confidence;
+    float confidence = best_score - guided_max - log(guided_sum);
+    confidence -= float(codebook) * pc.layer_penalty;
+    if (pc.position_temperature > 0.0) {
+        confidence += gumbel_noise(flat_pos) * pc.position_temperature;
     }
+    if (tokens[flat_pos] != audio_mask_id[0]) {
+        confidence = -3.4028234663852886e+38;
+    }
+    candidate_tokens[flat_pos] = int64_t(best_token);
+    candidate_scores[flat_pos] = confidence;
 }
 """,
 )

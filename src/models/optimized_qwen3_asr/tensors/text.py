@@ -5,10 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
     MemoryClass,
-    PyTorchProbe,
     TensorLifetime,
     TensorRole,
     TensorSemantic,
@@ -172,13 +170,11 @@ def declare_qwen3_asr_text_tensors(
         embed_tokens_weight=shared_embed_weight,
         inputs_embeds=_comparable_activation(
             (1, prompt_length, hidden_size),
-            probe=PyTorchProbe(kind="module_input", target="model.layers.0", index=0),
         ),
         layers=prefill_layers,
         norm_weight=shared_norm_weight,
         final_norm=_comparable_activation(
             (1, prompt_length, hidden_size),
-            probe=PyTorchProbe(kind="module_output", target="model.norm"),
         ),
         lm_head_weight=shared_lm_head_weight,
         logits=LogicalTensor(
@@ -187,8 +183,6 @@ def declare_qwen3_asr_text_tensors(
             memory=MemoryClass.REQUEST_STATE,
             lifetime=TensorLifetime.REQUEST,
             semantic=TensorSemantic.LOGITS,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),
         ),
     )
     decode = Qwen3AsrTextDecodeTensors(
@@ -220,7 +214,6 @@ def declare_qwen3_asr_text_tensors(
         norm_weight=shared_norm_weight,
         final_norm=_comparable_activation(
             (1, 1, hidden_size),
-            probe=PyTorchProbe(kind="module_output", target="model.norm"),
         ),
         lm_head_weight=shared_lm_head_weight,
         lm_head_select_scratch=LogicalTensor(
@@ -235,8 +228,6 @@ def declare_qwen3_asr_text_tensors(
             memory=MemoryClass.REQUEST_STATE,
             lifetime=TensorLifetime.REQUEST,
             semantic=TensorSemantic.LOGITS,
-            compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-            pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),
         ),
     )
     token_select = Qwen3AsrTokenSelectTensors(
@@ -249,7 +240,6 @@ def declare_qwen3_asr_text_tensors(
             memory=MemoryClass.REQUEST_STATE,
             lifetime=TensorLifetime.REQUEST,
             semantic=TensorSemantic.TOKEN,
-            compare=ComparePolicy(kind="token", rtol=0.0, atol=0.0),
         ),
         done=LogicalTensor(
             spec=TensorSpec(dtype="uint32", shape=(1,)),
@@ -257,7 +247,6 @@ def declare_qwen3_asr_text_tensors(
             memory=MemoryClass.REQUEST_STATE,
             lifetime=TensorLifetime.REQUEST,
             semantic=TensorSemantic.TOKEN,
-            compare=ComparePolicy(kind="token", rtol=0.0, atol=0.0),
         ),
         generated_tokens=_state(
             "int64",
@@ -336,14 +325,10 @@ def _activation(
 
 def _comparable_activation(
     shape: tuple[int, ...],
-    *,
-    probe: PyTorchProbe,
 ) -> LogicalTensor:
     return LogicalTensor(
         spec=TensorSpec(dtype="float32", shape=shape),
         role=TensorRole.ACTIVATION,
         memory=MemoryClass.FRAME_WORKSPACE,
         lifetime=TensorLifetime.FRAME,
-        compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-        pytorch_probe=probe,
     )

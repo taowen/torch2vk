@@ -6,10 +6,8 @@ from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
     MemoryClass,
-    PyTorchProbe,
     TensorLifetime,
     TensorRole,
     bind_logical_tensor_alias,
@@ -56,6 +54,7 @@ def create_decode_norm(
             p_weight,
             _declare_tensor(
                 checkpoint_key="thinker.model.norm.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -67,6 +66,7 @@ def create_decode_norm(
             hidden_states,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -78,6 +78,7 @@ def create_decode_norm(
             to,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='to',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -89,6 +90,7 @@ def create_decode_norm(
             pow_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='pow_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -100,6 +102,7 @@ def create_decode_norm(
             mean,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mean',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -111,6 +114,7 @@ def create_decode_norm(
             add,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='add',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -122,6 +126,7 @@ def create_decode_norm(
             rsqrt,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='rsqrt',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -133,6 +138,7 @@ def create_decode_norm(
             mul,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -144,6 +150,7 @@ def create_decode_norm(
             to_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='to_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -155,6 +162,7 @@ def create_decode_norm(
             mul_1,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='mul_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -176,9 +184,8 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     checkpoint_key: str | None = None,
+    reference_key: str | None = None,
     request_state: bool = False,
-    compare: ComparePolicy | None = None,
-    pytorch_probe: PyTorchProbe | None = None,
 ) -> LogicalTensor:
     if request_state:
         role = TensorRole.OUTPUT
@@ -189,9 +196,8 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
-        compare=compare,
-        pytorch_probe=pytorch_probe,
         checkpoint_key=checkpoint_key,
+        reference_key=reference_key,
     )
 
 

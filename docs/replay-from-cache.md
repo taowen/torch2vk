@@ -207,17 +207,11 @@ num_dispatches * sizeof(uint32[3])
 这避免了因为 dispatch group count 改变而重新 record command buffer。对 Qwen3-ASR decode，很多 dispatch
 维度本身固定，但启用 dynamic symbol 后统一走 indirect dispatch，保持 replay 路径简单。
 
-## Token Feedback
+## Token State
 
-自回归 decode 的下一步 token 不应该 CPU readback 后再写入下一步 input。Replay plan 支持：
-
-```text
-token_feedback_source = token_select.next_token
-token_feedback_target = decode.input_ids
-```
-
-构建 replay descriptor 时，`decode.input_ids` 的 binding 可以指向 `token_select.next_token` 的 GPU buffer。
-这样下一步 decode 直接读取上一步 token_select 的输出。
+自回归 decode 的下一步 token 不应该 CPU readback 后再写入下一步 input。当前做法是让 tensor topology
+直接表达这个关系：decode input 和 token select output 绑定到同一个 REQUEST_STATE logical tensor，replay builder
+只按 recorded descriptor 和 logical tensor identity 重绑，不理解“上一 token 反馈到下一步”这种业务语义。
 
 generated tokens 预分配到 REQUEST_STATE buffer，token_store 按 index 写入，并维护：
 

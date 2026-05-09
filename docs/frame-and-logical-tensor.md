@@ -90,8 +90,8 @@ class LogicalTensor:
     lifetime: TensorLifetime
     layout: TensorLayout = ROW_MAJOR
     semantic: TensorSemantic | None = None
-    compare: ComparePolicy | None = None
-    pytorch_probe: PyTorchProbe | None = None
+    checkpoint_key: str | None = None
+    reference_key: str | None = None
     buffer: BufferSlice | None = None
     descriptor_nbytes: int | None = None
     version: int = 0
@@ -111,15 +111,14 @@ rt.debug_materialization(tensor)
 
 ### Frame
 
-`Frame` 是一次 PyTorch `model.forward` 对齐的 eager execution 边界。
+`Frame` 是一次 runtime eager execution 边界。
 
 它同时定义：
 
 1. Vulkan candidate forward 的执行范围；
 2. dispatch records 的收集范围；
-3. PyTorch hook/probe 的安装范围；
-4. compare artifacts 的命名范围；
-5. frame workspace 的释放或复用边界。
+3. compare artifacts 的命名范围；
+4. frame workspace 的释放或复用边界。
 
 `Frame` 不是 tensor 容器，不是 workspace tree，也不是模型目录文件。它只是 `RuntimeSession` 上的 scope。
 
@@ -161,15 +160,9 @@ Replay Frame enter:
   根据 liveness/aliasing 直接分配或复用 arena offset
 
 退出 candidate forward:
-  收集本 Frame 实际写出的 LogicalTensors
-  过滤 compare != None 且 pytorch_probe != None 的 tensor 作为可对拍候选
-  默认选择一个边界 target
-  根据 active target 的 probe metadata 安装 PyTorch hooks
-  从 register_inputs() 中按 frame prefix + PyTorch forward 参数名推断 kwargs
-  lockstep 执行当前 Frame 传入的 PyTorch model.forward
-  readback active candidate tensor
-  compare candidate/PyTorch artifact
-  mismatch 时沿 writer graph 按需 readback/compare 直接输入
+  FrameContext 记录本 Frame 实际写出的 LogicalTensors
+  调用方可以用 compare_expected_with_spec() 显式比较这些输出
+  mismatch 时 compare helper 写出 candidate/expected/summary artifact
   释放或复用 FRAME/OP 生命周期资源
 ```
 
@@ -691,55 +684,46 @@ Frame 结束后：
 
 ```text
 used tensors = all reads + all writes
-candidate boundary tensors = writes where compare != None and pytorch_probe != None
-active compare target = default boundary candidate, normally the last written candidate
+written tensors = all shader outputs in this frame
+dispatch records = replay/debug/liveness source of truth
 ```
 
-声明 compare/probe 只表示这个 tensor 可被对拍，不表示每次都 readback。默认只从 write tensors 里选一个边界
-target，因为它们是 candidate 本次 forward 实际产生的值；mismatch 后 RuntimeSession 再沿 failed writer 的
-direct reads 按需激活上游对拍。
+是否对拍由调用方显式决定。RuntimeSession 不从 frame 自动选择 active target，也不根据 tensor metadata 自动执行
+PyTorch。
 
 ## PyTorch 对拍
 
-对拍由 candidate frame 驱动：
+对拍由模型运行代码显式驱动：
 
 ```text
 1. 进入 rt.frame(...)
 2. 跑 Vulkan candidate eager forward
-3. RuntimeSession 收集 dispatch records 和 written LogicalTensors
-4. candidate forward 结束后，筛选 compare/probe candidates 并选择默认 active target
-5. 根据 active LogicalTensor.pytorch_probe 安装 PyTorch hooks
-6. 从 `register_inputs()` 中按当前 frame name 和 PyTorch forward 签名推断 input kwargs
-7. lockstep 跑一次传入 Frame 的 PyTorch model.forward
-8. hooks 收集 PyTorch artifacts
-9. RuntimeSession readback active candidate LogicalTensor 的当前 buffer
-10. 按 LogicalTensor.compare 比较
-11. mismatch 时沿 writer graph 迭代倒查直接输入
-12. 报告 mismatch 和 drilldown classification
-13. 释放或复用 Frame workspace
+3. 调用方推进同粒度 PyTorch reference
+4. 调用 compare_expected_with_spec()
+5. helper 根据 ReferenceSpec.output_bindings 找到 LogicalTensor
+6. RuntimeSession readback candidate 当前 buffer
+7. 按调用点传入的 ComparePolicy 比较
+8. mismatch 时报告 frame、tensor、writer shader 和 artifact path
+9. 释放或复用 Frame workspace
 ```
 
-PyTorch model 不决定比较哪些 tensors。RuntimeSession 只根据 candidate 实际写出的 tensors 以及这些 `LogicalTensor` 自带的 `pytorch_probe` metadata 选择 active/drilldown targets 并安装 hook/probe，然后 lockstep 执行当前 Frame 传入的 PyTorch model。
-PyTorch model 也不接收测试或 frame function 旁路传入的第二份输入。RuntimeSession 使用同一批
-`register_inputs()` 输入：`role == INPUT`、logical name 以当前 frame name 为前缀、前缀后的 basename 命中
-`forward` 参数名的 tensor，会作为 PyTorch kwargs 传入。例如
-`qwen3_asr.audio_tower.feature_lens` 自动对应 `forward(..., feature_lens=...)`。
+PyTorch model 不决定比较哪些 tensors。比较哪些输出由 `ReferenceSpec.output_bindings` 和调用点传入的
+`expected` dict 决定。
 
-### PyTorchProbe
+### ReferenceSpec
 
 推荐结构：
 
 ```python
 @dataclass(frozen=True, slots=True)
-class PyTorchProbe:
-    kind: Literal["module_input", "module_output", "manual_hook", "derived"]
-    target: str
-    index: int = 0
-    selector: str | None = None
-    transform: str | None = None
+class ReferenceSpec:
+    program: str | None
+    input_bindings: dict[str, str]
+    output_bindings: dict[str, str]
 ```
 
-`PyTorchProbe` 是 `LogicalTensor` 的一部分，不是独立的平行系统。RuntimeSession 根据 candidate 写出的 LogicalTensor 读取其中的 `pytorch_probe`，再在当前 Frame 传入的 PyTorch model 上安装 hook。
+`ReferenceSpec` 是 export 生成的 reference binding，不是 runtime 状态。RuntimeSession 只消费其中的
+`output_bindings` 来定位 candidate tensor。
 
 禁止在任何独立 registry 或 helper 里手写 candidate 公式：
 

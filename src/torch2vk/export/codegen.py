@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
@@ -14,6 +13,7 @@ from torch.fx import Graph, Node
 
 from torch2vk.export.graph import SKIP_OPS, is_alias_op, node_input_names
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
+from torch2vk.runtime.reference import ReferenceSpec
 from torch2vk.runtime.shader import (
     AddExpr,
     CeilDivExpr,
@@ -148,14 +148,12 @@ class {{ class_name }}:
             {{ tensor.name }},
             _declare_tensor(
                 checkpoint_key={{ tensor.checkpoint_key_expr }},
+                reference_key={{ tensor.reference_key_expr }},
                 spec=TensorSpec(dtype={{ tensor.dtype_source }}, shape={{ tensor.shape_source }}),
                 role={{ tensor.role }},
                 memory={{ tensor.memory }},
                 lifetime={{ tensor.lifetime }},
                 request_state={{ tensor.name_source }} in request_state_outputs,
-{% for extra_line in tensor.extra_lines %}
-                {{ extra_line }}
-{% endfor %}
             ),
         ),
 {% endfor %}
@@ -175,10 +173,8 @@ from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
     MemoryClass,
-    PyTorchProbe,
     TensorLifetime,
     TensorRole,
     bind_logical_tensor_alias,
@@ -199,9 +195,8 @@ _TENSOR_HELPERS_TEMPLATE = '''def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     checkpoint_key: str | None = None,
+    reference_key: str | None = None,
     request_state: bool = False,
-    compare: ComparePolicy | None = None,
-    pytorch_probe: PyTorchProbe | None = None,
 ) -> LogicalTensor:
     if request_state:
         role = TensorRole.OUTPUT
@@ -212,9 +207,8 @@ _TENSOR_HELPERS_TEMPLATE = '''def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
-        compare=compare,
-        pytorch_probe=pytorch_probe,
         checkpoint_key=checkpoint_key,
+        reference_key=reference_key,
     )
 
 
@@ -247,6 +241,22 @@ def _validate_request_state_outputs(
 _SIMPLE_INIT_TEMPLATE = '''"""{{ docstring }}."""
 
 {{ imports_source }}
+'''
+
+_REFERENCE_SPECS_TEMPLATE = '''"""Generated PyTorch reference specs."""
+
+from __future__ import annotations
+
+from torch2vk.runtime.reference import ReferenceSpec
+
+{% for entry in entries %}
+{{ entry.const }} = ReferenceSpec(
+    program={{ entry.program }},
+    input_bindings={{ entry.input_bindings }},
+    output_bindings={{ entry.output_bindings }},
+)
+
+{% endfor %}
 '''
 
 
@@ -400,6 +410,19 @@ def render_simple_init(docstring: str, imports: list[str]) -> str:
         docstring=docstring,
         imports_source="\n".join(imports),
     )
+
+
+def render_reference_specs_module(reference_specs: dict[str, ReferenceSpec]) -> str:
+    entries = tuple(
+        {
+            "const": f"{name.upper()}_SPEC",
+            "program": repr(spec.program),
+            "input_bindings": repr(spec.input_bindings),
+            "output_bindings": repr(spec.output_bindings),
+        }
+        for name, spec in sorted(reference_specs.items())
+    )
+    return _render_template(_REFERENCE_SPECS_TEMPLATE, entries=entries).rstrip() + "\n"
 
 
 def _tensor_factory_signature(
@@ -806,7 +829,6 @@ def generate_tensor_class_source(
     function_name: str = "create_exported",
     weight_prefix: str = "",
     is_layered: bool | None = None,
-    extra_lines_fn: Callable[[str], tuple[str, ...]] | None = None,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
 ) -> str:
     """Generate tensor dataclass + factory function for a single submodule.
@@ -818,8 +840,6 @@ def generate_tensor_class_source(
         weight_prefix: Prefix for safetensors weight keys.
         is_layered: Whether param names contain .layers.N. patterns.
             None = auto-detect.
-        extra_lines_fn: Optional callback(tensor_name) → extra source lines
-            for the tensor declaration (e.g., compare policy).
         registry: Shader registry for resolving supported ops.
     """
     graph = prog.graph_module.graph
@@ -901,29 +921,30 @@ def generate_tensor_class_source(
                 checkpoint_key_expr = f'f"{name_template}"'
             else:
                 checkpoint_key_expr = f'"{safetensors_key}"'
+            reference_key_expr = "None"
         elif kind == _TensorKind.USER_INPUT:
             role = "TensorRole.INPUT"
             memory = "MemoryClass.HOST_INPUT"
             lifetime = "TensorLifetime.FRAME"
             checkpoint_key_expr = "None"
+            reference_key_expr = "None"
         else:
             role = "TensorRole.ACTIVATION"
             memory = "MemoryClass.FRAME_WORKSPACE"
             lifetime = "TensorLifetime.FRAME"
             checkpoint_key_expr = "None"
-
-        extra = extra_lines_fn(name) if extra_lines_fn else ()
+            reference_key_expr = repr(name)
 
         tensor_entries.append({
             "name": name,
             "name_source": repr(name),
             "checkpoint_key_expr": checkpoint_key_expr,
+            "reference_key_expr": reference_key_expr,
             "dtype_source": repr(dtype),
             "shape_source": repr(shape),
             "role": role,
             "memory": memory,
             "lifetime": lifetime,
-            "extra_lines": extra,
         })
 
     output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
@@ -941,6 +962,28 @@ def generate_tensor_class_source(
         ),
         tensors=tensor_entries,
         alias_ops=alias_ops,
+    )
+
+
+def generate_reference_spec(
+    ep: ExportedProgram,
+    *,
+    program: str | None,
+    input_bindings: dict[str, str] | None = None,
+    output_bindings: dict[str, str] | None = None,
+) -> ReferenceSpec:
+    if input_bindings is None:
+        input_bindings = {
+            spec.arg.name: spec.arg.name
+            for spec in ep.graph_signature.input_specs
+            if spec.kind == InputKind.USER_INPUT
+        }
+    if output_bindings is None:
+        output_bindings = {name: name for name in _find_graph_outputs(ep.graph_module.graph)}
+    return ReferenceSpec(
+        program=program,
+        input_bindings=dict(input_bindings),
+        output_bindings=dict(output_bindings),
     )
 
 

@@ -6,10 +6,8 @@ from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
-    ComparePolicy,
     LogicalTensor,
     MemoryClass,
-    PyTorchProbe,
     TensorLifetime,
     TensorRole,
     bind_logical_tensor_alias,
@@ -42,6 +40,7 @@ def create_lm_head(
             p_weight,
             _declare_tensor(
                 checkpoint_key="thinker.lm_head.weight",
+                reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(151936, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
@@ -53,6 +52,7 @@ def create_lm_head(
             input,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -64,13 +64,12 @@ def create_lm_head(
             linear,
             _declare_tensor(
                 checkpoint_key=None,
+                reference_key='linear',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 151936)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
                 request_state='linear' in request_state_outputs,
-                compare=ComparePolicy(kind="tensor", rtol=3e-3, atol=3e-2),
-                pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),
             ),
         ),
     )
@@ -85,9 +84,8 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     checkpoint_key: str | None = None,
+    reference_key: str | None = None,
     request_state: bool = False,
-    compare: ComparePolicy | None = None,
-    pytorch_probe: PyTorchProbe | None = None,
 ) -> LogicalTensor:
     if request_state:
         role = TensorRole.OUTPUT
@@ -98,9 +96,8 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
-        compare=compare,
-        pytorch_probe=pytorch_probe,
         checkpoint_key=checkpoint_key,
+        reference_key=reference_key,
     )
 
 

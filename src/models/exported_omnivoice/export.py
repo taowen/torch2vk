@@ -23,6 +23,7 @@ from models.exported_omnivoice.custom_shaders import (
     OMNIVOICE_INPUT_EMBED_F32,
     OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
 )
+from models.exported_omnivoice.pytorch_modules import LlmForwardModule
 from models.hf_cache import resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
@@ -30,9 +31,11 @@ from torch2vk.export import (
     LayerLoopHint,
     export_submodule,
     generate_dispatch_function_source,
+    generate_reference_spec,
     generate_tensor_class_source,
 )
 from torch2vk.export.codegen import (
+    render_reference_specs_module,
     render_shader_file,
     render_simple_init,
     render_tensor_helpers,
@@ -42,6 +45,7 @@ from torch2vk.export.codegen_loop import (
     generate_looped_dispatch_function_source,
     generate_looped_tensor_class_sources,
 )
+from torch2vk.runtime.reference import ReferenceSpec
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
@@ -64,20 +68,6 @@ def _to_class_name(plan_name: str) -> str:
 
 def _render_template(name: str, **context: object) -> str:
     return _JINJA.get_template(name).render(**context)
-
-
-def _compare_extra_lines(plan_name: str, tensor_name: str) -> tuple[str, ...]:
-    if plan_name == "run_llm_forward" and tensor_name == "mul_365":
-        return (
-            'compare=ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),',
-            'pytorch_probe=PyTorchProbe(kind="module_output", target="llm", selector="last_hidden_state"),',
-        )
-    if plan_name == "run_audio_head" and tensor_name == "linear":
-        return (
-            'compare=ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),',
-            'pytorch_probe=PyTorchProbe(kind="module_output", target=""),',
-        )
-    return ()
 
 
 # ==============================================================
@@ -195,6 +185,10 @@ def main() -> int:
     shaders_dir.mkdir(exist_ok=True)
     tensors_dir = output_dir / "tensors"
     tensors_dir.mkdir(exist_ok=True)
+    reference_programs_dir = output_dir / "reference_programs"
+    reference_programs_dir.mkdir(exist_ok=True)
+    for f in reference_programs_dir.glob("*.pt2"):
+        f.unlink()
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
@@ -219,12 +213,70 @@ def main() -> int:
     tensor_sources: dict[str, list[str]] = {}
     tensor_file_classes: dict[str, list[str]] = {}
     dispatch_sources: list[str] = []
+    reference_specs = {}
+    reference_specs["input_embed"] = ReferenceSpec(
+        program=None,
+        input_bindings={
+            "input_ids": "batch_input_ids",
+            "audio_mask": "batch_audio_mask",
+        },
+        output_bindings={"hidden_states": "llm_forward.hidden_states"},
+    )
+    reference_specs["token_score"] = ReferenceSpec(
+        program=None,
+        input_bindings={
+            "logits": "audio_head.linear",
+            "tokens": "tokens",
+            "audio_mask_id": "audio_mask_id",
+            "rng_seed": "rng_seed",
+            "step_index": "step_index",
+        },
+        output_bindings={
+            "candidate_tokens": "candidate_tokens",
+            "candidate_scores": "candidate_scores",
+        },
+    )
+    reference_specs["token_update"] = ReferenceSpec(
+        program=None,
+        input_bindings={
+            "tokens": "tokens",
+            "batch_input_ids": "batch_input_ids",
+            "candidate_tokens": "candidate_tokens",
+            "candidate_scores": "candidate_scores",
+            "unmask_count": "unmask_count",
+        },
+        output_bindings={
+            "tokens": "tokens",
+            "batch_input_ids": "batch_input_ids",
+        },
+    )
 
-    def export_one(name, module, args, kwargs=None, weight_prefix="", layer_loop=None):
+    def export_one(
+        name,
+        module,
+        args,
+        kwargs=None,
+        weight_prefix="",
+        layer_loop=None,
+        save_reference_program=False,
+        reference_program=None,
+        reference_input_bindings=None,
+        reference_output_bindings=None,
+    ):
         prog = export_submodule(module, args=args, kwargs=kwargs)
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
         group = func_name
+        program = f"reference_programs/{func_name}.pt2" if save_reference_program else None
+        reference_prog = reference_program if reference_program is not None else prog
+        if program is not None:
+            torch.export.save(reference_prog, output_dir / program)
+        reference_specs[func_name] = generate_reference_spec(
+            reference_prog,
+            program=program,
+            input_bindings=reference_input_bindings,
+            output_bindings=reference_output_bindings,
+        )
 
         if layer_loop is not None:
             layer_cls_name = "LlmLayerTensors"
@@ -238,7 +290,6 @@ def main() -> int:
                 layer_function_name=layer_func_name,
                 weight_prefix=weight_prefix,
                 hint=layer_loop,
-                extra_lines_fn=lambda t: _compare_extra_lines(name, t),
             )
             tensor_sources.setdefault(group, []).append(layer_src)
             tensor_sources.setdefault(group, []).append(parent_src)
@@ -259,7 +310,6 @@ def main() -> int:
                 class_name=cls_name,
                 function_name=f"create_{func_name}",
                 weight_prefix=weight_prefix,
-                extra_lines_fn=lambda t: _compare_extra_lines(name, t),
             )
             tensor_sources.setdefault(group, []).append(tensor_src)
             tensor_file_classes.setdefault(group, []).append(cls_name)
@@ -317,25 +367,9 @@ def main() -> int:
     _orig_use_gqa = _sdpa_attn_mod.use_gqa_in_sdpa
     _sdpa_attn_mod.use_gqa_in_sdpa = lambda *a, **kw: True
 
-    class _LLMForward(torch.nn.Module):
-        def __init__(self, m):
-            super().__init__()
-            self.layers = m.llm.layers
-            self.norm = m.llm.norm
-
-        def forward(self, hidden_states, cos, sin, attention_mask):
-            position_embeddings = (cos, sin)
-            for layer in self.layers:
-                hidden_states = layer(
-                    hidden_states,
-                    attention_mask=attention_mask,
-                    position_embeddings=position_embeddings,
-                )
-            return self.norm(hidden_states)
-
     export_one(
         "run_llm_forward",
-        _LLMForward(model).float(),
+        LlmForwardModule(model).float(),
         args=(
             torch.zeros(B, S, H, device="cuda"),
             torch.zeros(B, S, D, device="cuda"),
@@ -344,16 +378,31 @@ def main() -> int:
         ),
         weight_prefix="llm.",
         layer_loop=LayerLoopHint(layer_prefix="layers", num_layers=num_layers),
+        reference_input_bindings={
+            "hidden_states": "llm_forward.hidden_states",
+            "attention_mask": "attention_mask",
+        },
+        reference_output_bindings={"mul_365": "llm_forward.mul_365"},
     )
 
     _sdpa_attn_mod.use_gqa_in_sdpa = _orig_use_gqa
 
     # --- Audio head ---
+    with torch.device("meta"):
+        reference_model = cast(OmniVoice, OmniVoice(config).float())  # pyright: ignore[reportCallIssue]
+    audio_head_reference_program = export_submodule(
+        reference_model.audio_heads.float(),
+        args=(torch.zeros(B, S, H, device="meta"),),
+    )
     export_one(
         "run_audio_head",
         model.audio_heads.float(),
         args=(torch.zeros(B, S, H, device="cuda"),),
         weight_prefix="audio_heads.",
+        save_reference_program=True,
+        reference_program=audio_head_reference_program,
+        reference_input_bindings={"input": "audio_head.input"},
+        reference_output_bindings={"linear": "audio_head.linear"},
     )
 
     # Write shaders/
@@ -404,6 +453,9 @@ def main() -> int:
     dispatch_source = _combine_dispatch(dispatch_sources, all_shader_imports, tensor_file_classes)
     (output_dir / "dispatch.py").write_text(dispatch_source)
     print(f"  dispatch.py written ({len(dispatch_sources)} functions)")
+
+    (output_dir / "reference_specs.py").write_text(render_reference_specs_module(reference_specs))
+    print(f"  reference_specs.py written ({len(reference_specs)} specs)")
 
     print("\nDone!")
     return 0
