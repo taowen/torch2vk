@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Sequence
 from typing import cast
 
 import numpy as np
 
+from models.exported_qwen3_asr.tensors.model import model_tensors
 from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
 from torch2vk.runtime.rope_table import run_rope_table_f32
@@ -118,7 +118,6 @@ from models.exported_qwen3_asr.tensors.decode_lm_head import DecodeLmHeadTensors
 from models.exported_qwen3_asr.tensors.decode_norm import DecodeNormTensors
 from models.exported_qwen3_asr.tensors.embed_tokens import EmbedTokensTensors
 from models.exported_qwen3_asr.tensors.lm_head import LmHeadTensors
-from models.exported_qwen3_asr.tensors.rope import RopeTableTensors
 from models.exported_qwen3_asr.tensors.text_layer import TextLayerTensors
 from models.exported_qwen3_asr.tensors.text_norm import TextNormTensors
 from torch2vk.runtime.logical import LogicalTensor
@@ -130,7 +129,7 @@ def shader_variant(shader_name: str) -> ShaderVariant:
     return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
 
 
-def run_audio_encoder(rt: RuntimeSession, tensors: AudioEncoderTensors) -> None:
+def _run_audio_encoder_with_tensors(rt: RuntimeSession, tensors: AudioEncoderTensors) -> None:
     EXPORT_CONV2D_F32(rt, x=tensors.x, weight=tensors.p_conv2d1_weight, bias=tensors.p_conv2d1_bias, output=tensors.conv2d)
     EXPORT_GELU_F32(rt, x=tensors.conv2d, output=tensors.gelu)
     EXPORT_CONV2D_F32_2(rt, x=tensors.gelu, weight=tensors.p_conv2d2_weight, bias=tensors.p_conv2d2_bias, output=tensors.conv2d_1)
@@ -176,16 +175,16 @@ def run_audio_encoder(rt: RuntimeSession, tensors: AudioEncoderTensors) -> None:
     EXPORT_LINEAR_BIAS_F32_125(rt, x=tensors.gelu_21, weight=tensors.p_proj2_weight, bias=tensors.p_proj2_bias, output=tensors.linear_110)
 
 
-def run_embed_tokens(rt: RuntimeSession, tensors: EmbedTokensTensors) -> None:
+def _run_embed_tokens_with_tensors(rt: RuntimeSession, tensors: EmbedTokensTensors) -> None:
     EXPORT_EMBEDDING_F32(rt, weight=tensors.p_weight, indices=tensors.input, output=tensors.embedding)
 
 
-def run_audio_inject(rt: RuntimeSession, tensors: AudioInjectTensors) -> None:
+def _run_audio_inject_with_tensors(rt: RuntimeSession, tensors: AudioInjectTensors) -> None:
     _alias(rt, tensors.audio_features, tensors.unsqueeze)
     EXPORT_INDEX_COPY_F32_7BA4F1FF13(rt, cache=tensors.index_copy, index=tensors.audio_positions, src=tensors.unsqueeze)
 
 
-def run_text_layer(rt: RuntimeSession, tensors: TextLayerTensors) -> None:
+def _run_text_layer_with_tensors(rt: RuntimeSession, tensors: TextLayerTensors) -> None:
     _alias(rt, tensors.hidden_states, tensors.to)
     EXPORT_POW_SCALAR_F32(rt, x=tensors.to, output=tensors.pow_1)
     EXPORT_MEAN_DIM_F32(rt, x=tensors.pow_1, output=tensors.mean)
@@ -259,7 +258,7 @@ def run_text_layer(rt: RuntimeSession, tensors: TextLayerTensors) -> None:
     EXPORT_ADD_F32_44(rt, x=tensors.to_6, y=tensors.linear_6, output=tensors.add_7)
 
 
-def run_text_norm(rt: RuntimeSession, tensors: TextNormTensors) -> None:
+def _run_text_norm_with_tensors(rt: RuntimeSession, tensors: TextNormTensors) -> None:
     _alias(rt, tensors.hidden_states, tensors.to)
     EXPORT_POW_SCALAR_F32(rt, x=tensors.to, output=tensors.pow_1)
     EXPORT_MEAN_DIM_F32(rt, x=tensors.pow_1, output=tensors.mean)
@@ -270,15 +269,15 @@ def run_text_norm(rt: RuntimeSession, tensors: TextNormTensors) -> None:
     EXPORT_MUL_LEFT_BROADCAST(rt, x=tensors.p_weight, y=tensors.to_1, output=tensors.mul_1)
 
 
-def run_lm_head(rt: RuntimeSession, tensors: LmHeadTensors) -> None:
+def _run_lm_head_with_tensors(rt: RuntimeSession, tensors: LmHeadTensors) -> None:
     LM_HEAD_EXPORT_LINEAR_NOBIAS_F32(rt, x=tensors.input, weight=tensors.p_weight, output=tensors.linear)
 
 
-def run_decode_embed(rt: RuntimeSession, tensors: DecodeEmbedTensors) -> None:
+def _run_decode_embed_with_tensors(rt: RuntimeSession, tensors: DecodeEmbedTensors) -> None:
     DECODE_EMBED_EXPORT_EMBEDDING_F32(rt, weight=tensors.p_weight, indices=tensors.input, output=tensors.embedding)
 
 
-def run_decode_layer(rt: RuntimeSession, tensors: DecodeLayerTensors) -> None:
+def _run_decode_layer_with_tensors(rt: RuntimeSession, tensors: DecodeLayerTensors) -> None:
     _alias(rt, tensors.hidden_states, tensors.to)
     EXPORT_POW_SCALAR_F32(rt, x=tensors.to, output=tensors.pow_1)
     DECODE_LAYER_EXPORT_MEAN_DIM_F32(rt, x=tensors.pow_1, output=tensors.mean)
@@ -351,7 +350,7 @@ def run_decode_layer(rt: RuntimeSession, tensors: DecodeLayerTensors) -> None:
     EXPORT_ADD_F32_44(rt, x=tensors.to_6, y=tensors.linear_6, output=tensors.add_7)
 
 
-def run_decode_norm(rt: RuntimeSession, tensors: DecodeNormTensors) -> None:
+def _run_decode_norm_with_tensors(rt: RuntimeSession, tensors: DecodeNormTensors) -> None:
     _alias(rt, tensors.hidden_states, tensors.to)
     EXPORT_POW_SCALAR_F32(rt, x=tensors.to, output=tensors.pow_1)
     DECODE_NORM_EXPORT_MEAN_DIM_F32(rt, x=tensors.pow_1, output=tensors.mean)
@@ -362,88 +361,122 @@ def run_decode_norm(rt: RuntimeSession, tensors: DecodeNormTensors) -> None:
     EXPORT_MUL_LEFT_BROADCAST(rt, x=tensors.p_weight, y=tensors.to_1, output=tensors.mul_1)
 
 
-def run_decode_lm_head(rt: RuntimeSession, tensors: DecodeLmHeadTensors) -> None:
+def _run_decode_lm_head_with_tensors(rt: RuntimeSession, tensors: DecodeLmHeadTensors) -> None:
     DECODE_LM_HEAD_EXPORT_LINEAR_NOBIAS_F32(rt, x=tensors.input, weight=tensors.p_weight, output=tensors.linear)
+
+
+def run_audio_encoder(rt: RuntimeSession) -> None:
+    _run_audio_encoder_with_tensors(rt, model_tensors().audio_encoder_t)
+
+
+def run_embed_tokens(rt: RuntimeSession) -> None:
+    _run_embed_tokens_with_tensors(rt, model_tensors().embed_tokens_t)
+
+
+def run_audio_inject(rt: RuntimeSession) -> None:
+    _run_audio_inject_with_tensors(rt, model_tensors().audio_inject_t)
+
+
+def run_text_layer(rt: RuntimeSession, layer_idx: int) -> None:
+    _run_text_layer_with_tensors(rt, model_tensors().text_layer_ts[layer_idx])
+
+
+def run_text_norm(rt: RuntimeSession) -> None:
+    _run_text_norm_with_tensors(rt, model_tensors().text_norm_t)
+
+
+def run_lm_head(rt: RuntimeSession) -> None:
+    _run_lm_head_with_tensors(rt, model_tensors().lm_head_t)
+
+
+def run_decode_embed(rt: RuntimeSession) -> None:
+    _run_decode_embed_with_tensors(rt, model_tensors().decode_embed_t)
+
+
+def run_decode_layer(rt: RuntimeSession, layer_idx: int) -> None:
+    _run_decode_layer_with_tensors(rt, model_tensors().decode_layer_ts[layer_idx])
+
+
+def run_decode_norm(rt: RuntimeSession) -> None:
+    _run_decode_norm_with_tensors(rt, model_tensors().decode_norm_t)
+
+
+def run_decode_lm_head(rt: RuntimeSession) -> None:
+    _run_decode_lm_head_with_tensors(rt, model_tensors().decode_lm_head_t)
 
 
 def run_rope_table(
     rt: RuntimeSession,
-    tensors: RopeTableTensors,
     *,
+    phase: str,
     frame_name: str,
 ) -> None:
+    tensors = model_tensors()
+    if phase == "prefill":
+        rope_t = tensors.prefill_rope_t
+    elif phase == "decode":
+        rope_t = tensors.decode_rope_t
+    else:
+        raise ValueError(f"unknown rope phase: {phase}")
     run_rope_table_f32(
         rt,
-        start_position=tensors.start_position,
-        theta=tensors.theta,
-        cos=tensors.cos,
-        sin=tensors.sin,
+        start_position=rope_t.start_position,
+        theta=rope_t.theta,
+        cos=rope_t.cos,
+        sin=rope_t.sin,
         frame_name=frame_name,
     )
 
 
 def decode_step_inputs(
     *,
-    decode_embed_t: DecodeEmbedTensors,
-    decode_layer_ts: Sequence[DecodeLayerTensors],
-    eos_token_ids: LogicalTensor,
-    token_index: LogicalTensor,
     token: int,
     cache_position: int,
     eos_token_array: np.ndarray,
     token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
-    if not decode_layer_ts:
+    tensors = model_tensors()
+    if not tensors.decode_layer_ts:
         raise ValueError("decode_layer_ts must not be empty")
     return {
-        decode_embed_t.input: np.array([[token]], dtype=np.int64),
-        decode_layer_ts[0].cache_position: np.array([cache_position], dtype=np.int64),
-        eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
-        token_index: np.array([token_index_value], dtype=np.int64),
+        tensors.decode_embed_t.input: np.array([[token]], dtype=np.int64),
+        tensors.decode_layer_ts[0].cache_position: np.array([cache_position], dtype=np.int64),
+        tensors.eos_token_ids_t: np.ascontiguousarray(eos_token_array, dtype=np.int64),
+        tensors.token_index_t: np.array([token_index_value], dtype=np.int64),
     }
 
 
 def run_decode_step(
     rt: RuntimeSession,
     *,
-    decode_embed_t: DecodeEmbedTensors,
-    decode_layer_ts: Sequence[DecodeLayerTensors],
-    decode_norm_t: DecodeNormTensors,
-    decode_lm_head_t: DecodeLmHeadTensors,
-    eos_token_ids: LogicalTensor,
-    next_token: LogicalTensor,
-    done: LogicalTensor,
-    token_index: LogicalTensor,
-    generated_tokens: LogicalTensor,
-    generated_length: LogicalTensor,
-    stopped: LogicalTensor,
     step: int,
 ) -> int:
-    if not decode_layer_ts:
+    tensors = model_tensors()
+    if not tensors.decode_layer_ts:
         raise ValueError("decode_layer_ts must not be empty")
     with rt.frame(f"spike.decode.{step:04d}"):
-        run_decode_embed(rt, decode_embed_t)
-        for layer_tensors in decode_layer_ts:
-            run_decode_layer(rt, layer_tensors)
-        run_decode_norm(rt, decode_norm_t)
-        run_decode_lm_head(rt, decode_lm_head_t)
+        run_decode_embed(rt)
+        for layer_idx in range(len(tensors.decode_layer_ts)):
+            run_decode_layer(rt, layer_idx)
+        run_decode_norm(rt)
+        run_decode_lm_head(rt)
         QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
             rt,
-            logits=decode_lm_head_t.linear,
-            eos_token_ids=eos_token_ids,
-            next_token=next_token,
-            done=done,
+            logits=tensors.decode_lm_head_t.linear,
+            eos_token_ids=tensors.eos_token_ids_t,
+            next_token=tensors.next_token_t,
+            done=tensors.done_t,
         )
         QWEN3_ASR_TOKEN_STORE_EOS_F32(
             rt,
-            next_token=next_token,
-            token_index=token_index,
-            done=done,
-            generated_tokens=generated_tokens,
-            generated_length=generated_length,
-            stopped=stopped,
+            next_token=tensors.next_token_t,
+            token_index=tensors.token_index_t,
+            done=tensors.done_t,
+            generated_tokens=tensors.generated_tokens_t,
+            generated_length=tensors.generated_length_t,
+            stopped=tensors.stopped_t,
         )
-    return int(rt.read_request_state(next_token).reshape(-1)[0])
+    return int(rt.read_request_state(tensors.next_token_t).reshape(-1)[0])
 
 
 def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:

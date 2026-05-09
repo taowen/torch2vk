@@ -32,25 +32,8 @@ from models.exported_qwen3_asr.export_forwards import (
     export_audio_tower_forward,
     patched_forward,
 )
-from models.exported_qwen3_asr.tensors import audio_encoder as audio_encoder_tensors
-from models.exported_qwen3_asr.tensors import audio_inject as audio_inject_tensors
-from models.exported_qwen3_asr.tensors import decode_embed as decode_embed_tensors
-from models.exported_qwen3_asr.tensors import decode_layer as decode_layer_tensors
-from models.exported_qwen3_asr.tensors import decode_lm_head as decode_lm_head_tensors
-from models.exported_qwen3_asr.tensors import decode_norm as decode_norm_tensors
-from models.exported_qwen3_asr.tensors import embed_tokens as embed_tokens_tensors
-from models.exported_qwen3_asr.tensors import lm_head as lm_head_tensors
-from models.exported_qwen3_asr.tensors import rope as rope_tensors
-from models.exported_qwen3_asr.tensors import text_layer as text_layer_tensors
-from models.exported_qwen3_asr.tensors import text_norm as text_norm_tensors
-from torch2vk.runtime.logical import (
-    LogicalTensor,
-    MemoryClass,
-    TensorLifetime,
-    TensorRole,
-    TensorSemantic,
-    TensorSpec,
-)
+from models.exported_qwen3_asr.tensors.model import create_model_tensors, model_tensors
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
 from torch2vk.runtime.session import RuntimeSession
 
@@ -58,43 +41,6 @@ from torch2vk.runtime.session import RuntimeSession
 def _require_gpu_output(tensor: LogicalTensor) -> None:
     if tensor.buffer is None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
-
-
-def _host_input_tensor(name: str, dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype=dtype, shape=shape),
-        role=TensorRole.INPUT,
-        memory=MemoryClass.HOST_INPUT,
-        lifetime=TensorLifetime.FRAME,
-    )
-
-
-def _request_output_tensor(name: str, dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype=dtype, shape=shape),
-        role=TensorRole.OUTPUT,
-        memory=MemoryClass.REQUEST_STATE,
-        lifetime=TensorLifetime.REQUEST,
-    )
-
-
-def _request_state_tensor(
-    name: str,
-    dtype: str,
-    shape: tuple[int, ...],
-    *,
-    semantic: TensorSemantic | None = None,
-) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype=dtype, shape=shape),
-        role=TensorRole.STATE,
-        memory=MemoryClass.REQUEST_STATE,
-        lifetime=TensorLifetime.REQUEST,
-        semantic=semantic,
-    )
 
 
 def _run_token_select(
@@ -395,152 +341,21 @@ def main(
 
     # === Create all tensor objects upfront ===
     print("Declaring tensors...")
-
-    input_ids_t = _host_input_tensor(
-        "spike.text.prefill.input_ids",
-        "int64",
-        tuple(int(dim) for dim in prepared.input_ids.shape),
-    )
-    attention_mask_t = _host_input_tensor(
-        "spike.text.prefill.attention_mask",
-        "int64",
-        tuple(int(dim) for dim in prepared.attention_mask.shape),
-    )
-    input_features_t = _host_input_tensor(
-        "spike.text.prefill.input_features",
-        "float32",
-        tuple(int(dim) for dim in prepared.input_features.shape),
-    )
-    feature_attention_mask_t = _host_input_tensor(
-        "spike.text.prefill.feature_attention_mask",
-        "int64",
-        tuple(int(dim) for dim in prepared.feature_attention_mask.shape),
-    )
-    position_ids_t = _host_input_tensor(
-        "spike.text.prefill.position_ids",
-        "int64",
-        (3, 1, prompt_length),
-    )
-
-    # Audio encoder (conv + layers + proj as single dispatch)
-    audio_encoder_t = audio_encoder_tensors.create_audio_encoder(
-        "spike.audio",
-        request_state_outputs={audio_encoder_tensors.AUDIO_ENCODER_OUTPUT},
-    )
-
-    # Text (non-layered)
-    embed_tokens_t = embed_tokens_tensors.create_embed_tokens(
-        "spike.text.embed",
-        input=input_ids_t,
-    )
-    audio_inject_t = audio_inject_tensors.create_audio_inject(
-        "spike.text.audio_inject",
-        audio_features=audio_encoder_t.linear_110,
-        index_copy=embed_tokens_t.embedding,
-    )
-    key_caches = tuple(
-        _request_state_tensor(
-            f"spike.text.layers.{layer_idx}.key_cache",
-            "float32",
-            (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
-            semantic=TensorSemantic.KV_CACHE,
-        )
-        for layer_idx in range(tc.num_hidden_layers)
-    )
-    value_caches = tuple(
-        _request_state_tensor(
-            f"spike.text.layers.{layer_idx}.value_cache",
-            "float32",
-            (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
-            semantic=TensorSemantic.KV_CACHE,
-        )
-        for layer_idx in range(tc.num_hidden_layers)
-    )
-    prefill_rope_t = rope_tensors.create_rope_table(
-        "spike.text.prefill.rope",
-        batch=1,
-        sequence_length=prompt_length,
+    eos_token_ids = (151645, 151643)
+    create_model_tensors(
+        input_ids_shape=tuple(int(dim) for dim in prepared.input_ids.shape),
+        attention_mask_shape=tuple(int(dim) for dim in prepared.attention_mask.shape),
+        input_features_shape=tuple(int(dim) for dim in prepared.input_features.shape),
+        feature_attention_mask_shape=tuple(
+            int(dim) for dim in prepared.feature_attention_mask.shape
+        ),
+        prompt_length=prompt_length,
+        max_sequence_length=max_sequence_length,
+        num_hidden_layers=tc.num_hidden_layers,
+        num_key_value_heads=tc.num_key_value_heads,
         head_dim=tc.head_dim,
-    )
-    decode_rope_t = rope_tensors.create_rope_table(
-        "spike.decode.rope",
-        batch=1,
-        sequence_length=1,
-        head_dim=tc.head_dim,
-    )
-
-    # Text layers (layered)
-    text_layer_ts = []
-    text_hidden = audio_inject_t.index_copy
-    for layer_idx in range(tc.num_hidden_layers):
-        layer_tensors = text_layer_tensors.create_text_layer(
-            f"spike.text.layer.{layer_idx}",
-            layer_idx=layer_idx,
-            hidden_states=text_hidden,
-            index_copy=key_caches[layer_idx],
-            index_copy_1=value_caches[layer_idx],
-            position_embeddings_0=prefill_rope_t.cos,
-            position_embeddings_1=prefill_rope_t.sin,
-            cache_position=text_layer_ts[0].cache_position if layer_idx > 0 else None,
-        )
-        text_layer_ts.append(layer_tensors)
-        text_hidden = layer_tensors.add_7
-    text_norm_t = text_norm_tensors.create_text_norm(
-        "spike.text.norm",
-        hidden_states=text_layer_ts[-1].add_7,
-    )
-    lm_head_t = lm_head_tensors.create_lm_head(
-        "spike.text.lm_head",
-        input=text_norm_t.mul_1,
-        request_state_outputs={lm_head_tensors.LM_HEAD_OUTPUT},
-    )
-
-    # Decode (non-layered, reuse for all decode steps)
-    decode_embed_t = decode_embed_tensors.create_decode_embed(
-        "spike.decode.embed",
-        p_weight=embed_tokens_t.p_weight,
-    )
-
-    # Decode layers (layered)
-    decode_layer_ts = []
-    decode_hidden = decode_embed_t.embedding
-    for layer_idx in range(tc.num_hidden_layers):
-        prefill_layer_tensors = text_layer_ts[layer_idx]
-        layer_tensors = decode_layer_tensors.create_decode_layer(
-            f"spike.decode.layer.{layer_idx}",
-            layer_idx=layer_idx,
-            p_input_layernorm_weight=prefill_layer_tensors.p_input_layernorm_weight,
-            p_post_attention_layernorm_weight=(
-                prefill_layer_tensors.p_post_attention_layernorm_weight
-            ),
-            p_attn_q_proj_weight=prefill_layer_tensors.p_attn_q_proj_weight,
-            p_attn_k_proj_weight=prefill_layer_tensors.p_attn_k_proj_weight,
-            p_attn_v_proj_weight=prefill_layer_tensors.p_attn_v_proj_weight,
-            p_attn_o_proj_weight=prefill_layer_tensors.p_attn_o_proj_weight,
-            p_attn_q_norm_weight=prefill_layer_tensors.p_attn_q_norm_weight,
-            p_attn_k_norm_weight=prefill_layer_tensors.p_attn_k_norm_weight,
-            p_mlp_gate_proj_weight=prefill_layer_tensors.p_mlp_gate_proj_weight,
-            p_mlp_up_proj_weight=prefill_layer_tensors.p_mlp_up_proj_weight,
-            p_mlp_down_proj_weight=prefill_layer_tensors.p_mlp_down_proj_weight,
-            hidden_states=decode_hidden,
-            index_copy=key_caches[layer_idx],
-            index_copy_1=value_caches[layer_idx],
-            position_embeddings_0=decode_rope_t.cos,
-            position_embeddings_1=decode_rope_t.sin,
-            cache_position=decode_layer_ts[0].cache_position if layer_idx > 0 else None,
-        )
-        decode_layer_ts.append(layer_tensors)
-        decode_hidden = layer_tensors.add_7
-    decode_norm_t = decode_norm_tensors.create_decode_norm(
-        "spike.decode.norm",
-        p_weight=text_norm_t.p_weight,
-        hidden_states=decode_layer_ts[-1].add_7,
-    )
-    decode_lm_head_t = decode_lm_head_tensors.create_decode_lm_head(
-        "spike.decode.lm_head",
-        p_weight=lm_head_t.p_weight,
-        input=decode_norm_t.mul_1,
-        request_state_outputs={decode_lm_head_tensors.DECODE_LM_HEAD_OUTPUT},
+        max_new_tokens=max_new_tokens,
+        eos_token_count=len(eos_token_ids),
     )
 
     zero_cache = np.zeros(
@@ -548,7 +363,7 @@ def main(
         dtype=np.float32,
     )
     rt.initialize_request_state(
-        {cache: zero_cache for cache in key_caches + value_caches}
+        {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
     )
 
     # === Audio Tower ===
@@ -557,30 +372,31 @@ def main(
         prepared.input_ids,
         prepared.input_features,
         prepared.feature_attention_mask,
-        position_embedding_shape=tuple(int(dim) for dim in audio_encoder_t.position_embedding.spec.shape),
+        position_embedding_shape=tuple(
+            int(dim) for dim in model_tensors().audio_encoder_t.position_embedding.spec.shape
+        ),
         d_model=ac.d_model,
     )
-    print(f"  hidden_states after compact: {audio_encoder_t.index_select.spec.shape}")
-    print(f"  audio encoder ({audio_encoder_t.x.spec.shape})...")
+    print(f"  hidden_states after compact: {model_tensors().audio_encoder_t.index_select.spec.shape}")
+    print(f"  audio encoder ({model_tensors().audio_encoder_t.x.spec.shape})...")
     rt._inputs.clear()
     rt.register_inputs(
         {
-            audio_encoder_t.x: preprocessed["padded_feature"],
-            audio_encoder_t.position_embedding: preprocessed["position_embedding"],
-            audio_encoder_t.compact_index: preprocessed["compact_index"],
-            audio_encoder_t.attention_mask: preprocessed["audio_attention_mask"],
+            model_tensors().audio_encoder_t.x: preprocessed["padded_feature"],
+            model_tensors().audio_encoder_t.position_embedding: preprocessed["position_embedding"],
+            model_tensors().audio_encoder_t.compact_index: preprocessed["compact_index"],
+            model_tensors().audio_encoder_t.attention_mask: preprocessed["audio_attention_mask"],
         }
     )
     if pytorch_audio_tower is not None:
         with patched_forward(pytorch_audio_tower, export_audio_tower_forward):
             with rt.frame("spike.audio", pytorch_model=pytorch_audio_tower):
-                dispatch.run_audio_encoder(rt, audio_encoder_t)
+                dispatch.run_audio_encoder(rt)
     else:
         with rt.frame("spike.audio"):
-            dispatch.run_audio_encoder(rt, audio_encoder_t)
-    audio_hidden_t = audio_encoder_t.linear_110
-    _require_gpu_output(audio_hidden_t)
-    print(f"  Audio tower output: {audio_hidden_t.spec.shape}")
+            dispatch.run_audio_encoder(rt)
+    _require_gpu_output(model_tensors().audio_encoder_t.linear_110)
+    print(f"  Audio tower output: {model_tensors().audio_encoder_t.linear_110.spec.shape}")
 
     # === Text Prefill ===
     print("\n=== Phase 2: Text Prefill ===")
@@ -595,13 +411,13 @@ def main(
     rt._inputs.clear()
     rt.register_inputs(
         {
-            prefill_rope_t.start_position: np.array([0], dtype=np.int64),
-            prefill_rope_t.theta: np.array([rope_theta], dtype=np.float32),
+            model_tensors().prefill_rope_t.start_position: np.array([0], dtype=np.int64),
+            model_tensors().prefill_rope_t.theta: np.array([rope_theta], dtype=np.float32),
         }
     )
     dispatch.run_rope_table(
         rt,
-        prefill_rope_t,
+        phase="prefill",
         frame_name="spike.text.prefill_rope",
     )
 
@@ -627,93 +443,74 @@ def main(
         with prefill_frame_scope:
             rt.register_inputs(
                 {
-                    input_ids_t: np.ascontiguousarray(prepared.input_ids, dtype=np.int64),
-                    attention_mask_t: np.ascontiguousarray(prepared.attention_mask, dtype=np.int64),
-                    input_features_t: np.ascontiguousarray(
+                    model_tensors().input_ids_t: np.ascontiguousarray(
+                        prepared.input_ids,
+                        dtype=np.int64,
+                    ),
+                    model_tensors().attention_mask_t: np.ascontiguousarray(
+                        prepared.attention_mask,
+                        dtype=np.int64,
+                    ),
+                    model_tensors().input_features_t: np.ascontiguousarray(
                         prepared.input_features,
                         dtype=np.float32,
                     ),
-                    feature_attention_mask_t: np.ascontiguousarray(
+                    model_tensors().feature_attention_mask_t: np.ascontiguousarray(
                         prepared.feature_attention_mask,
                         dtype=np.int64,
                     ),
-                    position_ids_t: np.broadcast_to(
+                    model_tensors().position_ids_t: np.broadcast_to(
                         np.arange(prompt_length, dtype=np.int64)[None, None, :],
                         (3, 1, prompt_length),
                     ).copy(),
-                    audio_inject_t.audio_positions: preprocessed["audio_positions"],
-                    text_layer_ts[0].cache_position: np.arange(prompt_length, dtype=np.int64),
+                    model_tensors().audio_inject_t.audio_positions: preprocessed["audio_positions"],
+                    model_tensors().text_layer_ts[0].cache_position: np.arange(
+                        prompt_length,
+                        dtype=np.int64,
+                    ),
                 }
             )
-            dispatch.run_embed_tokens(rt, embed_tokens_t)
-            dispatch.run_audio_inject(rt, audio_inject_t)
-            for layer_idx, layer_tensors in enumerate(text_layer_ts):
-                dispatch.run_text_layer(rt, layer_tensors)
+            dispatch.run_embed_tokens(rt)
+            dispatch.run_audio_inject(rt)
+            for layer_idx in range(len(model_tensors().text_layer_ts)):
+                dispatch.run_text_layer(rt, layer_idx)
                 if layer_idx % 7 == 6:
                     print(f"    layer {layer_idx} done")
-            dispatch.run_text_norm(rt, text_norm_t)
-            dispatch.run_lm_head(rt, lm_head_t)
+            dispatch.run_text_norm(rt)
+            dispatch.run_lm_head(rt)
 
     print("  lm_head + token_select...")
-    logits_t = lm_head_t.linear
-    _require_gpu_output(logits_t)
+    _require_gpu_output(model_tensors().lm_head_t.linear)
 
-    eos_token_ids = (151645, 151643)
     eos_token_array = np.array(eos_token_ids, dtype=np.int64)
-    eos_token_ids_t = _host_input_tensor(
-        "spike.token_select.eos_token_ids",
-        "int64",
-        (len(eos_token_ids),),
-    )
-    next_token_t = _request_output_tensor("spike.token_select.next_token", "int64", (1,))
-    done_t = _request_output_tensor("spike.token_select.done", "uint32", (1,))
-    generated_tokens_t = _request_state_tensor(
-        "spike.token_select.generated_tokens",
-        "int64",
-        (1, max_new_tokens),
-        semantic=TensorSemantic.TOKEN,
-    )
-    generated_length_t = _request_state_tensor(
-        "spike.token_select.generated_length",
-        "uint32",
-        (1,),
-        semantic=TensorSemantic.TOKEN,
-    )
-    stopped_t = _request_state_tensor(
-        "spike.token_select.stopped",
-        "uint32",
-        (1,),
-        semantic=TensorSemantic.TOKEN,
-    )
-    token_index_t = _host_input_tensor("spike.token_select.token_index", "int64", (1,))
     rt.initialize_request_state(
         {
-            generated_tokens_t: np.zeros((1, max_new_tokens), dtype=np.int64),
-            generated_length_t: np.zeros((1,), dtype=np.uint32),
-            stopped_t: np.zeros((1,), dtype=np.uint32),
+            model_tensors().generated_tokens_t: np.zeros((1, max_new_tokens), dtype=np.int64),
+            model_tensors().generated_length_t: np.zeros((1,), dtype=np.uint32),
+            model_tensors().stopped_t: np.zeros((1,), dtype=np.uint32),
         }
     )
-    rt.register_inputs({eos_token_ids_t: eos_token_array})
+    rt.register_inputs({model_tensors().eos_token_ids_t: eos_token_array})
     _run_token_select(
         rt,
-        logits=logits_t,
-        eos_token_ids=eos_token_ids_t,
-        next_token=next_token_t,
-        done=done_t,
+        logits=model_tensors().lm_head_t.linear,
+        eos_token_ids=model_tensors().eos_token_ids_t,
+        next_token=model_tensors().next_token_t,
+        done=model_tensors().done_t,
         frame_name="spike.text.token_select",
     )
-    rt.register_inputs({token_index_t: np.array([0], dtype=np.int64)})
+    rt.register_inputs({model_tensors().token_index_t: np.array([0], dtype=np.int64)})
     _run_token_store(
         rt,
-        next_token=next_token_t,
-        token_index=token_index_t,
-        done=done_t,
-        generated_tokens=generated_tokens_t,
-        generated_length=generated_length_t,
-        stopped=stopped_t,
+        next_token=model_tensors().next_token_t,
+        token_index=model_tensors().token_index_t,
+        done=model_tensors().done_t,
+        generated_tokens=model_tensors().generated_tokens_t,
+        generated_length=model_tensors().generated_length_t,
+        stopped=model_tensors().stopped_t,
         frame_name="spike.text.token_store",
     )
-    first_token = _read_selected_token(rt, next_token_t)
+    first_token = _read_selected_token(rt, model_tensors().next_token_t)
     print(f"  First token: {first_token}")
 
     # === Decode Loop ===
@@ -721,19 +518,7 @@ def main(
     eos_token_set = set(eos_token_ids)
     generated_tokens = [first_token]
     decode_replay_plan: ReplayPlan | None = None
-    decode_tensors_by_name = _collect_tensors_by_name(
-        decode_embed_t,
-        decode_layer_ts,
-        decode_norm_t,
-        decode_lm_head_t,
-        eos_token_ids_t,
-        next_token_t,
-        done_t,
-        generated_tokens_t,
-        generated_length_t,
-        stopped_t,
-        token_index_t,
-    )
+    decode_tensors_by_name = _collect_tensors_by_name(model_tensors())
 
     # Memory sampling
     memory_trace: list[tuple[int, float, float, float]] = []
@@ -751,21 +536,23 @@ def main(
 
         rt.register_inputs(
             {
-                decode_rope_t.start_position: np.array([cache_pos], dtype=np.int64),
-                decode_rope_t.theta: np.array([rope_theta], dtype=np.float32),
+                model_tensors().decode_rope_t.start_position: np.array(
+                    [cache_pos],
+                    dtype=np.int64,
+                ),
+                model_tensors().decode_rope_t.theta: np.array(
+                    [rope_theta],
+                    dtype=np.float32,
+                ),
             }
         )
         dispatch.run_rope_table(
             rt,
-            decode_rope_t,
+            phase="decode",
             frame_name=f"spike.decode.rope.{step:04d}",
         )
 
         decode_step_inputs = dispatch.decode_step_inputs(
-            decode_embed_t=decode_embed_t,
-            decode_layer_ts=decode_layer_ts,
-            eos_token_ids=eos_token_ids_t,
-            token_index=token_index_t,
             token=generated_tokens[-1],
             cache_position=cache_pos,
             eos_token_array=eos_token_array,
@@ -776,17 +563,6 @@ def main(
             rt.register_inputs(decode_step_inputs)
             next_token = dispatch.run_decode_step(
                 rt,
-                decode_embed_t=decode_embed_t,
-                decode_layer_ts=decode_layer_ts,
-                decode_norm_t=decode_norm_t,
-                decode_lm_head_t=decode_lm_head_t,
-                eos_token_ids=eos_token_ids_t,
-                next_token=next_token_t,
-                done=done_t,
-                token_index=token_index_t,
-                generated_tokens=generated_tokens_t,
-                generated_length=generated_length_t,
-                stopped=stopped_t,
                 step=step,
             )
             generated_tokens.append(next_token)
@@ -797,8 +573,8 @@ def main(
                     dispatch_start=dispatch_start,
                     dispatch_end=dispatch_end,
                     tensors_by_name=decode_tensors_by_name,
-                    token_feedback_source=next_token_t,
-                    token_feedback_target=decode_embed_t.input,
+                    token_feedback_source=model_tensors().next_token_t,
+                    token_feedback_target=model_tensors().decode_embed_t.input,
                 )
         else:
             stage_replay_step_inputs(
@@ -806,7 +582,10 @@ def main(
                 plan=decode_replay_plan,
                 tensors_by_name=decode_tensors_by_name,
                 inputs=decode_step_inputs,
-                write_through=(decode_layer_ts[0].cache_position, token_index_t),
+                write_through=(
+                    model_tensors().decode_layer_ts[0].cache_position,
+                    model_tensors().token_index_t,
+                ),
             )
             execute_replay(decode_replay_plan)
 
@@ -849,10 +628,12 @@ def main(
 
     # Decode text
     print("\n=== Result ===")
-    stored_length = int(rt.read_request_state(generated_length_t).reshape(-1)[0])
+    stored_length = int(rt.read_request_state(model_tensors().generated_length_t).reshape(-1)[0])
     generated_tokens = [
         int(token)
-        for token in rt.read_request_state(generated_tokens_t).reshape(-1)[:stored_length]
+        for token in rt.read_request_state(model_tensors().generated_tokens_t).reshape(-1)[
+            :stored_length
+        ]
     ]
     print(f"Generated {len(generated_tokens)} tokens")
     text = processor.batch_decode(
