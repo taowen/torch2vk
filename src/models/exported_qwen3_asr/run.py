@@ -29,10 +29,10 @@ from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
 from models.exported_qwen3_asr import dispatch, reference_specs
 from models.exported_qwen3_asr.debug_audio_tower import (
+    AudioInjectModule,
     DebugAudioTower,
     preprocess_audio_inputs,
 )
-from models.exported_qwen3_asr.export_forwards import export_audio_inject_forward
 from models.exported_qwen3_asr.shaders import model_shaders
 from models.exported_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.compare import as_numpy_array
@@ -74,14 +74,13 @@ class _AudioEncoderReference:
 
 class _AudioInjectReference:
     def __init__(self, thinker: nn.Module) -> None:
-        self.thinker = thinker
+        self.audio_inject = AudioInjectModule().cuda().eval()
         self.embed_tokens = cast(nn.Module, thinker.get_submodule("model.embed_tokens"))
 
     def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
         with torch.no_grad():
             inputs_embeds = self.embed_tokens(_torch_tensor(inputs, "input_ids").long())
-            output = export_audio_inject_forward(
-                self.thinker,
+            output = self.audio_inject(
                 inputs_embeds,
                 _torch_tensor(inputs, "audio_positions").long(),
                 _torch_tensor(inputs, "audio_features").float(),

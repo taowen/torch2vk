@@ -18,11 +18,7 @@ import numpy as np
 import torch
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from models.exported_qwen3_asr.debug_audio_tower import DebugAudioTower
-from models.exported_qwen3_asr.export_forwards import (
-    export_audio_inject_forward,
-    patched_forward,
-)
+from models.exported_qwen3_asr.debug_audio_tower import AudioInjectModule, DebugAudioTower
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
@@ -430,16 +426,15 @@ def main() -> int:
                args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.",
                save_reference_program=True)
-    with patched_forward(model.thinker, export_audio_inject_forward):
-        export_one("run_audio_inject", model.thinker,
-                   args=(torch.zeros(1, pl, hs, device="meta"),
-                         torch.zeros(enc_seq, dtype=torch.long, device="meta"),
-                         torch.zeros(enc_seq, hs, device="meta")),
-                   reference_input_bindings={
-                       "audio_positions": "audio_positions",
-                       "audio_features": "audio_features",
-                   },
-                   reference_output_bindings={"embedding": "index_copy"})
+    export_one("run_audio_inject", AudioInjectModule(),
+               args=(torch.zeros(1, pl, hs, device="meta"),
+                     torch.zeros(enc_seq, dtype=torch.long, device="meta"),
+                     torch.zeros(enc_seq, hs, device="meta")),
+               reference_input_bindings={
+                   "audio_positions": "audio_positions",
+                   "audio_features": "audio_features",
+               },
+               reference_output_bindings={"embedding": "index_copy"})
     export_one("run_text_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, pl, hs, device="meta"),
                      (torch.zeros(1, pl, hd, device="meta"),
