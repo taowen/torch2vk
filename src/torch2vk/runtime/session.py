@@ -182,6 +182,7 @@ class RuntimeSession:
         context = FrameContext(
             frame=name,
             start_dispatch_index=len(self._dispatch_records),
+            end_dispatch_index=len(self._dispatch_records),
             pytorch_model=pytorch_model,
             pytorch_cache_policy=cache_policy,
             pytorch_cache_namespace=pytorch_cache_namespace,
@@ -191,6 +192,7 @@ class RuntimeSession:
         candidate_completed = False
         try:
             yield context
+            context.end_dispatch_index = len(self._dispatch_records)
             candidate_completed = True
         finally:
             try:
@@ -235,22 +237,16 @@ class RuntimeSession:
         self,
         *,
         name: str,
-        frame_dispatch_records: Sequence[DispatchRecord],
-        dynamic_symbol_names: tuple[str, ...] = (),
+        frame: str,
         readback_tensors: Mapping[str, LogicalTensor] | None = None,
-        token_feedback_source: LogicalTensor | None = None,
-        token_feedback_target: LogicalTensor | None = None,
     ) -> "ReplayPlan":
         from torch2vk.runtime.replay_builder import build_replay_plan
 
         return build_replay_plan(
             self,
             name=name,
-            frame_dispatch_records=frame_dispatch_records,
-            dynamic_symbol_names=dynamic_symbol_names,
+            frame=frame,
             readback_tensors=readback_tensors,
-            token_feedback_source=token_feedback_source,
-            token_feedback_target=token_feedback_target,
         )
 
     def rebind_replay_plan(

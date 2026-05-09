@@ -128,18 +128,18 @@ layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
 layout(set = 0, binding = 3) buffer restrict readonly MaskBuffer { float mask[]; };
 layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint B; uint NH; uint NK; uint T; uint S; uint D; } pc;
-layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 const float NEG_INF = -3.4028234663852886e38;
-
-shared float subgroup_dot[2];
 
 void main() {
     const uint batch_head = gl_WorkGroupID.x;
     const uint row = gl_WorkGroupID.y;
-    const uint dim = gl_LocalInvocationID.x;
+    const uint dim0 = gl_LocalInvocationID.x;
+    const uint dim1 = dim0 + 64u;
     if (batch_head >= pc.B * pc.NH || row >= pc.T) { return; }
-    const bool valid_dim = dim < pc.D;
+    const bool valid0 = dim0 < pc.D;
+    const bool valid1 = dim1 < pc.D;
 
     const uint batch = batch_head / pc.NH;
     const uint head = batch_head % pc.NH;
@@ -148,41 +148,43 @@ void main() {
     const uint k_base = (batch * pc.NK + kv_head) * pc.S * pc.D;
     const uint v_base = k_base;
     const uint mask_base = batch * pc.T * pc.S;
-    const float q_value = valid_dim ? q[q_base + row * pc.D + dim] : 0.0;
+    const uint q_row_base = q_base + row * pc.D;
+    const float q0 = valid0 ? q[q_row_base + dim0] : 0.0;
+    const float q1 = valid1 ? q[q_row_base + dim1] : 0.0;
     const float scale = inversesqrt(float(pc.D));
 
     float running_max = NEG_INF;
     float running_sum = 0.0;
-    float acc = 0.0;
+    float acc0 = 0.0;
+    float acc1 = 0.0;
 
     for (uint col = 0u; col < pc.S; ++col) {
-        const float k_value = valid_dim ? k[k_base + col * pc.D + dim] : 0.0;
-        const float v_value = valid_dim ? v[v_base + col * pc.D + dim] : 0.0;
-        const float dot_part = valid_dim ? q_value * k_value : 0.0;
-        const float dot_sum = subgroupAdd(dot_part);
-        if (gl_SubgroupInvocationID == 0u) {
-            subgroup_dot[dim / gl_SubgroupSize] = dot_sum;
+        const uint kv_offset = col * pc.D;
+        const float k0 = valid0 ? k[k_base + kv_offset + dim0] : 0.0;
+        const float k1 = valid1 ? k[k_base + kv_offset + dim1] : 0.0;
+        const float dot = subgroupAdd(q0 * k0 + q1 * k1);
+        const float score = dot * scale + mask[mask_base + row * pc.S + col];
+        const float next_max = max(running_max, score);
+        const float old_scale = running_max == NEG_INF ? 0.0 : exp(running_max - next_max);
+        const float score_scale = exp(score - next_max);
+        if (valid0) {
+            acc0 = acc0 * old_scale + score_scale * v[v_base + kv_offset + dim0];
         }
-        barrier();
-
-        if (valid_dim) {
-            float dot = 0.0;
-            for (uint i = 0u; i < (pc.D + gl_SubgroupSize - 1u) / gl_SubgroupSize; ++i) {
-                dot += subgroup_dot[i];
-            }
-            const float score = dot * scale + mask[mask_base + row * pc.S + col];
-            const float next_max = max(running_max, score);
-            const float old_scale = running_max == NEG_INF ? 0.0 : exp(running_max - next_max);
-            const float score_scale = exp(score - next_max);
-            acc = acc * old_scale + score_scale * v_value;
-            running_sum = running_sum * old_scale + score_scale;
-            running_max = next_max;
+        if (valid1) {
+            acc1 = acc1 * old_scale + score_scale * v[v_base + kv_offset + dim1];
         }
-        barrier();
+        running_sum = running_sum * old_scale + score_scale;
+        running_max = next_max;
     }
 
-    if (valid_dim && running_sum > 0.0) {
-        output_values[(batch * pc.NH + head) * pc.T * pc.D + row * pc.D + dim] = acc / running_sum;
+    if (running_sum > 0.0) {
+        const uint output_base = (batch * pc.NH + head) * pc.T * pc.D + row * pc.D;
+        if (valid0) {
+            output_values[output_base + dim0] = acc0 / running_sum;
+        }
+        if (valid1) {
+            output_values[output_base + dim1] = acc1 / running_sum;
+        }
     }
 }
 """

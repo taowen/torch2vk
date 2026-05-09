@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 import numpy as np
 
 from models.exported_qwen3_asr.tensors.model import model_tensors
@@ -379,7 +378,6 @@ def run_rope_table(
 
 def decode_step_inputs(
     *,
-    token: int,
     cache_position: int,
     eos_token_array: np.ndarray,
     token_index_value: int,
@@ -388,7 +386,6 @@ def decode_step_inputs(
     if not tensors.decode_layers:
         raise ValueError("decode_layers must not be empty")
     return {
-        tensors.decode_embed.input: np.array([[token]], dtype=np.int64),
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
         tensors.eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
         tensors.token_index: np.array([token_index_value], dtype=np.int64),

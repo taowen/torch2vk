@@ -103,13 +103,11 @@ def _generation_step_inputs(step: int, unmask_count: int) -> dict[LogicalTensor,
 def _build_generation_replay_plan(
     rt: RuntimeSession,
     *,
-    dispatch_start: int,
-    dispatch_end: int,
+    frame: str,
 ) -> ReplayPlan:
-    warmup_records = rt.dispatch_records[dispatch_start:dispatch_end]
     plan = rt.build_replay_plan(
         name="exported_omnivoice_generation_step",
-        frame_dispatch_records=list(warmup_records),
+        frame=frame,
     )
     if plan.readback_slots:
         raise RuntimeError("OmniVoice generation replay must not use readback slots")
@@ -277,15 +275,12 @@ def main(
 
         step_inputs = _generation_step_inputs(step, k)
         if generation_replay_plan is None:
-            dispatch_start = len(rt.dispatch_records)
             rt.register_inputs(step_inputs)
             dispatch.run_generation_step(rt, step=step, pytorch_model=debug_step)
-            dispatch_end = len(rt.dispatch_records)
             if use_replay:
                 generation_replay_plan = _build_generation_replay_plan(
                     rt,
-                    dispatch_start=dispatch_start,
-                    dispatch_end=dispatch_end,
+                    frame=f"omnivoice.step.{step:04d}",
                 )
         else:
             stage_replay_step_inputs(

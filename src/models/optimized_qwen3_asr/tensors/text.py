@@ -244,7 +244,7 @@ def declare_qwen3_asr_text_tensors(
             "int64", (len(eos_token_ids),)
         ),
         next_token=LogicalTensor(
-            spec=TensorSpec(dtype="int64", shape=(1,)),
+            spec=TensorSpec(dtype="int64", shape=(1, 1)),
             role=TensorRole.OUTPUT,
             memory=MemoryClass.REQUEST_STATE,
             lifetime=TensorLifetime.REQUEST,

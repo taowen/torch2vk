@@ -12,6 +12,7 @@ from torch2vk.runtime.logical import LogicalTensor
 class FrameContext:
     frame: str
     start_dispatch_index: int
+    end_dispatch_index: int
     pytorch_model: object | None = None
     pytorch_cache_policy: Literal["none", "hf_dynamic"] = "none"
     pytorch_cache_namespace: str | None = None

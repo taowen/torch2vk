@@ -552,25 +552,25 @@ def run_qwen3_asr_replay_decode_loop(
     next_token_array = rt.read_request_state(tensors.token_select.next_token)
     rt.register_inputs({decode.input_ids: next_token_array.reshape(1, 1)})
     rt.register_inputs({replay_token_index: np.array([1], dtype=np.int64)})
-    dispatch_start = len(rt.dispatch_records)
-    run_qwen3_asr_text_decode(
-        rt,
-        decode,
-        step=0,
-        pytorch_compare=False,
-    )
-    run_qwen3_asr_token_select(rt, tensors.token_select, logits=decode.logits)
-    _run_qwen3_asr_token_store(
-        rt,
-        next_token=tensors.token_select.next_token,
-        token_index=replay_token_index,
-        done=tensors.token_select.done,
-        generated_tokens=replay_generated,
-        generated_length=replay_generated_length,
-        stopped=replay_stopped,
-        stop_on_eos=stop_on_eos,
-    )
-    dispatch_end = len(rt.dispatch_records)
+    decode_step_frame = "qwen3_asr.decode_step.0000"
+    with rt.frame(decode_step_frame):
+        run_qwen3_asr_text_decode(
+            rt,
+            decode,
+            step=0,
+            pytorch_compare=False,
+        )
+        run_qwen3_asr_token_select(rt, tensors.token_select, logits=decode.logits)
+        _run_qwen3_asr_token_store(
+            rt,
+            next_token=tensors.token_select.next_token,
+            token_index=replay_token_index,
+            done=tensors.token_select.done,
+            generated_tokens=replay_generated,
+            generated_length=replay_generated_length,
+            stopped=replay_stopped,
+            stop_on_eos=stop_on_eos,
+        )
     if stop_on_eos and _replay_decode_stopped(rt, replay_stopped):
         return _finalize_replay_generated_tokens(
             rt, tensors, replay_generated, replay_generated_length,
@@ -583,13 +583,9 @@ def run_qwen3_asr_replay_decode_loop(
             )
         return replay_generated
 
-    # Phase 4: Build replay plan from the warm-up dispatches
-    warmup_records = rt.dispatch_records[dispatch_start:dispatch_end]
-
     plan = rt.build_replay_plan(
         name="qwen3_asr_decode_step",
-        frame_dispatch_records=list(warmup_records),
-        dynamic_symbol_names=("S",),
+        frame=decode_step_frame,
     )
     if plan.readback_slots:
         plan.close()
@@ -783,5 +779,4 @@ def _require_supported_mrope_section(mrope_section: tuple[int, ...]) -> None:
         raise NotImplementedError(
             f"qwen3_asr rope_table shader currently supports mrope_section=(24, 20, 20), got {mrope_section}"
         )
-
 

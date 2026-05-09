@@ -70,12 +70,12 @@ class ExportedQwen3AsrTensors:
     text_layers: tuple[TextLayerTensors, ...]
     text_norm: TextNormTensors
     lm_head: LmHeadTensors
+    next_token: LogicalTensor
     decode_embed: DecodeEmbedTensors
     decode_layers: tuple[DecodeLayerTensors, ...]
     decode_norm: DecodeNormTensors
     decode_lm_head: DecodeLmHeadTensors
     eos_token_ids: LogicalTensor
-    next_token: LogicalTensor
     done: LogicalTensor
     generated_tokens: LogicalTensor
     generated_length: LogicalTensor
@@ -174,9 +174,11 @@ def create_model_tensors(
         input=text_norm.mul_1,
         request_state_outputs={LM_HEAD_OUTPUT},
     )
+    next_token = _request_output_tensor("int64", (1, 1))
     decode_embed = create_decode_embed(
         "spike.decode.embed",
         p_weight=embed_tokens.p_weight,
+        input=next_token,
     )
 
     decode_layers_list: list[DecodeLayerTensors] = []
@@ -222,7 +224,6 @@ def create_model_tensors(
     )
 
     eos_token_ids = _host_input_tensor("int64", (eos_token_count,))
-    next_token = _request_output_tensor("int64", (1,))
     done = _request_output_tensor("uint32", (1,))
     generated_tokens = _request_state_tensor(
         "int64",
@@ -258,12 +259,12 @@ def create_model_tensors(
         text_layers=text_layers,
         text_norm=text_norm,
         lm_head=lm_head,
+        next_token=next_token,
         decode_embed=decode_embed,
         decode_layers=decode_layers,
         decode_norm=decode_norm,
         decode_lm_head=decode_lm_head,
         eos_token_ids=eos_token_ids,
-        next_token=next_token,
         done=done,
         generated_tokens=generated_tokens,
         generated_length=generated_length,

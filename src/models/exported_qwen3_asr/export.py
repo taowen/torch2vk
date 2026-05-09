@@ -218,6 +218,29 @@ def _bind_dispatch_source(source: str) -> str:
     return bound
 
 
+def _render_shader_init(shader_imports: list[str]) -> str:
+    imports_source = "\n".join(shader_imports)
+    return f'''"""Generated shader index."""
+
+from __future__ import annotations
+
+import sys
+
+from torch2vk.runtime.shader import ShaderVariant, collect_shader_variants
+
+{imports_source}
+
+_MODEL_SHADERS: dict[str, ShaderVariant] | None = None
+
+
+def model_shaders() -> dict[str, ShaderVariant]:
+    global _MODEL_SHADERS
+    if _MODEL_SHADERS is None:
+        _MODEL_SHADERS = collect_shader_variants(sys.modules[__name__])
+    return _MODEL_SHADERS
+'''
+
+
 # ==============================================================
 # Main
 # ==============================================================
@@ -416,7 +439,13 @@ def main() -> int:
         f"from models.exported_qwen3_asr.shaders.{name} import {name.upper()}  # noqa: F401"
         for name in sorted(all_shader_variants)
     ]
-    (shaders_dir / "__init__.py").write_text(render_simple_init("Generated shader index", shader_init_imports))
+    shader_init_imports.extend(
+        [
+            "from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32  # noqa: F401",
+            "from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32  # noqa: F401",
+        ]
+    )
+    (shaders_dir / "__init__.py").write_text(_render_shader_init(shader_init_imports))
     print(f"\n  {len(all_shader_variants)} shader files written")
 
     # Write tensors/

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-from typing import cast
-
 import numpy as np
 
 from models.exported_qwen3_asr.tensors.model import model_tensors
@@ -18,12 +15,7 @@ from models.exported_qwen3_asr.shaders.{{ item.shader }} import {{ item.const }}
 from models.exported_qwen3_asr.tensors.{{ item.file }} import {{ item.classes_source }}
 {% endfor %}
 from torch2vk.runtime.logical import LogicalTensor
-from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
-
-
-def shader_variant(shader_name: str) -> ShaderVariant:
-    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
 
 
 {{ dispatch_sources_source }}
@@ -94,7 +86,6 @@ def run_rope_table(
 
 def decode_step_inputs(
     *,
-    token: int,
     cache_position: int,
     eos_token_array: np.ndarray,
     token_index_value: int,
@@ -103,7 +94,6 @@ def decode_step_inputs(
     if not tensors.decode_layers:
         raise ValueError("decode_layers must not be empty")
     return {
-        tensors.decode_embed.input: np.array([[token]], dtype=np.int64),
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
         tensors.eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
         tensors.token_index: np.array([token_index_value], dtype=np.int64),

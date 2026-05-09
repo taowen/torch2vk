@@ -105,6 +105,8 @@ from models.exported_qwen3_asr.shaders.transpose_f32_9e00ca2f33 import TRANSPOSE
 from models.exported_qwen3_asr.shaders.transpose_f32_9e77b1cee2 import TRANSPOSE_F32_9E77B1CEE2  # noqa: F401
 from models.exported_qwen3_asr.shaders.transpose_f32_d509518b4f import TRANSPOSE_F32_D509518B4F  # noqa: F401
 from models.exported_qwen3_asr.shaders.transpose_f32_d95ce920ac import TRANSPOSE_F32_D95CE920AC  # noqa: F401
+from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32  # noqa: F401
+from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32  # noqa: F401
 
 _MODEL_SHADERS: dict[str, ShaderVariant] | None = None
 

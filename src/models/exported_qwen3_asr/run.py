@@ -89,17 +89,11 @@ def _read_selected_token(rt: RuntimeSession, next_token: LogicalTensor) -> int:
 def _build_decode_replay_plan(
     rt: RuntimeSession,
     *,
-    dispatch_start: int,
-    dispatch_end: int,
-    token_feedback_source: LogicalTensor,
-    token_feedback_target: LogicalTensor,
+    frame: str,
 ) -> ReplayPlan:
-    warmup_records = rt.dispatch_records[dispatch_start:dispatch_end]
     plan = rt.build_replay_plan(
         name="exported_qwen3_asr_decode_step",
-        frame_dispatch_records=list(warmup_records),
-        token_feedback_source=token_feedback_source,
-        token_feedback_target=token_feedback_target,
+        frame=frame,
     )
     if plan.readback_slots:
         plan.close()
@@ -378,27 +372,21 @@ def main(
         )
 
         decode_step_inputs = dispatch.decode_step_inputs(
-            token=generated_tokens[-1],
             cache_position=cache_pos,
             eos_token_array=eos_token_array,
             token_index_value=step + 1,
         )
         if decode_replay_plan is None:
-            dispatch_start = len(rt.dispatch_records)
             rt.register_inputs(decode_step_inputs)
             next_token = dispatch.run_decode_step(
                 rt,
                 step=step,
             )
             generated_tokens.append(next_token)
-            dispatch_end = len(rt.dispatch_records)
             if use_replay:
                 decode_replay_plan = _build_decode_replay_plan(
                     rt,
-                    dispatch_start=dispatch_start,
-                    dispatch_end=dispatch_end,
-                    token_feedback_source=model_tensors().next_token,
-                    token_feedback_target=model_tensors().decode_embed.input,
+                    frame=f"spike.decode.{step:04d}",
                 )
         else:
             stage_replay_step_inputs(

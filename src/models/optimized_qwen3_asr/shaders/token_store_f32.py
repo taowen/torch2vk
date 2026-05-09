@@ -26,7 +26,7 @@ QWEN3_ASR_TOKEN_STORE_F32 = ShaderVariant(
                 name="next_token",
                 io_kind=IOKind.INPUT,
                 role="next_token",
-                contract=TensorContract(dtype="int64", shape=(1,)),
+                contract=TensorContract(dtype="int64", shape=(1, 1)),
             ),
             TensorFieldSpec(
                 name="token_index",

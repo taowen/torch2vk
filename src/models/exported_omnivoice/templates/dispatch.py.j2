@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-from typing import cast
-
 from models.exported_omnivoice.tensors.model import model_tensors
 from torch2vk.runtime.rope_table import run_rope_table_f32
 {% for item in shader_imports %}
@@ -13,12 +10,7 @@ from models.exported_omnivoice.shaders.{{ item.shader }} import {{ item.const }}
 {% for item in tensor_imports %}
 from models.exported_omnivoice.tensors.{{ item.file }} import {{ item.classes_source }}
 {% endfor %}
-from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.session import RuntimeSession
-
-
-def shader_variant(shader_name: str) -> ShaderVariant:
-    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
 
 
 {{ dispatch_sources_source }}

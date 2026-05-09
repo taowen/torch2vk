@@ -55,28 +55,21 @@ def build_replay_plan(
     rt: RuntimeSession,
     *,
     name: str,
-    frame_dispatch_records: Sequence[DispatchRecord],
-    dynamic_symbol_names: tuple[str, ...] = (),
+    frame: str,
     readback_tensors: Mapping[str, LogicalTensor] | None = None,
-    token_feedback_source: LogicalTensor | None = None,
-    token_feedback_target: LogicalTensor | None = None,
 ) -> ReplayPlan:
     """Build a ReplayPlan from previously recorded dispatch information."""
     rt._require_open()
+    frame_dispatch_records = _frame_dispatch_records(rt, frame)
     num_dispatches = len(frame_dispatch_records)
     if num_dispatches == 0:
-        raise ValueError("Cannot build replay plan with zero dispatches")
+        raise ValueError(f"Cannot build replay plan for frame {frame!r} with zero dispatches")
     model_shaders = rt._named_model_shaders()
+    dynamic_symbol_names = _infer_dynamic_symbol_names(
+        model_shaders=model_shaders,
+        frame_dispatch_records=frame_dispatch_records,
+    )
 
-    if (token_feedback_source is None) != (token_feedback_target is None):
-        raise ValueError(
-            "token_feedback_source and token_feedback_target must be provided together"
-        )
-    if token_feedback_source is not None and token_feedback_target is not None:
-        _validate_token_feedback_tensors(
-            token_feedback_source,
-            token_feedback_target,
-        )
     logical_tensors = _collect_replay_tensors(rt, frame_dispatch_records)
 
     use_indirect_dispatch = len(dynamic_symbol_names) > 0
@@ -118,12 +111,6 @@ def build_replay_plan(
                 tensor=tensor,
                 logical_tensors=logical_tensors,
             )
-            if (
-                token_feedback_source is not None
-                and token_feedback_target is not None
-                and tensor.name == token_feedback_target.name
-            ):
-                descriptor_tensor = token_feedback_source
             descriptor_rebindable = descriptor_tensor.memory not in {
                 MemoryClass.FRAME_WORKSPACE,
                 MemoryClass.MODEL_WEIGHT,
@@ -361,22 +348,43 @@ def build_replay_plan(
     )
 
 
-def _validate_token_feedback_tensors(
-    source: LogicalTensor,
-    target: LogicalTensor,
-) -> None:
-    if source.spec.dtype != target.spec.dtype:
-        raise ValueError(
-            "Replay token feedback requires matching dtypes, got "
-            f"{source.name}={source.spec.dtype} and {target.name}={target.spec.dtype}"
+def _frame_dispatch_records(
+    rt: RuntimeSession,
+    frame: str,
+) -> Sequence[DispatchRecord]:
+    context = rt._frame_history.get(frame)
+    if context is None:
+        raise KeyError(f"Replay frame {frame!r} was not recorded")
+    if context.end_dispatch_index < context.start_dispatch_index:
+        raise RuntimeError(
+            f"Replay frame {frame!r} has invalid dispatch range "
+            f"{context.start_dispatch_index}:{context.end_dispatch_index}"
         )
-    source_nbytes = tensor_nbytes(source.spec)
-    target_nbytes = tensor_nbytes(target.spec)
-    if source_nbytes != target_nbytes:
-        raise ValueError(
-            "Replay token feedback requires matching byte sizes, got "
-            f"{source.name}={source_nbytes} bytes and {target.name}={target_nbytes} bytes"
-        )
+    return rt.dispatch_records[context.start_dispatch_index:context.end_dispatch_index]
+
+
+def _infer_dynamic_symbol_names(
+    *,
+    model_shaders: Mapping[str, ShaderVariant],
+    frame_dispatch_records: Sequence[DispatchRecord],
+) -> tuple[str, ...]:
+    values_by_name: dict[str, set[int]] = {}
+    params_symbol_names: set[str] = set()
+    for record in frame_dispatch_records:
+        record_symbols = dict(record.symbols)
+        for symbol_name, symbol_value in record_symbols.items():
+            values_by_name.setdefault(symbol_name, set()).add(symbol_value)
+        params_buffer = model_shaders[record.shader].contract.params_buffer
+        if params_buffer is None:
+            continue
+        for field in params_buffer.fields:
+            if isinstance(field.value, str) and field.value in record_symbols:
+                params_symbol_names.add(field.value)
+
+    varying_symbol_names = {
+        symbol_name for symbol_name, values in values_by_name.items() if len(values) > 1
+    }
+    return tuple(sorted(varying_symbol_names | params_symbol_names))
 
 
 def _collect_replay_tensors(

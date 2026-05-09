@@ -157,7 +157,7 @@ QWEN3_ASR_TEXT_LM_HEAD_SELECT_REDUCE_T1_F32 = ShaderVariant(
                 name="next_token",
                 io_kind=IOKind.OUTPUT,
                 role="next_token",
-                contract=TensorContract(dtype="int64", shape=(1,)),
+                contract=TensorContract(dtype="int64", shape=(1, 1)),
             ),
             TensorFieldSpec(
                 name="done",
