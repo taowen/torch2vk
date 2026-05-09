@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from torch2vk.runtime.shader import (
+    ceil_div,
     IOKind,
+    mul,
     PushConstantFieldSpec,
     PushConstantSpec,
     PushConstantType,
@@ -32,7 +34,7 @@ OMNIVOICE_TOKEN_UPDATE_TOPK_F32 = ShaderVariant(
             ),
             TensorFieldSpec(
                 name='candidate_scores',
-                io_kind=IOKind.INOUT,
+                io_kind=IOKind.INPUT,
                 role='candidate_scores',
                 contract=TensorContract(dtype='float32', shape=('C', 'T',)),
             ),
@@ -64,7 +66,7 @@ OMNIVOICE_TOKEN_UPDATE_TOPK_F32 = ShaderVariant(
             ),
         ),
         params_buffer=None,
-        dispatch=(1, 1, 1),
+        dispatch=(ceil_div(mul('C', 'T'), 256), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
     source="""\
@@ -78,7 +80,7 @@ layout(set = 0, binding = 0) buffer restrict readonly CandidateTokensBuffer {
     int64_t candidate_tokens[];
 };
 
-layout(set = 0, binding = 1) buffer restrict CandidateScoresBuffer {
+layout(set = 0, binding = 1) buffer restrict readonly CandidateScoresBuffer {
     float candidate_scores[];
 };
 
@@ -102,57 +104,33 @@ layout(push_constant) uniform PushConstants {
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
-shared float shared_score[256];
-shared uint shared_index[256];
-
 bool better_pair(float lhs_score, uint lhs_index, float rhs_score, uint rhs_index) {
     return lhs_score > rhs_score || (lhs_score == rhs_score && lhs_index < rhs_index);
 }
 
 void main() {
-    const uint tid = gl_LocalInvocationID.x;
+    const uint index = gl_GlobalInvocationID.x;
     const uint total = pc.C * pc.T;
     const uint limit = min(unmask_count[0], total);
+    if (index >= total) {
+        return;
+    }
 
-    for (uint selected = 0u; selected < limit; ++selected) {
-        float best_score = -3.4028234663852886e+38;
-        uint best_index = 0xffffffffu;
-        for (uint index = tid; index < total; index += 256u) {
-            const float score = candidate_scores[index];
-            if (better_pair(score, index, best_score, best_index)) {
-                best_score = score;
-                best_index = index;
-            }
+    const float score = candidate_scores[index];
+    uint rank = 0u;
+    for (uint other = 0u; other < total; ++other) {
+        if (better_pair(candidate_scores[other], other, score, index)) {
+            ++rank;
         }
+    }
 
-        shared_score[tid] = best_score;
-        shared_index[tid] = best_index;
-        barrier();
-        for (uint stride = 128u; stride > 0u; stride >>= 1u) {
-            if (tid < stride && better_pair(
-                shared_score[tid + stride],
-                shared_index[tid + stride],
-                shared_score[tid],
-                shared_index[tid]
-            )) {
-                shared_score[tid] = shared_score[tid + stride];
-                shared_index[tid] = shared_index[tid + stride];
-            }
-            barrier();
-        }
-
-        if (tid == 0u && shared_index[0] != 0xffffffffu) {
-            const uint index = shared_index[0];
-            const uint codebook = index / pc.T;
-            const uint target = index - codebook * pc.T;
-            const int64_t token = candidate_tokens[index];
-            tokens[index] = token;
-            batch_input_ids[(0u * pc.C + codebook) * pc.S + (pc.S - pc.T + target)] = token;
-            batch_input_ids[(1u * pc.C + codebook) * pc.S + target] = token;
-            candidate_scores[index] = -3.4028234663852886e+38;
-        }
-        memoryBarrierBuffer();
-        barrier();
+    if (rank < limit) {
+        const uint codebook = index / pc.T;
+        const uint target = index - codebook * pc.T;
+        const int64_t token = candidate_tokens[index];
+        tokens[index] = token;
+        batch_input_ids[(0u * pc.C + codebook) * pc.S + (pc.S - pc.T + target)] = token;
+        batch_input_ids[(1u * pc.C + codebook) * pc.S + target] = token;
     }
 }
 """,

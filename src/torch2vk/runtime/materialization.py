@@ -125,12 +125,13 @@ def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOK
             tensor.descriptor_nbytes = 0
             tensor.alias_source = None
         return
+    materialized_slice: BufferSlice | None = None
     if tensor.memory is MemoryClass.HOST_OUTPUT:
         allocation = rt.device.allocate_host_visible_allocation(size)
     elif tensor.memory in {MemoryClass.FRAME_WORKSPACE, MemoryClass.OP_SCRATCH}:
-        allocation = rt.device.memory_manager.allocate_device_local_buffer(
-            size,
-            usage_flags=VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        materialized_slice, allocation = rt.device.memory_manager.temporary_tensor_pool.acquire(
+            tensor.spec,
+            label=tensor.name,
         )
     elif tensor.memory is MemoryClass.REQUEST_STATE:
         allocation = rt.device.memory_manager.allocate_device_local_buffer(
@@ -143,7 +144,11 @@ def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOK
     else:
         raise ValueError(f"{tensor.name} cannot be materialized for write with memory={tensor.memory}")
     with tensor.runtime_write_scope():
-        tensor.buffer = BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=size)
+        tensor.buffer = (
+            materialized_slice
+            if materialized_slice is not None
+            else BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=size)
+        )
         tensor.descriptor_nbytes = size
         tensor.alias_source = None
     if tensor.lifetime in {TensorLifetime.FRAME, TensorLifetime.OP}:
@@ -301,7 +306,13 @@ def release_frame_allocations(rt: RuntimeSession) -> None:
             with tensor.runtime_write_scope():
                 tensor.buffer = None
                 tensor.descriptor_nbytes = None
-        allocation.close()
+        if tensor.memory in {MemoryClass.FRAME_WORKSPACE, MemoryClass.OP_SCRATCH}:
+            rt.device.memory_manager.temporary_tensor_pool.recycle(
+                spec=tensor.spec,
+                allocation=allocation,
+            )
+        else:
+            allocation.close()
 
 
 def release_request_allocation(rt: RuntimeSession, allocation: BufferAllocation) -> None:
