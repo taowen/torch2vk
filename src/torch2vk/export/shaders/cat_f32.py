@@ -82,11 +82,11 @@ def make_cat_variant(node: Node) -> ShaderVariant | None:
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
 
     return ShaderVariant(
-        name="export_cat_f32",
+        name="cat_f32",
         family="export",
         contract=ShaderContract(
             class_name="ExportCatProgram",
-            shader_name="export_cat_f32",
+            shader_name="cat_f32",
             fields=(
                 TensorFieldSpec("a", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=a_contract)),
                 TensorFieldSpec("b", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=b_contract)),

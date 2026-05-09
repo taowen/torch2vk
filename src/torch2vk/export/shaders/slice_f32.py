@@ -71,11 +71,11 @@ def make_slice_variant(node: Node) -> ShaderVariant | None:
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
 
     return ShaderVariant(
-        name="export_slice_f32",
+        name="slice_f32",
         family="export",
         contract=ShaderContract(
             class_name="ExportSliceProgram",
-            shader_name="export_slice_f32",
+            shader_name="slice_f32",
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),

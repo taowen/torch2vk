@@ -4,7 +4,7 @@ Generates Python source files for the full ASR pipeline (audio tower + text).
 Shapes are computed from the test fixture (tests/fixtures/qwen3_asr_asknot.wav).
 
 Run from project root:
-    .venv/bin/python -m models.exported_qwen3_asr.export
+    uv run python -m models.exported_qwen3_asr.export
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from jinja2 import Environment, StrictUndefined
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from models.exported_qwen3_asr.debug_audio_tower import DebugAudioTower
 from models.exported_qwen3_asr.export_forwards import (
@@ -46,13 +46,20 @@ from torch2vk.export.codegen_loop import (
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
+_TEMPLATE_DIR = Path(__file__).with_name("templates")
+
 _JINJA = Environment(
     autoescape=False,
     keep_trailing_newline=True,
+    loader=FileSystemLoader(_TEMPLATE_DIR),
     lstrip_blocks=True,
     trim_blocks=True,
     undefined=StrictUndefined,
 )
+
+
+def _render_template(template_name: str, **context) -> str:
+    return _JINJA.get_template(template_name).render(**context)
 
 
 def _to_class_name(plan_name: str) -> str:
@@ -72,504 +79,6 @@ def _compare_extra_lines(plan_name: str, tensor_name: str) -> tuple[str, ...]:
             'pytorch_probe=PyTorchProbe(kind="module_output", target="", selector="logits"),',
         )
     return ()
-
-
-_DISPATCH_EXTRA_IMPORTS = """import numpy as np
-
-from models.exported_qwen3_asr.tensors.model import model_tensors
-from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
-from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
-from torch2vk.runtime.rope_table import run_rope_table_f32
-"""
-
-
-_ROPE_TENSOR_SOURCE = '''"""Generated RoPE tensor declarations."""
-
-from __future__ import annotations
-
-from torch2vk.runtime.rope_table import RopeTableTensors, declare_rope_table_tensors
-
-
-def create_rope_table(
-    prefix: str,
-    *,
-    batch: int,
-    sequence_length: int,
-    head_dim: int,
-) -> RopeTableTensors:
-    return declare_rope_table_tensors(
-        prefix,
-        batch=batch,
-        sequence_length=sequence_length,
-        head_dim=head_dim,
-    )
-'''
-
-
-_MODEL_TENSOR_SOURCE = '''"""Generated model-level tensor wiring."""
-
-from __future__ import annotations
-
-from dataclasses import dataclass
-
-from models.exported_qwen3_asr.tensors.audio_encoder import (
-    AUDIO_ENCODER_OUTPUT,
-    AudioEncoderTensors,
-    create_audio_encoder,
-)
-from models.exported_qwen3_asr.tensors.audio_inject import (
-    AudioInjectTensors,
-    create_audio_inject,
-)
-from models.exported_qwen3_asr.tensors.decode_embed import (
-    DecodeEmbedTensors,
-    create_decode_embed,
-)
-from models.exported_qwen3_asr.tensors.decode_layer import (
-    DecodeLayerTensors,
-    create_decode_layer,
-)
-from models.exported_qwen3_asr.tensors.decode_lm_head import (
-    DECODE_LM_HEAD_OUTPUT,
-    DecodeLmHeadTensors,
-    create_decode_lm_head,
-)
-from models.exported_qwen3_asr.tensors.decode_norm import (
-    DecodeNormTensors,
-    create_decode_norm,
-)
-from models.exported_qwen3_asr.tensors.embed_tokens import (
-    EmbedTokensTensors,
-    create_embed_tokens,
-)
-from models.exported_qwen3_asr.tensors.lm_head import (
-    LM_HEAD_OUTPUT,
-    LmHeadTensors,
-    create_lm_head,
-)
-from models.exported_qwen3_asr.tensors.rope import RopeTableTensors, create_rope_table
-from models.exported_qwen3_asr.tensors.text_layer import TextLayerTensors, create_text_layer
-from models.exported_qwen3_asr.tensors.text_norm import TextNormTensors, create_text_norm
-from torch2vk.runtime.logical import (
-    bind_logical_tensor_names,
-    LogicalTensor,
-    MemoryClass,
-    TensorLifetime,
-    TensorRole,
-    TensorSemantic,
-    TensorSpec,
-)
-
-
-@dataclass(frozen=True, slots=True)
-class ExportedQwen3AsrTensors:
-    input_ids: LogicalTensor
-    attention_mask: LogicalTensor
-    input_features: LogicalTensor
-    feature_attention_mask: LogicalTensor
-    position_ids: LogicalTensor
-    audio_encoder: AudioEncoderTensors
-    embed_tokens: EmbedTokensTensors
-    audio_inject: AudioInjectTensors
-    key_caches: tuple[LogicalTensor, ...]
-    value_caches: tuple[LogicalTensor, ...]
-    prefill_rope: RopeTableTensors
-    decode_rope: RopeTableTensors
-    text_layers: tuple[TextLayerTensors, ...]
-    text_norm: TextNormTensors
-    lm_head: LmHeadTensors
-    decode_embed: DecodeEmbedTensors
-    decode_layers: tuple[DecodeLayerTensors, ...]
-    decode_norm: DecodeNormTensors
-    decode_lm_head: DecodeLmHeadTensors
-    eos_token_ids: LogicalTensor
-    next_token: LogicalTensor
-    done: LogicalTensor
-    generated_tokens: LogicalTensor
-    generated_length: LogicalTensor
-    stopped: LogicalTensor
-    token_index: LogicalTensor
-
-
-_MODEL_TENSORS: ExportedQwen3AsrTensors | None = None
-
-
-def create_model_tensors(
-    *,
-    input_ids_shape: tuple[int, ...],
-    attention_mask_shape: tuple[int, ...],
-    input_features_shape: tuple[int, ...],
-    feature_attention_mask_shape: tuple[int, ...],
-    prompt_length: int,
-    max_sequence_length: int,
-    num_hidden_layers: int,
-    num_key_value_heads: int,
-    head_dim: int,
-    max_new_tokens: int,
-    eos_token_count: int,
-) -> ExportedQwen3AsrTensors:
-    input_ids = _host_input_tensor("int64", input_ids_shape)
-    attention_mask = _host_input_tensor("int64", attention_mask_shape)
-    input_features = _host_input_tensor("float32", input_features_shape)
-    feature_attention_mask = _host_input_tensor("int64", feature_attention_mask_shape)
-    position_ids = _host_input_tensor("int64", (3, 1, prompt_length))
-
-    audio_encoder = create_audio_encoder(
-        "spike.audio",
-        request_state_outputs={AUDIO_ENCODER_OUTPUT},
-    )
-    embed_tokens = create_embed_tokens(
-        "spike.text.embed",
-        input=input_ids,
-    )
-    audio_inject = create_audio_inject(
-        "spike.text.audio_inject",
-        audio_features=audio_encoder.linear_110,
-        index_copy=embed_tokens.embedding,
-    )
-    key_caches = tuple(
-        _request_state_tensor(
-            "float32",
-            (1, num_key_value_heads, max_sequence_length, head_dim),
-            semantic=TensorSemantic.KV_CACHE,
-        )
-        for layer_idx in range(num_hidden_layers)
-    )
-    value_caches = tuple(
-        _request_state_tensor(
-            "float32",
-            (1, num_key_value_heads, max_sequence_length, head_dim),
-            semantic=TensorSemantic.KV_CACHE,
-        )
-        for layer_idx in range(num_hidden_layers)
-    )
-    prefill_rope = create_rope_table(
-        "spike.text.prefill.rope",
-        batch=1,
-        sequence_length=prompt_length,
-        head_dim=head_dim,
-    )
-    decode_rope = create_rope_table(
-        "spike.decode.rope",
-        batch=1,
-        sequence_length=1,
-        head_dim=head_dim,
-    )
-
-    text_layers_list: list[TextLayerTensors] = []
-    text_hidden = audio_inject.index_copy
-    for layer_idx in range(num_hidden_layers):
-        layer_tensors = create_text_layer(
-            f"spike.text.layer.{layer_idx}",
-            layer_idx=layer_idx,
-            hidden_states=text_hidden,
-            index_copy=key_caches[layer_idx],
-            index_copy_1=value_caches[layer_idx],
-            position_embeddings_0=prefill_rope.cos,
-            position_embeddings_1=prefill_rope.sin,
-            cache_position=text_layers_list[0].cache_position if layer_idx > 0 else None,
-        )
-        text_layers_list.append(layer_tensors)
-        text_hidden = layer_tensors.add_7
-    text_layers = tuple(text_layers_list)
-
-    text_norm = create_text_norm(
-        "spike.text.norm",
-        hidden_states=text_layers[-1].add_7,
-    )
-    lm_head = create_lm_head(
-        "spike.text.lm_head",
-        input=text_norm.mul_1,
-        request_state_outputs={LM_HEAD_OUTPUT},
-    )
-    decode_embed = create_decode_embed(
-        "spike.decode.embed",
-        p_weight=embed_tokens.p_weight,
-    )
-
-    decode_layers_list: list[DecodeLayerTensors] = []
-    decode_hidden = decode_embed.embedding
-    for layer_idx, prefill_layer_tensors in enumerate(text_layers):
-        layer_tensors = create_decode_layer(
-            f"spike.decode.layer.{layer_idx}",
-            layer_idx=layer_idx,
-            p_input_layernorm_weight=prefill_layer_tensors.p_input_layernorm_weight,
-            p_post_attention_layernorm_weight=(
-                prefill_layer_tensors.p_post_attention_layernorm_weight
-            ),
-            p_attn_q_proj_weight=prefill_layer_tensors.p_attn_q_proj_weight,
-            p_attn_k_proj_weight=prefill_layer_tensors.p_attn_k_proj_weight,
-            p_attn_v_proj_weight=prefill_layer_tensors.p_attn_v_proj_weight,
-            p_attn_o_proj_weight=prefill_layer_tensors.p_attn_o_proj_weight,
-            p_attn_q_norm_weight=prefill_layer_tensors.p_attn_q_norm_weight,
-            p_attn_k_norm_weight=prefill_layer_tensors.p_attn_k_norm_weight,
-            p_mlp_gate_proj_weight=prefill_layer_tensors.p_mlp_gate_proj_weight,
-            p_mlp_up_proj_weight=prefill_layer_tensors.p_mlp_up_proj_weight,
-            p_mlp_down_proj_weight=prefill_layer_tensors.p_mlp_down_proj_weight,
-            hidden_states=decode_hidden,
-            index_copy=key_caches[layer_idx],
-            index_copy_1=value_caches[layer_idx],
-            position_embeddings_0=decode_rope.cos,
-            position_embeddings_1=decode_rope.sin,
-            cache_position=decode_layers_list[0].cache_position if layer_idx > 0 else None,
-        )
-        decode_layers_list.append(layer_tensors)
-        decode_hidden = layer_tensors.add_7
-    decode_layers = tuple(decode_layers_list)
-
-    decode_norm = create_decode_norm(
-        "spike.decode.norm",
-        p_weight=text_norm.p_weight,
-        hidden_states=decode_layers[-1].add_7,
-    )
-    decode_lm_head = create_decode_lm_head(
-        "spike.decode.lm_head",
-        p_weight=lm_head.p_weight,
-        input=decode_norm.mul_1,
-        request_state_outputs={DECODE_LM_HEAD_OUTPUT},
-    )
-
-    eos_token_ids = _host_input_tensor("int64", (eos_token_count,))
-    next_token = _request_output_tensor("int64", (1,))
-    done = _request_output_tensor("uint32", (1,))
-    generated_tokens = _request_state_tensor(
-        "int64",
-        (1, max_new_tokens),
-        semantic=TensorSemantic.TOKEN,
-    )
-    generated_length = _request_state_tensor(
-        "uint32",
-        (1,),
-        semantic=TensorSemantic.TOKEN,
-    )
-    stopped = _request_state_tensor(
-        "uint32",
-        (1,),
-        semantic=TensorSemantic.TOKEN,
-    )
-    token_index = _host_input_tensor("int64", (1,))
-
-    global _MODEL_TENSORS
-    _MODEL_TENSORS = ExportedQwen3AsrTensors(
-        input_ids=input_ids,
-        attention_mask=attention_mask,
-        input_features=input_features,
-        feature_attention_mask=feature_attention_mask,
-        position_ids=position_ids,
-        audio_encoder=audio_encoder,
-        embed_tokens=embed_tokens,
-        audio_inject=audio_inject,
-        key_caches=key_caches,
-        value_caches=value_caches,
-        prefill_rope=prefill_rope,
-        decode_rope=decode_rope,
-        text_layers=text_layers,
-        text_norm=text_norm,
-        lm_head=lm_head,
-        decode_embed=decode_embed,
-        decode_layers=decode_layers,
-        decode_norm=decode_norm,
-        decode_lm_head=decode_lm_head,
-        eos_token_ids=eos_token_ids,
-        next_token=next_token,
-        done=done,
-        generated_tokens=generated_tokens,
-        generated_length=generated_length,
-        stopped=stopped,
-        token_index=token_index,
-    )
-    bind_logical_tensor_names(_MODEL_TENSORS)
-    return _MODEL_TENSORS
-
-
-def model_tensors() -> ExportedQwen3AsrTensors:
-    if _MODEL_TENSORS is None:
-        raise RuntimeError("create_model_tensors must be called before generated dispatch")
-    return _MODEL_TENSORS
-
-
-def _host_input_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
-    return LogicalTensor(
-        spec=TensorSpec(dtype=dtype, shape=shape),
-        role=TensorRole.INPUT,
-        memory=MemoryClass.HOST_INPUT,
-        lifetime=TensorLifetime.FRAME,
-    )
-
-
-def _request_output_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
-    return LogicalTensor(
-        spec=TensorSpec(dtype=dtype, shape=shape),
-        role=TensorRole.OUTPUT,
-        memory=MemoryClass.REQUEST_STATE,
-        lifetime=TensorLifetime.REQUEST,
-    )
-
-
-def _request_state_tensor(
-    dtype: str,
-    shape: tuple[int, ...],
-    *,
-    semantic: TensorSemantic | None = None,
-) -> LogicalTensor:
-    return LogicalTensor(
-        spec=TensorSpec(dtype=dtype, shape=shape),
-        role=TensorRole.STATE,
-        memory=MemoryClass.REQUEST_STATE,
-        lifetime=TensorLifetime.REQUEST,
-        semantic=semantic,
-    )
-'''
-
-
-_ROPE_DISPATCH_HELPER = '''def run_rope_table(
-    rt: RuntimeSession,
-    *,
-    phase: str,
-    frame_name: str,
-) -> None:
-    tensors = model_tensors()
-    if phase == "prefill":
-        rope_t = tensors.prefill_rope
-    elif phase == "decode":
-        rope_t = tensors.decode_rope
-    else:
-        raise ValueError(f"unknown rope phase: {phase}")
-    run_rope_table_f32(
-        rt,
-        start_position=rope_t.start_position,
-        theta=rope_t.theta,
-        cos=rope_t.cos,
-        sin=rope_t.sin,
-        frame_name=frame_name,
-    )'''
-
-
-_DISPATCH_WRAPPERS = '''def run_audio_encoder(rt: RuntimeSession) -> None:
-    _run_audio_encoder_with_tensors(rt, model_tensors().audio_encoder)
-
-
-def run_embed_tokens(rt: RuntimeSession) -> None:
-    _run_embed_tokens_with_tensors(rt, model_tensors().embed_tokens)
-
-
-def run_audio_inject(rt: RuntimeSession) -> None:
-    _run_audio_inject_with_tensors(rt, model_tensors().audio_inject)
-
-
-def run_text_layer(rt: RuntimeSession, layer_idx: int) -> None:
-    _run_text_layer_with_tensors(rt, model_tensors().text_layers[layer_idx])
-
-
-def run_text_norm(rt: RuntimeSession) -> None:
-    _run_text_norm_with_tensors(rt, model_tensors().text_norm)
-
-
-def run_lm_head(rt: RuntimeSession) -> None:
-    _run_lm_head_with_tensors(rt, model_tensors().lm_head)
-
-
-def run_decode_embed(rt: RuntimeSession) -> None:
-    _run_decode_embed_with_tensors(rt, model_tensors().decode_embed)
-
-
-def run_decode_layer(rt: RuntimeSession, layer_idx: int) -> None:
-    _run_decode_layer_with_tensors(rt, model_tensors().decode_layers[layer_idx])
-
-
-def run_decode_norm(rt: RuntimeSession) -> None:
-    _run_decode_norm_with_tensors(rt, model_tensors().decode_norm)
-
-
-def run_decode_lm_head(rt: RuntimeSession) -> None:
-    _run_decode_lm_head_with_tensors(rt, model_tensors().decode_lm_head)'''
-
-
-_DECODE_STEP_HELPERS = '''def decode_step_inputs(
-    *,
-    token: int,
-    cache_position: int,
-    eos_token_array: np.ndarray,
-    token_index_value: int,
-) -> dict[LogicalTensor, np.ndarray]:
-    tensors = model_tensors()
-    if not tensors.decode_layers:
-        raise ValueError("decode_layers must not be empty")
-    return {
-        tensors.decode_embed.input: np.array([[token]], dtype=np.int64),
-        tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
-        tensors.eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
-        tensors.token_index: np.array([token_index_value], dtype=np.int64),
-    }
-
-
-def run_decode_step(
-    rt: RuntimeSession,
-    *,
-    step: int,
-) -> int:
-    tensors = model_tensors()
-    if not tensors.decode_layers:
-        raise ValueError("decode_layers must not be empty")
-    with rt.frame(f"spike.decode.{step:04d}"):
-        run_decode_embed(rt)
-        for layer_idx in range(len(tensors.decode_layers)):
-            run_decode_layer(rt, layer_idx)
-        run_decode_norm(rt)
-        run_decode_lm_head(rt)
-        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
-            rt,
-            logits=tensors.decode_lm_head.linear,
-            eos_token_ids=tensors.eos_token_ids,
-            next_token=tensors.next_token,
-            done=tensors.done,
-        )
-        QWEN3_ASR_TOKEN_STORE_EOS_F32(
-            rt,
-            next_token=tensors.next_token,
-            token_index=tensors.token_index,
-            done=tensors.done,
-            generated_tokens=tensors.generated_tokens,
-            generated_length=tensors.generated_length,
-            stopped=tensors.stopped,
-        )
-    return int(rt.read_request_state(tensors.next_token).reshape(-1)[0])'''
-
-
-_DISPATCH_FILE_TEMPLATE = '''"""Generated dispatch functions for all submodules."""
-
-from __future__ import annotations
-
-import sys
-from typing import cast
-
-{{ extra_imports_source }}
-{% for item in shader_imports %}
-from models.exported_qwen3_asr.shaders.{{ item.shader }} import {{ item.const }}
-{% endfor %}
-{% for item in tensor_imports %}
-from models.exported_qwen3_asr.tensors.{{ item.file }} import {{ item.classes_source }}
-{% endfor %}
-from torch2vk.runtime.logical import LogicalTensor
-from torch2vk.runtime.shader import ShaderVariant
-from torch2vk.runtime.session import RuntimeSession
-
-
-def shader_variant(shader_name: str) -> ShaderVariant:
-    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
-
-
-{{ dispatch_sources_source }}
-
-
-{{ dispatch_wrappers_source }}
-
-
-{{ rope_dispatch_helper }}
-
-
-{{ decode_step_helpers }}
-'''
 
 
 # ==============================================================
@@ -668,14 +177,12 @@ def _combine_dispatch(
     tensor_file_classes: dict[str, list[str]],
 ) -> str:
     bound_dispatch_sources = [_bind_dispatch_source(source) for source in dispatch_sources]
-    dispatch_body = (
-        "\n\n\n".join(bound_dispatch_sources)
-        + "\n\n\n"
-        + _DISPATCH_WRAPPERS
-        + "\n\n\n"
-        + _ROPE_DISPATCH_HELPER
-        + "\n\n\n"
-        + _DECODE_STEP_HELPERS
+    dispatch_sources_source = "\n\n\n".join(bound_dispatch_sources)
+    dispatch_body = _render_template(
+        "dispatch.py.j2",
+        shader_imports=(),
+        tensor_imports=(),
+        dispatch_sources_source=dispatch_sources_source,
     )
     tensor_imports = tuple(
         {"file": target_file, "classes_source": classes}
@@ -688,17 +195,14 @@ def _combine_dispatch(
         )
         if classes
     )
-    return _JINJA.from_string(_DISPATCH_FILE_TEMPLATE).render(
-        extra_imports_source=_DISPATCH_EXTRA_IMPORTS.rstrip("\n"),
+    return _render_template(
+        "dispatch.py.j2",
         shader_imports=tuple(
             {"shader": shader_name, "const": all_shader_imports[shader_name]}
             for shader_name in sorted(all_shader_imports)
         ),
         tensor_imports=tensor_imports,
-        dispatch_sources_source="\n\n\n".join(bound_dispatch_sources),
-        dispatch_wrappers_source=_DISPATCH_WRAPPERS,
-        rope_dispatch_helper=_ROPE_DISPATCH_HELPER,
-        decode_step_helpers=_DECODE_STEP_HELPERS,
+        dispatch_sources_source=dispatch_sources_source,
     )
 
 
@@ -922,8 +426,8 @@ def main() -> int:
     helper_source = render_tensor_helpers()
     for group, sources in tensor_sources.items():
         (tensors_dir / f"{group}.py").write_text(render_tensor_module(sources, helper_source))
-    (tensors_dir / "rope.py").write_text(_ROPE_TENSOR_SOURCE)
-    (tensors_dir / "model.py").write_text(_JINJA.from_string(_MODEL_TENSOR_SOURCE).render())
+    (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))
+    (tensors_dir / "model.py").write_text(_render_template("model.py.j2"))
     tensor_init_imports = []
     for group in sorted(tensor_file_classes):
         for cls in tensor_file_classes[group]:

@@ -92,11 +92,11 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
 
     return ShaderVariant(
-        name="export_layer_norm_f32",
+        name="layer_norm_f32",
         family="export",
         contract=ShaderContract(
             class_name="ExportLayerNormProgram",
-            shader_name="export_layer_norm_f32",
+            shader_name="layer_norm_f32",
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
                 TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="bfloat16", shape=("W0",))),

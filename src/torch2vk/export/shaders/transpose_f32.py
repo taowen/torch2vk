@@ -93,7 +93,7 @@ def _shader_name(
 ) -> str:
     payload = f"{in_shape}->{out_shape}:{dim0}:{dim1}".encode()
     digest = hashlib.sha1(payload).hexdigest()[:10]
-    return f"export_transpose_f32_{digest}"
+    return f"transpose_f32_{digest}"
 
 
 def _transpose_source(

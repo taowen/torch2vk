@@ -60,11 +60,11 @@ def _make_sub_scalar(node: Node, out_shape: tuple[int, ...]) -> ShaderVariant:
     contract_shape = shape_to_contract(out_shape)
     n_expr = flat_numel_expr(contract_shape)
     return ShaderVariant(
-        name="export_sub_scalar",
+        name="sub_scalar",
         family="export",
         contract=ShaderContract(
             class_name="ExportSubScalarProgram",
-            shader_name="export_sub_scalar",
+            shader_name="sub_scalar",
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=contract_shape)),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=contract_shape)),

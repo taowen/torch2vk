@@ -61,11 +61,11 @@ def make_embedding_variant(node: Node) -> ShaderVariant | None:
 
     total = num_indices * embedding_dim
     return ShaderVariant(
-        name="export_embedding_f32",
+        name="embedding_f32",
         family="export",
         contract=ShaderContract(
             class_name="ExportEmbeddingProgram",
-            shader_name="export_embedding_f32",
+            shader_name="embedding_f32",
             fields=(
                 TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="bfloat16", shape=w_contract)),
                 TensorFieldSpec("indices", IOKind.INPUT, "input", TensorContract(dtype=indices_dtype, shape=idx_contract)),

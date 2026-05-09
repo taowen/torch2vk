@@ -95,7 +95,7 @@ def _shader_name(
     digest = hashlib.sha1(
         repr((in_shape, index_shape, out_shape, dim, index_dtype)).encode()
     ).hexdigest()[:10]
-    return f"export_index_select_f32_{digest}"
+    return f"index_select_f32_{digest}"
 
 
 def _index_source(dtype: str) -> str:

@@ -115,11 +115,11 @@ def _make_broadcast_last(
     n_expr = flat_numel_expr(out_contract)
     last_sym = out_contract[-1]
     return ShaderVariant(
-        name="export_mul_broadcast_last",
+        name="mul_broadcast_last",
         family="export",
         contract=ShaderContract(
             class_name="ExportMulBroadcastLastProgram",
-            shader_name="export_mul_broadcast_last",
+            shader_name="mul_broadcast_last",
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=out_contract)),
                 TensorFieldSpec("y", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=y_contract)),
@@ -149,11 +149,11 @@ def _make_left_broadcast(
     n_expr = flat_numel_expr(out_contract)
     h_sym = last_sym
     return ShaderVariant(
-        name="export_mul_left_broadcast",
+        name="mul_left_broadcast",
         family="export",
         contract=ShaderContract(
             class_name="ExportMulLeftBroadcastProgram",
-            shader_name="export_mul_left_broadcast",
+            shader_name="mul_left_broadcast",
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="bfloat16", shape=x_contract)),
                 TensorFieldSpec("y", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=out_contract)),
@@ -194,11 +194,11 @@ def _make_broadcast_inner(
     repeat = out_shape[broadcast_dim]
 
     return ShaderVariant(
-        name="export_mul_broadcast_inner",
+        name="mul_broadcast_inner",
         family="export",
         contract=ShaderContract(
             class_name="ExportMulBroadcastInnerProgram",
-            shader_name="export_mul_broadcast_inner",
+            shader_name="mul_broadcast_inner",
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=out_contract)),
                 TensorFieldSpec("y", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=y_contract)),

@@ -97,11 +97,11 @@ def make_conv2d_variant(node: Node) -> ShaderVariant | None:
     fields.append(TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)))
 
     return ShaderVariant(
-        name="export_conv2d_f32",
+        name="conv2d_f32",
         family="export",
         contract=ShaderContract(
             class_name="ExportConv2dProgram",
-            shader_name="export_conv2d_f32",
+            shader_name="conv2d_f32",
             fields=tuple(fields),
             push_constants=PushConstantSpec(
                 size=52,

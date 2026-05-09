@@ -147,11 +147,11 @@ def _make_kv_cache_write_variant(node: Node) -> ShaderVariant | None:
 
     total = mul(mul(mul("B", "H"), "T"), "D")
     return ShaderVariant(
-        name="export_kv_cache_write_f32",
+        name="kv_cache_write_f32",
         family="export",
         contract=ShaderContract(
             class_name="ExportKvCacheWriteF32Program",
-            shader_name="export_kv_cache_write_f32",
+            shader_name="kv_cache_write_f32",
             fields=(
                 TensorFieldSpec("cache", IOKind.INOUT, "state", TensorContract(dtype="float32", shape=("B", "H", "S", "D"))),
                 TensorFieldSpec("cache_position", IOKind.INPUT, "cache_position", TensorContract(dtype=index_dtype, shape=("T",))),
@@ -192,7 +192,7 @@ def _make_index_copy_dim2_4d(node: Node) -> ShaderVariant | None:
     digest = hashlib.sha1(
         repr((cache_shape, index_shape, src_shape, dim, index_dtype)).encode()
     ).hexdigest()[:10]
-    shader_name = f"export_index_copy_f32_{digest}"
+    shader_name = f"index_copy_f32_{digest}"
     total = mul(mul(mul("B", "H"), "T"), "D")
     return ShaderVariant(
         name=shader_name,
@@ -240,7 +240,7 @@ def _make_index_copy_dim1_3d(node: Node) -> ShaderVariant | None:
     digest = hashlib.sha1(
         repr((cache_shape, index_shape, src_shape, dim, index_dtype)).encode()
     ).hexdigest()[:10]
-    shader_name = f"export_index_copy_f32_{digest}"
+    shader_name = f"index_copy_f32_{digest}"
     total = mul(mul("B", "S"), "H")
     return ShaderVariant(
         name=shader_name,

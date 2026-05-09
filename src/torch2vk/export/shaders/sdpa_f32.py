@@ -296,13 +296,13 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
 
     if causal:
         source = _SOURCE_CAUSAL
-        shader_name = "export_sdpa_causal_f32"
+        shader_name = "sdpa_causal_f32"
     elif masked:
         source = _SOURCE_MASKED
-        shader_name = "export_sdpa_masked_f32"
+        shader_name = "sdpa_masked_f32"
     else:
         source = _SOURCE_NONCAUSAL
-        shader_name = "export_sdpa_f32"
+        shader_name = "sdpa_f32"
 
     if masked:
         mask_shape = node_input_shape(node, 3)
@@ -365,11 +365,11 @@ def _make_decode_cache_variant(
     if cache_position_dtype not in {"int32", "int64"}:
         return None
     return ShaderVariant(
-        name="export_sdpa_decode_cache_f32",
+        name="sdpa_decode_cache_f32",
         family="export",
         contract=ShaderContract(
             class_name="ExportSdpaDecodeCacheF32Program",
-            shader_name="export_sdpa_decode_cache_f32",
+            shader_name="sdpa_decode_cache_f32",
             fields=(
                 TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("B", "NH", "T", "D"))),
                 TensorFieldSpec("k", IOKind.INPUT, "state", TensorContract(dtype="float32", shape=("B", "NK", "S", "D"))),

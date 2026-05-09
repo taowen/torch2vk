@@ -74,11 +74,11 @@ def make_linear_nobias_variant(node: Node) -> ShaderVariant | None:
         m *= d
 
     return ShaderVariant(
-        name="export_linear_nobias_f32",
+        name="linear_nobias_f32",
         family="export",
         contract=ShaderContract(
             class_name="ExportLinearNobiasProgram",
-            shader_name="export_linear_nobias_f32",
+            shader_name="linear_nobias_f32",
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=x_contract)),
                 TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="bfloat16", shape=w_contract)),

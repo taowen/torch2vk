@@ -87,7 +87,7 @@ def make_unary_elementwise(glsl_source: str, name: str, node: Node) -> ShaderVar
         return None
     contract_shape = shape_to_contract(out_shape)
     n_expr = flat_numel_expr(contract_shape)
-    shader_name = f"export_{name}"
+    shader_name = name
     return ShaderVariant(
         name=shader_name,
         family="export",
@@ -114,7 +114,7 @@ def make_binary_same_shape(glsl_source: str, name: str, node: Node) -> ShaderVar
         return None
     contract_shape = shape_to_contract(out_shape)
     n_expr = flat_numel_expr(contract_shape)
-    shader_name = f"export_{name}"
+    shader_name = name
     return ShaderVariant(
         name=shader_name,
         family="export",

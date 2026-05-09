@@ -56,11 +56,11 @@ def make_mean_dim_variant(node: Node) -> ShaderVariant | None:
     out_contract = tuple("O" + str(i) for i in range(len(out_shape)))
 
     return ShaderVariant(
-        name="export_mean_dim_f32",
+        name="mean_dim_f32",
         family="export",
         contract=ShaderContract(
             class_name="ExportMeanDimProgram",
-            shader_name="export_mean_dim_f32",
+            shader_name="mean_dim_f32",
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),

@@ -50,11 +50,11 @@ def make_max_variant(node: Node) -> ShaderVariant | None:
     in_contract = tuple(f"I{i}" for i in range(len(in_shape)))
 
     return ShaderVariant(
-        name="export_max_f32",
+        name="max_f32",
         family="export",
         contract=ShaderContract(
             class_name="ExportMaxProgram",
-            shader_name="export_max_f32",
+            shader_name="max_f32",
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=(1,))),
