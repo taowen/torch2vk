@@ -110,6 +110,7 @@ def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOK
         with tensor.runtime_write_scope():
             tensor.buffer = None
             tensor.descriptor_nbytes = 0
+            tensor.alias_source = None
         return
     if tensor.memory is MemoryClass.HOST_OUTPUT:
         allocation = rt.device.allocate_host_visible_allocation(size)
@@ -131,6 +132,7 @@ def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOK
     with tensor.runtime_write_scope():
         tensor.buffer = BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=size)
         tensor.descriptor_nbytes = size
+        tensor.alias_source = None
     if tensor.lifetime in {TensorLifetime.FRAME, TensorLifetime.OP}:
         rt._frame_allocations.append((tensor, allocation))
 
@@ -210,11 +212,13 @@ def materialize_input(rt: RuntimeSession, tensor: LogicalTensor) -> None:
         with tensor.runtime_write_scope():
             tensor.buffer = slice_
             tensor.descriptor_nbytes = slice_.nbytes
+            tensor.alias_source = None
         rt._request_allocations.append(allocation)
         return
     with tensor.runtime_write_scope():
         tensor.buffer = BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=expected)
         tensor.descriptor_nbytes = expected
+        tensor.alias_source = None
     if tensor.lifetime in {TensorLifetime.FRAME, TensorLifetime.OP}:
         rt._frame_allocations.append((tensor, allocation))
 

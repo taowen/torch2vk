@@ -57,7 +57,6 @@ def build_replay_plan(
     name: str,
     frame_dispatch_records: Sequence[DispatchRecord],
     variants: Sequence[ShaderVariant],
-    tensors_by_name: Mapping[str, LogicalTensor] | None = None,
     dynamic_symbol_names: tuple[str, ...] = (),
     readback_tensors: Mapping[str, LogicalTensor] | None = None,
     token_feedback_source: LogicalTensor | None = None,
@@ -78,11 +77,7 @@ def build_replay_plan(
             token_feedback_source,
             token_feedback_target,
         )
-    resolved_tensors_by_name = (
-        _collect_replay_tensors_by_name(rt, frame_dispatch_records)
-        if tensors_by_name is None
-        else tensors_by_name
-    )
+    logical_tensors = _collect_replay_tensors(rt, frame_dispatch_records)
 
     use_indirect_dispatch = len(dynamic_symbol_names) > 0
     indirect_buffer: BufferAllocation | None = None
@@ -102,7 +97,6 @@ def build_replay_plan(
     bindings: list[BoundComputeBinding] = []
     workspace_allocations: list[BufferAllocation] = []
     params_allocations: list[BufferAllocation] = []
-    record_by_index = {record.index: record for record in frame_dispatch_records}
 
     for i, (record, variant) in enumerate(zip(frame_dispatch_records, variants, strict=True)):
         if record.shader != variant.name:
@@ -116,7 +110,7 @@ def build_replay_plan(
         logical_by_field = dict(record.logical_reads)
         logical_by_field.update(record.logical_writes)
         tensors = {
-            field.name: resolved_tensors_by_name[logical_by_field[field.name]]
+            field.name: logical_tensors[logical_by_field[field.name]]
             for field in contract.fields
         }
 
@@ -126,8 +120,7 @@ def build_replay_plan(
             tensor = tensors[field.name]
             descriptor_tensor = _canonical_replay_descriptor_tensor(
                 tensor=tensor,
-                record_by_index=record_by_index,
-                tensors_by_name=resolved_tensors_by_name,
+                logical_tensors=logical_tensors,
             )
             if (
                 token_feedback_source is not None
@@ -390,20 +383,20 @@ def _validate_token_feedback_tensors(
         )
 
 
-def _collect_replay_tensors_by_name(
+def _collect_replay_tensors(
     rt: RuntimeSession,
     records: Sequence[DispatchRecord],
 ) -> dict[str, LogicalTensor]:
-    tensors_by_name: dict[str, LogicalTensor] = {}
+    logical_tensors = rt._named_model_tensors()
     frame_names = {record.frame for record in records}
 
     def collect(tensor: LogicalTensor) -> None:
-        existing = tensors_by_name.get(tensor.name)
+        existing = logical_tensors.get(tensor.name)
         if existing is not None and existing is not tensor:
             raise RuntimeError(
                 f"Replay record has multiple LogicalTensor objects named {tensor.name!r}"
             )
-        tensors_by_name[tensor.name] = tensor
+        logical_tensors[tensor.name] = tensor
 
     for record in records:
         for _, tensor in (*record.reads, *record.writes):
@@ -414,15 +407,10 @@ def _collect_replay_tensors_by_name(
             continue
         for tensor in (*frame.registered_inputs, *frame.used_tensors, *frame.written_tensors):
             collect(tensor)
-    return tensors_by_name
+    return logical_tensors
 
 
-def rebind_replay_plan(
-    rt: RuntimeSession,
-    plan: ReplayPlan,
-    *,
-    tensors_by_name: Mapping[str, LogicalTensor] | None = None,
-) -> None:
+def rebind_replay_plan(rt: RuntimeSession, plan: ReplayPlan) -> None:
     """Retarget replay descriptors to a compatible tensor set without recording."""
     rt._require_open()
     if plan._closed:
@@ -434,6 +422,7 @@ def rebind_replay_plan(
             "Replay plans with baked readback copy commands cannot be rebound"
         )
 
+    logical_tensors = rt._named_model_tensors()
     for entry in plan.dispatch_entries:
         rebound_descriptors: list[ReplayDescriptorBinding] = []
         rebound_field_tensors: dict[str, LogicalTensor] = {}
@@ -441,16 +430,13 @@ def rebind_replay_plan(
             if not descriptor.rebindable:
                 rebound_descriptors.append(descriptor)
                 continue
-            if tensors_by_name is None:
-                tensor = descriptor.tensor
-            else:
-                try:
-                    tensor = tensors_by_name[descriptor.tensor_name]
-                except KeyError as exc:
-                    raise KeyError(
-                        f"ReplayPlan {plan.name!r} rebind is missing tensor "
-                        f"{descriptor.tensor_name!r}"
-                    ) from exc
+            try:
+                tensor = logical_tensors[descriptor.tensor_name]
+            except KeyError as exc:
+                raise KeyError(
+                    f"ReplayPlan {plan.name!r} rebind is missing tensor "
+                    f"{descriptor.tensor_name!r}"
+                ) from exc
             _materialize_replay_rebind_tensor(rt, tensor, field=descriptor.field)
             if tensor.buffer is None:
                 raise RuntimeError(f"{tensor.name} is not materialized for replay rebind")
@@ -489,6 +475,33 @@ def rebind_replay_plan(
             )
         entry.pipeline.update_bound_buffers(entry.binding, buffer_views)
         entry.descriptors = tuple(rebound_descriptors)
+
+
+def replay_plan_compatible(rt: RuntimeSession, plan: ReplayPlan) -> bool:
+    rt._require_open()
+    if plan._closed or plan.device is not rt.device:
+        return False
+    logical_tensors = rt._named_model_tensors()
+    for entry in plan.dispatch_entries:
+        field_tensors: dict[str, LogicalTensor] = {}
+        for descriptor in entry.descriptors:
+            if not descriptor.rebindable:
+                continue
+            tensor = logical_tensors.get(descriptor.tensor_name)
+            if tensor is None:
+                return False
+            if descriptor.validate_shape:
+                field_tensors[descriptor.field.name] = tensor
+        try:
+            _validate_replay_rebind_symbols(
+                rt,
+                plan=plan,
+                entry=entry,
+                field_tensors=field_tensors,
+            )
+        except ValueError:
+            return False
+    return True
 
 
 def cached_replay_plans(rt: RuntimeSession, namespace: str) -> tuple[ReplayPlan, ...]:
@@ -581,26 +594,19 @@ def _materialize_replay_rebind_tensor(
 def _canonical_replay_descriptor_tensor(
     *,
     tensor: LogicalTensor,
-    record_by_index: Mapping[int, DispatchRecord],
-    tensors_by_name: Mapping[str, LogicalTensor],
+    logical_tensors: Mapping[str, LogicalTensor],
 ) -> LogicalTensor:
     if tensor.memory is not MemoryClass.FRAME_WORKSPACE:
         return tensor
-    alias_owner = _live_non_frame_alias_owner(tensor, tensors_by_name)
+    alias_source = tensor.alias_source
+    if alias_source is not None:
+        return _canonical_replay_descriptor_tensor(
+            tensor=alias_source,
+            logical_tensors=logical_tensors,
+        )
+    alias_owner = _live_non_frame_alias_owner(tensor, logical_tensors)
     if alias_owner is not None:
         return alias_owner
-    if _has_live_buffer(tensor):
-        return tensor
-    writer = tensor.writer
-    if writer is None:
-        return tensor
-    record = record_by_index.get(writer.dispatch_index)
-    if record is None:
-        return tensor
-    for _, written_name in record.logical_writes:
-        written = tensors_by_name[written_name]
-        if tensor_nbytes(written.spec) == tensor_nbytes(tensor.spec):
-            return written
     return tensor
 
 
@@ -610,11 +616,11 @@ def _has_live_buffer(tensor: LogicalTensor) -> bool:
 
 def _live_non_frame_alias_owner(
     tensor: LogicalTensor,
-    tensors_by_name: Mapping[str, LogicalTensor],
+    logical_tensors: Mapping[str, LogicalTensor],
 ) -> LogicalTensor | None:
     if not _has_live_buffer(tensor):
         return None
-    for candidate in tensors_by_name.values():
+    for candidate in logical_tensors.values():
         if candidate is tensor or candidate.memory is MemoryClass.FRAME_WORKSPACE:
             continue
         if _has_live_buffer(candidate) and candidate.buffer == tensor.buffer:

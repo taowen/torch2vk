@@ -111,6 +111,7 @@ class LogicalTensor:
     _descriptor_nbytes: int | None = field(default=None, init=False, repr=False)
     _version: int = field(default=0, init=False, repr=False)
     _writer: DispatchWriter | None = field(default=None, init=False, repr=False)
+    _alias_source: LogicalTensor | None = field(default=None, init=False, repr=False)
 
     def __setattr__(self, name: str, value: object) -> None:
         if name == "spec" and hasattr(self, "_runtime_writable"):
@@ -165,6 +166,15 @@ class LogicalTensor:
     def writer(self, value: DispatchWriter | None) -> None:
         self._require_runtime_writable("writer")
         self._writer = value
+
+    @property
+    def alias_source(self) -> LogicalTensor | None:
+        return self._alias_source
+
+    @alias_source.setter
+    def alias_source(self, value: LogicalTensor | None) -> None:
+        self._require_runtime_writable("alias_source")
+        self._alias_source = value
 
     def validate_declaration(self) -> None:
         self.fill_missing_declaration_defaults()
@@ -242,6 +252,37 @@ def bind_logical_tensor_names(root: object, prefix: str = "", *, overwrite: bool
                 bind(item, child_path)
 
     bind(root, prefix)
+
+
+def collect_named_logical_tensors(root: object) -> dict[str, LogicalTensor]:
+    tensors: dict[str, LogicalTensor] = {}
+    seen: set[int] = set()
+
+    def collect(value: object) -> None:
+        if isinstance(value, LogicalTensor):
+            value_id = id(value)
+            if value_id in seen:
+                return
+            seen.add(value_id)
+            if not value.name:
+                raise ValueError("LogicalTensor name must be non-empty")
+            existing = tensors.get(value.name)
+            if existing is not None and existing is not value:
+                raise RuntimeError(
+                    f"Model tensors contain multiple LogicalTensor objects named {value.name!r}"
+                )
+            tensors[value.name] = value
+            return
+        if is_dataclass(value) and not isinstance(value, type):
+            for field_info in fields(value):
+                collect(getattr(value, field_info.name))
+            return
+        if isinstance(value, tuple | list):
+            for item in value:
+                collect(item)
+
+    collect(root)
+    return tensors
 
 
 def _validate_role_memory_lifetime(tensor: LogicalTensor) -> None:

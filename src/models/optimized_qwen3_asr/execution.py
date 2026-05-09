@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, fields as dataclass_fields
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol, TypeGuard
 
@@ -21,19 +21,9 @@ from models.optimized_qwen3_asr.tensors.text import (
     Qwen3AsrTextDecodeTensors,
     Qwen3AsrTextPrefillTensors,
     Qwen3AsrTextTensors,
-    Qwen3AsrTokenSelectTensors,
 )
-from models.optimized_qwen3_asr.tensors.text_layer import Qwen3AsrTextLayerTensors
 from models.optimized_qwen3_asr.token_select import run_qwen3_asr_token_select
-from torch2vk.runtime.logical import (
-    LogicalTensor,
-    MemoryClass,
-    TensorLifetime,
-    TensorRole,
-    TensorSemantic,
-    TensorSpec,
-    bind_logical_tensor_names,
-)
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.rope_table import (
     declare_rope_start_position_tensor,
     declare_rope_theta_tensor,
@@ -187,9 +177,9 @@ def run_qwen3_asr_greedy_decode_loop(
     _register_prefill_rope(rt, prefill, rope_theta=rope_theta, mrope_section=mrope_section)
     run_qwen3_asr_text_prefill(rt, prefill, pytorch_compare=pytorch_compare)
     run_qwen3_asr_token_select(rt, tensors.token_select, logits=prefill.logits)
-    generated_length = _replay_generated_length_tensor()
-    stopped = _replay_stopped_tensor()
-    token_index = _replay_token_index_tensor()
+    generated_length = tensors.token_select.generated_length
+    stopped = tensors.token_select.stopped
+    token_index = tensors.token_select.token_index
     _initialize_replay_decode_control(rt, generated_length, stopped)
     _append_generated_token(
         rt,
@@ -485,14 +475,14 @@ def run_qwen3_asr_replay_decode_loop(
 
     replay_generated = _initialize_replay_generated_tokens(
         rt,
-        _replay_generated_tokens_tensor(max_new_tokens) if stop_on_eos
+        tensors.token_select.replay_generated_tokens if stop_on_eos
         else tensors.token_select.generated_tokens,
         max_new_tokens,
     )
-    replay_generated_length = _replay_generated_length_tensor()
-    replay_stopped = _replay_stopped_tensor()
+    replay_generated_length = tensors.token_select.generated_length
+    replay_stopped = tensors.token_select.stopped
     _initialize_replay_decode_control(rt, replay_generated_length, replay_stopped)
-    replay_token_index = _replay_token_index_tensor()
+    replay_token_index = tensors.token_select.token_index
     rt.register_inputs({replay_token_index: np.array([0], dtype=np.int64)})
     _run_qwen3_asr_token_store(
         rt,
@@ -526,18 +516,10 @@ def run_qwen3_asr_replay_decode_loop(
         mrope_section=mrope_section,
     )
 
-    tensors_by_name = _replay_decode_tensors_by_name(
-        tensors=tensors,
-        replay_token_index=replay_token_index,
-        replay_generated=replay_generated,
-        replay_generated_length=replay_generated_length,
-        replay_stopped=replay_stopped,
-    )
     cached_plan = None
     if mode != "force_record":
         cached_plan = _find_cached_qwen3_asr_decode_replay_plan(
             rt,
-            tensors_by_name=tensors_by_name,
             stop_on_eos=stop_on_eos,
         )
     if cached_plan is not None:
@@ -546,7 +528,6 @@ def run_qwen3_asr_replay_decode_loop(
             plan=cached_plan,
             decode=decode,
             next_token=tensors.token_select.next_token,
-            tensors_by_name=tensors_by_name,
             replay_token_index=replay_token_index,
             prompt_length=prompt_length,
             head_dim=head_dim,
@@ -617,7 +598,6 @@ def run_qwen3_asr_replay_decode_loop(
         name="qwen3_asr_decode_step",
         frame_dispatch_records=list(warmup_records),
         variants=variants,
-        tensors_by_name=tensors_by_name,
         dynamic_symbol_names=("S",),
     )
     if plan.readback_slots:
@@ -630,7 +610,6 @@ def run_qwen3_asr_replay_decode_loop(
             plan=plan,
             decode=decode,
             next_token=tensors.token_select.next_token,
-            tensors_by_name=tensors_by_name,
             replay_token_index=replay_token_index,
             prompt_length=prompt_length,
             head_dim=head_dim,
@@ -703,36 +682,15 @@ def _initialize_replay_decode_control(
     })
 
 
-def _replay_decode_tensors_by_name(
-    *,
-    tensors: Qwen3AsrTextTensors,
-    replay_token_index: LogicalTensor,
-    replay_generated: LogicalTensor,
-    replay_generated_length: LogicalTensor,
-    replay_stopped: LogicalTensor,
-) -> dict[str, LogicalTensor]:
-    tensors_by_name: dict[str, LogicalTensor] = {}
-    _collect_all_tensors(tensors, tensors_by_name)
-    tensors_by_name[replay_token_index.name] = replay_token_index
-    tensors_by_name[replay_generated.name] = replay_generated
-    tensors_by_name[replay_generated_length.name] = replay_generated_length
-    tensors_by_name[replay_stopped.name] = replay_stopped
-    return tensors_by_name
-
-
 def _find_cached_qwen3_asr_decode_replay_plan(
     rt: RuntimeSession,
     *,
-    tensors_by_name: Mapping[str, LogicalTensor],
     stop_on_eos: bool,
 ) -> "ReplayPlan | None":
     namespace = _qwen3_asr_decode_replay_namespace(stop_on_eos)
     for plan in rt.cached_replay_plans(namespace):
-        try:
-            rt.rebind_replay_plan(plan, tensors_by_name=tensors_by_name)
-        except (KeyError, ValueError):
-            continue
-        return plan
+        if rt.replay_plan_compatible(plan):
+            return plan
     return None
 
 
@@ -742,7 +700,6 @@ def _run_qwen3_asr_decode_replay_steps(
     plan: "ReplayPlan",
     decode: Qwen3AsrTextDecodeTensors,
     next_token: LogicalTensor,
-    tensors_by_name: Mapping[str, LogicalTensor],
     replay_token_index: LogicalTensor,
     prompt_length: int,
     head_dim: int,
@@ -768,13 +725,7 @@ def _run_qwen3_asr_decode_replay_steps(
             rope_theta_tensor: np.array([rope_theta], dtype=np.float32),
             replay_token_index: token_index_value,
         }
-        stage_replay_step_inputs(
-            rt,
-            plan=plan,
-            tensors_by_name=tensors_by_name,
-            inputs=step_inputs,
-            write_through=(decode.input_ids, decode.cache_position, replay_token_index),
-        )
+        rt.register_inputs(step_inputs)
         run_rope_table_f32(
             rt,
             start_position=decode.cache_position,
@@ -782,6 +733,12 @@ def _run_qwen3_asr_decode_replay_steps(
             cos=decode.rope_cos,
             sin=decode.rope_sin,
             frame_name="qwen3_asr.rope_table",
+        )
+        stage_replay_step_inputs(
+            rt,
+            plan=plan,
+            inputs=step_inputs,
+            write_through=(decode.input_ids, decode.cache_position, replay_token_index),
         )
         execute_replay(plan, dynamic_symbols=_qwen3_asr_decode_dynamic_symbols(decode))
         if stop_on_eos and _replay_decode_stopped(rt, replay_stopped):
@@ -798,53 +755,6 @@ def _qwen3_asr_decode_dynamic_symbols(
     if not decode.layers:
         raise ValueError("Qwen3-ASR decode replay requires at least one decoder layer")
     return {"S": decode.layers[0].key_cache.concrete_shape[2]}
-
-
-def _replay_generated_tokens_tensor(max_new_tokens: int) -> LogicalTensor:
-    tensor = LogicalTensor(
-        spec=TensorSpec(dtype="int64", shape=(1, max_new_tokens)),
-        role=TensorRole.STATE,
-        memory=MemoryClass.REQUEST_STATE,
-        lifetime=TensorLifetime.REQUEST,
-        semantic=TensorSemantic.TOKEN,
-    )
-    bind_logical_tensor_names(tensor, "qwen3_asr.replay.generated_tokens")
-    return tensor
-
-
-def _replay_generated_length_tensor() -> LogicalTensor:
-    tensor = LogicalTensor(
-        spec=TensorSpec(dtype="uint32", shape=(1,)),
-        role=TensorRole.STATE,
-        memory=MemoryClass.REQUEST_STATE,
-        lifetime=TensorLifetime.REQUEST,
-        semantic=TensorSemantic.TOKEN,
-    )
-    bind_logical_tensor_names(tensor, "qwen3_asr.replay.generated_length")
-    return tensor
-
-
-def _replay_stopped_tensor() -> LogicalTensor:
-    tensor = LogicalTensor(
-        spec=TensorSpec(dtype="uint32", shape=(1,)),
-        role=TensorRole.STATE,
-        memory=MemoryClass.REQUEST_STATE,
-        lifetime=TensorLifetime.REQUEST,
-        semantic=TensorSemantic.TOKEN,
-    )
-    bind_logical_tensor_names(tensor, "qwen3_asr.replay.stopped")
-    return tensor
-
-
-def _replay_token_index_tensor() -> LogicalTensor:
-    tensor = LogicalTensor(
-        spec=TensorSpec(dtype="int64", shape=(1,)),
-        role=TensorRole.INPUT,
-        memory=MemoryClass.HOST_INPUT,
-        lifetime=TensorLifetime.FRAME,
-    )
-    bind_logical_tensor_names(tensor, "qwen3_asr.replay.token_index")
-    return tensor
 
 
 def _run_qwen3_asr_token_store(
@@ -944,49 +854,3 @@ def _collect_token_store_variants(
 
     variant = QWEN3_ASR_TOKEN_STORE_EOS_F32 if stop_on_eos else QWEN3_ASR_TOKEN_STORE_F32
     out[variant.name] = variant
-
-
-def _collect_all_tensors(
-    tensors: Qwen3AsrTextTensors,
-    out: dict[str, LogicalTensor],
-) -> None:
-    """Collect all LogicalTensors from the text tensors struct by name."""
-    decode = tensors.decode
-    ts = tensors.token_select
-
-    _collect_decode_tensor_fields(decode, out)
-
-    for layer in decode.layers:
-        _collect_layer_tensor_fields(layer, out)
-
-    _collect_token_select_tensor_fields(ts, out)
-
-
-def _collect_decode_tensor_fields(
-    decode: Qwen3AsrTextDecodeTensors,
-    out: dict[str, LogicalTensor],
-) -> None:
-    for field in dataclass_fields(Qwen3AsrTextDecodeTensors):
-        value = getattr(decode, field.name)
-        if isinstance(value, LogicalTensor):
-            out[value.name] = value
-
-
-def _collect_layer_tensor_fields(
-    layer: Qwen3AsrTextLayerTensors,
-    out: dict[str, LogicalTensor],
-) -> None:
-    for field in dataclass_fields(Qwen3AsrTextLayerTensors):
-        value = getattr(layer, field.name)
-        if isinstance(value, LogicalTensor):
-            out[value.name] = value
-
-
-def _collect_token_select_tensor_fields(
-    token_select: Qwen3AsrTokenSelectTensors,
-    out: dict[str, LogicalTensor],
-) -> None:
-    for field in dataclass_fields(Qwen3AsrTokenSelectTensors):
-        value = getattr(token_select, field.name)
-        if isinstance(value, LogicalTensor):
-            out[value.name] = value

@@ -150,15 +150,6 @@ def main(
     processor, prepared = prepare_qwen3_asr_inputs(model_dir=model_dir, wav=str(wav_path))
     prompt_length = prepared.prompt_length
     max_sequence_length = prepared.prompt_length + 64
-    rt = RuntimeSession.open(device_index=0, model_dir=model_dir)
-    debug_audio_tower = None
-    pytorch_thinker = None
-    if pytorch_compare:
-        pytorch_model = rt._load_pytorch_model(Qwen3ASRForConditionalGeneration)
-        if pytorch_model is None:
-            raise RuntimeError("exported_qwen3_asr compare requires a PyTorch model")
-        pytorch_thinker = getattr(pytorch_model, "thinker")
-        debug_audio_tower = DebugAudioTower(getattr(pytorch_thinker, "audio_tower"))
 
     # === Create all tensor objects upfront ===
     print("Declaring tensors...")
@@ -178,6 +169,19 @@ def main(
         max_new_tokens=max_new_tokens,
         eos_token_count=len(eos_token_ids),
     )
+    rt = RuntimeSession.open(
+        device_index=0,
+        model_dir=model_dir,
+        model_tensors=model_tensors(),
+    )
+    debug_audio_tower = None
+    pytorch_thinker = None
+    if pytorch_compare:
+        pytorch_model = rt._load_pytorch_model(Qwen3ASRForConditionalGeneration)
+        if pytorch_model is None:
+            raise RuntimeError("exported_qwen3_asr compare requires a PyTorch model")
+        pytorch_thinker = getattr(pytorch_model, "thinker")
+        debug_audio_tower = DebugAudioTower(getattr(pytorch_thinker, "audio_tower"))
 
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),

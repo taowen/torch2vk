@@ -219,6 +219,7 @@ class Qwen3AsrRecognizer:
             pytorch_input_features_shape=prepared.input_features.shape,
             pytorch_feature_attention_mask_shape=prepared.feature_attention_mask.shape,
         )
+        self._rt.set_model_tensors(text_tensors)
 
         self._rt.register_inputs({
             audio_tensors.input_features: input_features,

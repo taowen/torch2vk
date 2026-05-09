@@ -65,6 +65,10 @@ class Qwen3AsrTokenSelectTensors:
     next_token: LogicalTensor
     done: LogicalTensor
     generated_tokens: LogicalTensor
+    replay_generated_tokens: LogicalTensor
+    generated_length: LogicalTensor
+    stopped: LogicalTensor
+    token_index: LogicalTensor
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,6 +264,22 @@ def declare_qwen3_asr_text_tensors(
             (1, 0),
             semantic=TensorSemantic.TOKEN,
         ),
+        replay_generated_tokens=_state(
+            "int64",
+            (1, max_sequence_length - prompt_length),
+            semantic=TensorSemantic.TOKEN,
+        ),
+        generated_length=_state(
+            "uint32",
+            (1,),
+            semantic=TensorSemantic.TOKEN,
+        ),
+        stopped=_state(
+            "uint32",
+            (1,),
+            semantic=TensorSemantic.TOKEN,
+        ),
+        token_index=_input("int64", (1,)),
     )
     tensors = Qwen3AsrTextTensors(prefill=prefill, decode=decode, token_select=token_select)
     bind_logical_tensor_names(tensors, "qwen3_asr.text", overwrite=False)

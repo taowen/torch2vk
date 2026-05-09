@@ -12,7 +12,11 @@ import numpy as np
 
 from torch2vk.runtime.compare import TensorCompareResult
 from torch2vk.runtime.frame import FrameContext
-from torch2vk.runtime.logical import LogicalTensor, TensorRole
+from torch2vk.runtime.logical import (
+    LogicalTensor,
+    TensorRole,
+    collect_named_logical_tensors,
+)
 from torch2vk.runtime.shader import (
     DispatchRecord,
     IOKind,
@@ -40,6 +44,7 @@ class RuntimeSession:
         artifact_dir: str | Path | None = None,
         model_dir: str | Path | None = None,
         profile_dir: str | Path | None = None,
+        model_tensors: object | None = None,
     ) -> None:
         from torch2vk.runtime.profile import RuntimeProfiler
 
@@ -50,6 +55,7 @@ class RuntimeSession:
             ".cache/torch2vk/generated" if artifact_dir is None else artifact_dir
         )
         self.model_dir = None if model_dir is None else Path(model_dir).expanduser().resolve()
+        self._model_tensors = model_tensors
         self._inputs: dict[LogicalTensor, object] = {}
         self._frame_stack: list[FrameContext] = []
         self._frame_history: dict[str, FrameContext] = {}
@@ -72,12 +78,14 @@ class RuntimeSession:
         artifact_dir: str | Path | None = None,
         model_dir: str | Path | None = None,
         profile_dir: str | Path | None = None,
+        model_tensors: object | None = None,
     ) -> "RuntimeSession":
         return cls(
             device_index=device_index,
             artifact_dir=artifact_dir,
             model_dir=model_dir,
             profile_dir=profile_dir,
+            model_tensors=model_tensors,
         )
 
     def __enter__(self) -> "RuntimeSession":
@@ -109,7 +117,12 @@ class RuntimeSession:
             if tensor.role is not TensorRole.INPUT:
                 raise ValueError(f"{tensor.name} is not an input tensor")
             self._inputs[tensor] = value
+            self._invalidate_input_materialization(tensor)
             self._record_frame_input(tensor)
+
+    def set_model_tensors(self, model_tensors: object) -> None:
+        collect_named_logical_tensors(model_tensors)
+        self._model_tensors = model_tensors
 
     def initialize_request_state(self, states: Mapping[LogicalTensor, object]) -> None:
         from torch2vk.runtime.request_state import initialize_request_state
@@ -222,7 +235,6 @@ class RuntimeSession:
         name: str,
         frame_dispatch_records: Sequence[DispatchRecord],
         variants: Sequence[ShaderVariant],
-        tensors_by_name: Mapping[str, LogicalTensor] | None = None,
         dynamic_symbol_names: tuple[str, ...] = (),
         readback_tensors: Mapping[str, LogicalTensor] | None = None,
         token_feedback_source: LogicalTensor | None = None,
@@ -235,7 +247,6 @@ class RuntimeSession:
             name=name,
             frame_dispatch_records=frame_dispatch_records,
             variants=variants,
-            tensors_by_name=tensors_by_name,
             dynamic_symbol_names=dynamic_symbol_names,
             readback_tensors=readback_tensors,
             token_feedback_source=token_feedback_source,
@@ -245,12 +256,15 @@ class RuntimeSession:
     def rebind_replay_plan(
         self,
         plan: "ReplayPlan",
-        *,
-        tensors_by_name: Mapping[str, LogicalTensor] | None = None,
     ) -> None:
         from torch2vk.runtime.replay_builder import rebind_replay_plan
 
-        rebind_replay_plan(self, plan, tensors_by_name=tensors_by_name)
+        rebind_replay_plan(self, plan)
+
+    def replay_plan_compatible(self, plan: "ReplayPlan") -> bool:
+        from torch2vk.runtime.replay_builder import replay_plan_compatible
+
+        return replay_plan_compatible(self, plan)
 
     def cached_replay_plans(self, namespace: str) -> tuple["ReplayPlan", ...]:
         from torch2vk.runtime.replay_builder import cached_replay_plans
@@ -305,6 +319,21 @@ class RuntimeSession:
         if frame is not None:
             frame.registered_inputs.append(tensor)
 
+    def _invalidate_input_materialization(self, tensor: LogicalTensor) -> None:
+        if tensor.buffer is None and tensor.descriptor_nbytes is None:
+            return
+        with tensor.runtime_write_scope():
+            tensor.buffer = None
+            tensor.descriptor_nbytes = None
+            tensor.alias_source = None
+
+    def _named_model_tensors(self) -> dict[str, LogicalTensor]:
+        if self._model_tensors is None:
+            raise RuntimeError(
+                "Replay requires RuntimeSession.open(..., model_tensors=...) "
+                "or rt.set_model_tensors(...)"
+            )
+        return collect_named_logical_tensors(self._model_tensors)
 
     def _bind_shape_symbols(
         self,

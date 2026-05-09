@@ -139,6 +139,7 @@ def _alias(rt: RuntimeSession, src: LogicalTensor, dst: LogicalTensor) -> None:
         dst.descriptor_nbytes = src.descriptor_nbytes
         dst.version = src.version
         dst.writer = src.writer
+        dst.alias_source = src
     frame = rt._current_frame()
     frame.used_tensors.append(src)
     frame.written_tensors.append(dst)
@@ -651,6 +652,7 @@ def _generate_dispatch_function(
     lines.append("        dst.descriptor_nbytes = src.descriptor_nbytes")
     lines.append("        dst.version = src.version")
     lines.append("        dst.writer = src.writer")
+    lines.append("        dst.alias_source = src")
     lines.append("    frame = rt._current_frame()")
     lines.append("    frame.used_tensors.append(src)")
     lines.append("    frame.written_tensors.append(dst)")
