@@ -18,9 +18,9 @@ import numpy as np
 import torch
 from jinja2 import Environment, StrictUndefined
 
+from models.exported_qwen3_asr.debug_audio_tower import DebugAudioTower
 from models.exported_qwen3_asr.export_forwards import (
     export_audio_inject_forward,
-    export_audio_tower_forward,
     patched_forward,
 )
 from models.hf_cache import resolve_cached_model
@@ -883,15 +883,23 @@ def main() -> int:
 
     # Audio encoder export (single export with layer loop hint)
     num_encoder_layers = len(at.layers)
-    with patched_forward(at, export_audio_tower_forward):
-        export_one("run_audio_encoder", at.float(),
-                   args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),
-                         torch.zeros(*shapes["conv_out"], device="meta"),
-                         torch.zeros(enc_seq, dtype=torch.long, device="meta"),
-                         torch.zeros(shapes["cu_seqlens_len"], dtype=torch.int32, device="meta"),
-                         torch.zeros(1, 1, enc_seq, enc_seq, device="meta")),
-                   weight_prefix="thinker.audio_tower.",
-                   layer_loop=LayerLoopHint(layer_prefix="layers", num_layers=num_encoder_layers))
+    export_one("run_audio_encoder", DebugAudioTower(at).float(),
+               args=(torch.zeros(nc, 1, ac.num_mel_bins, shapes["max_chunk_len"], device="meta"),
+                     torch.zeros(*shapes["conv_out"], device="meta"),
+                     torch.zeros(enc_seq, dtype=torch.long, device="meta")),
+               kwargs={
+                   "cu_seqlens": torch.zeros(
+                       shapes["cu_seqlens_len"],
+                       dtype=torch.int32,
+                       device="meta",
+                   ),
+                   "attention_mask": torch.zeros(1, 1, enc_seq, enc_seq, device="meta"),
+               },
+               weight_prefix="thinker.",
+               layer_loop=LayerLoopHint(
+                   layer_prefix="audio_tower.layers",
+                   num_layers=num_encoder_layers,
+               ))
 
     # Text pipeline exports
     pl = shapes["prompt_length"]
