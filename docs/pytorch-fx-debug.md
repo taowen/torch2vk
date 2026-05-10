@@ -62,7 +62,7 @@ export/codegen 负责生成：
 
 1. `LogicalTensor.reference_key`：记录 tensor 来自哪个 FX node；
 2. `reference_specs.py`：记录 reference input/output key、tensor root、compare name 和 policy；
-3. `reference_setup.py`：生成 PyTorch reference 对象的装配代码；
+3. `reference_setup.py`：生成 `.pt2` graph reference loader；
 4. `reference.py`：生成 `run_xxx(...)` wrapper，统一执行 reference 和 compare；
 5. 可选 `.pt2`：保存无状态 exported graph reference。
 

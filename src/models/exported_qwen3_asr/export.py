@@ -31,8 +31,8 @@ from torch2vk.export import (
 )
 from torch2vk.export.codegen import (
     generate_reference_spec,
+    render_reference_loader_module,
     render_reference_module,
-    render_reference_setup_module,
     render_reference_specs_module,
     render_shader_file,
     render_simple_init,
@@ -230,108 +230,6 @@ def model_shaders() -> dict[str, ShaderVariant]:
 '''
 
 
-def _render_reference_setup() -> str:
-    return render_reference_setup_module(
-        imports=[
-            "from pathlib import Path",
-            "from typing import cast",
-            "",
-            "import numpy as np",
-            "from torch import nn",
-            "from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (",
-            "    Qwen3ASRForConditionalGeneration,",
-            ")",
-            "",
-            "from models.exported_qwen3_asr import reference_specs",
-            "from models.exported_qwen3_asr.pytorch_modules import (",
-            "    AudioEncoderReference,",
-            "    AudioInjectReference,",
-            "    TextLayerReference,",
-            "    TextReferenceState,",
-            "    TokenSelectReference,",
-            "    TokenStoreReference,",
-            ")",
-            "from torch2vk.runtime.reference import ExportedProgramReference, load_exported_reference",
-        ],
-        fields=[
-            "text_state: TextReferenceState",
-            "audio_encoder: AudioEncoderReference",
-            "embed_tokens: ExportedProgramReference",
-            "audio_inject: AudioInjectReference",
-            "text_layers: tuple[TextLayerReference, ...]",
-            "text_norm: ExportedProgramReference",
-            "lm_head: ExportedProgramReference",
-            "decode_embed: ExportedProgramReference",
-            "decode_layers: tuple[TextLayerReference, ...]",
-            "decode_norm: ExportedProgramReference",
-            "decode_lm_head: ExportedProgramReference",
-            "token_select: TokenSelectReference",
-            "token_store: TokenStoreReference",
-            "next_token: np.ndarray | None = None",
-            "done: np.ndarray | None = None",
-        ],
-        functions_source='''def build_compare_references(
-    model: Qwen3ASRForConditionalGeneration,
-    *,
-    base_dir: Path,
-    max_new_tokens: int,
-) -> CompareReferences:
-    thinker = cast(nn.Module, getattr(model, "thinker"))
-    text_state = TextReferenceState(thinker)
-    decode_state = text_state
-    text_model = cast(nn.Module, thinker.get_submodule("model"))
-    embed_tokens = cast(nn.Module, text_model.get_submodule("embed_tokens"))
-    norm = cast(nn.Module, text_model.get_submodule("norm"))
-    lm_head = cast(nn.Module, thinker.get_submodule("lm_head"))
-    audio_tower = cast(nn.Module, thinker.get_submodule("audio_tower"))
-    return CompareReferences(
-        text_state=text_state,
-        audio_encoder=AudioEncoderReference(audio_tower),
-        embed_tokens=load_exported_reference(
-            base_dir,
-            reference_specs.EMBED_TOKENS_SPEC,
-            state_dict=embed_tokens.state_dict(),
-        ),
-        audio_inject=AudioInjectReference(),
-        text_layers=tuple(
-            TextLayerReference(text_state, layer_idx, prefill=True)
-            for layer_idx in range(len(text_state.layers))
-        ),
-        text_norm=load_exported_reference(
-            base_dir,
-            reference_specs.TEXT_NORM_SPEC,
-            state_dict=norm.state_dict(),
-        ),
-        lm_head=load_exported_reference(
-            base_dir,
-            reference_specs.LM_HEAD_SPEC,
-            state_dict=lm_head.state_dict(),
-        ),
-        decode_embed=load_exported_reference(
-            base_dir,
-            reference_specs.DECODE_EMBED_SPEC,
-            state_dict=embed_tokens.state_dict(),
-        ),
-        decode_layers=tuple(
-            TextLayerReference(decode_state, layer_idx, prefill=False)
-            for layer_idx in range(len(decode_state.layers))
-        ),
-        decode_norm=load_exported_reference(
-            base_dir,
-            reference_specs.DECODE_NORM_SPEC,
-            state_dict=norm.state_dict(),
-        ),
-        decode_lm_head=load_exported_reference(
-            base_dir,
-            reference_specs.DECODE_LM_HEAD_SPEC,
-            state_dict=lm_head.state_dict(),
-        ),
-        token_select=TokenSelectReference(),
-        token_store=TokenStoreReference(max_new_tokens),
-    )''',
-    )
-
-
 # ==============================================================
 # Main
 # ==============================================================
@@ -358,6 +256,7 @@ def main() -> int:
     tensor_file_classes: dict[str, list[str]] = {}  # file_group → [class names]
     dispatch_sources: list[str] = []
     reference_specs: dict[str, ReferenceSpec] = {}
+    reference_loaders: dict[str, str] = {}
     reference_specs["token_select"] = ReferenceSpec(
         program=None,
         tensors="model_tensors()",
@@ -401,6 +300,7 @@ def main() -> int:
         reference_tensors=None,
         reference_name=None,
         reference_policy: ReferencePolicy = "tensor",
+        reference_state_dict=None,
     ):
         prog = export_submodule(module, args=args, kwargs=kwargs, kv_cache=kv_cache)
         if kv_inject is not None:
@@ -411,6 +311,9 @@ def main() -> int:
         group = func_name
         program = f"reference_programs/{func_name}.pt2" if save_reference_program else None
         if program is not None:
+            if reference_state_dict is None:
+                raise ValueError(f"{name} saves a reference program but has no reference_state_dict")
+            reference_loaders[func_name] = reference_state_dict
             torch.export.save(prog, output_dir / program)
         reference_specs[func_name] = generate_reference_spec(
             prog,
@@ -551,6 +454,7 @@ def main() -> int:
                args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.",
                save_reference_program=True,
+               reference_state_dict="thinker.model.embed_tokens",
                reference_tensors="model_tensors().embed_tokens",
                reference_name="spike.text.embed")
     export_one("run_audio_inject", AudioInjectModule(),
@@ -585,12 +489,14 @@ def main() -> int:
                args=(torch.zeros(1, pl, hs, device="meta"),),
                weight_prefix="thinker.model.norm.",
                save_reference_program=True,
+               reference_state_dict="thinker.model.norm",
                reference_tensors="model_tensors().text_norm",
                reference_name="spike.text.norm")
     export_one("run_lm_head", model.thinker.lm_head.float(),
                args=(torch.zeros(1, pl, hs, device="meta"),),
                weight_prefix="thinker.lm_head.",
                save_reference_program=True,
+               reference_state_dict="thinker.lm_head",
                reference_tensors="model_tensors().lm_head",
                reference_name="spike.text.lm_head")
 
@@ -599,6 +505,7 @@ def main() -> int:
                args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.",
                save_reference_program=True,
+               reference_state_dict="thinker.model.embed_tokens",
                reference_tensors="model_tensors().decode_embed",
                reference_name="spike.decode.{step:04d}.embed")
     export_one("run_decode_layer", model.thinker.model.layers[0],
@@ -621,12 +528,14 @@ def main() -> int:
                args=(torch.zeros(1, 1, hs, device="meta"),),
                weight_prefix="thinker.model.norm.",
                save_reference_program=True,
+               reference_state_dict="thinker.model.norm",
                reference_tensors="model_tensors().decode_norm",
                reference_name="spike.decode.{step:04d}.norm")
     export_one("run_decode_lm_head", model.thinker.lm_head.float(),
                args=(torch.zeros(1, 1, hs, device="meta"),),
                weight_prefix="thinker.lm_head.",
                save_reference_program=True,
+               reference_state_dict="thinker.lm_head",
                reference_tensors="model_tensors().decode_lm_head",
                reference_name="spike.decode.{step:04d}.lm_head")
 
@@ -691,7 +600,18 @@ def main() -> int:
     )
     print("  reference.py written")
 
-    (output_dir / "reference_setup.py").write_text(_render_reference_setup())
+    (output_dir / "reference_setup.py").write_text(
+        render_reference_loader_module(
+            model_package="models.exported_qwen3_asr",
+            model_imports=[
+                "from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (",
+                "    Qwen3ASRForConditionalGeneration,",
+                ")",
+            ],
+            model_type="Qwen3ASRForConditionalGeneration",
+            reference_loaders=reference_loaders,
+        )
+    )
     print("  reference_setup.py written")
 
     print("\nDone!")

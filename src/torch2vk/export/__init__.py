@@ -5,8 +5,8 @@ from torch2vk.export.codegen import (
     generate_dispatch_source,
     generate_reference_spec,
     generate_tensor_class_source,
+    render_reference_loader_module,
     render_reference_module,
-    render_reference_setup_module,
     render_reference_specs_module,
 )
 from torch2vk.export.codegen_loop import (
@@ -33,7 +33,7 @@ __all__ = [
     "generate_looped_tensor_class_sources",
     "generate_reference_spec",
     "generate_tensor_class_source",
+    "render_reference_loader_module",
     "render_reference_module",
-    "render_reference_setup_module",
     "render_reference_specs_module",
 ]

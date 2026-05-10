@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -27,6 +28,12 @@ from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
 from models.exported_qwen3_asr import dispatch, reference, reference_setup
 from models.exported_qwen3_asr.pytorch_modules import (
+    AudioEncoderReference,
+    AudioInjectReference,
+    TextLayerReference,
+    TextReferenceState,
+    TokenSelectReference,
+    TokenStoreReference,
     preprocess_audio_inputs,
 )
 from models.exported_qwen3_asr.shaders import model_shaders
@@ -37,8 +44,22 @@ from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_ste
 from torch2vk.runtime.session import RuntimeSession
 
 
+@dataclass(slots=True)
+class _QwenCompareReferences:
+    loaded: reference_setup.LoadedReferences
+    text_state: TextReferenceState
+    audio_encoder: AudioEncoderReference
+    audio_inject: AudioInjectReference
+    text_layers: tuple[TextLayerReference, ...]
+    decode_layers: tuple[TextLayerReference, ...]
+    token_select: TokenSelectReference
+    token_store: TokenStoreReference
+    next_token: np.ndarray | None = None
+    done: np.ndarray | None = None
+
+
 def _reference_rope(
-    refs: reference_setup.CompareReferences,
+    refs: _QwenCompareReferences,
     hidden: torch.Tensor,
     position_ids: np.ndarray,
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -141,13 +162,41 @@ def _load_qwen_reference_model(model_dir: Path) -> Qwen3ASRForConditionalGenerat
     return cast(Qwen3ASRForConditionalGeneration, model)
 
 
+def _build_compare_references(
+    model: Qwen3ASRForConditionalGeneration,
+    *,
+    base_dir: Path,
+    max_new_tokens: int,
+) -> _QwenCompareReferences:
+    thinker = cast(nn.Module, getattr(model, "thinker"))
+    text_state = TextReferenceState(thinker)
+    decode_state = text_state
+    audio_tower = cast(nn.Module, thinker.get_submodule("audio_tower"))
+    return _QwenCompareReferences(
+        loaded=reference_setup.load_references(model, base_dir=base_dir),
+        text_state=text_state,
+        audio_encoder=AudioEncoderReference(audio_tower),
+        audio_inject=AudioInjectReference(),
+        text_layers=tuple(
+            TextLayerReference(text_state, layer_idx, prefill=True)
+            for layer_idx in range(len(text_state.layers))
+        ),
+        decode_layers=tuple(
+            TextLayerReference(decode_state, layer_idx, prefill=False)
+            for layer_idx in range(len(decode_state.layers))
+        ),
+        token_select=TokenSelectReference(),
+        token_store=TokenStoreReference(max_new_tokens),
+    )
+
+
 def _compare_token_select(
     rt: RuntimeSession,
     *,
     frame_name: str,
     logits: object,
     eos_token_ids: np.ndarray,
-    refs: reference_setup.CompareReferences,
+    refs: _QwenCompareReferences,
 ) -> dict[str, object]:
     expected = reference.run_token_select(
         rt,
@@ -165,7 +214,7 @@ def _compare_token_store(
     rt: RuntimeSession,
     *,
     frame_name: str,
-    refs: reference_setup.CompareReferences,
+    refs: _QwenCompareReferences,
     next_token: object,
     token_index: object,
     done: object,
@@ -187,7 +236,7 @@ def _run_decode_step_with_compare(
     cache_position: np.ndarray,
     eos_token_ids: np.ndarray,
     token_index: np.ndarray,
-    refs: reference_setup.CompareReferences,
+    refs: _QwenCompareReferences,
 ) -> int:
     tensors = model_tensors()
     if refs.next_token is None:
@@ -196,7 +245,7 @@ def _run_decode_step_with_compare(
         dispatch.run_decode_embed(rt)
         embed_expected = reference.run_decode_embed(
             rt,
-            refs.decode_embed,
+            refs.loaded.decode_embed,
             step=step,
             input=refs.next_token,
         )
@@ -222,7 +271,7 @@ def _run_decode_step_with_compare(
         dispatch.run_decode_norm(rt)
         norm_expected = reference.run_decode_norm(
             rt,
-            refs.decode_norm,
+            refs.loaded.decode_norm,
             step=step,
             hidden_states=ref_hidden,
         )
@@ -230,7 +279,7 @@ def _run_decode_step_with_compare(
         dispatch.run_decode_lm_head(rt)
         lm_head_expected = reference.run_decode_lm_head(
             rt,
-            refs.decode_lm_head,
+            refs.loaded.decode_lm_head,
             step=step,
             input=ref_hidden,
         )
@@ -334,10 +383,10 @@ def main(
         model_tensors=model_tensors(),
         model_shaders=model_shaders(),
     )
-    compare_refs: reference_setup.CompareReferences | None = None
+    compare_refs: _QwenCompareReferences | None = None
     if pytorch_compare:
         print("Loading PyTorch reference for compare...")
-        compare_refs = reference_setup.build_compare_references(
+        compare_refs = _build_compare_references(
             _load_qwen_reference_model(Path(model_dir)),
             base_dir=Path(__file__).parent,
             max_new_tokens=max_new_tokens,
@@ -448,7 +497,7 @@ def main(
         if compare_refs is not None:
             embed_expected = reference.run_embed_tokens(
                 rt,
-                compare_refs.embed_tokens,
+                compare_refs.loaded.embed_tokens,
                 input=prepared.input_ids,
             )
             ref_hidden = _reference_input(embed_expected["embedding"])
@@ -496,7 +545,7 @@ def main(
                 raise RuntimeError("text norm compare requires reference hidden state")
             norm_expected = reference.run_text_norm(
                 rt,
-                compare_refs.text_norm,
+                compare_refs.loaded.text_norm,
                 hidden_states=ref_hidden,
             )
             ref_hidden = _reference_input(norm_expected["mul_1"])
@@ -506,7 +555,7 @@ def main(
                 raise RuntimeError("lm_head compare requires reference hidden state")
             lm_head_expected = reference.run_lm_head(
                 rt,
-                compare_refs.lm_head,
+                compare_refs.loaded.lm_head,
                 input=ref_hidden,
             )
         else:

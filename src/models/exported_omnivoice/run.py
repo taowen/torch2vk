@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, Sequence, cast
 
@@ -22,6 +23,12 @@ from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerMo
 
 from models.hf_cache import resolve_cached_model
 from models.exported_omnivoice import dispatch, reference, reference_setup
+from models.exported_omnivoice.pytorch_modules import (
+    InputEmbedReference,
+    LlmForwardReference,
+    TokenScoreReference,
+    TokenUpdateReference,
+)
 from models.exported_omnivoice.shaders import model_shaders
 from models.exported_omnivoice.tensors.model import create_model_tensors, model_tensors
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
@@ -37,6 +44,23 @@ DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_exported.wav")
 
 class _AudioDecodeOutput(Protocol):
     audio_values: Sequence[torch.Tensor]
+
+
+@dataclass(slots=True)
+class _OmniVoiceCompareState:
+    loaded: reference_setup.LoadedReferences
+    input_embed: InputEmbedReference
+    llm_forward: LlmForwardReference
+    token_score: TokenScoreReference
+    token_update: TokenUpdateReference
+    batch_input_ids: torch.Tensor
+    batch_audio_mask: torch.Tensor
+    attention_mask: torch.Tensor
+    tokens: torch.Tensor
+    audio_mask_id: torch.Tensor
+    rng_seed: torch.Tensor
+    rope_cos: torch.Tensor
+    rope_sin: torch.Tensor
 
 
 def _ensure_bfloat16_checkpoint(model_dir: Path) -> Path:
@@ -72,6 +96,64 @@ def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float)
     return t.astype(np.float32)
 
 
+def _make_rope_table(
+    *,
+    batch: int,
+    sequence_length: int,
+    head_dim: int,
+    theta: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    token = torch.arange(sequence_length, device="cuda", dtype=torch.float32).view(1, -1, 1)
+    dim = torch.arange(head_dim, device="cuda", dtype=torch.float32).view(1, 1, -1)
+    half_dim = head_dim // 2
+    freq_idx = torch.remainder(dim, half_dim)
+    inv_freq = torch.pow(
+        torch.tensor(theta, device="cuda", dtype=torch.float32),
+        -(2.0 * freq_idx) / head_dim,
+    )
+    angle = token * inv_freq
+    cos = torch.cos(angle).expand(batch, -1, -1).contiguous()
+    sin = torch.sin(angle).expand(batch, -1, -1).contiguous()
+    return cos, sin
+
+
+def _build_compare_references(
+    model: OmniVoice,
+    *,
+    base_dir: Path,
+    batch_input_ids: np.ndarray,
+    batch_audio_mask: np.ndarray,
+    attention_mask: np.ndarray,
+    tokens: np.ndarray,
+    audio_mask_id: int,
+    rng_seed: int,
+    head_dim: int,
+) -> _OmniVoiceCompareState:
+    rope_cos, rope_sin = _make_rope_table(
+        batch=attention_mask.shape[0],
+        sequence_length=attention_mask.shape[-1],
+        head_dim=head_dim,
+        theta=1_000_000.0,
+    )
+    return _OmniVoiceCompareState(
+        loaded=reference_setup.load_references(model, base_dir=base_dir),
+        input_embed=InputEmbedReference(model),
+        llm_forward=LlmForwardReference(model),
+        token_score=TokenScoreReference(model),
+        token_update=TokenUpdateReference(),
+        batch_input_ids=torch.from_numpy(np.ascontiguousarray(batch_input_ids)).cuda(),
+        batch_audio_mask=torch.from_numpy(
+            np.ascontiguousarray(batch_audio_mask.astype(np.bool_))
+        ).cuda(),
+        attention_mask=torch.from_numpy(np.ascontiguousarray(attention_mask)).cuda(),
+        tokens=torch.from_numpy(np.ascontiguousarray(tokens)).cuda(),
+        audio_mask_id=torch.tensor([audio_mask_id], dtype=torch.int64, device="cuda"),
+        rng_seed=torch.tensor([rng_seed], dtype=torch.int64, device="cuda"),
+        rope_cos=rope_cos,
+        rope_sin=rope_sin,
+    )
+
+
 def _expected_tensor(value: object) -> torch.Tensor:
     if isinstance(value, torch.Tensor):
         return value
@@ -83,7 +165,7 @@ def _run_generation_step_with_compare(
     *,
     step: int,
     unmask_count: int,
-    refs: reference_setup.CompareReferences,
+    refs: _OmniVoiceCompareState,
 ) -> None:
     with rt.frame(f"omnivoice.step.{step:04d}"):
         dispatch.run_input_embed(rt)
@@ -111,7 +193,7 @@ def _run_generation_step_with_compare(
         dispatch.run_audio_head(rt)
         audio_head_expected = reference.run_audio_head(
             rt,
-            refs.audio_head,
+            refs.loaded.audio_head,
             step=step,
             input=llm_output,
         )
@@ -294,6 +376,9 @@ def main(
     compare_refs = None
     rng_seed = 0x1234ABCD
     if pytorch_compare:
+        llm_config = config.llm_config
+        if llm_config is None:
+            raise ValueError("OmniVoice config requires llm_config")
         print("Loading PyTorch reference for compare...")
         ref_model = OmniVoice.from_pretrained(
             str(model_dir),
@@ -302,14 +387,16 @@ def main(
             train=True,
         ).eval()
         _round_model_float_weights_to_bfloat16(ref_model)
-        compare_refs = reference_setup.build_compare_references(
+        compare_refs = _build_compare_references(
             ref_model,
+            base_dir=Path(__file__).parent,
             batch_input_ids=batch_input_ids,
             batch_audio_mask=batch_audio_mask,
             attention_mask=attn_mask_np,
             tokens=tokens,
             audio_mask_id=audio_mask_id,
             rng_seed=rng_seed,
+            head_dim=llm_config.head_dim,
         )
 
     rt.initialize_request_state(

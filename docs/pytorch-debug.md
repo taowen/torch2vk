@@ -8,8 +8,8 @@
 
 ```text
 Vulkan candidate: rt.frame(...) 内按 dispatch 顺序执行 shader。
-PyTorch reference: 生成的 reference_setup.py 创建 reference 对象，run.py 调用生成的 reference.run_xxx(...)
-同步执行同粒度 tensor reference。
+PyTorch reference: reference_setup.py 只加载 .pt2 graph reference；不好机械生成的 reference state 由 run.py
+手写推进，再调用生成的 reference.run_xxx(...) 同步执行同粒度 tensor reference。
 绑定关系: ReferenceSpec.output_bindings 把 reference output key 映射到 LogicalTensor 字段。
 比较动作: 生成的 reference.py 调用 compare_expected_with_spec(...)。
 ```
@@ -44,9 +44,9 @@ ReferenceSpec(
 
 ## 对拍入口
 
-`torch2vk.export.render_reference_setup_module()` 生成 `reference_setup.py`，负责把已加载的 PyTorch 模型转成
-对拍所需的 reference 对象。`torch2vk.export.render_reference_module()` 根据 `ReferenceSpec` 生成
-`reference.py`。模型 `run.py` 在 Vulkan dispatch 后调用生成 wrapper：
+`torch2vk.export.render_reference_loader_module()` 生成 `reference_setup.py`，只负责把已加载的 PyTorch 模型中的
+权重子模块绑定到 `.pt2` reference program。`torch2vk.export.render_reference_module()` 根据 `ReferenceSpec`
+生成 `reference.py`。模型 `run.py` 在 Vulkan dispatch 后调用生成 wrapper：
 
 ```python
 dispatch.run_text_norm(rt)

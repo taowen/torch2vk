@@ -350,23 +350,39 @@ def {{ item.function_name }}(
 {% endfor %}
 '''
 
-_REFERENCE_SETUP_TEMPLATE = '''"""Generated PyTorch reference setup."""
+_REFERENCE_LOADER_TEMPLATE = '''"""Generated PyTorch exported graph reference loaders."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
-{{ imports_source }}
+{{ model_imports_source }}
+from {{ model_package }} import reference_specs
+from torch2vk.runtime.reference import ExportedProgramReference, load_exported_reference
 
 
-@dataclass(slots=True)
-class CompareReferences:
-{% for field in fields %}
-    {{ field }}
+@dataclass(frozen=True, slots=True)
+class LoadedReferences:
+{% if items %}
+{% for item in items %}
+    {{ item.field }}: ExportedProgramReference
 {% endfor %}
+{% else %}
+    pass
+{% endif %}
 
 
-{{ functions_source }}
+def load_references(model: {{ model_type }}, *, base_dir: Path) -> LoadedReferences:
+    return LoadedReferences(
+{% for item in items %}
+        {{ item.field }}=load_exported_reference(
+            base_dir,
+            reference_specs.{{ item.spec_const }},
+            state_dict=model.get_submodule({{ item.state_dict_path }}).state_dict(),
+        ),
+{% endfor %}
+    )
 '''
 
 
@@ -554,17 +570,27 @@ def render_reference_module(
     ).rstrip() + "\n"
 
 
-def render_reference_setup_module(
+def render_reference_loader_module(
     *,
-    imports: list[str],
-    fields: list[str],
-    functions_source: str,
+    model_package: str,
+    model_imports: list[str],
+    model_type: str,
+    reference_loaders: dict[str, str],
 ) -> str:
+    items = tuple(
+        {
+            "field": name,
+            "spec_const": f"{name.upper()}_SPEC",
+            "state_dict_path": repr(state_dict_path),
+        }
+        for name, state_dict_path in sorted(reference_loaders.items())
+    )
     return _render_template(
-        _REFERENCE_SETUP_TEMPLATE,
-        imports_source="\n".join(imports),
-        fields=fields,
-        functions_source=functions_source.rstrip("\n"),
+        _REFERENCE_LOADER_TEMPLATE,
+        model_package=model_package,
+        model_imports_source="\n".join(model_imports),
+        model_type=model_type,
+        items=items,
     ).rstrip() + "\n"
 
 

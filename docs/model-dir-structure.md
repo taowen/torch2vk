@@ -150,9 +150,9 @@ with RuntimeSession.open(device_index=0, model_dir=model_dir) as rt:
 shader dispatch 使用的是同一批 tensor 对象，不需要额外的 input key 映射。
 
 PyTorch lockstep 对拍也应使用同一份业务输入，但不由 RuntimeSession 自动调用 PyTorch。export 生成
-`reference_setup.py` 装配 reference 对象，模型 `run.py` 只显式推进 reference state，并调用生成的
-`reference.run_xxx(...)` 完成 reference 执行和 compare。这样长流程生成任务可以让 PyTorch reference 和 Vulkan
-candidate 同步推进，而不是依赖 frame exit 的隐式行为。
+`reference_setup.py` 加载 `.pt2` graph reference；不好机械生成的有状态 reference 留在模型 `run.py` 手写推进。
+`run.py` 再调用生成的 `reference.run_xxx(...)` 完成 reference 执行和 compare。这样长流程生成任务可以让
+PyTorch reference 和 Vulkan candidate 同步推进，而不是依赖 frame exit 的隐式行为。
 
 `RuntimeSession.open(..., model_dir=...)` 设置权重 checkpoint 根目录。`LogicalTensor` 的
 name/dtype/shape/layout、role、memory、lifetime 等声明组合在实际使用点校验：`register_inputs()` 校验输入 tensor，
