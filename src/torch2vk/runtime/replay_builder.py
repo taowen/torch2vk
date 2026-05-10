@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
@@ -64,9 +64,8 @@ def build_replay_plan(
     num_dispatches = len(frame_dispatch_records)
     if num_dispatches == 0:
         raise ValueError(f"Cannot build replay plan for frame {frame!r} with zero dispatches")
-    model_shaders = rt._named_model_shaders()
     dynamic_symbol_names = _infer_dynamic_symbol_names(
-        model_shaders=model_shaders,
+        get_shader=rt._model_shader,
         frame_dispatch_records=frame_dispatch_records,
     )
 
@@ -92,7 +91,7 @@ def build_replay_plan(
     params_allocations: list[BufferAllocation] = []
 
     for i, record in enumerate(frame_dispatch_records):
-        variant = model_shaders[record.shader]
+        variant = rt._model_shader(record.shader)
         contract = variant.contract
         pipeline = rt._pipeline_for_variant(variant)
         record_symbols = dict(record.symbols)
@@ -365,7 +364,7 @@ def _frame_dispatch_records(
 
 def _infer_dynamic_symbol_names(
     *,
-    model_shaders: Mapping[str, ShaderVariant],
+    get_shader: Callable[[str], ShaderVariant],
     frame_dispatch_records: Sequence[DispatchRecord],
 ) -> tuple[str, ...]:
     values_by_name: dict[str, set[int]] = {}
@@ -374,7 +373,7 @@ def _infer_dynamic_symbol_names(
         record_symbols = dict(record.symbols)
         for symbol_name, symbol_value in record_symbols.items():
             values_by_name.setdefault(symbol_name, set()).add(symbol_value)
-        params_buffer = model_shaders[record.shader].contract.params_buffer
+        params_buffer = get_shader(record.shader).contract.params_buffer
         if params_buffer is None:
             continue
         for field in params_buffer.fields:

@@ -22,20 +22,28 @@ from transformers import AutoTokenizer
 from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.hf_cache import resolve_cached_model
-from models.exported_omnivoice import dispatch, reference
+from models.exported_omnivoice import reference
+from models.exported_omnivoice.dispatch.audio_head import run_audio_head
+from models.exported_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.exported_omnivoice.pytorch_modules import (
     InputEmbedReference,
     LlmForwardReference,
     TokenScoreReference,
     TokenUpdateReference,
 )
-from models.exported_omnivoice.shaders import model_shaders
+from models.exported_omnivoice.shaders.omnivoice_cfg_score_f32 import OMNIVOICE_CFG_SCORE_F32
+from models.exported_omnivoice.shaders.omnivoice_input_embed_f32 import OMNIVOICE_INPUT_EMBED_F32
+from models.exported_omnivoice.shaders.omnivoice_token_update_topk_f32 import (
+    OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
+)
+from models.exported_omnivoice.shaders.registry import get_shader
 from models.exported_omnivoice.tensors.model import create_model_tensors, model_tensors
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
 from torch2vk.runtime.compare import as_numpy_array
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
+from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 
 DEFAULT_TEXT = "hello world this is a speech recognition test"
@@ -158,6 +166,65 @@ def _expected_tensor(value: object) -> torch.Tensor:
     return torch.from_numpy(np.ascontiguousarray(as_numpy_array(value))).cuda()
 
 
+def _run_rope_table(rt: RuntimeSession, *, frame_name: str) -> None:
+    rope_t = model_tensors().rope
+    run_rope_table_f32(
+        rt,
+        start_position=rope_t.start_position,
+        theta=rope_t.theta,
+        cos=rope_t.cos,
+        sin=rope_t.sin,
+        frame_name=frame_name,
+    )
+
+
+def _run_input_embed(rt: RuntimeSession) -> None:
+    tensors = model_tensors()
+    OMNIVOICE_INPUT_EMBED_F32(
+        rt,
+        text_weight=tensors.text_embedding_weight,
+        audio_weight=tensors.audio_embedding_weight,
+        batch_input_ids=tensors.batch_input_ids,
+        batch_audio_mask=tensors.batch_audio_mask,
+        hidden_states=tensors.llm_forward.hidden_states,
+    )
+
+
+def _run_token_score(rt: RuntimeSession) -> None:
+    tensors = model_tensors()
+    OMNIVOICE_CFG_SCORE_F32(
+        rt,
+        logits=tensors.audio_head.linear,
+        tokens=tensors.tokens,
+        audio_mask_id=tensors.audio_mask_id,
+        rng_seed=tensors.rng_seed,
+        step_index=tensors.step_index,
+        candidate_tokens=tensors.candidate_tokens,
+        candidate_scores=tensors.candidate_scores,
+    )
+
+
+def _run_token_update(rt: RuntimeSession) -> None:
+    tensors = model_tensors()
+    OMNIVOICE_TOKEN_UPDATE_TOPK_F32(
+        rt,
+        candidate_tokens=tensors.candidate_tokens,
+        candidate_scores=tensors.candidate_scores,
+        unmask_count=tensors.unmask_count,
+        tokens=tensors.tokens,
+        batch_input_ids=tensors.batch_input_ids,
+    )
+
+
+def _run_generation_step(rt: RuntimeSession, *, step: int) -> None:
+    with rt.frame(f"omnivoice.step.{step:04d}"):
+        _run_input_embed(rt)
+        run_llm_forward(rt)
+        run_audio_head(rt)
+        _run_token_score(rt)
+        _run_token_update(rt)
+
+
 def _run_generation_step_with_compare(
     rt: RuntimeSession,
     *,
@@ -166,7 +233,7 @@ def _run_generation_step_with_compare(
     refs: _OmniVoiceCompareState,
 ) -> None:
     with rt.frame(f"omnivoice.step.{step:04d}"):
-        dispatch.run_input_embed(rt)
+        _run_input_embed(rt)
         input_embed_expected = reference.run_input_embed(
             rt,
             refs.input_embed,
@@ -176,7 +243,7 @@ def _run_generation_step_with_compare(
         )
         hidden_states = _expected_tensor(input_embed_expected["hidden_states"]).float()
 
-        dispatch.run_llm_forward(rt)
+        run_llm_forward(rt)
         llm_expected = reference.run_llm_forward(
             rt,
             refs.llm_forward,
@@ -188,7 +255,7 @@ def _run_generation_step_with_compare(
         )
         llm_output = _expected_tensor(llm_expected["mul_365"]).float()
 
-        dispatch.run_audio_head(rt)
+        run_audio_head(rt)
         audio_head_expected = reference.run_audio_head(
             rt,
             step=step,
@@ -197,7 +264,7 @@ def _run_generation_step_with_compare(
         logits = _expected_tensor(audio_head_expected["linear"]).float()
 
         step_index = torch.tensor([step], dtype=torch.int64, device="cuda")
-        dispatch.run_token_score(rt)
+        _run_token_score(rt)
         token_score_expected = reference.run_token_score(
             rt,
             refs.token_score,
@@ -211,7 +278,7 @@ def _run_generation_step_with_compare(
         candidate_tokens = _expected_tensor(token_score_expected["candidate_tokens"]).long()
         candidate_scores = _expected_tensor(token_score_expected["candidate_scores"]).float()
 
-        dispatch.run_token_update(rt)
+        _run_token_update(rt)
         unmask_count_t = torch.tensor([unmask_count], dtype=torch.uint32, device="cuda")
         token_update_expected = reference.run_token_update(
             rt,
@@ -347,7 +414,7 @@ def main(
         device_index=0,
         model_dir=bf16_dir,
         model_tensors=model_tensors(),
-        model_shaders=model_shaders(),
+        get_shader=get_shader,
     )
 
     # Iterative decoding
@@ -411,7 +478,7 @@ def main(
         model_tensors().rope.start_position: np.array([0], dtype=np.int64),
         model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
     })
-    dispatch.run_rope_table(rt, frame_name="omnivoice.rope")
+    _run_rope_table(rt, frame_name="omnivoice.rope")
 
     unmasked = 0
     generation_replay_plan: ReplayPlan | None = None
@@ -432,7 +499,7 @@ def main(
                     refs=compare_refs,
                 )
             else:
-                dispatch.run_generation_step(rt, step=step)
+                _run_generation_step(rt, step=step)
             if use_replay:
                 generation_replay_plan = _build_generation_replay_plan(
                     rt,

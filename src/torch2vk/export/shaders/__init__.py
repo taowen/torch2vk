@@ -16,6 +16,13 @@ from torch2vk.export.shaders.mean_dim_f32 import make_mean_dim_variant
 from torch2vk.export.shaders.mul_f32 import make_mul_variant
 from torch2vk.export.shaders.neg_f32 import make_neg_variant
 from torch2vk.export.shaders.pow_scalar_f32 import make_pow_scalar_variant
+from torch2vk.export.shaders.qwen3_asr_token_select_f32 import (
+    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
+)
+from torch2vk.export.shaders.qwen3_asr_token_store_f32 import (
+    QWEN3_ASR_TOKEN_STORE_EOS_F32,
+    QWEN3_ASR_TOKEN_STORE_F32,
+)
 from torch2vk.export.shaders.rsqrt_f32 import make_rsqrt_variant
 from torch2vk.export.shaders.sdpa_f32 import make_sdpa_variant
 from torch2vk.export.shaders.silu_f32 import make_silu_variant
@@ -40,6 +47,9 @@ __all__ = [
     "make_mul_variant",
     "make_neg_variant",
     "make_pow_scalar_variant",
+    "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32",
+    "QWEN3_ASR_TOKEN_STORE_EOS_F32",
+    "QWEN3_ASR_TOKEN_STORE_F32",
     "make_rsqrt_variant",
     "make_sdpa_variant",
     "make_silu_variant",

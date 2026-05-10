@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from collections.abc import Mapping
 
 from torch.export import ExportedProgram
 from torch.export.graph_signature import ExportGraphSignature, InputKind
@@ -64,6 +66,45 @@ def render_dispatch_file(
         tensor_imports=tensor_imports,
         extra_imports_source=extra_imports_source.rstrip("\n"),
         function_sources_source="\n\n\n".join(function_sources),
+    )
+
+
+def bind_dispatch_function_to_tensors(source: str) -> str:
+    bound = re.sub(
+        r"def (run_\w+)\(rt: RuntimeSession, tensors: (\w+)\) -> None:",
+        r"def _\1_with_tensors(rt: RuntimeSession, tensors: \2) -> None:",
+        source,
+        count=1,
+    )
+    if bound == source:
+        raise ValueError("generated dispatch source does not match tensor-bound signature")
+    return bound
+
+
+def render_model_dispatch_module(
+    *,
+    model_package: str,
+    function_name: str,
+    tensor_file: str,
+    tensor_class: str,
+    tensor_expr: str,
+    shader_imports: Mapping[str, str],
+    function_source: str,
+    parameters_source: str = "",
+) -> str:
+    return render_template(
+        "model_dispatch_module.py.j2",
+        model_package=model_package,
+        function_name=function_name,
+        tensor_file=tensor_file,
+        tensor_class=tensor_class,
+        tensor_expr=tensor_expr,
+        shader_imports=tuple(
+            {"shader": shader, "const": const}
+            for shader, const in sorted(shader_imports.items())
+        ),
+        function_source=function_source.rstrip("\n"),
+        parameters_source=parameters_source,
     )
 
 

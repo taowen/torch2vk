@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from pathlib import Path
+
 from torch2vk.export._templates import render_template
 from torch2vk.runtime.shader import (
     AddExpr,
@@ -91,6 +94,22 @@ def render_shader_file(variant: ShaderVariant) -> str:
         execution_requirements_source=execution_requirements_source,
         glsl=variant.source.lstrip("\n"),
     )
+
+
+def render_shader_registry_module() -> str:
+    return render_template("shader_registry.py.j2")
+
+
+def write_shader_package(
+    shaders_dir: Path,
+    variants: Mapping[str, ShaderVariant],
+) -> None:
+    for f in shaders_dir.glob("*.py"):
+        f.unlink()
+    for shader_name in sorted(variants):
+        (shaders_dir / f"{shader_name}.py").write_text(render_shader_file(variants[shader_name]))
+    (shaders_dir / "__init__.py").write_text('"""Generated shader package."""\n')
+    (shaders_dir / "registry.py").write_text(render_shader_registry_module())
 
 
 def _expr_to_source(expr) -> str:

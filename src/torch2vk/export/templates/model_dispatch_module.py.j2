@@ -1,0 +1,17 @@
+"""Generated dispatch function for {{ function_name }}."""
+
+from __future__ import annotations
+
+from {{ model_package }}.tensors.model import model_tensors
+{% for item in shader_imports %}
+from {{ model_package }}.shaders.{{ item.shader }} import {{ item.const }}
+{% endfor %}
+from {{ model_package }}.tensors.{{ tensor_file }} import {{ tensor_class }}
+from torch2vk.runtime.session import RuntimeSession
+
+
+{{ function_source }}
+
+
+def {{ function_name }}(rt: RuntimeSession{{ parameters_source }}) -> None:
+    _{{ function_name }}_with_tensors(rt, {{ tensor_expr }})

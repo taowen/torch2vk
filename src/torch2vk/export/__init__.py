@@ -5,8 +5,10 @@ from torch2vk.export.codegen_loop import (
     generate_looped_tensor_class_sources,
 )
 from torch2vk.export.dispatch_codegen import (
+    bind_dispatch_function_to_tensors,
     generate_dispatch_function_source,
     generate_dispatch_source,
+    render_model_dispatch_module,
 )
 from torch2vk.export.graph import (
     KVCacheExportHint,
@@ -26,6 +28,10 @@ from torch2vk.export.tensor_codegen import (
     TensorClassContext,
     generate_tensor_class_source,
 )
+from torch2vk.export.shader_codegen import (
+    render_shader_registry_module,
+    write_shader_package,
+)
 
 __all__ = [
     "KVCacheExportHint",
@@ -35,6 +41,7 @@ __all__ = [
     "inject_kv_cache",
     "ReferencePolicy",
     "TensorClassContext",
+    "bind_dispatch_function_to_tensors",
     "generate_dispatch_function_source",
     "generate_dispatch_source",
     "generate_looped_dispatch_function_source",
@@ -44,4 +51,7 @@ __all__ = [
     "render_reference_function",
     "render_reference_loader",
     "render_reference_module",
+    "render_model_dispatch_module",
+    "render_shader_registry_module",
+    "write_shader_package",
 ]

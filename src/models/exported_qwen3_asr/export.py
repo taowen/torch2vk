@@ -1,4 +1,4 @@
-"""Export all exported_qwen3_asr submodules → shaders/, tensors/, dispatch.py.
+"""Export all exported_qwen3_asr submodules → shaders/, tensors/, dispatch/.
 
 Generates Python source files for the full ASR pipeline (audio tower + text).
 Shapes are computed from the test fixture (tests/fixtures/qwen3_asr_asknot.wav).
@@ -26,18 +26,25 @@ from torch2vk.export import (
     KVCacheInjectHint,
     LayerLoopHint,
     ReferencePolicy,
-    TensorClassContext,
     export_submodule,
 )
-from torch2vk.export._templates import render_simple_init
-from torch2vk.export.dispatch_codegen import generate_dispatch_function_source
+from torch2vk.export.graph import inject_kv_cache
+from torch2vk.export.shaders.qwen3_asr_token_select_f32 import (
+    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
+)
+from torch2vk.export.shaders.qwen3_asr_token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
+from torch2vk.export.dispatch_codegen import (
+    bind_dispatch_function_to_tensors,
+    generate_dispatch_function_source,
+    render_model_dispatch_module,
+)
 from torch2vk.export.reference_codegen import (
     render_exported_reference_function,
     render_reference_function,
     render_reference_loader,
     render_reference_module,
 )
-from torch2vk.export.shader_codegen import render_shader_file
+from torch2vk.export.shader_codegen import write_shader_package
 from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
     render_tensor_module,
@@ -70,6 +77,23 @@ def _to_class_name(plan_name: str) -> str:
     return "".join(p.capitalize() for p in base.split("_")) + "Tensors"
 
 
+def _tensor_file_name(class_name: str) -> str:
+    if not class_name.endswith("Tensors"):
+        raise ValueError(f"tensor class name must end with Tensors: {class_name}")
+    stem = class_name.removesuffix("Tensors")
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", stem).lower()
+
+
+def _dispatch_tensor_expr(func_name: str) -> str:
+    if func_name in ("text_layer", "decode_layer"):
+        return f"model_tensors().{func_name}s[layer_idx]"
+    return f"model_tensors().{func_name}"
+
+
+def _dispatch_parameters_source(func_name: str) -> str:
+    if func_name in ("text_layer", "decode_layer"):
+        return ", layer_idx: int"
+    return ""
 
 
 # ==============================================================
@@ -159,80 +183,6 @@ def _load_model_and_shapes():
 
 
 # ==============================================================
-# Output file assembly
-# ==============================================================
-
-def _combine_dispatch(
-    dispatch_sources: list[str],
-    all_shader_imports: dict[str, str],
-    tensor_file_classes: dict[str, list[str]],
-) -> str:
-    bound_dispatch_sources = [_bind_dispatch_source(source) for source in dispatch_sources]
-    dispatch_sources_source = "\n\n\n".join(bound_dispatch_sources)
-    dispatch_body = _render_template(
-        "dispatch.py.j2",
-        shader_imports=(),
-        tensor_imports=(),
-        dispatch_sources_source=dispatch_sources_source,
-    )
-    tensor_imports = tuple(
-        {"file": target_file, "classes_source": classes}
-        for target_file in sorted(tensor_file_classes)
-        for classes in (
-            ", ".join(
-                cls for cls in sorted(tensor_file_classes[target_file])
-                if re.search(rf"\b{re.escape(cls)}\b", dispatch_body)
-            ),
-        )
-        if classes
-    )
-    return _render_template(
-        "dispatch.py.j2",
-        shader_imports=tuple(
-            {"shader": shader_name, "const": all_shader_imports[shader_name]}
-            for shader_name in sorted(all_shader_imports)
-        ),
-        tensor_imports=tensor_imports,
-        dispatch_sources_source=dispatch_sources_source,
-    )
-
-
-def _bind_dispatch_source(source: str) -> str:
-    bound = re.sub(
-        r"def (run_\w+)\(rt: RuntimeSession, tensors: (\w+)\) -> None:",
-        r"def _\1_with_tensors(rt: RuntimeSession, tensors: \2) -> None:",
-        source,
-        count=1,
-    )
-    if bound == source:
-        raise ValueError("generated dispatch source does not match tensor-bound signature")
-    return bound
-
-
-def _render_shader_init(shader_imports: list[str]) -> str:
-    imports_source = "\n".join(shader_imports)
-    return f'''"""Generated shader index."""
-
-from __future__ import annotations
-
-import sys
-
-from torch2vk.runtime.shader import ShaderVariant, collect_shader_variants
-
-{imports_source}
-
-_MODEL_SHADERS: dict[str, ShaderVariant] | None = None
-
-
-def model_shaders() -> dict[str, ShaderVariant]:
-    global _MODEL_SHADERS
-    if _MODEL_SHADERS is None:
-        _MODEL_SHADERS = collect_shader_variants(sys.modules[__name__])
-    return _MODEL_SHADERS
-'''
-
-
-# ==============================================================
 # Main
 # ==============================================================
 
@@ -242,21 +192,32 @@ def main() -> int:
     shaders_dir.mkdir(exist_ok=True)
     tensors_dir = output_dir / "tensors"
     tensors_dir.mkdir(exist_ok=True)
+    dispatch_dir = output_dir / "dispatch"
+    dispatch_dir.mkdir(exist_ok=True)
     reference_programs_dir = output_dir / "reference_programs"
     reference_programs_dir.mkdir(exist_ok=True)
     for f in reference_programs_dir.glob("*.pt2"):
         f.unlink()
+    for f in tensors_dir.glob("*.py"):
+        f.unlink()
+    for f in dispatch_dir.glob("*.py"):
+        f.unlink()
+    legacy_dispatch = output_dir / "dispatch.py"
+    if legacy_dispatch.exists():
+        legacy_dispatch.unlink()
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
     ac = config.thinker_config.audio_config
     at = model.thinker.audio_tower
 
-    all_shader_imports: dict[str, str] = {}  # shader_name → CONST_NAME
-    all_shader_variants: dict[str, ShaderVariant] = {}
-    tensor_sources: dict[str, list[TensorClassContext]] = {}  # file_group → [tensor class, ...]
-    tensor_file_classes: dict[str, list[str]] = {}  # file_group → [class names]
-    dispatch_sources: list[str] = []
+    custom_shader_variants = (
+        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
+        QWEN3_ASR_TOKEN_STORE_EOS_F32,
+    )
+    all_shader_variants: dict[str, ShaderVariant] = {
+        variant.name: variant for variant in custom_shader_variants
+    }
     reference_functions: list[str] = []
     pt2_loader_fields: list[str] = []
     pt2_loader_sources: list[str] = []
@@ -311,11 +272,10 @@ def main() -> int:
     ):
         prog = export_submodule(module, args=args, kwargs=kwargs, kv_cache=kv_cache)
         if kv_inject is not None:
-            from torch2vk.export.graph import inject_kv_cache
             inject_kv_cache(prog, kv_inject)
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
-        group = func_name
+        tensor_file = _tensor_file_name(cls_name)
         program = f"reference_programs/{func_name}.pt2" if save_reference_program else None
         if program is not None:
             if reference_state_dict is None:
@@ -354,10 +314,9 @@ def main() -> int:
                 weight_prefix=weight_prefix,
                 hint=layer_loop,
             )
-            tensor_sources.setdefault(group, []).append(layer_src)
-            tensor_sources.setdefault(group, []).append(parent_src)
-            tensor_file_classes.setdefault(group, []).append(layer_cls_name)
-            tensor_file_classes.setdefault(group, []).append(cls_name)
+            (tensors_dir / f"{tensor_file}.py").write_text(
+                render_tensor_module([layer_src, parent_src])
+            )
 
             func_src, shader_imports, used_variants = generate_looped_dispatch_function_source(
                 prog,
@@ -375,8 +334,7 @@ def main() -> int:
                 function_name=f"create_{func_name}",
                 weight_prefix=weight_prefix,
             )
-            tensor_sources.setdefault(group, []).append(tensor_src)
-            tensor_file_classes.setdefault(group, []).append(cls_name)
+            (tensors_dir / f"{tensor_file}.py").write_text(render_tensor_module([tensor_src]))
 
             func_src, shader_imports, used_variants = generate_dispatch_function_source(
                 prog,
@@ -422,8 +380,18 @@ def main() -> int:
                 shader_imports[new_name] = new_const
                 del shader_imports[old_name]
 
-        dispatch_sources.append(func_src)
-        all_shader_imports.update(shader_imports)
+        (dispatch_dir / f"{func_name}.py").write_text(
+            render_model_dispatch_module(
+                model_package="models.exported_qwen3_asr",
+                function_name=name,
+                tensor_file=tensor_file,
+                tensor_class=cls_name,
+                tensor_expr=_dispatch_tensor_expr(func_name),
+                shader_imports=shader_imports,
+                function_source=bind_dispatch_function_to_tensors(func_src),
+                parameters_source=_dispatch_parameters_source(func_name),
+            )
+        )
 
         print(f"  {name}: {len(used_variants)} shaders")
 
@@ -555,53 +523,19 @@ def main() -> int:
                reference_name="spike.decode.{step:04d}.lm_head")
 
     # Write shaders/
-    for f in shaders_dir.glob("*.py"):
-        f.unlink()
-    for shader_name, variant in all_shader_variants.items():
-        (shaders_dir / f"{shader_name}.py").write_text(render_shader_file(variant))
-    shader_init_imports = [
-        f"from models.exported_qwen3_asr.shaders.{name} import {name.upper()}  # noqa: F401"
-        for name in sorted(all_shader_variants)
-    ]
-    shader_init_imports.extend(
-        [
-            "from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32  # noqa: F401",
-            "from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32  # noqa: F401",
-        ]
-    )
-    (shaders_dir / "__init__.py").write_text(_render_shader_init(shader_init_imports))
+    write_shader_package(shaders_dir, all_shader_variants)
     print(f"\n  {len(all_shader_variants)} shader files written")
 
-    # Write tensors/
-    for f in tensors_dir.glob("*.py"):
-        f.unlink()
-    tensor_file_classes.setdefault("rope", []).append("RopeTableTensors")
-    for group, sources in tensor_sources.items():
-        (tensors_dir / f"{group}.py").write_text(render_tensor_module(sources))
+    # Write model-level tensor wiring.
     (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))
     (tensors_dir / "model.py").write_text(_render_template("model.py.j2"))
-    tensor_init_imports = []
-    for group in sorted(tensor_file_classes):
-        for cls in tensor_file_classes[group]:
-            tensor_init_imports.append(
-                f"from models.exported_qwen3_asr.tensors.{group} import {cls}  # noqa: F401"
-            )
-    tensor_init_imports.append(
-        "from models.exported_qwen3_asr.tensors.model import ExportedQwen3AsrTensors  # noqa: F401"
-    )
-    tensor_init_imports.append(
-        "from models.exported_qwen3_asr.tensors.model import create_model_tensors  # noqa: F401"
-    )
-    tensor_init_imports.append(
-        "from models.exported_qwen3_asr.tensors.model import model_tensors  # noqa: F401"
-    )
-    (tensors_dir / "__init__.py").write_text(render_simple_init("Generated tensor declarations", tensor_init_imports))
-    print(f"  tensors/ written ({len(tensor_sources) + 2} files)")
+    (tensors_dir / "__init__.py").write_text('"""Generated tensor package."""\n')
+    tensor_file_count = len([path for path in tensors_dir.glob("*.py") if path.name != "__init__.py"])
+    print(f"  tensors/ written ({tensor_file_count} files)")
 
-    # Write dispatch.py
-    dispatch_source = _combine_dispatch(dispatch_sources, all_shader_imports, tensor_file_classes)
-    (output_dir / "dispatch.py").write_text(dispatch_source)
-    print(f"  dispatch.py written ({len(dispatch_sources)} functions)")
+    (dispatch_dir / "__init__.py").write_text('"""Generated dispatch package."""\n')
+    dispatch_file_count = len([path for path in dispatch_dir.glob("*.py") if path.name != "__init__.py"])
+    print(f"  dispatch/ written ({dispatch_file_count} files)")
 
     (output_dir / "reference.py").write_text(
         render_reference_module(

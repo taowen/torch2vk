@@ -285,7 +285,7 @@ class Qwen3AsrRecognizer:
             model_dir=self._model_dir,
             profile_dir=self._profile_dir,
             model_tensors=(audio_tensors, text_tensors),
-            model_shaders=model_shaders(),
+            get_shader=model_shaders().__getitem__,
         )
         self._topology_key = key
         self._audio_tensors = audio_tensors

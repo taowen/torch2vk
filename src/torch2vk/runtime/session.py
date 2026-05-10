@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from types import TracebackType
@@ -45,7 +45,7 @@ class RuntimeSession:
         model_dir: str | Path | None = None,
         profile_dir: str | Path | None = None,
         model_tensors: object | None = None,
-        model_shaders: dict[str, ShaderVariant] | None = None,
+        get_shader: Callable[[str], ShaderVariant] | None = None,
     ) -> None:
         from torch2vk.runtime.profile import RuntimeProfiler
 
@@ -59,7 +59,7 @@ class RuntimeSession:
         if model_tensors is not None:
             collect_named_logical_tensors(model_tensors)
         self._model_tensors = model_tensors
-        self._model_shaders = model_shaders
+        self._get_shader = get_shader
         self._inputs: dict[LogicalTensor, object] = {}
         self._frame_stack: list[FrameContext] = []
         self._frame_history: dict[str, FrameContext] = {}
@@ -82,14 +82,14 @@ class RuntimeSession:
         model_dir: str | Path | None = None,
         profile_dir: str | Path | None = None,
         model_tensors: object | None = None,
-        model_shaders: dict[str, ShaderVariant] | None = None,
+        get_shader: Callable[[str], ShaderVariant] | None = None,
     ) -> "RuntimeSession":
         return cls(
             device_index=device_index,
             artifact_dir=artifact_dir,
             model_dir=model_dir,
             profile_dir=profile_dir,
-            model_shaders=model_shaders,
+            get_shader=get_shader,
             model_tensors=model_tensors,
         )
 
@@ -286,12 +286,12 @@ class RuntimeSession:
             )
         return collect_named_logical_tensors(self._model_tensors)
 
-    def _named_model_shaders(self) -> dict[str, ShaderVariant]:
-        if self._model_shaders is None:
+    def _model_shader(self, name: str) -> ShaderVariant:
+        if self._get_shader is None:
             raise RuntimeError(
-                "Replay requires RuntimeSession.open(..., model_shaders=...)"
+                "Replay requires RuntimeSession.open(..., get_shader=...)"
             )
-        return self._model_shaders
+        return self._get_shader(name)
 
     def _bind_shape_symbols(
         self,

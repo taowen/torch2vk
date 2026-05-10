@@ -24,9 +24,17 @@ from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
-from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
-from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
-from models.exported_qwen3_asr import dispatch, reference
+from models.exported_qwen3_asr import reference
+from models.exported_qwen3_asr.dispatch.audio_encoder import run_audio_encoder
+from models.exported_qwen3_asr.dispatch.audio_inject import run_audio_inject
+from models.exported_qwen3_asr.dispatch.decode_embed import run_decode_embed
+from models.exported_qwen3_asr.dispatch.decode_layer import run_decode_layer
+from models.exported_qwen3_asr.dispatch.decode_lm_head import run_decode_lm_head
+from models.exported_qwen3_asr.dispatch.decode_norm import run_decode_norm
+from models.exported_qwen3_asr.dispatch.embed_tokens import run_embed_tokens
+from models.exported_qwen3_asr.dispatch.lm_head import run_lm_head
+from models.exported_qwen3_asr.dispatch.text_layer import run_text_layer
+from models.exported_qwen3_asr.dispatch.text_norm import run_text_norm
 from models.exported_qwen3_asr.pytorch_modules import (
     AudioEncoderReference,
     AudioInjectReference,
@@ -36,11 +44,18 @@ from models.exported_qwen3_asr.pytorch_modules import (
     TokenStoreReference,
     preprocess_audio_inputs,
 )
-from models.exported_qwen3_asr.shaders import model_shaders
+from models.exported_qwen3_asr.shaders.qwen3_asr_token_select_greedy_f32 import (
+    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
+)
+from models.exported_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
+    QWEN3_ASR_TOKEN_STORE_EOS_F32,
+)
+from models.exported_qwen3_asr.shaders.registry import get_shader
 from models.exported_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.compare import as_numpy_array
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
+from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 
 
@@ -127,6 +142,74 @@ def _run_token_store(
             generated_length=generated_length,
             stopped=stopped,
         )
+
+
+def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
+    tensors = model_tensors()
+    if not tensors.decode_layers:
+        raise ValueError("decode_layers must not be empty")
+    with rt.frame(f"spike.decode.{step:04d}"):
+        run_decode_embed(rt)
+        for layer_idx in range(len(tensors.decode_layers)):
+            run_decode_layer(rt, layer_idx)
+        run_decode_norm(rt)
+        run_decode_lm_head(rt)
+        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
+            rt,
+            logits=tensors.decode_lm_head.linear,
+            eos_token_ids=tensors.eos_token_ids,
+            next_token=tensors.next_token,
+            done=tensors.done,
+        )
+        QWEN3_ASR_TOKEN_STORE_EOS_F32(
+            rt,
+            next_token=tensors.next_token,
+            token_index=tensors.token_index,
+            done=tensors.done,
+            generated_tokens=tensors.generated_tokens,
+            generated_length=tensors.generated_length,
+            stopped=tensors.stopped,
+        )
+    return _read_selected_token(rt, tensors.next_token)
+
+
+def _run_rope_table(
+    rt: RuntimeSession,
+    *,
+    phase: str,
+    frame_name: str,
+) -> None:
+    tensors = model_tensors()
+    if phase == "prefill":
+        rope_t = tensors.prefill_rope
+    elif phase == "decode":
+        rope_t = tensors.decode_rope
+    else:
+        raise ValueError(f"unknown rope phase: {phase}")
+    run_rope_table_f32(
+        rt,
+        start_position=rope_t.start_position,
+        theta=rope_t.theta,
+        cos=rope_t.cos,
+        sin=rope_t.sin,
+        frame_name=frame_name,
+    )
+
+
+def _decode_step_inputs(
+    *,
+    cache_position: int,
+    eos_token_array: np.ndarray,
+    token_index_value: int,
+) -> dict[LogicalTensor, np.ndarray]:
+    tensors = model_tensors()
+    if not tensors.decode_layers:
+        raise ValueError("decode_layers must not be empty")
+    return {
+        tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
+        tensors.eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
+        tensors.token_index: np.array([token_index_value], dtype=np.int64),
+    }
 
 
 def _read_selected_token(rt: RuntimeSession, next_token: LogicalTensor) -> int:
@@ -240,7 +323,7 @@ def _run_decode_step_with_compare(
     if refs.next_token is None:
         raise RuntimeError("decode compare requires a reference next_token from prefill")
     with rt.frame(f"spike.decode.{step:04d}"):
-        dispatch.run_decode_embed(rt)
+        run_decode_embed(rt)
         embed_expected = reference.run_decode_embed(
             rt,
             step=step,
@@ -253,7 +336,7 @@ def _run_decode_step_with_compare(
             np.array([[int(as_numpy_array(cache_position).reshape(-1)[0])]], dtype=np.int64),
         )
         for layer_idx in range(len(tensors.decode_layers)):
-            dispatch.run_decode_layer(rt, layer_idx)
+            run_decode_layer(rt, layer_idx)
             layer_expected = reference.run_decode_layer(
                 rt,
                 refs.decode_layers[layer_idx],
@@ -265,14 +348,14 @@ def _run_decode_step_with_compare(
                 cache_position=cache_position,
             )
             ref_hidden = _expected_tensor(layer_expected["add_7"])
-        dispatch.run_decode_norm(rt)
+        run_decode_norm(rt)
         norm_expected = reference.run_decode_norm(
             rt,
             step=step,
             hidden_states=ref_hidden,
         )
         ref_hidden = _expected_tensor(norm_expected["mul_1"])
-        dispatch.run_decode_lm_head(rt)
+        run_decode_lm_head(rt)
         lm_head_expected = reference.run_decode_lm_head(
             rt,
             step=step,
@@ -376,7 +459,7 @@ def main(
         device_index=0,
         model_dir=model_dir,
         model_tensors=model_tensors(),
-        model_shaders=model_shaders(),
+        get_shader=get_shader,
     )
     compare_refs: _QwenCompareReferences | None = None
     if pytorch_compare:
@@ -417,7 +500,7 @@ def main(
     )
     ref_audio_features: reference.ReferenceInput | None = None
     with rt.frame("spike.audio"):
-        dispatch.run_audio_encoder(rt)
+        run_audio_encoder(rt)
         if compare_refs is not None:
             audio_expected = reference.run_audio_encoder(
                 rt,
@@ -447,7 +530,7 @@ def main(
             model_tensors().prefill_rope.theta: np.array([rope_theta], dtype=np.float32),
         }
     )
-    dispatch.run_rope_table(
+    _run_rope_table(
         rt,
         phase="prefill",
         frame_name="spike.text.prefill_rope",
@@ -484,7 +567,7 @@ def main(
                 model_tensors().text_layers[0].cache_position: prefill_cache_position,
             }
         )
-        dispatch.run_embed_tokens(rt)
+        run_embed_tokens(rt)
         ref_hidden: reference.ReferenceInput | None = None
         ref_cos: reference.ReferenceInput | None = None
         ref_sin: reference.ReferenceInput | None = None
@@ -494,7 +577,7 @@ def main(
                 input=prepared.input_ids,
             )
             ref_hidden = _reference_input(embed_expected["embedding"])
-        dispatch.run_audio_inject(rt)
+        run_audio_inject(rt)
         if compare_refs is not None:
             if ref_hidden is None:
                 raise RuntimeError("audio inject compare requires reference embed output")
@@ -514,7 +597,7 @@ def main(
                 prefill_position_ids,
             )
         for layer_idx in range(len(model_tensors().text_layers)):
-            dispatch.run_text_layer(rt, layer_idx)
+            run_text_layer(rt, layer_idx)
             if compare_refs is not None:
                 if ref_hidden is None:
                     raise RuntimeError("text layer compare requires reference hidden state")
@@ -532,7 +615,7 @@ def main(
                 ref_hidden = _reference_input(layer_expected["add_7"])
             if layer_idx % 7 == 6:
                 print(f"    layer {layer_idx} done")
-        dispatch.run_text_norm(rt)
+        run_text_norm(rt)
         if compare_refs is not None:
             if ref_hidden is None:
                 raise RuntimeError("text norm compare requires reference hidden state")
@@ -541,7 +624,7 @@ def main(
                 hidden_states=ref_hidden,
             )
             ref_hidden = _reference_input(norm_expected["mul_1"])
-        dispatch.run_lm_head(rt)
+        run_lm_head(rt)
         if compare_refs is not None:
             if ref_hidden is None:
                 raise RuntimeError("lm_head compare requires reference hidden state")
@@ -641,13 +724,13 @@ def main(
                 ),
             }
         )
-        dispatch.run_rope_table(
+        _run_rope_table(
             rt,
             phase="decode",
             frame_name=f"spike.decode.rope.{step:04d}",
         )
 
-        decode_step_inputs = dispatch.decode_step_inputs(
+        decode_step_inputs = _decode_step_inputs(
             cache_position=cache_pos,
             eos_token_array=eos_token_array,
             token_index_value=step + 1,
@@ -665,7 +748,7 @@ def main(
             generated_tokens.append(next_token)
         elif decode_replay_plan is None:
             rt.register_inputs(decode_step_inputs)
-            next_token = dispatch.run_decode_step(
+            next_token = _run_decode_step(
                 rt,
                 step=step,
             )

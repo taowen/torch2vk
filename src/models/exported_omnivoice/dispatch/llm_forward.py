@@ -1,16 +1,14 @@
-"""Generated dispatch functions for OmniVoice."""
+"""Generated dispatch function for run_llm_forward."""
 
 from __future__ import annotations
 
 from models.exported_omnivoice.tensors.model import model_tensors
-from torch2vk.runtime.rope_table import run_rope_table_f32
 from models.exported_omnivoice.shaders.add_f32 import ADD_F32
 from models.exported_omnivoice.shaders.add_f32_37 import ADD_F32_37
 from models.exported_omnivoice.shaders.add_f32_43 import ADD_F32_43
 from models.exported_omnivoice.shaders.add_scalar import ADD_SCALAR
 from models.exported_omnivoice.shaders.add_scalar_17 import ADD_SCALAR_17
 from models.exported_omnivoice.shaders.add_scalar_9 import ADD_SCALAR_9
-from models.exported_omnivoice.shaders.audio_head_linear_nobias_f32 import AUDIO_HEAD_LINEAR_NOBIAS_F32
 from models.exported_omnivoice.shaders.cat_f32 import CAT_F32
 from models.exported_omnivoice.shaders.cat_f32_32 import CAT_F32_32
 from models.exported_omnivoice.shaders.linear_nobias_f32 import LINEAR_NOBIAS_F32
@@ -34,9 +32,6 @@ from models.exported_omnivoice.shaders.mul_left_broadcast import MUL_LEFT_BROADC
 from models.exported_omnivoice.shaders.mul_left_broadcast_12 import MUL_LEFT_BROADCAST_12
 from models.exported_omnivoice.shaders.mul_left_broadcast_20 import MUL_LEFT_BROADCAST_20
 from models.exported_omnivoice.shaders.neg_f32 import NEG_F32
-from models.exported_omnivoice.shaders.omnivoice_cfg_score_f32 import OMNIVOICE_CFG_SCORE_F32
-from models.exported_omnivoice.shaders.omnivoice_input_embed_f32 import OMNIVOICE_INPUT_EMBED_F32
-from models.exported_omnivoice.shaders.omnivoice_token_update_topk_f32 import OMNIVOICE_TOKEN_UPDATE_TOPK_F32
 from models.exported_omnivoice.shaders.pow_scalar_f32 import POW_SCALAR_F32
 from models.exported_omnivoice.shaders.pow_scalar_f32_15 import POW_SCALAR_F32_15
 from models.exported_omnivoice.shaders.pow_scalar_f32_7 import POW_SCALAR_F32_7
@@ -52,7 +47,6 @@ from models.exported_omnivoice.shaders.slice_f32_31 import SLICE_F32_31
 from models.exported_omnivoice.shaders.transpose_f32_45de1e4f84 import TRANSPOSE_F32_45DE1E4F84
 from models.exported_omnivoice.shaders.transpose_f32_c943282b28 import TRANSPOSE_F32_C943282B28
 from models.exported_omnivoice.shaders.transpose_f32_f3e8fdf2d4 import TRANSPOSE_F32_F3E8FDF2D4
-from models.exported_omnivoice.tensors.audio_head import AudioHeadTensors
 from models.exported_omnivoice.tensors.llm_forward import LlmForwardTensors
 from torch2vk.runtime.session import RuntimeSession
 
@@ -121,72 +115,5 @@ def _run_llm_forward_with_tensors(rt: RuntimeSession, tensors: LlmForwardTensors
     MUL_LEFT_BROADCAST(rt, x=tensors.p_norm_weight, y=tensors.to_225, output=tensors.mul_365)
 
 
-def _run_audio_head_with_tensors(rt: RuntimeSession, tensors: AudioHeadTensors) -> None:
-    AUDIO_HEAD_LINEAR_NOBIAS_F32(rt, x=tensors.input, weight=tensors.p_weight, output=tensors.linear)
-
-
-def run_rope_table(rt: RuntimeSession, *, frame_name: str) -> None:
-    rope_t = model_tensors().rope
-    run_rope_table_f32(
-        rt,
-        start_position=rope_t.start_position,
-        theta=rope_t.theta,
-        cos=rope_t.cos,
-        sin=rope_t.sin,
-        frame_name=frame_name,
-    )
-
-
-def run_input_embed(rt: RuntimeSession) -> None:
-    tensors = model_tensors()
-    OMNIVOICE_INPUT_EMBED_F32(
-        rt,
-        text_weight=tensors.text_embedding_weight,
-        audio_weight=tensors.audio_embedding_weight,
-        batch_input_ids=tensors.batch_input_ids,
-        batch_audio_mask=tensors.batch_audio_mask,
-        hidden_states=tensors.llm_forward.hidden_states,
-    )
-
-
 def run_llm_forward(rt: RuntimeSession) -> None:
     _run_llm_forward_with_tensors(rt, model_tensors().llm_forward)
-
-
-def run_audio_head(rt: RuntimeSession) -> None:
-    _run_audio_head_with_tensors(rt, model_tensors().audio_head)
-
-
-def run_token_score(rt: RuntimeSession) -> None:
-    tensors = model_tensors()
-    OMNIVOICE_CFG_SCORE_F32(
-        rt,
-        logits=tensors.audio_head.linear,
-        tokens=tensors.tokens,
-        audio_mask_id=tensors.audio_mask_id,
-        rng_seed=tensors.rng_seed,
-        step_index=tensors.step_index,
-        candidate_tokens=tensors.candidate_tokens,
-        candidate_scores=tensors.candidate_scores,
-    )
-
-
-def run_token_update(rt: RuntimeSession) -> None:
-    tensors = model_tensors()
-    OMNIVOICE_TOKEN_UPDATE_TOPK_F32(
-        rt,
-        candidate_tokens=tensors.candidate_tokens,
-        candidate_scores=tensors.candidate_scores,
-        unmask_count=tensors.unmask_count,
-        tokens=tensors.tokens,
-        batch_input_ids=tensors.batch_input_ids,
-    )
-
-
-def run_generation_step(rt: RuntimeSession, *, step: int) -> None:
-    with rt.frame(f"omnivoice.step.{step:04d}"):
-        run_input_embed(rt)
-        run_llm_forward(rt)
-        run_audio_head(rt)
-        run_token_score(rt)
-        run_token_update(rt)
