@@ -1,4 +1,4 @@
-"""Audio tower wrapper shared by exported_qwen3_asr export and PyTorch debug."""
+"""PyTorch modules shared by exported_qwen3_asr export and reference compare."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import cast
 import numpy as np
 import torch
 from transformers.modeling_outputs import BaseModelOutput
+from transformers.cache_utils import DynamicCache
 
 
 class AudioInjectModule(torch.nn.Module):
@@ -133,7 +134,11 @@ def audio_position_embedding_shape(
     return (chunk_num, time, d_model)
 
 
-class DebugAudioTower(torch.nn.Module):
+def torch_tensor(inputs: dict[str, np.ndarray], name: str) -> torch.Tensor:
+    return torch.from_numpy(np.ascontiguousarray(inputs[name])).cuda()
+
+
+class AudioEncoderModule(torch.nn.Module):
     def __init__(self, audio_tower: torch.nn.Module) -> None:
         super().__init__()
         self.audio_tower = audio_tower
@@ -162,7 +167,7 @@ class DebugAudioTower(torch.nn.Module):
         raw_input_features = input_features if input_features is not None else x
         if raw_input_features is None or feature_lens is None:
             raise ValueError(
-                "DebugAudioTower requires either preprocessed audio tensors or "
+                "AudioEncoderModule requires either preprocessed audio tensors or "
                 "raw input_features with feature_lens"
             )
         return self._forward_raw(raw_input_features, feature_lens)
@@ -230,9 +235,116 @@ class DebugAudioTower(torch.nn.Module):
         )
 
 
+class AudioEncoderReference:
+    def __init__(self, audio_tower: torch.nn.Module) -> None:
+        self.audio_encoder = AudioEncoderModule(audio_tower).float().cuda().eval()
+
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        with torch.no_grad():
+            output = self.audio_encoder(
+                x=torch_tensor(inputs, "x").float(),
+                position_embedding=torch_tensor(inputs, "position_embedding").float(),
+                compact_index=torch_tensor(inputs, "compact_index").long(),
+                attention_mask=torch_tensor(inputs, "attention_mask").float(),
+            )
+        return {"linear_110": output.last_hidden_state}
+
+
+class AudioInjectReference:
+    def __init__(self) -> None:
+        self.audio_inject = AudioInjectModule().cuda().eval()
+
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        with torch.no_grad():
+            output = self.audio_inject(
+                torch_tensor(inputs, "inputs_embeds").float(),
+                torch_tensor(inputs, "audio_positions").long(),
+                torch_tensor(inputs, "audio_features").float(),
+            )
+        return {"embedding": output}
+
+
+class TextReferenceState:
+    def __init__(self, thinker: torch.nn.Module) -> None:
+        self.thinker = thinker
+        self.text_model = cast(torch.nn.Module, thinker.get_submodule("model"))
+        layers = cast(torch.nn.ModuleList, self.text_model.get_submodule("layers"))
+        self.layers = tuple(cast(torch.nn.Module, layer) for layer in layers)
+        self.cache = DynamicCache(config=getattr(self.text_model, "config"))
+
+
+class TextLayerReference:
+    def __init__(self, state: TextReferenceState, layer_idx: int, *, prefill: bool) -> None:
+        self.state = state
+        self.layer = state.layers[layer_idx]
+        self.prefill = prefill
+
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        hidden = torch_tensor(inputs, "hidden_states").float()
+        cos = torch_tensor(inputs, "position_embeddings_0").float()
+        sin = torch_tensor(inputs, "position_embeddings_1").float()
+        cache_position = torch_tensor(inputs, "cache_position").long()
+        attention_mask = _causal_attention_mask(hidden) if self.prefill else None
+        with torch.no_grad():
+            output = self.layer(
+                hidden_states=hidden,
+                position_embeddings=(cos, sin),
+                attention_mask=attention_mask,
+                past_key_values=self.state.cache,
+                use_cache=True,
+                cache_position=cache_position,
+            )
+        return {"add_7": output}
+
+
+class TokenSelectReference:
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        logits = np.asarray(inputs["logits"])
+        eos_token_ids = set(int(token) for token in np.asarray(inputs["eos_token_ids"]).reshape(-1))
+        token = int(np.argmax(logits[0, -1, :]))
+        return {
+            "next_token": np.array([[token]], dtype=np.int64),
+            "done": np.array([1 if token in eos_token_ids else 0], dtype=np.uint32),
+        }
+
+
+class TokenStoreReference:
+    def __init__(self, max_new_tokens: int) -> None:
+        self.generated_tokens = np.zeros((1, max_new_tokens), dtype=np.int64)
+        self.generated_length = np.zeros((1,), dtype=np.uint32)
+        self.stopped = np.zeros((1,), dtype=np.uint32)
+
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        index = int(np.asarray(inputs["token_index"]).reshape(-1)[0])
+        if index < self.generated_tokens.shape[1] and int(self.stopped[0]) == 0:
+            self.generated_tokens[0, index] = int(np.asarray(inputs["next_token"]).reshape(-1)[0])
+            self.generated_length[0] = index + 1
+            if int(np.asarray(inputs["done"]).reshape(-1)[0]) != 0:
+                self.stopped[0] = 1
+        return {
+            "generated_tokens": self.generated_tokens.copy(),
+            "generated_length": self.generated_length.copy(),
+            "stopped": self.stopped.copy(),
+        }
+
+
+def _causal_attention_mask(hidden: torch.Tensor) -> torch.Tensor:
+    sequence_length = int(hidden.shape[1])
+    min_value = torch.finfo(hidden.dtype).min
+    return torch.triu(
+        torch.full(
+            (1, 1, sequence_length, sequence_length),
+            min_value,
+            dtype=hidden.dtype,
+            device=hidden.device,
+        ),
+        diagonal=1,
+    )
+
+
 def _require_tensor(value: torch.Tensor | None, name: str) -> torch.Tensor:
     if value is None:
-        raise ValueError(f"DebugAudioTower requires {name}")
+        raise ValueError(f"AudioEncoderModule requires {name}")
     return value
 
 

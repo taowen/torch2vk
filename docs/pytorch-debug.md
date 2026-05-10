@@ -8,9 +8,10 @@
 
 ```text
 Vulkan candidate: rt.frame(...) 内按 dispatch 顺序执行 shader。
-PyTorch reference: run.py 显式执行同粒度 tensor reference。
+PyTorch reference: 生成的 reference_setup.py 创建 reference 对象，run.py 调用生成的 reference.run_xxx(...)
+同步执行同粒度 tensor reference。
 绑定关系: ReferenceSpec.output_bindings 把 reference output key 映射到 LogicalTensor 字段。
-比较动作: compare_expected_with_spec(rt, name, tensors, spec, expected, policy)。
+比较动作: 生成的 reference.py 调用 compare_expected_with_spec(...)。
 ```
 
 RuntimeSession 只负责 shader dispatch、materialization、readback、compare artifact 和 replay 记录。它不安装
@@ -23,6 +24,9 @@ PyTorch hook，不推断 PyTorch forward 参数，也不维护另一套 probe re
 ```python
 ReferenceSpec(
     program="reference_programs/text_norm.pt2",
+    tensors="model_tensors().text_norm",
+    name="spike.text.norm",
+    policy="tensor",
     input_bindings={"hidden_states": "hidden_states"},
     output_bindings={"mul_1": "mul_1"},
 )
@@ -32,45 +36,37 @@ ReferenceSpec(
 
 1. `program`: 可选 `.pt2` 路径。有值表示可以用 `load_exported_reference()` 加载 torch.export graph reference；
    `None` 表示调用方用显式 PyTorch callable 计算 expected。
-2. `input_bindings`: reference input key 到 tensor dataclass 字段路径的映射，用于描述导出边界。
-3. `output_bindings`: reference output key 到 tensor dataclass 字段路径的映射，是实际对拍依据。
-
-`ReferenceSpec` 不表达 runtime policy。是否执行 reference、如何推进有状态 cache、用什么容差，都由调用点决定。
+2. `tensors`: compare 时作为 root 的 generated tensor 表达式。
+3. `name`: compare artifact/frame 名称，可以包含 `{step}`、`{layer_idx}` 或 `{name}`。
+4. `policy`: `"tensor"`、`"token"`，或按 output key 指定的 policy dict。
+5. `input_bindings`: reference input key 到 tensor dataclass 字段路径的映射，也是生成 wrapper 参数的来源。
+6. `output_bindings`: reference output key 到 tensor dataclass 字段路径的映射，是实际对拍依据。
 
 ## 对拍入口
 
-模型 `run.py` 在 Vulkan dispatch 后同步推进 PyTorch reference：
+`torch2vk.export.render_reference_setup_module()` 生成 `reference_setup.py`，负责把已加载的 PyTorch 模型转成
+对拍所需的 reference 对象。`torch2vk.export.render_reference_module()` 根据 `ReferenceSpec` 生成
+`reference.py`。模型 `run.py` 在 Vulkan dispatch 后调用生成 wrapper：
 
 ```python
 dispatch.run_text_norm(rt)
-with torch.no_grad():
-    expected = refs.text_norm.execute({"hidden_states": hidden})
-compare_expected_with_spec(
+expected = reference.run_text_norm(
     rt,
-    name="spike.text.norm",
-    tensors=model_tensors().text_norm,
-    spec=reference_specs.TEXT_NORM_SPEC,
-    expected=expected,
-    policy=ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),
+    refs.text_norm,
+    hidden_states=hidden,
 )
 ```
 
 多输出 shader 可以按 output key 指定不同 policy：
 
 ```python
-compare_expected_with_spec(
-    rt,
-    name="omnivoice.step.0000.token_score",
-    tensors=model_tensors(),
-    spec=reference_specs.TOKEN_SCORE_SPEC,
-    expected={
-        "candidate_tokens": candidate_tokens,
-        "candidate_scores": candidate_scores,
-    },
-    policy={
-        "candidate_tokens": ComparePolicy(kind="token"),
-        "candidate_scores": ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),
-    },
+ReferenceSpec(
+    program=None,
+    tensors="model_tensors()",
+    name="omnivoice.step.{step:04d}.token_score",
+    policy={"candidate_tokens": "token", "candidate_scores": "tensor"},
+    input_bindings={...},
+    output_bindings={...},
 )
 ```
 

@@ -9,10 +9,15 @@ from __future__ import annotations
 
 from typing import cast
 
+import numpy as np
 import torch
 from torch import nn
 
 from omnivoice.models.omnivoice import OmniVoice
+
+
+def torch_tensor(inputs: dict[str, np.ndarray], name: str) -> torch.Tensor:
+    return torch.from_numpy(np.ascontiguousarray(inputs[name])).cuda()
 
 
 class InputEmbedModule(nn.Module):
@@ -201,3 +206,82 @@ class TokenUpdateModule(nn.Module):
         updated_batch_input_ids[0:1, :, seq_len - target_len : seq_len] = updated_tokens
         updated_batch_input_ids[1:2, :, :target_len] = updated_tokens
         return updated_tokens, updated_batch_input_ids.to(torch.int64)
+
+
+class InputEmbedReference:
+    def __init__(self, model: OmniVoice) -> None:
+        self.module = InputEmbedModule(model).float().cuda().eval()
+
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        with torch.no_grad():
+            hidden_states = self.module(
+                torch_tensor(inputs, "input_ids").long(),
+                torch_tensor(inputs, "audio_mask").to(torch.bool),
+            ).float()
+        return {"hidden_states": hidden_states}
+
+
+class LlmForwardReference:
+    def __init__(self, model: OmniVoice) -> None:
+        self.module = LlmForwardModule(model).float().cuda().eval()
+
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        with torch.no_grad():
+            output = self.module(
+                torch_tensor(inputs, "hidden_states").float(),
+                torch_tensor(inputs, "cos").float(),
+                torch_tensor(inputs, "sin").float(),
+                torch_tensor(inputs, "attention_mask").float(),
+            ).float()
+        return {"mul_365": output}
+
+
+class AudioHeadReference:
+    def __init__(self, model: OmniVoice) -> None:
+        self.module = AudioHeadModule(model).float().cuda().eval()
+
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        with torch.no_grad():
+            output = self.module(torch_tensor(inputs, "input").float()).float()
+        return {"linear": output}
+
+
+class TokenScoreReference:
+    def __init__(self, model: OmniVoice) -> None:
+        self.module = TokenScoreModule(
+            num_audio_codebook=model.config.num_audio_codebook,
+            audio_vocab_size=model.config.audio_vocab_size,
+        ).cuda().eval()
+
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        with torch.no_grad():
+            candidate_tokens, candidate_scores = self.module(
+                torch_tensor(inputs, "logits").float(),
+                torch_tensor(inputs, "tokens").long(),
+                torch_tensor(inputs, "audio_mask_id").long(),
+                torch_tensor(inputs, "rng_seed").long(),
+                torch_tensor(inputs, "step_index").long(),
+            )
+        return {
+            "candidate_tokens": candidate_tokens,
+            "candidate_scores": candidate_scores,
+        }
+
+
+class TokenUpdateReference:
+    def __init__(self) -> None:
+        self.module = TokenUpdateModule().cuda().eval()
+
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        with torch.no_grad():
+            tokens, batch_input_ids = self.module(
+                torch_tensor(inputs, "tokens").long(),
+                torch_tensor(inputs, "batch_input_ids").long(),
+                torch_tensor(inputs, "candidate_tokens").long(),
+                torch_tensor(inputs, "candidate_scores").float(),
+                torch_tensor(inputs, "unmask_count"),
+            )
+        return {
+            "tokens": tokens,
+            "batch_input_ids": batch_input_ids,
+        }

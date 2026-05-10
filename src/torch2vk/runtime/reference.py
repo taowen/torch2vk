@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Literal, TypeAlias, cast
 
 import numpy as np
 import torch
@@ -13,10 +13,15 @@ from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind
 from torch.fx import Interpreter, Node
 
+ReferencePolicy: TypeAlias = Literal["tensor", "token"] | dict[str, Literal["tensor", "token"]]
+
 
 @dataclass(frozen=True, slots=True)
 class ReferenceSpec:
     program: str | None
+    tensors: str
+    name: str
+    policy: ReferencePolicy
     input_bindings: dict[str, str]
     output_bindings: dict[str, str]
 
@@ -50,6 +55,7 @@ class ExportedProgramReference:
                             "pass the loaded module state_dict"
                         )
                     self._state_dict[spec.target] = param.cuda()
+
     def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
         class _CapturingInterpreter(Interpreter):
             def __init__(self, module: object) -> None:

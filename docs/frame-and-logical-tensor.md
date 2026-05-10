@@ -161,7 +161,7 @@ Replay Frame enter:
 
 退出 candidate forward:
   FrameContext 记录本 Frame 实际写出的 LogicalTensors
-  调用方可以用 compare_expected_with_spec() 显式比较这些输出
+  调用方可以用生成的 reference.run_xxx(...) 显式比较这些输出
   mismatch 时 compare helper 写出 candidate/expected/summary artifact
   释放或复用 FRAME/OP 生命周期资源
 ```
@@ -698,17 +698,17 @@ PyTorch。
 ```text
 1. 进入 rt.frame(...)
 2. 跑 Vulkan candidate eager forward
-3. 调用方推进同粒度 PyTorch reference
-4. 调用 compare_expected_with_spec()
-5. helper 根据 ReferenceSpec.output_bindings 找到 LogicalTensor
+3. 调用生成的 reference.run_xxx(...) 推进同粒度 PyTorch reference
+4. generated helper 调用 compare_expected_with_spec()
+5. helper 根据 ReferenceSpec.tensors/output_bindings 找到 LogicalTensor
 6. RuntimeSession readback candidate 当前 buffer
-7. 按调用点传入的 ComparePolicy 比较
+7. 按 ReferenceSpec.policy 比较
 8. mismatch 时报告 frame、tensor、writer shader 和 artifact path
 9. 释放或复用 Frame workspace
 ```
 
-PyTorch model 不决定比较哪些 tensors。比较哪些输出由 `ReferenceSpec.output_bindings` 和调用点传入的
-`expected` dict 决定。
+PyTorch model 不决定比较哪些 tensors。比较哪些输出由 `ReferenceSpec.output_bindings` 和 reference callable
+返回的 `expected` dict 决定。
 
 ### ReferenceSpec
 
@@ -718,12 +718,15 @@ PyTorch model 不决定比较哪些 tensors。比较哪些输出由 `ReferenceSp
 @dataclass(frozen=True, slots=True)
 class ReferenceSpec:
     program: str | None
+    tensors: str
+    name: str
+    policy: ReferencePolicy
     input_bindings: dict[str, str]
     output_bindings: dict[str, str]
 ```
 
-`ReferenceSpec` 是 export 生成的 reference binding，不是 runtime 状态。RuntimeSession 只消费其中的
-`output_bindings` 来定位 candidate tensor。
+`ReferenceSpec` 是 export 生成的 reference binding，不是 runtime 状态。生成的 `reference.py` 消费其中的
+`tensors`、`name`、`policy` 和 `output_bindings` 来定位 candidate tensor 并执行 compare。
 
 禁止在任何独立 registry 或 helper 里手写 candidate 公式：
 

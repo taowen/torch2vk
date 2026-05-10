@@ -35,6 +35,8 @@ from torch2vk.export import (
     generate_tensor_class_source,
 )
 from torch2vk.export.codegen import (
+    render_reference_module,
+    render_reference_setup_module,
     render_reference_specs_module,
     render_shader_file,
     render_simple_init,
@@ -45,7 +47,7 @@ from torch2vk.export.codegen_loop import (
     generate_looped_dispatch_function_source,
     generate_looped_tensor_class_sources,
 )
-from torch2vk.runtime.reference import ReferenceSpec
+from torch2vk.runtime.reference import ReferencePolicy, ReferenceSpec
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
@@ -175,6 +177,94 @@ def model_shaders() -> dict[str, ShaderVariant]:
 '''
 
 
+def _render_reference_setup(shapes: dict[str, int]) -> str:
+    head_dim = int(shapes["head_dim"])
+    return render_reference_setup_module(
+        imports=[
+            "import numpy as np",
+            "import torch",
+            "",
+            "from models.exported_omnivoice.pytorch_modules import (",
+            "    AudioHeadReference,",
+            "    InputEmbedReference,",
+            "    LlmForwardReference,",
+            "    TokenScoreReference,",
+            "    TokenUpdateReference,",
+            ")",
+            "from omnivoice.models.omnivoice import OmniVoice",
+        ],
+        fields=[
+            "input_embed: InputEmbedReference",
+            "llm_forward: LlmForwardReference",
+            "audio_head: AudioHeadReference",
+            "token_score: TokenScoreReference",
+            "token_update: TokenUpdateReference",
+            "batch_input_ids: torch.Tensor",
+            "batch_audio_mask: torch.Tensor",
+            "attention_mask: torch.Tensor",
+            "tokens: torch.Tensor",
+            "audio_mask_id: torch.Tensor",
+            "rng_seed: torch.Tensor",
+            "rope_cos: torch.Tensor",
+            "rope_sin: torch.Tensor",
+        ],
+        functions_source=f'''def build_compare_references(
+    model: OmniVoice,
+    *,
+    batch_input_ids: np.ndarray,
+    batch_audio_mask: np.ndarray,
+    attention_mask: np.ndarray,
+    tokens: np.ndarray,
+    audio_mask_id: int,
+    rng_seed: int,
+) -> CompareReferences:
+    rope_cos, rope_sin = _make_rope_table(
+        batch=attention_mask.shape[0],
+        sequence_length=attention_mask.shape[-1],
+        head_dim={head_dim},
+        theta=1_000_000.0,
+    )
+    return CompareReferences(
+        input_embed=InputEmbedReference(model),
+        llm_forward=LlmForwardReference(model),
+        audio_head=AudioHeadReference(model),
+        token_score=TokenScoreReference(model),
+        token_update=TokenUpdateReference(),
+        batch_input_ids=torch.from_numpy(np.ascontiguousarray(batch_input_ids)).cuda(),
+        batch_audio_mask=torch.from_numpy(
+            np.ascontiguousarray(batch_audio_mask.astype(np.bool_))
+        ).cuda(),
+        attention_mask=torch.from_numpy(np.ascontiguousarray(attention_mask)).cuda(),
+        tokens=torch.from_numpy(np.ascontiguousarray(tokens)).cuda(),
+        audio_mask_id=torch.tensor([audio_mask_id], dtype=torch.int64, device="cuda"),
+        rng_seed=torch.tensor([rng_seed], dtype=torch.int64, device="cuda"),
+        rope_cos=rope_cos,
+        rope_sin=rope_sin,
+    )
+
+
+def _make_rope_table(
+    *,
+    batch: int,
+    sequence_length: int,
+    head_dim: int,
+    theta: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    token = torch.arange(sequence_length, device="cuda", dtype=torch.float32).view(1, -1, 1)
+    dim = torch.arange(head_dim, device="cuda", dtype=torch.float32).view(1, 1, -1)
+    half_dim = head_dim // 2
+    freq_idx = torch.remainder(dim, half_dim)
+    inv_freq = torch.pow(
+        torch.tensor(theta, device="cuda", dtype=torch.float32),
+        -(2.0 * freq_idx) / head_dim,
+    )
+    angle = token * inv_freq
+    cos = torch.cos(angle).expand(batch, -1, -1).contiguous()
+    sin = torch.sin(angle).expand(batch, -1, -1).contiguous()
+    return cos, sin''',
+    )
+
+
 # ==============================================================
 # Main
 # ==============================================================
@@ -213,9 +303,12 @@ def main() -> int:
     tensor_sources: dict[str, list[str]] = {}
     tensor_file_classes: dict[str, list[str]] = {}
     dispatch_sources: list[str] = []
-    reference_specs = {}
+    reference_specs: dict[str, ReferenceSpec] = {}
     reference_specs["input_embed"] = ReferenceSpec(
         program=None,
+        tensors="model_tensors()",
+        name="omnivoice.step.{step:04d}.input_embed",
+        policy="tensor",
         input_bindings={
             "input_ids": "batch_input_ids",
             "audio_mask": "batch_audio_mask",
@@ -224,6 +317,9 @@ def main() -> int:
     )
     reference_specs["token_score"] = ReferenceSpec(
         program=None,
+        tensors="model_tensors()",
+        name="omnivoice.step.{step:04d}.token_score",
+        policy={"candidate_tokens": "token", "candidate_scores": "tensor"},
         input_bindings={
             "logits": "audio_head.linear",
             "tokens": "tokens",
@@ -238,6 +334,9 @@ def main() -> int:
     )
     reference_specs["token_update"] = ReferenceSpec(
         program=None,
+        tensors="model_tensors()",
+        name="omnivoice.step.{step:04d}.token_update",
+        policy="token",
         input_bindings={
             "tokens": "tokens",
             "batch_input_ids": "batch_input_ids",
@@ -262,6 +361,9 @@ def main() -> int:
         reference_program=None,
         reference_input_bindings=None,
         reference_output_bindings=None,
+        reference_tensors=None,
+        reference_name=None,
+        reference_policy: ReferencePolicy = "tensor",
     ):
         prog = export_submodule(module, args=args, kwargs=kwargs)
         cls_name = _to_class_name(name)
@@ -274,6 +376,9 @@ def main() -> int:
         reference_specs[func_name] = generate_reference_spec(
             reference_prog,
             program=program,
+            tensors=reference_tensors if reference_tensors is not None else "model_tensors()",
+            name=reference_name if reference_name is not None else func_name,
+            policy=reference_policy,
             input_bindings=reference_input_bindings,
             output_bindings=reference_output_bindings,
         )
@@ -380,9 +485,13 @@ def main() -> int:
         layer_loop=LayerLoopHint(layer_prefix="layers", num_layers=num_layers),
         reference_input_bindings={
             "hidden_states": "llm_forward.hidden_states",
+            "cos": "rope.cos",
+            "sin": "rope.sin",
             "attention_mask": "attention_mask",
         },
         reference_output_bindings={"mul_365": "llm_forward.mul_365"},
+        reference_tensors="model_tensors()",
+        reference_name="omnivoice.step.{step:04d}.llm_forward",
     )
 
     _sdpa_attn_mod.use_gqa_in_sdpa = _orig_use_gqa
@@ -403,6 +512,8 @@ def main() -> int:
         reference_program=audio_head_reference_program,
         reference_input_bindings={"input": "audio_head.input"},
         reference_output_bindings={"linear": "audio_head.linear"},
+        reference_tensors="model_tensors()",
+        reference_name="omnivoice.step.{step:04d}.audio_head",
     )
 
     # Write shaders/
@@ -456,6 +567,17 @@ def main() -> int:
 
     (output_dir / "reference_specs.py").write_text(render_reference_specs_module(reference_specs))
     print(f"  reference_specs.py written ({len(reference_specs)} specs)")
+
+    (output_dir / "reference.py").write_text(
+        render_reference_module(
+            model_package="models.exported_omnivoice",
+            reference_specs=reference_specs,
+        )
+    )
+    print("  reference.py written")
+
+    (output_dir / "reference_setup.py").write_text(_render_reference_setup(shapes))
+    print("  reference_setup.py written")
 
     print("\nDone!")
     return 0

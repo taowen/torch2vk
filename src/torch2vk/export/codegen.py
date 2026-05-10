@@ -13,7 +13,7 @@ from torch.fx import Graph, Node
 
 from torch2vk.export.graph import SKIP_OPS, is_alias_op, node_input_names
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
-from torch2vk.runtime.reference import ReferenceSpec
+from torch2vk.runtime.reference import ReferencePolicy, ReferenceSpec
 from torch2vk.runtime.shader import (
     AddExpr,
     CeilDivExpr,
@@ -252,11 +252,121 @@ from torch2vk.runtime.reference import ReferenceSpec
 {% for entry in entries %}
 {{ entry.const }} = ReferenceSpec(
     program={{ entry.program }},
+    tensors={{ entry.tensors }},
+    name={{ entry.name }},
+    policy={{ entry.policy }},
     input_bindings={{ entry.input_bindings }},
     output_bindings={{ entry.output_bindings }},
 )
 
 {% endfor %}
+'''
+
+_REFERENCE_MODULE_TEMPLATE = '''"""Generated PyTorch reference comparison functions."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+import numpy as np
+import torch
+
+from {{ model_package }} import reference_specs
+from {{ model_package }}.tensors.model import model_tensors
+from torch2vk.runtime.compare import as_numpy_array
+from torch2vk.runtime.logical import ComparePolicy
+from torch2vk.runtime.pytorch_debug import compare_expected_with_spec
+from torch2vk.runtime.reference import ReferenceSpec
+from torch2vk.runtime.session import RuntimeSession
+
+
+ReferenceInput = np.ndarray | torch.Tensor
+ReferenceExpected = dict[str, object]
+
+_COMPARE_POLICIES = {
+    "tensor": ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),
+    "token": ComparePolicy(kind="token"),
+}
+
+
+class ArrayReference(Protocol):
+    def execute(self, inputs: dict[str, np.ndarray]) -> ReferenceExpected: ...
+
+
+def _execute_and_compare(
+    rt: RuntimeSession,
+    *,
+    name: str,
+    reference: ArrayReference,
+    tensors: object,
+    spec: ReferenceSpec,
+    inputs: dict[str, ReferenceInput],
+) -> ReferenceExpected:
+    expected = reference.execute(
+        {key: as_numpy_array(value) for key, value in inputs.items()}
+    )
+    compare_expected_with_spec(
+        rt,
+        name=name,
+        tensors=tensors,
+        spec=spec,
+        expected=expected,
+        policy=_policy_for_spec(spec),
+    )
+    return expected
+
+
+def _policy_for_spec(spec: ReferenceSpec) -> ComparePolicy | dict[str, ComparePolicy]:
+    if isinstance(spec.policy, dict):
+        return {key: _COMPARE_POLICIES[value] for key, value in spec.policy.items()}
+    return _COMPARE_POLICIES[spec.policy]
+
+{% for item in items %}
+
+def {{ item.function_name }}(
+    rt: RuntimeSession,
+    reference: ArrayReference,
+    *,
+{% for param in item.extra_params %}
+    {{ param.name }}: {{ param.type }},
+{% endfor %}
+{% for input_name in item.input_names %}
+    {{ input_name }}: ReferenceInput,
+{% endfor %}
+) -> ReferenceExpected:
+    spec = reference_specs.{{ item.spec_const }}
+    return _execute_and_compare(
+        rt,
+        name={{ item.name_source }},
+        reference=reference,
+        tensors={{ item.tensors_source }},
+        spec=spec,
+        inputs={
+{% for input_name in item.input_names %}
+            {{ input_name|tojson }}: {{ input_name }},
+{% endfor %}
+        },
+    )
+{% endfor %}
+'''
+
+_REFERENCE_SETUP_TEMPLATE = '''"""Generated PyTorch reference setup."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+{{ imports_source }}
+
+
+@dataclass(slots=True)
+class CompareReferences:
+{% for field in fields %}
+    {{ field }}
+{% endfor %}
+
+
+{{ functions_source }}
 '''
 
 
@@ -417,12 +527,45 @@ def render_reference_specs_module(reference_specs: dict[str, ReferenceSpec]) -> 
         {
             "const": f"{name.upper()}_SPEC",
             "program": repr(spec.program),
+            "tensors": repr(spec.tensors),
+            "name": repr(spec.name),
+            "policy": repr(spec.policy),
             "input_bindings": repr(spec.input_bindings),
             "output_bindings": repr(spec.output_bindings),
         }
         for name, spec in sorted(reference_specs.items())
     )
     return _render_template(_REFERENCE_SPECS_TEMPLATE, entries=entries).rstrip() + "\n"
+
+
+def render_reference_module(
+    *,
+    model_package: str,
+    reference_specs: dict[str, ReferenceSpec],
+) -> str:
+    items = tuple(
+        _reference_module_item(name, spec)
+        for name, spec in sorted(reference_specs.items())
+    )
+    return _render_template(
+        _REFERENCE_MODULE_TEMPLATE,
+        model_package=model_package,
+        items=items,
+    ).rstrip() + "\n"
+
+
+def render_reference_setup_module(
+    *,
+    imports: list[str],
+    fields: list[str],
+    functions_source: str,
+) -> str:
+    return _render_template(
+        _REFERENCE_SETUP_TEMPLATE,
+        imports_source="\n".join(imports),
+        fields=fields,
+        functions_source=functions_source.rstrip("\n"),
+    ).rstrip() + "\n"
 
 
 def _tensor_factory_signature(
@@ -443,6 +586,38 @@ def _tensor_factory_signature(
 
 def _render_template(source: str, **context) -> str:
     return _JINJA.from_string(source).render(**context)
+
+
+def _reference_module_item(name: str, spec: ReferenceSpec) -> dict[str, object]:
+    extra_params: list[dict[str, str]] = []
+    names_seen: set[str] = set()
+    for param_name, param_type in (
+        ("name", "str"),
+        ("step", "int"),
+        ("layer_idx", "int"),
+    ):
+        token = "{" + param_name
+        if token in spec.name or param_name in spec.tensors:
+            extra_params.append({"name": param_name, "type": param_type})
+            names_seen.add(param_name)
+    input_names = tuple(spec.input_bindings.keys())
+    duplicate = names_seen.intersection(input_names)
+    if duplicate:
+        raise ValueError(f"{name} reference inputs conflict with generated params: {sorted(duplicate)}")
+    return {
+        "function_name": f"run_{name}",
+        "spec_const": f"{name.upper()}_SPEC",
+        "extra_params": tuple(extra_params),
+        "input_names": input_names,
+        "name_source": _reference_name_source(spec.name),
+        "tensors_source": spec.tensors,
+    }
+
+
+def _reference_name_source(name: str) -> str:
+    if "{" in name:
+        return f"f{name!r}"
+    return repr(name)
 
 
 def _expr_to_source(expr) -> str:
@@ -969,6 +1144,9 @@ def generate_reference_spec(
     ep: ExportedProgram,
     *,
     program: str | None,
+    tensors: str,
+    name: str,
+    policy: ReferencePolicy = "tensor",
     input_bindings: dict[str, str] | None = None,
     output_bindings: dict[str, str] | None = None,
 ) -> ReferenceSpec:
@@ -982,6 +1160,9 @@ def generate_reference_spec(
         output_bindings = {name: name for name in _find_graph_outputs(ep.graph_module.graph)}
     return ReferenceSpec(
         program=program,
+        tensors=tensors,
+        name=name,
+        policy=policy,
         input_bindings=dict(input_bindings),
         output_bindings=dict(output_bindings),
     )
