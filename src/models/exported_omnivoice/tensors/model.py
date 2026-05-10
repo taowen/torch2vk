@@ -41,18 +41,18 @@ _MODEL_TENSORS: ExportedOmniVoiceTensors | None = None
 
 def create_model_tensors(*, target_len: int) -> ExportedOmniVoiceTensors:
     text_embedding_weight = _weight_tensor(
-        "bfloat16",
+        "float32",
         (151676, 1024),
         "llm.embed_tokens.weight",
     )
     audio_embedding_weight = _weight_tensor(
-        "bfloat16",
+        "float32",
         (8200, 1024),
         "audio_embeddings.weight",
     )
-    batch_input_ids = _state_tensor("int64", (2, 8, 300))
-    batch_audio_mask = _state_tensor("uint32", (2, 300))
-    attention_mask = _state_tensor("float32", (2, 1, 300, 300))
+    batch_input_ids = _state_tensor("int64", (2, 8, 85))
+    batch_audio_mask = _state_tensor("uint32", (2, 85))
+    attention_mask = _state_tensor("float32", (2, 1, 85, 85))
     audio_mask_id = _state_tensor("int64", (1,))
     rng_seed = _state_tensor("uint32", (1,))
     step_index = _host_input_tensor("uint32", (1,))
@@ -63,12 +63,12 @@ def create_model_tensors(*, target_len: int) -> ExportedOmniVoiceTensors:
     rope = declare_rope_table_tensors(
         "omnivoice.rope",
         batch=2,
-        sequence_length=300,
+        sequence_length=85,
         head_dim=128,
     )
     hidden_states = _activation_tensor(
         "float32",
-        (2, 300, 1024),
+        (2, 85, 1024),
     )
     llm_forward = create_llm_forward(
         "omnivoice.llm",

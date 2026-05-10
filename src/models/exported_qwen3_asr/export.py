@@ -26,7 +26,11 @@ from torch2vk.export import (
     KVCacheInjectHint,
     LayerLoopHint,
     ReferencePolicy,
+    cast_floating_tensors,
     export_submodule,
+    module_floating_dtype,
+    read_checkpoint_dtypes,
+    set_module_checkpoint_dtypes,
 )
 from torch2vk.export.graph import inject_kv_cache
 from torch2vk.export.shaders.qwen3_asr_token_select_f32 import (
@@ -208,6 +212,7 @@ def main() -> int:
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
+    checkpoint_dtypes = read_checkpoint_dtypes(resolve_cached_model(REPO_ID))
     ac = config.thinker_config.audio_config
     at = model.thinker.audio_tower
 
@@ -270,6 +275,15 @@ def main() -> int:
         reference_policy: ReferencePolicy = "tensor",
         reference_state_dict=None,
     ):
+        set_module_checkpoint_dtypes(
+            module,
+            weight_prefix=weight_prefix,
+            checkpoint_dtypes=checkpoint_dtypes,
+        )
+        export_dtype = module_floating_dtype(module)
+        if export_dtype is not None:
+            args = cast_floating_tensors(args, export_dtype)
+            kwargs = cast_floating_tensors(kwargs, export_dtype)
         prog = export_submodule(module, args=args, kwargs=kwargs, kv_cache=kv_cache)
         if kv_inject is not None:
             inject_kv_cache(prog, kv_inject)

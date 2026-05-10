@@ -196,7 +196,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.q_proj.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(2048, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2048, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -208,7 +208,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.k_proj.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1024, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -220,7 +220,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.v_proj.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(1024, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1024, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -232,7 +232,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.o_proj.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(1024, 2048)),
+                spec=TensorSpec(dtype='float32', shape=(1024, 2048)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -244,7 +244,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.q_norm.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(128,)),
+                spec=TensorSpec(dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -256,7 +256,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.k_norm.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(128,)),
+                spec=TensorSpec(dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -268,7 +268,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.mlp.gate_proj.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(3072, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -280,7 +280,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.mlp.up_proj.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(3072, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(3072, 1024)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -292,7 +292,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.mlp.down_proj.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(1024, 3072)),
+                spec=TensorSpec(dtype='float32', shape=(1024, 3072)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -304,7 +304,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.input_layernorm.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
+                spec=TensorSpec(dtype='float32', shape=(1024,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -316,7 +316,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=f"llm.layers.{layer_idx}.post_attention_layernorm.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
+                spec=TensorSpec(dtype='float32', shape=(1024,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -328,7 +328,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -340,7 +340,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='pow_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -352,7 +352,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mean',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -364,7 +364,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -376,7 +376,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='rsqrt',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -388,7 +388,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -400,7 +400,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -412,7 +412,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -424,7 +424,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 2048)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 2048)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -436,7 +436,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='view',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -448,7 +448,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_2',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -460,7 +460,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='pow_2',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -472,7 +472,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mean_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -484,7 +484,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -496,7 +496,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='rsqrt_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -508,7 +508,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_2',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -520,7 +520,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_3',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -532,7 +532,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_3',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -544,7 +544,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose',
-                spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 16, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -556,7 +556,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -568,7 +568,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='view_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -580,7 +580,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_4',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -592,7 +592,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='pow_3',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -604,7 +604,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mean_2',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -616,7 +616,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_2',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -628,7 +628,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='rsqrt_2',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -640,7 +640,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_4',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -652,7 +652,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_5',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -664,7 +664,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_5',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -676,7 +676,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 8, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -688,7 +688,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_2',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -700,7 +700,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='view_2',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -712,7 +712,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose_2',
-                spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 8, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -724,7 +724,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='unsqueeze',
-                spec=TensorSpec(dtype='float32', shape=(2, 1, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 1, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -736,7 +736,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='unsqueeze_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 1, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 1, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -748,7 +748,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_6',
-                spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 16, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -760,7 +760,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='slice_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 64)),
+                spec=TensorSpec(dtype='float32', shape=(2, 16, 85, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -772,7 +772,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='slice_2',
-                spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 64)),
+                spec=TensorSpec(dtype='float32', shape=(2, 16, 85, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -784,7 +784,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='neg',
-                spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 64)),
+                spec=TensorSpec(dtype='float32', shape=(2, 16, 85, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -796,7 +796,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='cat',
-                spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 16, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -808,7 +808,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_7',
-                spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 16, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -820,7 +820,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_3',
-                spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 16, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -832,7 +832,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_8',
-                spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 8, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -844,7 +844,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='slice_3',
-                spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 64)),
+                spec=TensorSpec(dtype='float32', shape=(2, 8, 85, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -856,7 +856,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='slice_4',
-                spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 64)),
+                spec=TensorSpec(dtype='float32', shape=(2, 8, 85, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -868,7 +868,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='neg_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 64)),
+                spec=TensorSpec(dtype='float32', shape=(2, 8, 85, 64)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -880,7 +880,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='cat_1',
-                spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 8, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -892,7 +892,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_9',
-                spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 8, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -904,7 +904,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_4',
-                spec=TensorSpec(dtype='float32', shape=(2, 8, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 8, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -916,7 +916,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='scaled_dot_product_attention',
-                spec=TensorSpec(dtype='float32', shape=(2, 16, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 16, 85, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -928,7 +928,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose_3',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -940,7 +940,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='contiguous',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 128)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -952,7 +952,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='reshape',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 2048)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 2048)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -964,7 +964,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_3',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -976,7 +976,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_5',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -988,7 +988,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_6',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1000,7 +1000,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='pow_4',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1012,7 +1012,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mean_3',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1024,7 +1024,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_6',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1036,7 +1036,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='rsqrt_3',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1048,7 +1048,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_10',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1060,7 +1060,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_7',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1072,7 +1072,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_11',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1084,7 +1084,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_4',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 3072)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1096,7 +1096,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='silu',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 3072)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1108,7 +1108,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_5',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 3072)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1120,7 +1120,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_12',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 3072)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 3072)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1132,7 +1132,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_6',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1144,7 +1144,7 @@ def create_llm_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_7',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1202,7 +1202,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key="llm.norm.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
+                spec=TensorSpec(dtype='float32', shape=(1024,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -1214,7 +1214,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
@@ -1226,7 +1226,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 128)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
@@ -1238,7 +1238,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 128)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 128)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
@@ -1250,7 +1250,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(2, 1, 300, 300)),
+                spec=TensorSpec(dtype='float32', shape=(2, 1, 85, 85)),
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
@@ -1262,7 +1262,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_224',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1274,7 +1274,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='pow_113',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1286,7 +1286,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mean_112',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1298,7 +1298,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_224',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1310,7 +1310,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='rsqrt_112',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1322,7 +1322,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_364',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1334,7 +1334,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_225',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -1346,7 +1346,7 @@ def create_llm_forward(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_365',
-                spec=TensorSpec(dtype='float32', shape=(2, 300, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,

@@ -5,9 +5,13 @@ from torch.fx import Node
 from torch2vk.export.shaders._factory import (
     flat_numel_expr,
     make_binary_same_shape,
+    node_input_dtype,
     node_input_shape,
     node_output_shape,
     shape_to_contract,
+    weight_dtype_suffix,
+    weight_extension_source,
+    weight_glsl_type,
 )
 from torch2vk.runtime.shader import (
     IOKind,
@@ -49,11 +53,11 @@ void main() {
 }
 """
 
-_LEFT_BROADCAST_SOURCE = """\
+_LEFT_BROADCAST_SOURCE_TEMPLATE = """\
 #version 450
-#extension GL_EXT_bfloat16 : require
+{{WEIGHT_EXTENSION}}\
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { bfloat16_t x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{WEIGHT_TYPE}} x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint N; uint H; } pc;
@@ -148,14 +152,17 @@ def _make_left_broadcast(
     x_contract = (last_sym,) if len(x_shape) == 1 else shape_to_contract(x_shape, symbols=(last_sym,))
     n_expr = flat_numel_expr(out_contract)
     h_sym = last_sym
+    x_dtype = node_input_dtype(node, 0)
+    x_suffix = weight_dtype_suffix(x_dtype)
+    shader_name = f"mul_left_broadcast_{x_suffix}x_f32"
     return ShaderVariant(
-        name="mul_left_broadcast",
+        name=shader_name,
         family="export",
         contract=ShaderContract(
-            class_name="ExportMulLeftBroadcastProgram",
-            shader_name="mul_left_broadcast",
+            class_name=f"ExportMulLeftBroadcast{x_suffix.title()}XProgram",
+            shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="bfloat16", shape=x_contract)),
+                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=x_dtype, shape=x_contract)),
                 TensorFieldSpec("y", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=out_contract)),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
             ),
@@ -168,7 +175,15 @@ def _make_left_broadcast(
             ),
             dispatch=(ceil_div(n_expr, 256), 1, 1),
         ),
-        source=_LEFT_BROADCAST_SOURCE,
+        source=_left_broadcast_source(x_dtype),
+    )
+
+
+def _left_broadcast_source(x_dtype: str) -> str:
+    return (
+        _LEFT_BROADCAST_SOURCE_TEMPLATE
+        .replace("{{WEIGHT_EXTENSION}}", weight_extension_source(x_dtype))
+        .replace("{{WEIGHT_TYPE}}", weight_glsl_type(x_dtype))
     )
 
 

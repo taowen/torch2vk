@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import (
+    node_input_dtype,
+    node_input_shape,
+    node_output_shape,
+    weight_dtype_suffix,
+    weight_extension_source,
+    weight_glsl_type,
+    weight_zero_literal,
+)
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -15,18 +23,18 @@ from torch2vk.runtime.shader import (
     ceil_div,
 )
 
-_SOURCE = """\
+_SOURCE_TEMPLATE = """\
 #version 450
 #extension GL_EXT_control_flow_attributes : enable
-#extension GL_EXT_bfloat16 : require
+{{WEIGHT_EXTENSION}}\
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
+layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { {{WEIGHT_TYPE}} weight[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 const uint TILE_M = 16u; const uint TILE_N = 64u; const uint TILE_K = 32u;
-shared float tile_x[16 * 32]; shared bfloat16_t tile_w[32 * 64];
+shared float tile_x[16 * 32]; shared {{WEIGHT_TYPE}} tile_w[32 * 64];
 void main() {
     const uint local_col = gl_LocalInvocationID.x;
     const uint local_row = gl_LocalInvocationID.y;
@@ -49,7 +57,7 @@ void main() {
         for (uint i = lane; i < TILE_K * TILE_N; i += 256u) {
             const uint tk = i / TILE_N; const uint tc = i - tk * TILE_N;
             const uint gk = k0 + tk; const uint gc = gl_WorkGroupID.y * TILE_N + tc;
-            tile_w[i] = (gc < pc.N && gk < pc.K) ? weight[gc * pc.K + gk] : bfloat16_t(0.0);
+            tile_w[i] = (gc < pc.N && gk < pc.K) ? weight[gc * pc.K + gk] : {{WEIGHT_ZERO}};
         }
         barrier();
         [[unroll]] for (uint k = 0u; k < TILE_K; ++k) {
@@ -82,19 +90,22 @@ def make_linear_nobias_variant(node: Node) -> ShaderVariant | None:
 
     k = x_shape[-1]
     n = w_shape[0]
+    weight_dtype = node_input_dtype(node, 1)
+    weight_suffix = weight_dtype_suffix(weight_dtype)
+    shader_name = f"linear_nobias_{weight_suffix}w_f32"
     m = 1
     for d in x_shape[:-1]:
         m *= d
 
     return ShaderVariant(
-        name="linear_nobias_f32",
+        name=shader_name,
         family="export",
         contract=ShaderContract(
-            class_name="ExportLinearNobiasProgram",
-            shader_name="linear_nobias_f32",
+            class_name=f"ExportLinearNobias{weight_suffix.title()}WeightProgram",
+            shader_name=shader_name,
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=x_contract)),
-                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="bfloat16", shape=w_contract)),
+                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=w_contract)),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
             ),
             push_constants=PushConstantSpec(
@@ -107,5 +118,14 @@ def make_linear_nobias_variant(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(ceil_div(m, 16), ceil_div(n, 64), 1),
         ),
-        source=_SOURCE,
+        source=_source(weight_dtype),
+    )
+
+
+def _source(weight_dtype: str) -> str:
+    return (
+        _SOURCE_TEMPLATE
+        .replace("{{WEIGHT_EXTENSION}}", weight_extension_source(weight_dtype))
+        .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))
+        .replace("{{WEIGHT_ZERO}}", weight_zero_literal(weight_dtype))
     )

@@ -46,7 +46,7 @@ MUL_BROADCAST_INNER_29 = ShaderVariant(
             size=12,
             fields=(
                 PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul(mul('B', 'T'), 'H'), 'D'), dynamic=False),
-                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, 38400, dynamic=False),
+                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, 10880, dynamic=False),
                 PushConstantFieldSpec('REPEAT', PushConstantType.UINT32, 8, 8, dynamic=False),
             ),
         ),

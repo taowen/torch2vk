@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import (
+    node_input_dtype,
+    node_input_shape,
+    node_output_shape,
+    weight_dtype_suffix,
+    weight_extension_source,
+    weight_glsl_type,
+)
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -15,13 +22,13 @@ from torch2vk.runtime.shader import (
     ceil_div,
 )
 
-_SOURCE = """\
+_SOURCE_TEMPLATE = """\
 #version 450
-#extension GL_EXT_bfloat16 : require
+{{WEIGHT_EXTENSION}}\
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
-layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { bfloat16_t bias[]; };
+layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { {{WEIGHT_TYPE}} weight[]; };
+layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { {{BIAS_TYPE}} bias[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint batch; uint in_c; uint in_h; uint in_w;
@@ -90,18 +97,25 @@ def make_conv2d_variant(node: Node) -> ShaderVariant | None:
 
     fields = [
         TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=x_contract)),
-        TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="bfloat16", shape=w_contract)),
     ]
+    weight_dtype = node_input_dtype(node, 1)
+    weight_suffix = weight_dtype_suffix(weight_dtype)
+    fields.append(TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=w_contract)))
+    bias_dtype = weight_dtype
+    bias_suffix = weight_suffix
     if has_bias:
-        fields.append(TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype="bfloat16", shape=("Co3",))))
+        bias_dtype = node_input_dtype(node, 2)
+        bias_suffix = weight_dtype_suffix(bias_dtype)
+        fields.append(TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("Co3",))))
     fields.append(TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)))
+    shader_name = f"conv2d_{weight_suffix}w_{bias_suffix}b_f32"
 
     return ShaderVariant(
-        name="conv2d_f32",
+        name=shader_name,
         family="export",
         contract=ShaderContract(
-            class_name="ExportConv2dProgram",
-            shader_name="conv2d_f32",
+            class_name=f"ExportConv2d{weight_suffix.title()}Weight{bias_suffix.title()}BiasProgram",
+            shader_name=shader_name,
             fields=tuple(fields),
             push_constants=PushConstantSpec(
                 size=52,
@@ -123,5 +137,19 @@ def make_conv2d_variant(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(ceil_div(out_h * out_w, 16), ceil_div(out_c, 16), batch),
         ),
-        source=_SOURCE,
+        source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype),
+    )
+
+
+def _source(*, weight_dtype: str, bias_dtype: str) -> str:
+    extension = (
+        weight_extension_source("bfloat16")
+        if "bfloat16" in {weight_dtype, bias_dtype}
+        else ""
+    )
+    return (
+        _SOURCE_TEMPLATE
+        .replace("{{WEIGHT_EXTENSION}}", extension)
+        .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))
+        .replace("{{BIAS_TYPE}}", weight_glsl_type(bias_dtype))
     )

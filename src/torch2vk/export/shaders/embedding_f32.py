@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_dtype, node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import (
+    node_input_dtype,
+    node_input_shape,
+    node_output_shape,
+    weight_dtype_suffix,
+    weight_extension_source,
+    weight_glsl_type,
+)
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -18,10 +25,10 @@ from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequire
 
 _SOURCE = """\
 #version 450
-#extension GL_EXT_bfloat16 : require
+{{WEIGHT_EXTENSION}}\
 {{INDEX_EXTENSION}}
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
+layout(set = 0, binding = 0) buffer restrict readonly WeightBuffer { {{WEIGHT_TYPE}} weight[]; };
 layout(set = 0, binding = 1) buffer restrict readonly IndicesBuffer { {{INDEX_TYPE}} indices[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint num_indices; uint embedding_dim; } pc;
@@ -50,6 +57,9 @@ def make_embedding_variant(node: Node) -> ShaderVariant | None:
     if indices_dtype not in {"int32", "int64"}:
         return None
 
+    weight_dtype = node_input_dtype(node, 0)
+    weight_suffix = weight_dtype_suffix(weight_dtype)
+    shader_name = f"embedding_{weight_suffix}w_f32"
     embedding_dim = weight_shape[-1]
     num_indices = 1
     for d in indices_shape:
@@ -61,13 +71,13 @@ def make_embedding_variant(node: Node) -> ShaderVariant | None:
 
     total = num_indices * embedding_dim
     return ShaderVariant(
-        name="embedding_f32",
+        name=shader_name,
         family="export",
         contract=ShaderContract(
-            class_name="ExportEmbeddingProgram",
-            shader_name="embedding_f32",
+            class_name=f"ExportEmbedding{weight_suffix.title()}WeightProgram",
+            shader_name=shader_name,
             fields=(
-                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="bfloat16", shape=w_contract)),
+                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=w_contract)),
                 TensorFieldSpec("indices", IOKind.INPUT, "input", TensorContract(dtype=indices_dtype, shape=idx_contract)),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
             ),
@@ -81,14 +91,20 @@ def make_embedding_variant(node: Node) -> ShaderVariant | None:
             dispatch=(ceil_div(total, 256), 1, 1),
         ),
         execution_requirements=_index_execution_requirements(indices_dtype),
-        source=_index_source(indices_dtype),
+        source=_index_source(indices_dtype, weight_dtype=weight_dtype),
     )
 
 
-def _index_source(dtype: str) -> str:
+def _index_source(dtype: str, *, weight_dtype: str) -> str:
     index_type = "int64_t" if dtype == "int64" else "int"
     extension = "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require" if dtype == "int64" else ""
-    return _SOURCE.replace("{{INDEX_EXTENSION}}", extension).replace("{{INDEX_TYPE}}", index_type)
+    return (
+        _SOURCE
+        .replace("{{WEIGHT_EXTENSION}}", weight_extension_source(weight_dtype))
+        .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))
+        .replace("{{INDEX_EXTENSION}}", extension)
+        .replace("{{INDEX_TYPE}}", index_type)
+    )
 
 
 def _index_execution_requirements(dtype: str) -> ShaderExecutionRequirements | None:

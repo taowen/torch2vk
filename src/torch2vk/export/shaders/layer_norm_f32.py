@@ -4,7 +4,14 @@ import math
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import (
+    node_input_dtype,
+    node_input_shape,
+    node_output_shape,
+    weight_dtype_suffix,
+    weight_extension_source,
+    weight_glsl_type,
+)
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -16,13 +23,13 @@ from torch2vk.runtime.shader import (
     TensorFieldSpec,
 )
 
-_SOURCE = """\
+_SOURCE_TEMPLATE = """\
 #version 450
-#extension GL_EXT_bfloat16 : require
+{{WEIGHT_EXTENSION}}\
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
-layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { bfloat16_t bias[]; };
+layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { {{WEIGHT_TYPE}} weight[]; };
+layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { {{BIAS_TYPE}} bias[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint ROWS; uint COLS; float eps; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -90,17 +97,22 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
 
     in_contract = tuple(f"I{i}" for i in range(len(in_shape)))
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
+    weight_dtype = node_input_dtype(node, 2)
+    bias_dtype = node_input_dtype(node, 3)
+    weight_suffix = weight_dtype_suffix(weight_dtype)
+    bias_suffix = weight_dtype_suffix(bias_dtype)
+    shader_name = f"layer_norm_{weight_suffix}w_{bias_suffix}b_f32"
 
     return ShaderVariant(
-        name="layer_norm_f32",
+        name=shader_name,
         family="export",
         contract=ShaderContract(
-            class_name="ExportLayerNormProgram",
-            shader_name="layer_norm_f32",
+            class_name=f"ExportLayerNorm{weight_suffix.title()}Weight{bias_suffix.title()}BiasProgram",
+            shader_name=shader_name,
             fields=(
                 TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
-                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype="bfloat16", shape=("W0",))),
-                TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype="bfloat16", shape=("W0",))),
+                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=("W0",))),
+                TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("W0",))),
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
             ),
             push_constants=PushConstantSpec(
@@ -113,5 +125,19 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(rows, 1, 1),
         ),
-        source=_SOURCE,
+        source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype),
+    )
+
+
+def _source(*, weight_dtype: str, bias_dtype: str) -> str:
+    extension = (
+        weight_extension_source("bfloat16")
+        if "bfloat16" in {weight_dtype, bias_dtype}
+        else ""
+    )
+    return (
+        _SOURCE_TEMPLATE
+        .replace("{{WEIGHT_EXTENSION}}", extension)
+        .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))
+        .replace("{{BIAS_TYPE}}", weight_glsl_type(bias_dtype))
     )

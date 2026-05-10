@@ -77,8 +77,12 @@ def is_alias_op(node: Node) -> bool:
     if target in ALIAS_OPS:
         return True
     if target == "aten.to.dtype":
-        return _node_input_dtype(node) == _node_dtype(node)
+        return _is_float_dtype(_node_input_dtype(node)) and _is_float_dtype(_node_dtype(node))
     return False
+
+
+def _is_float_dtype(dtype: str) -> bool:
+    return dtype in {"float16", "bfloat16", "float32", "float64"}
 
 
 def node_input_names(node: Node) -> tuple[str, ...]:

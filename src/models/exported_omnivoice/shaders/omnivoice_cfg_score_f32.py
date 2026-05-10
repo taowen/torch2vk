@@ -217,7 +217,7 @@ void main() {
     float confidence = best_score - guided_max - log(guided_sum);
     confidence -= float(codebook) * pc.layer_penalty;
     if (pc.position_temperature > 0.0) {
-        confidence += gumbel_noise(flat_pos) * pc.position_temperature;
+        confidence = confidence / pc.position_temperature + gumbel_noise(flat_pos);
     }
     if (tokens[flat_pos] != audio_mask_id[0]) {
         confidence = -3.4028234663852886e+38;

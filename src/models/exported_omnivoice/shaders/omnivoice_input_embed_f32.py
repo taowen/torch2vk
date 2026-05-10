@@ -30,13 +30,13 @@ OMNIVOICE_INPUT_EMBED_F32 = ShaderVariant(
                 name='text_weight',
                 io_kind=IOKind.INPUT,
                 role='weight',
-                contract=TensorContract(dtype='bfloat16', shape=('TV', 'H',)),
+                contract=TensorContract(dtype='float32', shape=('TV', 'H',)),
             ),
             TensorFieldSpec(
                 name='audio_weight',
                 io_kind=IOKind.INPUT,
                 role='weight',
-                contract=TensorContract(dtype='bfloat16', shape=('CV', 'H',)),
+                contract=TensorContract(dtype='float32', shape=('CV', 'H',)),
             ),
             TensorFieldSpec(
                 name='batch_input_ids',
@@ -74,17 +74,16 @@ OMNIVOICE_INPUT_EMBED_F32 = ShaderVariant(
     source="""\
 #version 450
 
-#extension GL_EXT_bfloat16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 layout(std430) buffer;
 
 layout(set = 0, binding = 0) buffer restrict readonly TextWeightBuffer {
-    bfloat16_t text_weight[];
+    float text_weight[];
 };
 
 layout(set = 0, binding = 1) buffer restrict readonly AudioWeightBuffer {
-    bfloat16_t audio_weight[];
+    float audio_weight[];
 };
 
 layout(set = 0, binding = 2) buffer restrict readonly BatchInputIdsBuffer {

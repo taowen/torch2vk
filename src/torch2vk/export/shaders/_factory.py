@@ -53,6 +53,38 @@ def node_input_dtype(node: Node, index: int) -> str:
     return str(tm.dtype).removeprefix("torch.")
 
 
+def weight_dtype_suffix(dtype: str) -> str:
+    if dtype == "bfloat16":
+        return "bf16"
+    if dtype == "float32":
+        return "f32"
+    raise ValueError(f"Unsupported weight dtype for shader generation: {dtype}")
+
+
+def weight_glsl_type(dtype: str) -> str:
+    if dtype == "bfloat16":
+        return "bfloat16_t"
+    if dtype == "float32":
+        return "float"
+    raise ValueError(f"Unsupported weight dtype for shader generation: {dtype}")
+
+
+def weight_zero_literal(dtype: str) -> str:
+    if dtype == "bfloat16":
+        return "bfloat16_t(0.0)"
+    if dtype == "float32":
+        return "0.0"
+    raise ValueError(f"Unsupported weight dtype for shader generation: {dtype}")
+
+
+def weight_extension_source(dtype: str) -> str:
+    if dtype == "bfloat16":
+        return "#extension GL_EXT_bfloat16 : require\n"
+    if dtype == "float32":
+        return ""
+    raise ValueError(f"Unsupported weight dtype for shader generation: {dtype}")
+
+
 def shape_to_contract(shape: tuple[int, ...], symbols: tuple[str, ...] | None = None) -> tuple[Dim, ...]:
     if symbols is None:
         symbols = _DIM_SYMBOLS if len(shape) <= 4 else tuple(f"D{i}" for i in range(len(shape)))

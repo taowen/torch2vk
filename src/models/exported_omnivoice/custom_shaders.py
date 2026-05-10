@@ -31,13 +31,13 @@ OMNIVOICE_INPUT_EMBED_F32 = ShaderVariant(
                 "text_weight",
                 IOKind.INPUT,
                 "weight",
-                TensorContract(dtype="bfloat16", shape=("TV", "H")),
+                TensorContract(dtype="float32", shape=("TV", "H")),
             ),
             TensorFieldSpec(
                 "audio_weight",
                 IOKind.INPUT,
                 "weight",
-                TensorContract(dtype="bfloat16", shape=("CV", "H")),
+                TensorContract(dtype="float32", shape=("CV", "H")),
             ),
             TensorFieldSpec(
                 "batch_input_ids",
@@ -74,17 +74,16 @@ OMNIVOICE_INPUT_EMBED_F32 = ShaderVariant(
     source="""
 #version 450
 
-#extension GL_EXT_bfloat16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 layout(std430) buffer;
 
 layout(set = 0, binding = 0) buffer restrict readonly TextWeightBuffer {
-    bfloat16_t text_weight[];
+    float text_weight[];
 };
 
 layout(set = 0, binding = 1) buffer restrict readonly AudioWeightBuffer {
-    bfloat16_t audio_weight[];
+    float audio_weight[];
 };
 
 layout(set = 0, binding = 2) buffer restrict readonly BatchInputIdsBuffer {
@@ -338,7 +337,7 @@ void main() {
     float confidence = best_score - guided_max - log(guided_sum);
     confidence -= float(codebook) * pc.layer_penalty;
     if (pc.position_temperature > 0.0) {
-        confidence += gumbel_noise(flat_pos) * pc.position_temperature;
+        confidence = confidence / pc.position_temperature + gumbel_noise(flat_pos);
     }
     if (tokens[flat_pos] != audio_mask_id[0]) {
         confidence = -3.4028234663852886e+38;

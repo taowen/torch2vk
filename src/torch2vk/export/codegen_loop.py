@@ -30,6 +30,8 @@ from torch2vk.export.tensor_codegen import (
     _TensorKind,
     _TensorMeta,
     _tensor_factory_signature,
+    _logical_dtype,
+    _node_dtype,
     render_tensor_class,
 )
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
@@ -257,7 +259,7 @@ def _graph_tensor_metas(graph: Graph, sig) -> dict[str, _TensorMeta]:
             continue
         tensor_metas[node.name] = _TensorMeta(
             shape=tuple(int(d) for d in tm.shape),
-            dtype=str(tm.dtype).removeprefix("torch."),
+            dtype=_node_dtype(node),
             kind=input_kinds.get(node.name, _TensorKind.INTERMEDIATE),
         )
     return tensor_metas
@@ -446,7 +448,7 @@ def generate_looped_tensor_class_sources(
                 tm = node.meta.get("tensor_meta")
                 if tm:
                     shape = tuple(int(d) for d in tm.shape)
-                    dtype = str(tm.dtype).removeprefix("torch.")
+                    dtype = _node_dtype(node)
                     is_param = spec.kind in (InputKind.PARAMETER, InputKind.BUFFER)
                     tensors[spec.arg.name] = _TensorMeta(
                         shape=shape, dtype=dtype,
@@ -465,7 +467,7 @@ def generate_looped_tensor_class_sources(
             tm = node.meta.get("tensor_meta")
             if tm:
                 shape = tuple(int(d) for d in tm.shape)
-                dtype = str(tm.dtype).removeprefix("torch.")
+                dtype = _node_dtype(node)
                 tensors[node.name] = _TensorMeta(shape=shape, dtype=dtype, kind=_TensorKind.INTERMEDIATE)
 
     # Prune dead tensors using full graph
@@ -588,9 +590,7 @@ def _render_layer_class(
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
-        dtype = "bfloat16" if kind == _TensorKind.PARAMETER else (
-            meta.dtype if meta.dtype in ("int64", "int32") else "float32"
-        )
+        dtype = _logical_dtype(kind=kind, dtype=meta.dtype)
         if kind == _TensorKind.PARAMETER:
             safetensors_key = param_map[name]
             name_template = re.sub(r"\.layers\.0\.", ".layers.{layer_idx}.", safetensors_key)
@@ -657,9 +657,7 @@ def _render_parent_class(
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
-        dtype = "bfloat16" if kind == _TensorKind.PARAMETER else (
-            meta.dtype if meta.dtype in ("int64", "int32") else "float32"
-        )
+        dtype = _logical_dtype(kind=kind, dtype=meta.dtype)
         if kind == _TensorKind.PARAMETER:
             tensor_entries.append({
                 "name": name,

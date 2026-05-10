@@ -114,7 +114,7 @@ def generate_tensor_class_source(
                 tm = node.meta.get("tensor_meta")
                 if tm:
                     shape = tuple(int(d) for d in tm.shape)
-                    dtype = str(tm.dtype).removeprefix("torch.")
+                    dtype = _node_dtype(node)
                     is_param = spec.kind in (InputKind.PARAMETER, InputKind.BUFFER)
                     tensors[spec.arg.name] = _TensorMeta(
                         shape=shape, dtype=dtype,
@@ -133,7 +133,7 @@ def generate_tensor_class_source(
             tm = node.meta.get("tensor_meta")
             if tm:
                 shape = tuple(int(d) for d in tm.shape)
-                dtype = str(tm.dtype).removeprefix("torch.")
+                dtype = _node_dtype(node)
                 tensors[node.name] = _TensorMeta(shape=shape, dtype=dtype, kind=_TensorKind.INTERMEDIATE)
 
     output_name = _find_output_name(graph, tensors)
@@ -201,9 +201,7 @@ def _tensor_entry(
     reference_key: str,
 ) -> dict[str, str]:
     kind = meta.kind
-    dtype = "bfloat16" if kind == _TensorKind.PARAMETER else (
-        meta.dtype if meta.dtype in ("int64", "int32") else "float32"
-    )
+    dtype = _logical_dtype(kind=kind, dtype=meta.dtype)
     if kind == _TensorKind.PARAMETER:
         role = "TensorRole.WEIGHT"
         memory = "MemoryClass.MODEL_WEIGHT"
@@ -227,6 +225,21 @@ def _tensor_entry(
         "memory": memory,
         "lifetime": lifetime,
     }
+
+
+def _node_dtype(node: Node) -> str:
+    tm = node.meta.get("tensor_meta")
+    if tm is None:
+        return ""
+    return str(tm.dtype).removeprefix("torch.")
+
+
+def _logical_dtype(*, kind: _TensorKind, dtype: str) -> str:
+    if kind == _TensorKind.PARAMETER:
+        if dtype in {"bfloat16", "float32", "float16", "int64", "int32", "uint32"}:
+            return dtype
+        raise ValueError(f"Unsupported checkpoint parameter dtype: {dtype}")
+    return dtype if dtype in ("int64", "int32", "uint32") else "float32"
 
 
 def _checkpoint_key_expr(

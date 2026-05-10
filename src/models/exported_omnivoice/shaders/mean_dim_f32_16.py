@@ -37,12 +37,12 @@ MEAN_DIM_F32_16 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 4800, dynamic=False),
+                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 1360, dynamic=False),
                 PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 128, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(4800, 1, 1),
+        dispatch=(1360, 1, 1),
     ),
     execution_requirements=None,
     source="""\

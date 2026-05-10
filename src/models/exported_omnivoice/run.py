@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Protocol, Sequence, cast
 
 import numpy as np
-from safetensors.torch import load_file, save_file
 import torch
 from transformers import AutoTokenizer
 from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
@@ -25,6 +24,7 @@ from models.hf_cache import resolve_cached_model
 from models.exported_omnivoice import reference
 from models.exported_omnivoice.dispatch.audio_head import run_audio_head
 from models.exported_omnivoice.dispatch.llm_forward import run_llm_forward
+from models.exported_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
 from models.exported_omnivoice.pytorch_modules import (
     InputEmbedReference,
     LlmForwardReference,
@@ -46,7 +46,6 @@ from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_ste
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 
-DEFAULT_TEXT = "hello world this is a speech recognition test"
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_exported.wav")
 
 
@@ -70,36 +69,9 @@ class _OmniVoiceCompareState:
     rope_sin: torch.Tensor
 
 
-def _ensure_bfloat16_checkpoint(model_dir: Path) -> Path:
-    """Convert float32 safetensors to bfloat16 (cached in a subdirectory)."""
-    bf16_dir = model_dir / "bf16"
-    dst = bf16_dir / "model.safetensors"
-    if dst.exists():
-        return bf16_dir
-    bf16_dir.mkdir(exist_ok=True)
-    state_dict = load_file(str(model_dir / "model.safetensors"))
-    bf16_dict = {}
-    for k, v in state_dict.items():
-        if v.dtype == torch.float32:
-            bf16_dict[k] = v.to(torch.bfloat16)
-        else:
-            bf16_dict[k] = v
-    save_file(bf16_dict, str(dst))
-    return bf16_dir
-
-
-def _round_model_float_weights_to_bfloat16(model: torch.nn.Module) -> None:
-    for parameter in model.parameters():
-        if parameter.is_floating_point():
-            parameter.data = parameter.data.to(torch.bfloat16).to(torch.float32)
-    for buffer in model.buffers():
-        if buffer.is_floating_point():
-            buffer.data = buffer.data.to(torch.bfloat16).to(torch.float32)
-
-
 def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float) -> np.ndarray:
     t = np.linspace(t_start, t_end, num_step + 1, dtype=np.float64)
-    t = t / (t + t_shift - t_shift * t)
+    t = t_shift * t / (1.0 + (t_shift - 1.0) * t)
     return t.astype(np.float32)
 
 
@@ -330,89 +302,39 @@ def main(
     print("Loading tokenizer...")
     text_tokenizer = AutoTokenizer.from_pretrained(model_dir)
 
-    num_audio_codebook = config.num_audio_codebook
     audio_mask_id = config.audio_mask_id
-
-    # Exported model uses fixed seq_len=300
-    EXPORTED_SEQ_LEN = 300
 
     # Prepare inputs (host-side _prepare_inference_inputs)
     print("Preparing inputs...")
-    style_text = "<|lang_start|>None<|lang_end|><|instruct_start|>None<|instruct_end|>"
-    style_ids = text_tokenizer(style_text, return_tensors="pt").input_ids.numpy().astype(np.int64)
-    style_tokens = np.broadcast_to(
-        style_ids,
-        (num_audio_codebook, style_ids.shape[1]),
-    )[None, :, :].copy()
-
-    wrapped_text = f"<|text_start|>{text}<|text_end|>"
-    text_ids = text_tokenizer(wrapped_text, return_tensors="pt").input_ids.numpy().astype(np.int64)
-    text_tokens = np.broadcast_to(
-        text_ids,
-        (num_audio_codebook, text_ids.shape[1]),
-    )[None, :, :].copy()
-
-    prefix_len = style_tokens.shape[2] + text_tokens.shape[2]
-    target_len = EXPORTED_SEQ_LEN - prefix_len
-    if target_len <= 0:
-        raise ValueError(f"Text too long: prefix={prefix_len} exceeds EXPORTED_SEQ_LEN={EXPORTED_SEQ_LEN}")
-
-    target_audio_tokens = np.full(
-        (1, num_audio_codebook, target_len),
-        audio_mask_id,
-        dtype=np.int64,
+    prepared = prepare_omnivoice_inputs(
+        text=text,
+        tokenizer=text_tokenizer,
+        config=config,
     )
-
-    cond_input_ids = np.concatenate([style_tokens, text_tokens, target_audio_tokens], axis=2)
-    cond_total_len = cond_input_ids.shape[2]
-    assert cond_total_len == EXPORTED_SEQ_LEN
-    cond_audio_start = cond_total_len - target_len
-
-    cond_audio_mask = np.zeros((1, cond_total_len), dtype=np.uint32)
-    cond_audio_mask[0, cond_audio_start:] = 1
-
-    # Build CFG batch (2 = cond + uncond), padded to EXPORTED_SEQ_LEN
     B = 1
-    seq_len = EXPORTED_SEQ_LEN
-    c_len = cond_total_len
-    u_len = target_len
+    num_audio_codebook = config.num_audio_codebook
+    target_len = prepared.target_len
+    seq_len = prepared.seq_len
+    batch_input_ids = prepared.batch_input_ids
+    batch_audio_mask = prepared.batch_audio_mask
+    attn_mask_np = prepared.attention_mask
 
-    batch_input_ids = np.full(
-        (2 * B, num_audio_codebook, seq_len),
-        audio_mask_id,
-        dtype=np.int64,
-    )
-    batch_audio_mask = np.zeros((2 * B, seq_len), dtype=np.uint32)
-    batch_attention_mask = np.zeros((2 * B, 1, seq_len, seq_len), dtype=np.bool_)
-
-    # Cond
-    batch_input_ids[0, :, :c_len] = cond_input_ids[0]
-    batch_audio_mask[0, :c_len] = cond_audio_mask[0]
-    batch_attention_mask[0, :, :c_len, :c_len] = True
-
-    # Uncond
-    batch_input_ids[B, :, :u_len] = cond_input_ids[0, :, -u_len:]
-    batch_audio_mask[B, :u_len] = cond_audio_mask[0, -u_len:]
-    batch_attention_mask[B, :, :u_len, :u_len] = True
-    if seq_len > u_len:
-        pad_diag = np.arange(u_len, seq_len)
-        batch_attention_mask[B, :, pad_diag, pad_diag] = True
-
-    # Convert attention mask to additive float
-    attn_mask_np = np.zeros(batch_attention_mask.shape, dtype=np.float32)
-    attn_mask_np[~batch_attention_mask] = -np.finfo(np.float32).max
-
-    print(f"  seq_len={seq_len}, target_len={target_len}, cond_audio_start={cond_audio_start}")
+    print(f"  seq_len={seq_len}, target_len={target_len}, cond_audio_start={prepared.cond_audio_start}")
 
     # Create runtime and tensors
     print("Initializing Vulkan runtime...")
-    bf16_dir = _ensure_bfloat16_checkpoint(model_dir)
 
     print("Declaring tensors...")
     create_model_tensors(target_len=target_len)
+    expected_seq_len = model_tensors().batch_input_ids.spec.shape[2]
+    if expected_seq_len != seq_len:
+        raise ValueError(
+            f"exported OmniVoice seq_len is {expected_seq_len}, "
+            f"but prepared inputs require {seq_len}; regenerate exported_omnivoice"
+        )
     rt = RuntimeSession.open(
         device_index=0,
-        model_dir=bf16_dir,
+        model_dir=model_dir,
         model_tensors=model_tensors(),
         get_shader=get_shader,
     )
@@ -450,7 +372,6 @@ def main(
             device_map="cuda",
             train=True,
         ).eval()
-        _round_model_float_weights_to_bfloat16(ref_model)
         compare_refs = _build_compare_references(
             ref_model,
             batch_input_ids=batch_input_ids,

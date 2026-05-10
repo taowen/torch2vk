@@ -44,14 +44,14 @@ CAT_F32_32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=16,
             fields=(
-                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 614400, dynamic=False),
+                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 174080, dynamic=False),
                 PushConstantFieldSpec('A_STRIDE', PushConstantType.UINT32, 4, 64, dynamic=False),
                 PushConstantFieldSpec('B_STRIDE', PushConstantType.UINT32, 8, 64, dynamic=False),
                 PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 12, 128, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(614400, 256), 1, 1),
+        dispatch=(ceil_div(174080, 256), 1, 1),
     ),
     execution_requirements=None,
     source="""\

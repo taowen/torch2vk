@@ -17,12 +17,14 @@ from typing import cast
 import torch
 import transformers.integrations.sdpa_attention as _sdpa_attn_mod
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from transformers import AutoTokenizer
 
 from models.exported_omnivoice.custom_shaders import (
     OMNIVOICE_CFG_SCORE_F32,
     OMNIVOICE_INPUT_EMBED_F32,
     OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
 )
+from models.exported_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
 from models.exported_omnivoice.pytorch_modules import LlmForwardModule
 from models.hf_cache import resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
@@ -30,7 +32,11 @@ from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
 from torch2vk.export import (
     LayerLoopHint,
     ReferencePolicy,
+    cast_floating_tensors,
     export_submodule,
+    module_floating_dtype,
+    read_checkpoint_dtypes,
+    set_module_checkpoint_dtypes,
 )
 from torch2vk.export.dispatch_codegen import (
     bind_dispatch_function_to_tensors,
@@ -96,11 +102,18 @@ def _load_model_and_shapes():
     llm_config = config.llm_config
     if llm_config is None:
         raise ValueError("OmniVoice config requires llm_config")
-    seq_len = 300
+    tokenizer = AutoTokenizer.from_pretrained(model_dir)
+    prepared = prepare_omnivoice_inputs(
+        text=DEFAULT_TEXT,
+        tokenizer=tokenizer,
+        config=config,
+    )
+    seq_len = prepared.seq_len
 
     shapes = {
         "batch_size": 2,
         "seq_len": seq_len,
+        "target_len": prepared.target_len,
         "hidden_size": llm_config.hidden_size,
         "head_dim": llm_config.head_dim,
         "num_attention_heads": llm_config.num_attention_heads,
@@ -139,6 +152,7 @@ def main() -> int:
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
+    checkpoint_dtypes = read_checkpoint_dtypes(resolve_cached_model(REPO_ID))
 
     B = shapes["batch_size"]
     S = shapes["seq_len"]
@@ -184,7 +198,6 @@ def main() -> int:
             "step_index": "step_index",
         },
         output_bindings={
-            "candidate_tokens": "candidate_tokens",
             "candidate_scores": "candidate_scores",
         },
         needs_reference=True,
@@ -225,6 +238,15 @@ def main() -> int:
         reference_policy: ReferencePolicy = "tensor",
         reference_state_dict=None,
     ):
+        set_module_checkpoint_dtypes(
+            module,
+            weight_prefix=weight_prefix,
+            checkpoint_dtypes=checkpoint_dtypes,
+        )
+        export_dtype = module_floating_dtype(module)
+        if export_dtype is not None:
+            args = cast_floating_tensors(args, export_dtype)
+            kwargs = cast_floating_tensors(kwargs, export_dtype)
         prog = export_submodule(module, args=args, kwargs=kwargs)
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
@@ -377,8 +399,13 @@ def main() -> int:
     # --- Audio head ---
     with torch.device("meta"):
         reference_model = cast(OmniVoice, OmniVoice(config).float())  # pyright: ignore[reportCallIssue]
+    set_module_checkpoint_dtypes(
+        reference_model.audio_heads,
+        weight_prefix="audio_heads.",
+        checkpoint_dtypes=checkpoint_dtypes,
+    )
     audio_head_reference_program = export_submodule(
-        reference_model.audio_heads.float(),
+        reference_model.audio_heads,
         args=(torch.zeros(B, S, H, device="meta"),),
     )
     export_one(
@@ -407,8 +434,10 @@ def main() -> int:
         hidden_size=shapes["hidden_size"],
         head_dim=shapes["head_dim"],
         text_vocab_size=shapes["text_vocab_size"],
+        text_embedding_dtype=checkpoint_dtypes["llm.embed_tokens.weight"],
         num_audio_codebook=shapes["num_audio_codebook"],
         audio_vocab_size=shapes["audio_vocab_size"],
+        audio_embedding_dtype=checkpoint_dtypes["audio_embeddings.weight"],
     )
     (tensors_dir / "model.py").write_text(model_source)
     (tensors_dir / "__init__.py").write_text('"""Generated tensor package."""\n')

@@ -127,7 +127,7 @@ def run_token_score(
         name=f'omnivoice.step.{step:04d}.token_score',
         reference=reference,
         tensors=model_tensors(),
-        output_bindings={'candidate_tokens': 'candidate_tokens', 'candidate_scores': 'candidate_scores'},
+        output_bindings={'candidate_scores': 'candidate_scores'},
         policy=_policy({'candidate_tokens': 'token', 'candidate_scores': 'tensor'}),
         inputs={
             "logits": logits,

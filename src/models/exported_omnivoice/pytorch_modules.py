@@ -133,11 +133,11 @@ class TokenScoreModule(nn.Module):
                 device=logits.device,
                 dtype=torch.int64,
             ).view(self.num_audio_codebook, target_len)
-            candidate_scores = candidate_scores + self._gumbel_noise(
+            candidate_scores = candidate_scores / self.position_temperature + self._gumbel_noise(
                 flat_pos,
                 rng_seed,
                 step_index,
-            ) * self.position_temperature
+            )
 
         candidate_scores = torch.where(
             tokens[0] != audio_mask_id.reshape(()),
