@@ -1,11 +1,10 @@
-"""Export OmniVoice safetensors to Q4_K_M GGUF via llama.cpp."""
+"""Export OmniVoice safetensors to Q4_K_M GGUF with Vulkan quantization."""
 
 from __future__ import annotations
 
 import argparse
 import importlib
 import json
-import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -17,7 +16,9 @@ from safetensors import safe_open
 
 from models.hf_cache import resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
+from torch2vk.export.gguf_quantizer import quantize_q4_k_vulkan, quantize_q8_0_vulkan
 from torch2vk.checkpoints.gguf import GGUFTensorType, open_gguf_mmap
+from torch2vk.runtime.session import RuntimeSession
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -58,40 +59,18 @@ def _export_q4_k_m_gguf(*, model_dir: Path, output: Path, overwrite: bool) -> No
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.exists():
         output.unlink()
-    f16_output = output.with_suffix(".f16.tmp.gguf")
-    if f16_output.exists():
-        f16_output.unlink()
-    _export_f16_gguf(model_dir=model_dir, output=f16_output)
-    _run_llama_quantize(input_path=f16_output, output_path=output)
-    f16_output.unlink()
-
-
-def _export_f16_gguf(*, model_dir: Path, output: Path) -> None:
     config = _load_config(model_dir)
     gguf = _load_gguf_module()
     writer = gguf.GGUFWriter(path=None, arch=QUANTIZE_GGUF_ARCH)
-    _add_omnivoice_metadata(writer=writer, config=config, file_type=gguf.LlamaFileType.MOSTLY_F16)
-    for name, tensor in _iter_safetensor_tensors(model_dir):
-        data, dtype = _tensor_to_f16_or_f32(tensor)
-        writer.add_tensor(name, data, raw_dtype=dtype)
+    _add_omnivoice_metadata(writer=writer, config=config, file_type=gguf.LlamaFileType.MOSTLY_Q4_K_M)
+    with RuntimeSession.open(device_index=0) as rt:
+        for name, tensor in _iter_safetensor_tensors(model_dir):
+            data, dtype = _tensor_to_gguf_tensor(rt, name=name, tensor=tensor)
+            writer.add_tensor(name, data, raw_dtype=dtype)
     writer.write_header_to_file(path=output)
     writer.write_kv_data_to_file()
     writer.write_tensors_to_file(progress=False)
     writer.close()
-
-
-def _run_llama_quantize(*, input_path: Path, output_path: Path) -> None:
-    quantize = LLAMA_ROOT / "build" / "bin" / "llama-quantize"
-    if not quantize.exists():
-        raise FileNotFoundError(f"Missing llama.cpp quantizer: {quantize}")
-    command = [str(quantize)]
-    for name in Q8_TENSOR_NAMES:
-        command.extend(["--tensor-type", f"{name}=q8_0"])
-    command.extend([str(input_path), str(output_path), "Q4_K_M"])
-    subprocess.run(
-        command,
-        check=True,
-    )
 
 
 def _gguf_matches_quantization(path: Path) -> bool:
@@ -112,12 +91,19 @@ def _iter_safetensor_tensors(model_dir: Path) -> Iterator[tuple[str, torch.Tenso
                 yield cast(str, name), cast(torch.Tensor, checkpoint.get_tensor(name))
 
 
-def _tensor_to_f16_or_f32(tensor: torch.Tensor) -> tuple[np.ndarray, Any]:
+def _tensor_to_gguf_tensor(rt: RuntimeSession, *, name: str, tensor: torch.Tensor) -> tuple[np.ndarray, Any]:
     gguf = _load_gguf_module()
     array = tensor.float().numpy() if tensor.dtype == torch.bfloat16 else tensor.numpy()
     if array.ndim <= 1:
         return np.asarray(array, dtype=np.float32), gguf.GGMLQuantizationType.F32
-    return np.ascontiguousarray(array.astype(np.float16)), gguf.GGMLQuantizationType.F16
+    f32 = np.ascontiguousarray(array, dtype=np.float32)
+    if name in Q8_TENSOR_NAMES:
+        if f32.shape[-1] % 32 != 0:
+            raise ValueError(f"{name} Q8_0 quantization requires K divisible by 32, got {f32.shape}")
+        return quantize_q8_0_vulkan(rt, f32, name=name), gguf.GGMLQuantizationType.Q8_0
+    if f32.shape[-1] % 256 != 0:
+        raise ValueError(f"{name} Q4_K quantization requires K divisible by 256, got {f32.shape}")
+    return quantize_q4_k_vulkan(rt, f32, name=name), gguf.GGMLQuantizationType.Q4_K
 
 
 def _load_config(model_dir: Path) -> dict[str, object]:
