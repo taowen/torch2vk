@@ -85,6 +85,7 @@ _GGML_TYPE_INFO: dict[GGUFTensorType, _GGMLTypeInfo] = {
     GGUFTensorType.I64: _GGMLTypeInfo(block_size=1, type_size=8, spec_dtype="int64"),
     GGUFTensorType.F64: _GGMLTypeInfo(block_size=1, type_size=8, spec_dtype="float64"),
     GGUFTensorType.BF16: _GGMLTypeInfo(block_size=1, type_size=2, spec_dtype="bfloat16"),
+    GGUFTensorType.Q8_0: _GGMLTypeInfo(block_size=32, type_size=34, spec_dtype=None),
     GGUFTensorType.Q2_K: _GGMLTypeInfo(block_size=256, type_size=84, spec_dtype=None),
     GGUFTensorType.Q3_K: _GGMLTypeInfo(block_size=256, type_size=110, spec_dtype=None),
     GGUFTensorType.Q4_K: _GGMLTypeInfo(block_size=256, type_size=144, spec_dtype=None),
@@ -264,6 +265,15 @@ def _build_tensor_entry(
     if info.spec_dtype is not None:
         physical_dtype = info.spec_dtype
         physical_shape = logical_shape
+    elif ggml_type is GGUFTensorType.Q4_K:
+        physical_dtype = "uint32"
+        physical_shape = _quant_shape_to_word_shape(logical_shape, ggml_type)
+    elif ggml_type is GGUFTensorType.Q8_0:
+        physical_dtype = "uint16"
+        physical_shape = _quant_shape_to_halfword_shape(logical_shape, ggml_type)
+    elif ggml_type is GGUFTensorType.Q6_K:
+        physical_dtype = "uint16"
+        physical_shape = _quant_shape_to_halfword_shape(logical_shape, ggml_type)
     else:
         physical_dtype = "uint8"
         physical_shape = _quant_shape_to_byte_shape(logical_shape, ggml_type)
@@ -286,6 +296,20 @@ def _quant_shape_to_byte_shape(shape: tuple[int, ...], ggml_type: GGUFTensorType
             f"Quantized tensor row size ({shape[-1]}) is not a multiple of {ggml_type.name} block size ({info.block_size})"
         )
     return (*shape[:-1], shape[-1] // info.block_size * info.type_size)
+
+
+def _quant_shape_to_word_shape(shape: tuple[int, ...], ggml_type: GGUFTensorType) -> tuple[int, ...]:
+    byte_shape = _quant_shape_to_byte_shape(shape, ggml_type)
+    if byte_shape[-1] % 4 != 0:
+        raise ValueError(f"{ggml_type.name} row byte width must be divisible by 4, got {byte_shape[-1]}")
+    return (*byte_shape[:-1], byte_shape[-1] // 4)
+
+
+def _quant_shape_to_halfword_shape(shape: tuple[int, ...], ggml_type: GGUFTensorType) -> tuple[int, ...]:
+    byte_shape = _quant_shape_to_byte_shape(shape, ggml_type)
+    if byte_shape[-1] % 2 != 0:
+        raise ValueError(f"{ggml_type.name} row byte width must be divisible by 2, got {byte_shape[-1]}")
+    return (*byte_shape[:-1], byte_shape[-1] // 2)
 
 
 def _extract_alignment(metadata: dict[str, object]) -> int:

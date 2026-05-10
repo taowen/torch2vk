@@ -69,6 +69,13 @@ class Q4KWordsLayout:
 
 
 @dataclass(frozen=True, slots=True)
+class Q8_0HalfwordsLayout:
+    logical_k: Dim
+    block_size: int = 32
+    halfwords_per_block: int = 17
+
+
+@dataclass(frozen=True, slots=True)
 class Q6KHalfwordsLayout:
     logical_k: Dim
     block_size: int = 256
@@ -84,6 +91,7 @@ TensorLayout: TypeAlias = (
     | QkvPackedConv1dChannelsLayout
     | Q8_1X4Layout
     | Q4KWordsLayout
+    | Q8_0HalfwordsLayout
     | Q6KHalfwordsLayout
 )
 
@@ -123,6 +131,19 @@ def q4_k_words_layout(*, logical_k: Dim, block_size: int = 256, words_per_block:
     )
 
 
+def q8_0_halfwords_layout(
+    *,
+    logical_k: Dim,
+    block_size: int = 32,
+    halfwords_per_block: int = 17,
+) -> Q8_0HalfwordsLayout:
+    return Q8_0HalfwordsLayout(
+        logical_k=logical_k,
+        block_size=block_size,
+        halfwords_per_block=halfwords_per_block,
+    )
+
+
 def q6_k_halfwords_layout(
     *,
     logical_k: Dim,
@@ -158,6 +179,8 @@ def tensor_layout_symbol_names(layout: TensorLayout) -> tuple[str, ...]:
     elif isinstance(layout, Q8_1X4Layout):
         _append_dim_symbol(symbols, layout.logical_k)
     elif isinstance(layout, Q4KWordsLayout):
+        _append_dim_symbol(symbols, layout.logical_k)
+    elif isinstance(layout, Q8_0HalfwordsLayout):
         _append_dim_symbol(symbols, layout.logical_k)
     else:
         _append_dim_symbol(symbols, layout.logical_k)
@@ -273,6 +296,12 @@ def resolve_tensor_layout(
             block_size=layout.block_size,
             words_per_block=layout.words_per_block,
         )
+    if isinstance(layout, Q8_0HalfwordsLayout):
+        return Q8_0HalfwordsLayout(
+            logical_k=_resolve_layout_dim(layout.logical_k, shape_symbols),
+            block_size=layout.block_size,
+            halfwords_per_block=layout.halfwords_per_block,
+        )
     if isinstance(layout, Q6KHalfwordsLayout):
         return Q6KHalfwordsLayout(
             logical_k=_resolve_layout_dim(layout.logical_k, shape_symbols),
@@ -368,6 +397,18 @@ def bind_tensor_layout_symbols(
         if expected.halfwords_per_block != actual.halfwords_per_block:
             raise ValueError(
                 "Expected q6_k halfwords_per_block "
+                f"{expected.halfwords_per_block}, got {actual.halfwords_per_block}"
+            )
+        return
+    if isinstance(expected, Q8_0HalfwordsLayout):
+        if not isinstance(actual, Q8_0HalfwordsLayout):
+            raise ValueError(f"Expected q8_0 row-halfword layout, got {actual}")
+        _bind_layout_symbol(expected.logical_k, actual.logical_k, shape_symbols)
+        if expected.block_size != actual.block_size:
+            raise ValueError(f"Expected q8_0 block size {expected.block_size}, got {actual.block_size}")
+        if expected.halfwords_per_block != actual.halfwords_per_block:
+            raise ValueError(
+                "Expected q8_0 halfwords_per_block "
                 f"{expected.halfwords_per_block}, got {actual.halfwords_per_block}"
             )
         return
@@ -467,6 +508,20 @@ def validate_tensor_layout(layout: TensorLayout, shape: TensorShape) -> None:
         if word_count != expected_word_count:
             raise ValueError(
                 f"Q4_K row-word layout expects second dimension {expected_word_count}, got {word_count}"
+            )
+        return
+    if isinstance(layout, Q8_0HalfwordsLayout):
+        if len(shape) != 2:
+            raise ValueError(f"Q8_0 row-halfword layout requires rank-2 tensor shape, got {shape}")
+        halfword_count = _concrete_dim(shape[1])
+        logical_k = _concrete_dim(layout.logical_k)
+        if halfword_count is None or logical_k is None:
+            return
+        expected_halfword_count = ((logical_k + layout.block_size - 1) // layout.block_size) * layout.halfwords_per_block
+        if halfword_count != expected_halfword_count:
+            raise ValueError(
+                "Q8_0 row-halfword layout expects second dimension "
+                f"{expected_halfword_count}, got {halfword_count}"
             )
         return
     if isinstance(layout, Q6KHalfwordsLayout):

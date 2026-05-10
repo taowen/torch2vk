@@ -15,6 +15,7 @@ from vulkan import (
 )
 
 from torch2vk.checkpoints.checkpoint_tensor import CheckpointTensor
+from torch2vk.checkpoints.gguf import open_gguf_mmap
 from torch2vk.checkpoints.safetensors import open_safetensors_mmap
 from torch2vk.runtime.logical import LogicalTensor, MemoryClass, TensorLifetime, TensorRole
 from torch2vk.runtime.shader import (
@@ -161,7 +162,11 @@ def materialize_weight(rt: RuntimeSession, tensor: LogicalTensor) -> None:
     tensor_key = tensor.checkpoint_key
     if not tensor_key:
         raise RuntimeError(f"{tensor.name} is a weight tensor but checkpoint_key is not set")
-    with open_safetensors_mmap(checkpoint) as storage:
+    if checkpoint.suffix == ".gguf":
+        storage_context = open_gguf_mmap(checkpoint)
+    else:
+        storage_context = open_safetensors_mmap(checkpoint)
+    with storage_context as storage:
         checkpoint_tensor = CheckpointTensor.open(
             storage=storage,
             tensor_key=tensor_key,
@@ -196,8 +201,13 @@ def resolve_weight_checkpoint(rt: RuntimeSession, tensor: LogicalTensor) -> Path
     index = rt.model_dir / "model.safetensors.index.json"
     if index.is_file():
         return index
+    gguf = rt.model_dir / "model.gguf"
+    if gguf.is_file():
+        return gguf
     candidates = sorted(rt.model_dir.glob("*.safetensors")) + sorted(
         rt.model_dir.glob("*.safetensors.index.json")
+    ) + sorted(
+        rt.model_dir.glob("*.gguf")
     )
     if len(candidates) == 1:
         return candidates[0]
