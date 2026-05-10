@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -15,7 +14,6 @@ from models.exported_qwen3_asr.tensors.model import model_tensors
 from torch2vk.runtime.compare import as_numpy_array
 from torch2vk.runtime.logical import ComparePolicy
 from torch2vk.runtime.pytorch_debug import compare_expected
-from torch2vk.runtime.reference import ExportedProgramReference, load_exported_reference
 from torch2vk.runtime.session import RuntimeSession
 
 
@@ -33,12 +31,12 @@ class ArrayReference(Protocol):
 
 
 _MODEL: Qwen3ASRForConditionalGeneration | None = None
-_embed_tokens_reference: ExportedProgramReference | None = None
-_text_norm_reference: ExportedProgramReference | None = None
-_lm_head_reference: ExportedProgramReference | None = None
-_decode_embed_reference: ExportedProgramReference | None = None
-_decode_norm_reference: ExportedProgramReference | None = None
-_decode_lm_head_reference: ExportedProgramReference | None = None
+_embed_tokens_reference: torch.nn.Module | None = None
+_text_norm_reference: torch.nn.Module | None = None
+_lm_head_reference: torch.nn.Module | None = None
+_decode_embed_reference: torch.nn.Module | None = None
+_decode_norm_reference: torch.nn.Module | None = None
+_decode_lm_head_reference: torch.nn.Module | None = None
 
 
 def set_model(model: Qwen3ASRForConditionalGeneration) -> None:
@@ -68,78 +66,62 @@ def _require_model() -> Qwen3ASRForConditionalGeneration:
     return _MODEL
 
 
-def _load_embed_tokens() -> ExportedProgramReference:
+def _load_embed_tokens() -> torch.nn.Module:
     global _embed_tokens_reference
     if _embed_tokens_reference is None:
-        _embed_tokens_reference = load_exported_reference(
-            Path(__file__).parent,
-            'reference_programs/embed_tokens.pt2',
-            state_dict=_require_model().get_submodule('thinker.model.embed_tokens').state_dict(),
-        )
+        _embed_tokens_reference = _require_model().get_submodule('thinker.model.embed_tokens')
+        _embed_tokens_reference.eval()
     return _embed_tokens_reference
 
-def _load_text_norm() -> ExportedProgramReference:
+def _load_text_norm() -> torch.nn.Module:
     global _text_norm_reference
     if _text_norm_reference is None:
-        _text_norm_reference = load_exported_reference(
-            Path(__file__).parent,
-            'reference_programs/text_norm.pt2',
-            state_dict=_require_model().get_submodule('thinker.model.norm').state_dict(),
-        )
+        _text_norm_reference = _require_model().get_submodule('thinker.model.norm')
+        _text_norm_reference.eval()
     return _text_norm_reference
 
-def _load_lm_head() -> ExportedProgramReference:
+def _load_lm_head() -> torch.nn.Module:
     global _lm_head_reference
     if _lm_head_reference is None:
-        _lm_head_reference = load_exported_reference(
-            Path(__file__).parent,
-            'reference_programs/lm_head.pt2',
-            state_dict=_require_model().get_submodule('thinker.lm_head').state_dict(),
-        )
+        _lm_head_reference = _require_model().get_submodule('thinker.lm_head')
+        _lm_head_reference.eval()
     return _lm_head_reference
 
-def _load_decode_embed() -> ExportedProgramReference:
+def _load_decode_embed() -> torch.nn.Module:
     global _decode_embed_reference
     if _decode_embed_reference is None:
-        _decode_embed_reference = load_exported_reference(
-            Path(__file__).parent,
-            'reference_programs/decode_embed.pt2',
-            state_dict=_require_model().get_submodule('thinker.model.embed_tokens').state_dict(),
-        )
+        _decode_embed_reference = _require_model().get_submodule('thinker.model.embed_tokens')
+        _decode_embed_reference.eval()
     return _decode_embed_reference
 
-def _load_decode_norm() -> ExportedProgramReference:
+def _load_decode_norm() -> torch.nn.Module:
     global _decode_norm_reference
     if _decode_norm_reference is None:
-        _decode_norm_reference = load_exported_reference(
-            Path(__file__).parent,
-            'reference_programs/decode_norm.pt2',
-            state_dict=_require_model().get_submodule('thinker.model.norm').state_dict(),
-        )
+        _decode_norm_reference = _require_model().get_submodule('thinker.model.norm')
+        _decode_norm_reference.eval()
     return _decode_norm_reference
 
-def _load_decode_lm_head() -> ExportedProgramReference:
+def _load_decode_lm_head() -> torch.nn.Module:
     global _decode_lm_head_reference
     if _decode_lm_head_reference is None:
-        _decode_lm_head_reference = load_exported_reference(
-            Path(__file__).parent,
-            'reference_programs/decode_lm_head.pt2',
-            state_dict=_require_model().get_submodule('thinker.lm_head').state_dict(),
-        )
+        _decode_lm_head_reference = _require_model().get_submodule('thinker.lm_head')
+        _decode_lm_head_reference.eval()
     return _decode_lm_head_reference
 
 def _execute_and_compare(
     rt: RuntimeSession,
     *,
     name: str,
-    reference: ArrayReference,
+    reference: ArrayReference | torch.nn.Module,
     tensors: object,
     output_bindings: dict[str, str],
     policy: ComparePolicy | dict[str, ComparePolicy],
     inputs: dict[str, ReferenceInput],
 ) -> ReferenceExpected:
-    expected = reference.execute(
-        {key: as_numpy_array(value) for key, value in inputs.items()}
+    expected = _execute_reference(
+        reference=reference,
+        inputs={key: as_numpy_array(value) for key, value in inputs.items()},
+        output_bindings=output_bindings,
     )
     compare_expected(
         rt,
@@ -150,6 +132,35 @@ def _execute_and_compare(
         policy=policy,
     )
     return expected
+
+
+def _execute_reference(
+    *,
+    reference: ArrayReference | torch.nn.Module,
+    inputs: dict[str, np.ndarray],
+    output_bindings: dict[str, str],
+) -> ReferenceExpected:
+    if isinstance(reference, torch.nn.Module):
+        args = [
+            torch.from_numpy(np.ascontiguousarray(value)).cuda()
+            for value in inputs.values()
+        ]
+        with torch.no_grad():
+            output = reference(*args)
+        if isinstance(output, tuple):
+            if len(output) != 1:
+                raise RuntimeError(f"reference module returned {len(output)} outputs")
+            output = output[0]
+        return {_single_output_name(output_bindings): output}
+    return reference.execute(inputs)
+
+
+def _single_output_name(output_bindings: dict[str, str]) -> str:
+    if len(output_bindings) != 1:
+        raise RuntimeError(
+            f"module reference requires exactly one output binding, got {sorted(output_bindings)}"
+        )
+    return next(iter(output_bindings))
 
 
 def _policy(policy: str | dict[str, str]) -> ComparePolicy | dict[str, ComparePolicy]:

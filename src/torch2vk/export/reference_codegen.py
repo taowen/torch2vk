@@ -20,16 +20,16 @@ def render_reference_module(
     model_imports: list[str],
     model_type: str,
     reference_functions: list[str],
-    pt2_loader_fields: list[str],
-    pt2_loader_sources: list[str],
+    loader_fields: list[str],
+    loader_sources: list[str],
 ) -> str:
     return render_template(
         "reference_module.py.j2",
         model_package=model_package,
         model_imports_source="\n".join(model_imports),
         model_type=model_type,
-        loaders=tuple({"field": field} for field in pt2_loader_fields),
-        pt2_loaders_source="\n\n".join(pt2_loader_sources).rstrip(),
+        loaders=tuple({"field": field} for field in loader_fields),
+        loaders_source="\n\n".join(loader_sources).rstrip(),
         reference_functions_source="\n\n".join(reference_functions).rstrip(),
     ).rstrip() + "\n"
 
@@ -37,14 +37,12 @@ def render_reference_module(
 def render_reference_loader(
     *,
     field: str,
-    program: str,
-    state_dict_path: str,
+    module_path: str,
 ) -> str:
     return render_template(
         "reference_loader_function.py.j2",
         field=field,
-        program_source=repr(program),
-        state_dict_path=repr(state_dict_path),
+        module_path_source=repr(module_path),
     ).rstrip()
 
 

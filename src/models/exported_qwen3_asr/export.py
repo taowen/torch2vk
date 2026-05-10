@@ -198,10 +198,6 @@ def main() -> int:
     tensors_dir.mkdir(exist_ok=True)
     dispatch_dir = output_dir / "dispatch"
     dispatch_dir.mkdir(exist_ok=True)
-    reference_programs_dir = output_dir / "reference_programs"
-    reference_programs_dir.mkdir(exist_ok=True)
-    for f in reference_programs_dir.glob("*.pt2"):
-        f.unlink()
     for f in tensors_dir.glob("*.py"):
         f.unlink()
     for f in dispatch_dir.glob("*.py"):
@@ -224,8 +220,8 @@ def main() -> int:
         variant.name: variant for variant in custom_shader_variants
     }
     reference_functions: list[str] = []
-    pt2_loader_fields: list[str] = []
-    pt2_loader_sources: list[str] = []
+    loader_fields: list[str] = []
+    loader_sources: list[str] = []
     reference_functions.append(render_reference_function(
         name="token_select",
         reference_source="reference",
@@ -267,13 +263,12 @@ def main() -> int:
         kv_cache=None,
         kv_inject=None,
         layer_loop=None,
-        save_reference_program=False,
         reference_input_bindings=None,
         reference_output_bindings=None,
         reference_tensors=None,
         reference_name=None,
         reference_policy: ReferencePolicy = "tensor",
-        reference_state_dict=None,
+        reference_module=None,
     ):
         set_module_checkpoint_dtypes(
             module,
@@ -290,23 +285,20 @@ def main() -> int:
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
         tensor_file = _tensor_file_name(cls_name)
-        program = f"reference_programs/{func_name}.pt2" if save_reference_program else None
-        if program is not None:
-            if reference_state_dict is None:
-                raise ValueError(f"{name} saves a reference program but has no reference_state_dict")
-            pt2_loader_fields.append(func_name)
-            pt2_loader_sources.append(
+        reference_source = "reference"
+        if reference_module is not None:
+            loader_fields.append(func_name)
+            loader_sources.append(
                 render_reference_loader(
                     field=func_name,
-                    program=program,
-                    state_dict_path=reference_state_dict,
+                    module_path=reference_module,
                 )
             )
-            torch.export.save(prog, output_dir / program)
+            reference_source = f"_load_{func_name}()"
         reference_functions.append(render_exported_reference_function(
             prog,
             name=func_name,
-            reference_source=f"_load_{func_name}()" if program is not None else "reference",
+            reference_source=reference_source,
             tensors=reference_tensors if reference_tensors is not None else f"model_tensors().{func_name}",
             frame_name=reference_name if reference_name is not None else func_name,
             policy=reference_policy,
@@ -450,8 +442,7 @@ def main() -> int:
     export_one("run_embed_tokens", model.thinker.model.embed_tokens.float(),
                args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.",
-               save_reference_program=True,
-               reference_state_dict="thinker.model.embed_tokens",
+               reference_module="thinker.model.embed_tokens",
                reference_tensors="model_tensors().embed_tokens",
                reference_name="spike.text.embed")
     export_one("run_audio_inject", AudioInjectModule(),
@@ -485,15 +476,13 @@ def main() -> int:
     export_one("run_text_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, pl, hs, device="meta"),),
                weight_prefix="thinker.model.norm.",
-               save_reference_program=True,
-               reference_state_dict="thinker.model.norm",
+               reference_module="thinker.model.norm",
                reference_tensors="model_tensors().text_norm",
                reference_name="spike.text.norm")
     export_one("run_lm_head", model.thinker.lm_head.float(),
                args=(torch.zeros(1, pl, hs, device="meta"),),
                weight_prefix="thinker.lm_head.",
-               save_reference_program=True,
-               reference_state_dict="thinker.lm_head",
+               reference_module="thinker.lm_head",
                reference_tensors="model_tensors().lm_head",
                reference_name="spike.text.lm_head")
 
@@ -501,8 +490,7 @@ def main() -> int:
     export_one("run_decode_embed", model.thinker.model.embed_tokens.float(),
                args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.",
-               save_reference_program=True,
-               reference_state_dict="thinker.model.embed_tokens",
+               reference_module="thinker.model.embed_tokens",
                reference_tensors="model_tensors().decode_embed",
                reference_name="spike.decode.{step:04d}.embed")
     export_one("run_decode_layer", model.thinker.model.layers[0],
@@ -524,15 +512,13 @@ def main() -> int:
     export_one("run_decode_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, 1, hs, device="meta"),),
                weight_prefix="thinker.model.norm.",
-               save_reference_program=True,
-               reference_state_dict="thinker.model.norm",
+               reference_module="thinker.model.norm",
                reference_tensors="model_tensors().decode_norm",
                reference_name="spike.decode.{step:04d}.norm")
     export_one("run_decode_lm_head", model.thinker.lm_head.float(),
                args=(torch.zeros(1, 1, hs, device="meta"),),
                weight_prefix="thinker.lm_head.",
-               save_reference_program=True,
-               reference_state_dict="thinker.lm_head",
+               reference_module="thinker.lm_head",
                reference_tensors="model_tensors().decode_lm_head",
                reference_name="spike.decode.{step:04d}.lm_head")
 
@@ -561,8 +547,8 @@ def main() -> int:
             ],
             model_type="Qwen3ASRForConditionalGeneration",
             reference_functions=reference_functions,
-            pt2_loader_fields=pt2_loader_fields,
-            pt2_loader_sources=pt2_loader_sources,
+            loader_fields=loader_fields,
+            loader_sources=loader_sources,
         )
     )
     print("  reference.py written")

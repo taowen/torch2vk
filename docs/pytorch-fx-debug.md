@@ -1,7 +1,7 @@
 # PyTorch FX Graph 对拍
 
-本文记录当前 `torch2vk` 使用 `torch.export` / FX graph 做 reference 的方式，以及它和手写 callable
-reference 的边界。
+本文记录当前 `torch2vk` 使用 `torch.export` / FX graph 确定 reference binding 的方式，以及它和手写 callable
+reference 的边界。运行时对拍直接调用当前 PyTorch 模型里的 submodule，不保存独立 graph artifact。
 
 ## 目标模型
 
@@ -15,29 +15,22 @@ ExportedProgram / FX node output
   -> generated reference.run_xxx(...)
 ```
 
-## `.pt2` reference program
+## 直接 module reference
 
-对于无外部状态的子图，export 阶段保存 `.pt2`：
-
-```python
-load_exported_reference(
-    base_dir,
-    "reference_programs/decode_norm.pt2",
-    state_dict=norm.state_dict(),
-)
-```
-
-runtime debug 通过 `load_exported_reference(base_dir, program, state_dict=...)` 加载：
+对于无外部状态的子图，export 阶段只保存 input/output binding，不再保存独立 reference graph 文件：
 
 ```python
-ref = load_exported_reference(base_dir, "reference_programs/text_norm.pt2", state_dict=norm.state_dict())
-expected = ref.execute({"hidden_states": hidden_np})
+reference.run_decode_norm(rt, hidden_states=hidden_np)
 ```
 
-`ExportedProgramReference` 使用 `torch.fx.Interpreter` 执行 `ep.graph_module`，并捕获每个 tensor node 的输出。
-因此 expected key 是 FX node name，例如 `"mul_1"` 或 `"linear"`。
+生成的 `reference.py` 在运行时从当前 PyTorch 模型 lazy load 对应 submodule：
 
-`.pt2` 是生成产物，路径内联在生成的 `reference.py` lazy loader 里，文件本身不提交到 git。
+```python
+_load_decode_norm() == _require_model().get_submodule("thinker.model.norm")
+```
+
+`reference.run_xxx(...)` 负责把 numpy 输入转成 CUDA tensor，调用这个 submodule，再按 export 阶段生成的
+`output_bindings` 和 Vulkan 输出比较。权重仍然来自同一个已经加载的 PyTorch 模型，不复制到独立 reference artifact。
 
 ## 显式 callable reference
 
@@ -51,15 +44,14 @@ OmniVoice token score/update: tensor-only PyTorch module
 ```
 
 这类 reference 仍然通过生成的 `reference.py` 内联 `output_bindings` 对拍。区别只是 expected 由显式 callable
-计算，而不是 `ExportedProgramReference.execute()` 计算。调用点仍然走生成的 `reference.run_xxx(...)`。
+计算，而不是直接调用一个无状态 submodule。调用点仍然走生成的 `reference.run_xxx(...)`。
 
 ## 生成阶段保存什么
 
 export/codegen 负责生成：
 
 1. `LogicalTensor.reference_key`：记录 tensor 来自哪个 FX node；
-2. `reference.py`：生成 `run_xxx(...)` wrapper，并内联 input/output key、tensor root、compare name、policy 和 `.pt2` lazy loader；
-3. 可选 `.pt2`：保存无状态 exported graph reference。
+2. `reference.py`：生成 `run_xxx(...)` wrapper，并内联 input/output key、tensor root、compare name、policy 和 lazy submodule loader。
 
 运行时不再从 tensor name 猜 reference key，也不把 compare/probe metadata 放到另一套表里。
 

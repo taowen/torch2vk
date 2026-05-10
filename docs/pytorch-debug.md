@@ -8,7 +8,7 @@
 
 ```text
 Vulkan candidate: rt.frame(...) 内按 dispatch 顺序执行 shader。
-PyTorch reference: reference.py 的 run_xxx(...) 首次执行时按需加载 .pt2 graph reference；不好机械生成的
+PyTorch reference: reference.py 的 run_xxx(...) 首次执行时按需加载当前 PyTorch 模型里的 submodule；不好机械生成的
 reference state 由 run.py 手写推进，再调用生成的 reference.run_xxx(...) 同步执行同粒度 tensor reference。
 绑定关系: reference.py 内联 output_bindings，把 reference output key 映射到 LogicalTensor 字段。
 比较动作: 生成的 reference.py 调用 compare_expected(...)。
@@ -36,7 +36,7 @@ def run_text_norm(rt, *, hidden_states):
 
 字段语义：
 
-1. `.pt2` path: 内联到 `reference.py` 的 `_load_xxx()`，用于首次执行时加载 exported graph reference。
+1. reference source: 内联到 `reference.py` 的 `_load_xxx()`，用于首次执行时加载当前 PyTorch 模型的 submodule。
 2. `tensors`: compare 时作为 root 的 generated tensor 表达式。
 3. `name`: compare artifact/frame 名称，可以包含 `{step}`、`{layer_idx}` 或 `{name}`。
 4. `policy`: `"tensor"`、`"token"`，或按 output key 指定的 policy dict。
@@ -45,7 +45,7 @@ def run_text_norm(rt, *, hidden_states):
 
 ## 对拍入口
 
-`torch2vk.export.render_reference_module()` 直接把 compare metadata 和 `.pt2` lazy loader 内联到 `reference.py`。
+`torch2vk.export.render_reference_module()` 直接把 compare metadata 和 lazy submodule loader 内联到 `reference.py`。
 模型 `run.py` 先调用 `reference.set_model(model)`，之后在 Vulkan dispatch 后调用生成 wrapper：
 
 ```python
@@ -80,7 +80,7 @@ reference 也执行同一步，并用同一个 token/cache 状态推进。
 
 ```text
 Vulkan: LogicalTensor.checkpoint_key -> checkpoint tensor
-PyTorch: loaded module state_dict or .pt2 lifted parameters
+PyTorch: loaded module state_dict
 ```
 
 如果 Vulkan 路径使用 bf16 checkpoint 而 PyTorch reference 用 fp32 原始权重，token argmax 这类离散输出可能漂移。

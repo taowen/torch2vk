@@ -150,8 +150,8 @@ with RuntimeSession.open(device_index=0, model_dir=model_dir) as rt:
 shader dispatch 使用的是同一批 tensor 对象，不需要额外的 input key 映射。
 
 PyTorch lockstep 对拍也应使用同一份业务输入，但不由 RuntimeSession 自动调用 PyTorch。export 生成的
-`reference.py` 在 `run_xxx(...)` 首次执行时按需加载 `.pt2` graph reference；不好机械生成的有状态 reference
-留在模型 `run.py` 手写推进。`run.py` 再调用生成的 `reference.run_xxx(...)` 完成 reference 执行和 compare。这样长流程生成任务可以让
+`reference.py` 在 `run_xxx(...)` 首次执行时按需加载当前 PyTorch 模型里的 submodule；不好机械生成的有状态
+reference 留在模型 `run.py` 手写推进。`run.py` 再调用生成的 `reference.run_xxx(...)` 完成 reference 执行和 compare。这样长流程生成任务可以让
 PyTorch reference 和 Vulkan candidate 同步推进，而不是依赖 frame exit 的隐式行为。
 
 `RuntimeSession.open(..., model_dir=...)` 设置权重 checkpoint 根目录。`LogicalTensor` 的
@@ -523,8 +523,8 @@ Vulkan frame 写出 LogicalTensors
   -> compare helper 写出 pass/fail 和 artifacts
 ```
 
-`.pt2` 路径内联到 `reference.py` 的 `_load_xxx()`；显式 callable reference 由调用方提供。`name`、`tensors`、
-`policy` 和 `output_bindings` 用于生成 `reference.py` wrapper。
+submodule 路径内联到 `reference.py` 的 `_load_xxx()`；显式 callable reference 由调用方提供。`name`、
+`tensors`、`policy` 和 `output_bindings` 用于生成 `reference.py` wrapper。
 
 禁止手写 candidate 公式：
 
