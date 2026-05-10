@@ -1,0 +1,23 @@
+"""{{ docstring }}."""
+
+from __future__ import annotations
+
+import sys
+from typing import cast
+
+{{ extra_imports_source }}
+{% for item in shader_imports %}
+from {{ shader_package }}.{{ item.shader }} import {{ item.const }}
+{% endfor %}
+{% for item in tensor_imports %}
+from {{ tensor_package }}.{{ item.file }} import {{ item.classes_source }}
+{% endfor %}
+from torch2vk.runtime.shader import ShaderVariant
+from torch2vk.runtime.session import RuntimeSession
+
+
+def shader_variant(shader_name: str) -> ShaderVariant:
+    return cast(ShaderVariant, getattr(sys.modules[__name__], shader_name.upper()))
+
+
+{{ function_sources_source }}

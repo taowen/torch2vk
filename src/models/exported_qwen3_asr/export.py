@@ -25,25 +25,27 @@ from models.optimized_qwen3_asr.pytorch.example import REPO_ID
 from torch2vk.export import (
     KVCacheInjectHint,
     LayerLoopHint,
+    ReferencePolicy,
+    TensorClassContext,
     export_submodule,
-    generate_dispatch_function_source,
-    generate_tensor_class_source,
 )
-from torch2vk.export.codegen import (
-    generate_reference_spec,
-    render_reference_loader_module,
+from torch2vk.export._templates import render_simple_init
+from torch2vk.export.dispatch_codegen import generate_dispatch_function_source
+from torch2vk.export.reference_codegen import (
+    render_exported_reference_function,
+    render_reference_function,
+    render_reference_loader,
     render_reference_module,
-    render_reference_specs_module,
-    render_shader_file,
-    render_simple_init,
-    render_tensor_helpers,
+)
+from torch2vk.export.shader_codegen import render_shader_file
+from torch2vk.export.tensor_codegen import (
+    generate_tensor_class_source,
     render_tensor_module,
 )
 from torch2vk.export.codegen_loop import (
     generate_looped_dispatch_function_source,
     generate_looped_tensor_class_sources,
 )
-from torch2vk.runtime.reference import ReferencePolicy, ReferenceSpec
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
@@ -252,26 +254,30 @@ def main() -> int:
 
     all_shader_imports: dict[str, str] = {}  # shader_name → CONST_NAME
     all_shader_variants: dict[str, ShaderVariant] = {}
-    tensor_sources: dict[str, list[str]] = {}  # file_group → [class source, ...]
+    tensor_sources: dict[str, list[TensorClassContext]] = {}  # file_group → [tensor class, ...]
     tensor_file_classes: dict[str, list[str]] = {}  # file_group → [class names]
     dispatch_sources: list[str] = []
-    reference_specs: dict[str, ReferenceSpec] = {}
-    reference_loaders: dict[str, str] = {}
-    reference_specs["token_select"] = ReferenceSpec(
-        program=None,
+    reference_functions: list[str] = []
+    pt2_loader_fields: list[str] = []
+    pt2_loader_sources: list[str] = []
+    reference_functions.append(render_reference_function(
+        name="token_select",
+        reference_source="reference",
         tensors="model_tensors()",
-        name="{name}",
+        frame_name="{name}",
         policy="token",
         input_bindings={
             "logits": "decode_lm_head.linear",
             "eos_token_ids": "eos_token_ids",
         },
         output_bindings={"next_token": "next_token", "done": "done"},
-    )
-    reference_specs["token_store"] = ReferenceSpec(
-        program=None,
+        needs_reference=True,
+    ))
+    reference_functions.append(render_reference_function(
+        name="token_store",
+        reference_source="reference",
         tensors="model_tensors()",
-        name="{name}",
+        frame_name="{name}",
         policy="token",
         input_bindings={
             "next_token": "next_token",
@@ -283,7 +289,8 @@ def main() -> int:
             "generated_length": "generated_length",
             "stopped": "stopped",
         },
-    )
+        needs_reference=True,
+    ))
 
     def export_one(
         name,
@@ -313,17 +320,25 @@ def main() -> int:
         if program is not None:
             if reference_state_dict is None:
                 raise ValueError(f"{name} saves a reference program but has no reference_state_dict")
-            reference_loaders[func_name] = reference_state_dict
+            pt2_loader_fields.append(func_name)
+            pt2_loader_sources.append(
+                render_reference_loader(
+                    field=func_name,
+                    program=program,
+                    state_dict_path=reference_state_dict,
+                )
+            )
             torch.export.save(prog, output_dir / program)
-        reference_specs[func_name] = generate_reference_spec(
+        reference_functions.append(render_exported_reference_function(
             prog,
-            program=program,
+            name=func_name,
+            reference_source=f"_load_{func_name}()" if program is not None else "reference",
             tensors=reference_tensors if reference_tensors is not None else f"model_tensors().{func_name}",
-            name=reference_name if reference_name is not None else func_name,
+            frame_name=reference_name if reference_name is not None else func_name,
             policy=reference_policy,
             input_bindings=reference_input_bindings,
             output_bindings=reference_output_bindings,
-        )
+        ))
 
         if layer_loop is not None:
             # Looped export: generates parent + layer tensor classes and looped dispatch
@@ -561,9 +576,8 @@ def main() -> int:
     for f in tensors_dir.glob("*.py"):
         f.unlink()
     tensor_file_classes.setdefault("rope", []).append("RopeTableTensors")
-    helper_source = render_tensor_helpers()
     for group, sources in tensor_sources.items():
-        (tensors_dir / f"{group}.py").write_text(render_tensor_module(sources, helper_source))
+        (tensors_dir / f"{group}.py").write_text(render_tensor_module(sources))
     (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))
     (tensors_dir / "model.py").write_text(_render_template("model.py.j2"))
     tensor_init_imports = []
@@ -589,19 +603,8 @@ def main() -> int:
     (output_dir / "dispatch.py").write_text(dispatch_source)
     print(f"  dispatch.py written ({len(dispatch_sources)} functions)")
 
-    (output_dir / "reference_specs.py").write_text(render_reference_specs_module(reference_specs))
-    print(f"  reference_specs.py written ({len(reference_specs)} specs)")
-
     (output_dir / "reference.py").write_text(
         render_reference_module(
-            model_package="models.exported_qwen3_asr",
-            reference_specs=reference_specs,
-        )
-    )
-    print("  reference.py written")
-
-    (output_dir / "reference_setup.py").write_text(
-        render_reference_loader_module(
             model_package="models.exported_qwen3_asr",
             model_imports=[
                 "from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (",
@@ -609,10 +612,12 @@ def main() -> int:
                 ")",
             ],
             model_type="Qwen3ASRForConditionalGeneration",
-            reference_loaders=reference_loaders,
+            reference_functions=reference_functions,
+            pt2_loader_fields=pt2_loader_fields,
+            pt2_loader_sources=pt2_loader_sources,
         )
     )
-    print("  reference_setup.py written")
+    print("  reference.py written")
 
     print("\nDone!")
     return 0

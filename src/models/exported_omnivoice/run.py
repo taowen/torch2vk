@@ -22,7 +22,7 @@ from transformers import AutoTokenizer
 from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.hf_cache import resolve_cached_model
-from models.exported_omnivoice import dispatch, reference, reference_setup
+from models.exported_omnivoice import dispatch, reference
 from models.exported_omnivoice.pytorch_modules import (
     InputEmbedReference,
     LlmForwardReference,
@@ -48,7 +48,6 @@ class _AudioDecodeOutput(Protocol):
 
 @dataclass(slots=True)
 class _OmniVoiceCompareState:
-    loaded: reference_setup.LoadedReferences
     input_embed: InputEmbedReference
     llm_forward: LlmForwardReference
     token_score: TokenScoreReference
@@ -120,7 +119,6 @@ def _make_rope_table(
 def _build_compare_references(
     model: OmniVoice,
     *,
-    base_dir: Path,
     batch_input_ids: np.ndarray,
     batch_audio_mask: np.ndarray,
     attention_mask: np.ndarray,
@@ -129,6 +127,7 @@ def _build_compare_references(
     rng_seed: int,
     head_dim: int,
 ) -> _OmniVoiceCompareState:
+    reference.set_model(model)
     rope_cos, rope_sin = _make_rope_table(
         batch=attention_mask.shape[0],
         sequence_length=attention_mask.shape[-1],
@@ -136,7 +135,6 @@ def _build_compare_references(
         theta=1_000_000.0,
     )
     return _OmniVoiceCompareState(
-        loaded=reference_setup.load_references(model, base_dir=base_dir),
         input_embed=InputEmbedReference(model),
         llm_forward=LlmForwardReference(model),
         token_score=TokenScoreReference(model),
@@ -193,7 +191,6 @@ def _run_generation_step_with_compare(
         dispatch.run_audio_head(rt)
         audio_head_expected = reference.run_audio_head(
             rt,
-            refs.loaded.audio_head,
             step=step,
             input=llm_output,
         )
@@ -389,7 +386,6 @@ def main(
         _round_model_float_weights_to_bfloat16(ref_model)
         compare_refs = _build_compare_references(
             ref_model,
-            base_dir=Path(__file__).parent,
             batch_input_ids=batch_input_ids,
             batch_audio_mask=batch_audio_mask,
             attention_mask=attn_mask_np,

@@ -14,22 +14,24 @@ from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind
 from torch.fx import Graph, Node
 
-from torch2vk.export.codegen import (
-    SKIP_OPS,
+from torch2vk.export.dispatch_codegen import (
     _AliasOp,
     _DispatchOp,
     _Op,
-    _TensorKind,
-    _TensorMeta,
     _UnsupportedOp,
     _collect_ops,
     _find_graph_outputs,
     _prune_dead_ops,
     _resolve_all_variants,
+)
+from torch2vk.export.graph import SKIP_OPS, LayerLoopHint
+from torch2vk.export.tensor_codegen import (
+    TensorClassContext,
+    _TensorKind,
+    _TensorMeta,
     _tensor_factory_signature,
     render_tensor_class,
 )
-from torch2vk.export.graph import LayerLoopHint
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
 from torch2vk.runtime.shader import ShaderVariant
 
@@ -424,10 +426,10 @@ def generate_looped_tensor_class_sources(
     weight_prefix: str = "",
     hint: LayerLoopHint,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
-) -> tuple[str, str]:
+) -> tuple[TensorClassContext, TensorClassContext]:
     """Generate parent + layer tensor classes.
 
-    Returns (parent_class_source, layer_class_source).
+    Returns (parent_class_context, layer_class_context).
     """
     graph = prog.graph_module.graph
     sig = prog.graph_signature
@@ -582,7 +584,7 @@ def _render_layer_class(
     class_name: str,
     function_name: str,
     weight_prefix: str,
-) -> str:
+) -> TensorClassContext:
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
@@ -651,7 +653,7 @@ def _render_parent_class(
     output_name: str | None,
     analysis: _LoopAnalysis,
     classification: dict[str, str],
-) -> str:
+) -> TensorClassContext:
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
@@ -704,45 +706,24 @@ def _render_parent_class(
     output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
     fields = tuple(tensors.keys())
 
-    # Build manually (includes layers field)
-    lines: list[str] = []
-    lines.append("@dataclass(frozen=True, slots=True)")
-    lines.append(f"class {class_name}:")
-    for name in tensors:
-        lines.append(f"    {name}: LogicalTensor")
-    lines.append(f"    layers: list[{layer_class_name}]")
-    lines.append("")
-    lines.append("")
-    lines.append(f"{output_const}: str = {output_name!r}")
-    lines.append("")
-    lines.append("")
-    lines.append(_tensor_factory_signature(
-        function_name,
-        class_name,
+    return render_tensor_class(
+        class_name=class_name,
         fields=fields,
-        layered=False,
-    ))
-    lines.append(f"    _validate_request_state_outputs(request_state_outputs, frozenset(({output_name!r},)))")
-    lines.append(f"    tensors = {class_name}(")
-    for entry in tensor_entries:
-        lines.append(f"        {entry['name']}=_bind_tensor(")
-        lines.append(f"            {entry['name']},")
-        lines.append("            _declare_tensor(")
-        lines.append(f"                checkpoint_key={entry['checkpoint_key_expr']},")
-        lines.append(f"                reference_key={entry['reference_key_expr']},")
-        lines.append(f"                spec=TensorSpec(dtype={entry['dtype_source']}, shape={entry['shape_source']}),")
-        lines.append(f"                role={entry['role']},")
-        lines.append(f"                memory={entry['memory']},")
-        lines.append(f"                lifetime={entry['lifetime']},")
-        lines.append(f"                request_state={entry['name_source']} in request_state_outputs,")
-        lines.append("            ),")
-        lines.append("        ),")
-    lines.append(f"        layers=[{layer_function_name}(prefix, layer_idx=i) for i in range({num_layers})],")
-    lines.append("    )")
-    lines.append("    bind_logical_tensor_names(tensors, prefix)")
-    lines.extend(_loop_alias_binding_lines(analysis, classification))
-    lines.append("    return tensors")
-    return "\n".join(lines)
+        extra_fields=(f"layers: list[{layer_class_name}]",),
+        output_const=output_const,
+        output_name_source=repr(output_name),
+        signature=_tensor_factory_signature(
+            function_name,
+            class_name,
+            fields=fields,
+            layered=False,
+        ),
+        tensors=tensor_entries,
+        extra_initializers=(
+            f"layers=[{layer_function_name}(prefix, layer_idx=i) for i in range({num_layers})]",
+        ),
+        alias_binding_lines=_loop_alias_binding_lines(analysis, classification),
+    )
 
 
 def _loop_alias_binding_lines(

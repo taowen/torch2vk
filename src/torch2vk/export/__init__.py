@@ -1,17 +1,12 @@
 """Direct FX-graph-to-Vulkan export with 1:1 aten op mapping."""
 
-from torch2vk.export.codegen import (
-    generate_dispatch_function_source,
-    generate_dispatch_source,
-    generate_reference_spec,
-    generate_tensor_class_source,
-    render_reference_loader_module,
-    render_reference_module,
-    render_reference_specs_module,
-)
 from torch2vk.export.codegen_loop import (
     generate_looped_dispatch_function_source,
     generate_looped_tensor_class_sources,
+)
+from torch2vk.export.dispatch_codegen import (
+    generate_dispatch_function_source,
+    generate_dispatch_source,
 )
 from torch2vk.export.graph import (
     KVCacheExportHint,
@@ -20,6 +15,17 @@ from torch2vk.export.graph import (
     export_submodule,
     inject_kv_cache,
 )
+from torch2vk.export.reference_codegen import (
+    ReferencePolicy,
+    render_exported_reference_function,
+    render_reference_function,
+    render_reference_loader,
+    render_reference_module,
+)
+from torch2vk.export.tensor_codegen import (
+    TensorClassContext,
+    generate_tensor_class_source,
+)
 
 __all__ = [
     "KVCacheExportHint",
@@ -27,13 +33,15 @@ __all__ = [
     "LayerLoopHint",
     "export_submodule",
     "inject_kv_cache",
+    "ReferencePolicy",
+    "TensorClassContext",
     "generate_dispatch_function_source",
     "generate_dispatch_source",
     "generate_looped_dispatch_function_source",
     "generate_looped_tensor_class_sources",
-    "generate_reference_spec",
     "generate_tensor_class_source",
-    "render_reference_loader_module",
+    "render_exported_reference_function",
+    "render_reference_function",
+    "render_reference_loader",
     "render_reference_module",
-    "render_reference_specs_module",
 ]

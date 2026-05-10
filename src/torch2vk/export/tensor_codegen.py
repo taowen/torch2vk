@@ -1,0 +1,265 @@
+"""LogicalTensor dataclass generation."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from enum import Enum
+from typing import TypeAlias
+
+from torch.export import ExportedProgram
+from torch.export.graph_signature import InputKind
+from torch.fx import Graph, Node
+
+from torch2vk.export._templates import render_template
+from torch2vk.export.dispatch_codegen import (
+    _AliasOp,
+    _DispatchOp,
+    _collect_ops,
+    _find_graph_outputs,
+    _prune_dead_ops,
+    _resolve_all_variants,
+)
+from torch2vk.export.graph import SKIP_OPS
+from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
+
+
+TensorClassContext: TypeAlias = dict[str, object]
+
+
+class _TensorKind(Enum):
+    PARAMETER = "parameter"
+    USER_INPUT = "user_input"
+    INTERMEDIATE = "intermediate"
+
+
+@dataclass(frozen=True, slots=True)
+class _TensorMeta:
+    shape: tuple[int, ...]
+    dtype: str
+    kind: _TensorKind
+
+
+def render_tensor_module(classes: list[TensorClassContext]) -> str:
+    return render_template("tensor_module.py.j2", classes=classes).rstrip() + "\n"
+
+
+def render_tensor_class(
+    *,
+    class_name: str,
+    fields,
+    output_const: str,
+    output_name_source: str,
+    signature: str,
+    tensors,
+    alias_ops=(),
+    extra_fields=(),
+    extra_initializers=(),
+    alias_binding_lines: list[str] | None = None,
+) -> TensorClassContext:
+    if alias_binding_lines is None:
+        alias_binding_lines = [
+            f"    _bind_alias_source(tensors.{alias.src}, tensors.{alias.dst})"
+            for alias in alias_ops
+        ]
+    return {
+        "class_name": class_name,
+        "fields": tuple(fields),
+        "extra_fields": tuple(extra_fields),
+        "output_const": output_const,
+        "output_name_source": output_name_source,
+        "signature": signature,
+        "tensors": tuple(tensors),
+        "extra_initializers": tuple(extra_initializers),
+        "alias_binding_lines": tuple(alias_binding_lines),
+    }
+
+
+def _tensor_factory_signature(
+    function_name: str,
+    class_name: str,
+    *,
+    fields: tuple[str, ...],
+    layered: bool,
+) -> str:
+    params = ["prefix: str"]
+    if layered:
+        params.append("layer_idx: int")
+    params.append("*")
+    params.extend(f"{field}: LogicalTensor | None = None" for field in fields)
+    params.append("request_state_outputs: Collection[str] = frozenset()")
+    return f"def {function_name}(\n    " + ",\n    ".join(params) + f",\n) -> {class_name}:"
+
+
+def generate_tensor_class_source(
+    prog: ExportedProgram,
+    *,
+    class_name: str = "ExportedTensors",
+    function_name: str = "create_exported",
+    weight_prefix: str = "",
+    is_layered: bool | None = None,
+    registry: ShaderRegistry = DEFAULT_REGISTRY,
+) -> TensorClassContext:
+    """Generate tensor dataclass + factory function context for a single submodule."""
+    graph = prog.graph_module.graph
+    sig = prog.graph_signature
+
+    tensors: dict[str, _TensorMeta] = {}
+    user_inputs: list[str] = []
+    param_map: dict[str, str] = {}
+
+    for spec in sig.input_specs:
+        for node in graph.nodes:
+            if node.name == spec.arg.name:
+                tm = node.meta.get("tensor_meta")
+                if tm:
+                    shape = tuple(int(d) for d in tm.shape)
+                    dtype = str(tm.dtype).removeprefix("torch.")
+                    is_param = spec.kind in (InputKind.PARAMETER, InputKind.BUFFER)
+                    tensors[spec.arg.name] = _TensorMeta(
+                        shape=shape, dtype=dtype,
+                        kind=_TensorKind.PARAMETER if is_param else _TensorKind.USER_INPUT,
+                    )
+                    if is_param:
+                        param_map[spec.arg.name] = f"{weight_prefix}{spec.target}"
+                    else:
+                        user_inputs.append(spec.arg.name)
+                break
+
+    for node in graph.nodes:
+        if node.op == "call_function" and node.name not in tensors:
+            if str(node.target) in SKIP_OPS:
+                continue
+            tm = node.meta.get("tensor_meta")
+            if tm:
+                shape = tuple(int(d) for d in tm.shape)
+                dtype = str(tm.dtype).removeprefix("torch.")
+                tensors[node.name] = _TensorMeta(shape=shape, dtype=dtype, kind=_TensorKind.INTERMEDIATE)
+
+    output_name = _find_output_name(graph, tensors)
+
+    node_variants = _resolve_all_variants(graph, registry)
+    ops = _collect_ops(graph, node_variants)
+    output_names = _find_graph_outputs(graph)
+    if not output_names:
+        output_names = [output_name] if output_name else []
+    live_ops = _prune_dead_ops(ops, output_names)
+    alias_ops = tuple(op for op in live_ops if isinstance(op, _AliasOp))
+    live_tensors = set(output_names)
+    for op in live_ops:
+        if isinstance(op, _DispatchOp):
+            for v in op.bindings.values():
+                live_tensors.add(v.removeprefix("tensors."))
+        elif isinstance(op, _AliasOp):
+            live_tensors.add(op.src)
+            live_tensors.add(op.dst)
+    live_tensors.update(name for name in user_inputs if name in live_tensors)
+    live_tensors.update(param_map.keys() & live_tensors)
+    tensors = {k: v for k, v in tensors.items() if k in live_tensors}
+    param_map = {k: v for k, v in param_map.items() if k in live_tensors}
+
+    if is_layered is None:
+        is_layered = any(re.search(r"\.layers\.\d+\.", v) for v in param_map.values())
+
+    tensor_entries = []
+    for name, meta in tensors.items():
+        tensor_entries.append(_tensor_entry(
+            name=name,
+            meta=meta,
+            checkpoint_key=_checkpoint_key_expr(
+                name=name,
+                meta=meta,
+                param_map=param_map,
+                is_layered=is_layered,
+            ),
+            reference_key="None" if meta.kind != _TensorKind.INTERMEDIATE else repr(name),
+        ))
+
+    output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
+    fields = tuple(tensors.keys())
+    return render_tensor_class(
+        class_name=class_name,
+        fields=fields,
+        output_const=output_const,
+        output_name_source=repr(output_name),
+        signature=_tensor_factory_signature(
+            function_name,
+            class_name,
+            fields=fields,
+            layered=is_layered,
+        ),
+        tensors=tensor_entries,
+        alias_ops=alias_ops,
+    )
+
+
+def _tensor_entry(
+    *,
+    name: str,
+    meta: _TensorMeta,
+    checkpoint_key: str,
+    reference_key: str,
+) -> dict[str, str]:
+    kind = meta.kind
+    dtype = "bfloat16" if kind == _TensorKind.PARAMETER else (
+        meta.dtype if meta.dtype in ("int64", "int32") else "float32"
+    )
+    if kind == _TensorKind.PARAMETER:
+        role = "TensorRole.WEIGHT"
+        memory = "MemoryClass.MODEL_WEIGHT"
+        lifetime = "TensorLifetime.MODEL"
+    elif kind == _TensorKind.USER_INPUT:
+        role = "TensorRole.INPUT"
+        memory = "MemoryClass.HOST_INPUT"
+        lifetime = "TensorLifetime.FRAME"
+    else:
+        role = "TensorRole.ACTIVATION"
+        memory = "MemoryClass.FRAME_WORKSPACE"
+        lifetime = "TensorLifetime.FRAME"
+    return {
+        "name": name,
+        "name_source": repr(name),
+        "checkpoint_key_expr": checkpoint_key,
+        "reference_key_expr": reference_key,
+        "dtype_source": repr(dtype),
+        "shape_source": repr(meta.shape),
+        "role": role,
+        "memory": memory,
+        "lifetime": lifetime,
+    }
+
+
+def _checkpoint_key_expr(
+    *,
+    name: str,
+    meta: _TensorMeta,
+    param_map: dict[str, str],
+    is_layered: bool,
+) -> str:
+    if meta.kind != _TensorKind.PARAMETER:
+        return "None"
+    safetensors_key = param_map[name]
+    if is_layered:
+        name_template = re.sub(r"\.layers\.(\d+)\.", ".layers.{layer_idx}.", safetensors_key)
+        return f'f"{name_template}"'
+    return f'"{safetensors_key}"'
+
+
+def _find_output_name(graph: Graph, tensors: dict[str, _TensorMeta]) -> str | None:
+    for node in graph.nodes:
+        if node.op == "output":
+            names = _collect_graph_output_names(node.args, tensors)
+            if names:
+                return names[0]
+    return None
+
+
+def _collect_graph_output_names(value: object, tensors: dict[str, _TensorMeta]) -> list[str]:
+    names: list[str] = []
+    if isinstance(value, Node):
+        if value.name in tensors:
+            names.append(value.name)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            names.extend(_collect_graph_output_names(item, tensors))
+    return names

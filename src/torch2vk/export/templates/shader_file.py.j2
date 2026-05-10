@@ -1,0 +1,22 @@
+"""Generated shader: {{ variant_name }}."""
+
+{{ imports_source }}
+
+
+{{ const_name }} = ShaderVariant(
+    name={{ variant_name_source }},
+    family={{ family_source }},
+    contract=ShaderContract(
+        class_name={{ class_name_source }},
+        shader_name={{ variant_name_source }},
+        fields=(
+{{ fields_source }}
+        ),
+        push_constants={{ push_constants_source }},
+        params_buffer={{ params_buffer_source }},
+        dispatch={{ dispatch_source }},
+    ),
+    execution_requirements={{ execution_requirements_source }},
+    source="""\
+{{ glsl }}""",
+)

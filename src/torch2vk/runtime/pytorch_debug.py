@@ -11,26 +11,25 @@ from torch2vk.runtime.compare import (
     write_compare_summary,
 )
 from torch2vk.runtime.logical import ComparePolicy, LogicalTensor
-from torch2vk.runtime.reference import ReferenceSpec
 
 if TYPE_CHECKING:
     from torch2vk.runtime.session import RuntimeSession
 
 
-def compare_expected_with_spec(
+def compare_expected(
     rt: RuntimeSession,
     *,
     name: str,
     tensors: object,
-    spec: ReferenceSpec,
+    output_bindings: dict[str, str],
     expected: dict[str, object],
     policy: ComparePolicy | dict[str, ComparePolicy] = _DEFAULT_COMPARE_POLICY,
 ) -> None:
     """Compare Vulkan outputs against expected values computed by the caller."""
-    for key, field_name in spec.output_bindings.items():
+    for key, field_name in output_bindings.items():
         if key not in expected:
             raise RuntimeError(
-                f"compare_expected_with_spec {name!r}: output key {key!r} not in "
+                f"compare_expected {name!r}: output key {key!r} not in "
                 f"expected results (available: {sorted(expected.keys())[:10]})"
             )
         tensor = _logical_tensor_path(tensors, field_name)

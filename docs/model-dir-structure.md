@@ -19,7 +19,7 @@ execution.py 串联 frame/pipeline
 
 1. 声明权重 tensor 的 name/spec/layout，让 runtime 推断 checkpoint key 并托管加载和校验；
 2. 声明 storage/lifetime，让 runtime 托管显存分配和释放；
-3. 生成 `ReferenceSpec`，让 runtime 输出和 PyTorch reference 对拍；
+3. 生成 `reference.py` compare wrapper，让 runtime 输出和 PyTorch reference 对拍；
 4. 声明 spec/layout，让 runtime 校验 shader contract 匹配。
 
 不影响这四件事的模型语义不要放进核心执行规则。`LOGITS`、`TOKEN`、`KV_CACHE` 等可以作为 semantic metadata 服务 debug、compare 和报告。
@@ -149,9 +149,9 @@ with RuntimeSession.open(device_index=0, model_dir=model_dir) as rt:
 `register_inputs()` 的 key 是声明好的 `LogicalTensor` 对象，不是 logical name 字符串。这样输入绑定和
 shader dispatch 使用的是同一批 tensor 对象，不需要额外的 input key 映射。
 
-PyTorch lockstep 对拍也应使用同一份业务输入，但不由 RuntimeSession 自动调用 PyTorch。export 生成
-`reference_setup.py` 加载 `.pt2` graph reference；不好机械生成的有状态 reference 留在模型 `run.py` 手写推进。
-`run.py` 再调用生成的 `reference.run_xxx(...)` 完成 reference 执行和 compare。这样长流程生成任务可以让
+PyTorch lockstep 对拍也应使用同一份业务输入，但不由 RuntimeSession 自动调用 PyTorch。export 生成的
+`reference.py` 在 `run_xxx(...)` 首次执行时按需加载 `.pt2` graph reference；不好机械生成的有状态 reference
+留在模型 `run.py` 手写推进。`run.py` 再调用生成的 `reference.run_xxx(...)` 完成 reference 执行和 compare。这样长流程生成任务可以让
 PyTorch reference 和 Vulkan candidate 同步推进，而不是依赖 frame exit 的隐式行为。
 
 `RuntimeSession.open(..., model_dir=...)` 设置权重 checkpoint 根目录。`LogicalTensor` 的
@@ -459,7 +459,7 @@ audio_codec_decoder.py
 ```
 
 每个 frame function 只表达 Vulkan shader sequence。PyTorch reference 由模型 `run.py` 或同级 helper 显式执行，
-再通过 `ReferenceSpec.output_bindings` 和 `compare_expected_with_spec()` 对齐 Vulkan 输出。
+再通过生成 wrapper 内联的 `output_bindings` 和 `compare_expected()` 对齐 Vulkan 输出。
 
 frame function 的职责：
 
@@ -468,7 +468,7 @@ frame function 的职责：
 3. 把输入、权重、中间 activation、输出 `LogicalTensor` 传给 `ShaderVariant`；
 4. 返回 output dataclass；
 5. 不维护独立 compare binding 列表；
-6. 不绕过 `ReferenceSpec` 手写 tensor path；
+6. 不在调用点重复手写 tensor path；
 7. 不手动 materialize tensor。
 
 示例：
@@ -507,23 +507,24 @@ def run_audio_codec_decoder_frame(
         return AudioCodecDecoderOutput(waveform=tensors.decoder.waveform)
 ```
 
-## ReferenceSpec metadata
+## Generated reference metadata
 
-`ReferenceSpec` 由 export 生成，描述 reference key 到 tensor dataclass 字段路径的绑定。它必须和生成的 tensor
-tree 一起维护，不能在 `probes.py` 或其它平行 registry 里再维护一份。
+reference metadata 由 export 生成，并直接内联到 `reference.py`。它描述 reference key
+到 tensor dataclass 字段路径的绑定，必须和生成的 tensor tree 一起维护，不能在 `probes.py` 或其它平行 registry
+里再维护一份。
 
 流程：
 
 ```text
 Vulkan frame 写出 LogicalTensors
   -> run.py 调用生成的 reference.run_xxx(...)
-  -> generated helper 读取 ReferenceSpec.tensors/output_bindings
+  -> generated helper 使用内联的 tensors/output_bindings
   -> RuntimeSession readback 对应 LogicalTensor
   -> compare helper 写出 pass/fail 和 artifacts
 ```
 
-`ReferenceSpec.program` 有值时表示该 reference 可以从 `.pt2` 加载；为空时表示调用方提供显式 callable。`name`、
-`tensors` 和 `policy` 用于生成 `reference.py` wrapper。
+`.pt2` 路径内联到 `reference.py` 的 `_load_xxx()`；显式 callable reference 由调用方提供。`name`、`tensors`、
+`policy` 和 `output_bindings` 用于生成 `reference.py` wrapper。
 
 禁止手写 candidate 公式：
 
@@ -622,7 +623,7 @@ written tensors = shader outputs in this frame
 dispatch records = replay/debug/liveness source of truth
 ```
 
-是否对拍由调用方显式决定。调用方执行 PyTorch reference 后，用 `ReferenceSpec.output_bindings` 定位
+是否对拍由调用方显式决定。调用方执行 PyTorch reference 后，用生成 wrapper 的 `output_bindings` 定位
 candidate tensor，并传入明确的 `ComparePolicy`。
 
 ## 最小数据流
@@ -632,7 +633,7 @@ pytest or script defines run inputs
         |
 tensors/ reads config.json/checkpoint metadata and builds the logical tensor tree
         |
-tensors/ declares LogicalTensors and generated reference specs
+tensors/ declares LogicalTensors and generated reference metadata
         |
 RuntimeSession registers model declarations and runtime inputs
         |
@@ -646,7 +647,7 @@ RuntimeSession records dispatch facts
         |
 run.py computes PyTorch expected values at the same logical step
         |
-compare_expected_with_spec locates output tensors from ReferenceSpec
+compare_expected locates output tensors from generated output_bindings
         |
 RuntimeSession readbacks candidate LogicalTensors and compares artifacts
         |
@@ -696,8 +697,8 @@ text_llm.decode.audio_token_005.cond.layer.03.output
 6. dry-run dispatch 先只校验 contract、materialization rules、dispatch record。
 7. 接入 Vulkan 后执行最短 audio codec decoder 子链路。
 8. candidate 跑完后调用生成的 `reference.run_xxx(...)`。
-9. 用 `ReferenceSpec.tensors/output_bindings` 定位 candidate tensor。
-10. generated helper 调用 `compare_expected_with_spec()` 完成 readback + compare。
+9. 用生成 wrapper 内联的 `tensors/output_bindings` 定位 candidate tensor。
+10. generated helper 调用 `compare_expected()` 完成 readback + compare。
 11. mismatch 时报告 writer shader 和 artifact path。
 12. audio codec decoder 稳定后再接 audio token selector、audio token predictor、Text LLM decode/prefill。
 

@@ -3,27 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, TypeAlias, cast
+from typing import cast
 
 import numpy as np
 import torch
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind
 from torch.fx import Interpreter, Node
-
-ReferencePolicy: TypeAlias = Literal["tensor", "token"] | dict[str, Literal["tensor", "token"]]
-
-
-@dataclass(frozen=True, slots=True)
-class ReferenceSpec:
-    program: str | None
-    tensors: str
-    name: str
-    policy: ReferencePolicy
-    input_bindings: dict[str, str]
-    output_bindings: dict[str, str]
 
 
 class ExportedProgramReference:
@@ -96,11 +83,9 @@ class ExportedProgramReference:
 
 def load_exported_reference(
     base_dir: Path,
-    spec: ReferenceSpec,
+    program: str,
     *,
     state_dict: Mapping[str, torch.Tensor],
 ) -> ExportedProgramReference:
-    if spec.program is None:
-        raise ValueError("ReferenceSpec.program is required for exported references")
-    ep = torch.export.load(base_dir / spec.program)
+    ep = torch.export.load(base_dir / program)
     return ExportedProgramReference(cast(ExportedProgram, ep), state_dict=state_dict)

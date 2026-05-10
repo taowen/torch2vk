@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
 import torch
 
-from models.exported_omnivoice import reference_specs
+from omnivoice.models.omnivoice import OmniVoice
 from models.exported_omnivoice.tensors.model import model_tensors
 from torch2vk.runtime.compare import as_numpy_array
 from torch2vk.runtime.logical import ComparePolicy
-from torch2vk.runtime.pytorch_debug import compare_expected_with_spec
-from torch2vk.runtime.reference import ReferenceSpec
+from torch2vk.runtime.pytorch_debug import compare_expected
+from torch2vk.runtime.reference import ExportedProgramReference, load_exported_reference
 from torch2vk.runtime.session import RuntimeSession
 
 
@@ -29,53 +30,65 @@ class ArrayReference(Protocol):
     def execute(self, inputs: dict[str, np.ndarray]) -> ReferenceExpected: ...
 
 
+_MODEL: OmniVoice | None = None
+_audio_head_reference: ExportedProgramReference | None = None
+
+
+def set_model(model: OmniVoice) -> None:
+    global _MODEL
+    _MODEL = model
+    _clear_cached_references()
+
+
+def _clear_cached_references() -> None:
+    global _audio_head_reference
+    _audio_head_reference = None
+
+
+def _require_model() -> OmniVoice:
+    if _MODEL is None:
+        raise RuntimeError("reference.set_model(model) must be called before exported references are used")
+    return _MODEL
+
+
+def _load_audio_head() -> ExportedProgramReference:
+    global _audio_head_reference
+    if _audio_head_reference is None:
+        _audio_head_reference = load_exported_reference(
+            Path(__file__).parent,
+            'reference_programs/audio_head.pt2',
+            state_dict=_require_model().get_submodule('audio_heads').state_dict(),
+        )
+    return _audio_head_reference
+
 def _execute_and_compare(
     rt: RuntimeSession,
     *,
     name: str,
     reference: ArrayReference,
     tensors: object,
-    spec: ReferenceSpec,
+    output_bindings: dict[str, str],
+    policy: ComparePolicy | dict[str, ComparePolicy],
     inputs: dict[str, ReferenceInput],
 ) -> ReferenceExpected:
     expected = reference.execute(
         {key: as_numpy_array(value) for key, value in inputs.items()}
     )
-    compare_expected_with_spec(
+    compare_expected(
         rt,
         name=name,
         tensors=tensors,
-        spec=spec,
+        output_bindings=output_bindings,
         expected=expected,
-        policy=_policy_for_spec(spec),
+        policy=policy,
     )
     return expected
 
 
-def _policy_for_spec(spec: ReferenceSpec) -> ComparePolicy | dict[str, ComparePolicy]:
-    if isinstance(spec.policy, dict):
-        return {key: _COMPARE_POLICIES[value] for key, value in spec.policy.items()}
-    return _COMPARE_POLICIES[spec.policy]
-
-
-def run_audio_head(
-    rt: RuntimeSession,
-    reference: ArrayReference,
-    *,
-    step: int,
-    input: ReferenceInput,
-) -> ReferenceExpected:
-    spec = reference_specs.AUDIO_HEAD_SPEC
-    return _execute_and_compare(
-        rt,
-        name=f'omnivoice.step.{step:04d}.audio_head',
-        reference=reference,
-        tensors=model_tensors(),
-        spec=spec,
-        inputs={
-            "input": input,
-        },
-    )
+def _policy(policy: str | dict[str, str]) -> ComparePolicy | dict[str, ComparePolicy]:
+    if isinstance(policy, dict):
+        return {key: _COMPARE_POLICIES[value] for key, value in policy.items()}
+    return _COMPARE_POLICIES[policy]
 
 def run_input_embed(
     rt: RuntimeSession,
@@ -85,41 +98,16 @@ def run_input_embed(
     input_ids: ReferenceInput,
     audio_mask: ReferenceInput,
 ) -> ReferenceExpected:
-    spec = reference_specs.INPUT_EMBED_SPEC
     return _execute_and_compare(
         rt,
         name=f'omnivoice.step.{step:04d}.input_embed',
         reference=reference,
         tensors=model_tensors(),
-        spec=spec,
+        output_bindings={'hidden_states': 'llm_forward.hidden_states'},
+        policy=_policy('tensor'),
         inputs={
             "input_ids": input_ids,
             "audio_mask": audio_mask,
-        },
-    )
-
-def run_llm_forward(
-    rt: RuntimeSession,
-    reference: ArrayReference,
-    *,
-    step: int,
-    hidden_states: ReferenceInput,
-    cos: ReferenceInput,
-    sin: ReferenceInput,
-    attention_mask: ReferenceInput,
-) -> ReferenceExpected:
-    spec = reference_specs.LLM_FORWARD_SPEC
-    return _execute_and_compare(
-        rt,
-        name=f'omnivoice.step.{step:04d}.llm_forward',
-        reference=reference,
-        tensors=model_tensors(),
-        spec=spec,
-        inputs={
-            "hidden_states": hidden_states,
-            "cos": cos,
-            "sin": sin,
-            "attention_mask": attention_mask,
         },
     )
 
@@ -134,13 +122,13 @@ def run_token_score(
     rng_seed: ReferenceInput,
     step_index: ReferenceInput,
 ) -> ReferenceExpected:
-    spec = reference_specs.TOKEN_SCORE_SPEC
     return _execute_and_compare(
         rt,
         name=f'omnivoice.step.{step:04d}.token_score',
         reference=reference,
         tensors=model_tensors(),
-        spec=spec,
+        output_bindings={'candidate_tokens': 'candidate_tokens', 'candidate_scores': 'candidate_scores'},
+        policy=_policy({'candidate_tokens': 'token', 'candidate_scores': 'tensor'}),
         inputs={
             "logits": logits,
             "tokens": tokens,
@@ -161,18 +149,61 @@ def run_token_update(
     candidate_scores: ReferenceInput,
     unmask_count: ReferenceInput,
 ) -> ReferenceExpected:
-    spec = reference_specs.TOKEN_UPDATE_SPEC
     return _execute_and_compare(
         rt,
         name=f'omnivoice.step.{step:04d}.token_update',
         reference=reference,
         tensors=model_tensors(),
-        spec=spec,
+        output_bindings={'tokens': 'tokens', 'batch_input_ids': 'batch_input_ids'},
+        policy=_policy('token'),
         inputs={
             "tokens": tokens,
             "batch_input_ids": batch_input_ids,
             "candidate_tokens": candidate_tokens,
             "candidate_scores": candidate_scores,
             "unmask_count": unmask_count,
+        },
+    )
+
+def run_llm_forward(
+    rt: RuntimeSession,
+    reference: ArrayReference,
+    *,
+    step: int,
+    hidden_states: ReferenceInput,
+    cos: ReferenceInput,
+    sin: ReferenceInput,
+    attention_mask: ReferenceInput,
+) -> ReferenceExpected:
+    return _execute_and_compare(
+        rt,
+        name=f'omnivoice.step.{step:04d}.llm_forward',
+        reference=reference,
+        tensors=model_tensors(),
+        output_bindings={'mul_365': 'llm_forward.mul_365'},
+        policy=_policy('tensor'),
+        inputs={
+            "hidden_states": hidden_states,
+            "cos": cos,
+            "sin": sin,
+            "attention_mask": attention_mask,
+        },
+    )
+
+def run_audio_head(
+    rt: RuntimeSession,
+    *,
+    step: int,
+    input: ReferenceInput,
+) -> ReferenceExpected:
+    return _execute_and_compare(
+        rt,
+        name=f'omnivoice.step.{step:04d}.audio_head',
+        reference=_load_audio_head(),
+        tensors=model_tensors(),
+        output_bindings={'linear': 'audio_head.linear'},
+        policy=_policy('tensor'),
+        inputs={
+            "input": input,
         },
     )

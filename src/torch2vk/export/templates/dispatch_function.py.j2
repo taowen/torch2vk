@@ -1,0 +1,9 @@
+def {{ function_name }}(rt: RuntimeSession, tensors: {{ class_name }}) -> None:
+{% for op in ops %}
+{% if op.type == "alias" %}
+{% elif op.type == "dispatch" %}
+    {{ op.shader_const }}(rt, {{ op.args_source }})
+{% elif op.type == "unsupported" %}
+    raise RuntimeError({{ op.message_source }})
+{% endif %}
+{% endfor %}

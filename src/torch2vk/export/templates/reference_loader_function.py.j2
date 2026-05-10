@@ -1,0 +1,9 @@
+def _load_{{ field }}() -> ExportedProgramReference:
+    global _{{ field }}_reference
+    if _{{ field }}_reference is None:
+        _{{ field }}_reference = load_exported_reference(
+            Path(__file__).parent,
+            {{ program_source }},
+            state_dict=_require_model().get_submodule({{ state_dict_path }}).state_dict(),
+        )
+    return _{{ field }}_reference

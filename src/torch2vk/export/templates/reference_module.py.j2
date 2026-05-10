@@ -1,0 +1,93 @@
+"""Generated PyTorch reference comparison functions."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Protocol
+
+import numpy as np
+import torch
+
+{{ model_imports_source }}
+from {{ model_package }}.tensors.model import model_tensors
+from torch2vk.runtime.compare import as_numpy_array
+from torch2vk.runtime.logical import ComparePolicy
+from torch2vk.runtime.pytorch_debug import compare_expected
+from torch2vk.runtime.reference import ExportedProgramReference, load_exported_reference
+from torch2vk.runtime.session import RuntimeSession
+
+
+ReferenceInput = np.ndarray | torch.Tensor
+ReferenceExpected = dict[str, object]
+
+_COMPARE_POLICIES = {
+    "tensor": ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),
+    "token": ComparePolicy(kind="token"),
+}
+
+
+class ArrayReference(Protocol):
+    def execute(self, inputs: dict[str, np.ndarray]) -> ReferenceExpected: ...
+
+
+_MODEL: {{ model_type }} | None = None
+{% for loader in loaders %}
+_{{ loader.field }}_reference: ExportedProgramReference | None = None
+{% endfor %}
+
+
+def set_model(model: {{ model_type }}) -> None:
+    global _MODEL
+    _MODEL = model
+    _clear_cached_references()
+
+
+def _clear_cached_references() -> None:
+{% if loaders %}
+{% for loader in loaders %}
+    global _{{ loader.field }}_reference
+    _{{ loader.field }}_reference = None
+{% endfor %}
+{% else %}
+    pass
+{% endif %}
+
+
+def _require_model() -> {{ model_type }}:
+    if _MODEL is None:
+        raise RuntimeError("reference.set_model(model) must be called before exported references are used")
+    return _MODEL
+
+
+{{ pt2_loaders_source }}
+
+def _execute_and_compare(
+    rt: RuntimeSession,
+    *,
+    name: str,
+    reference: ArrayReference,
+    tensors: object,
+    output_bindings: dict[str, str],
+    policy: ComparePolicy | dict[str, ComparePolicy],
+    inputs: dict[str, ReferenceInput],
+) -> ReferenceExpected:
+    expected = reference.execute(
+        {key: as_numpy_array(value) for key, value in inputs.items()}
+    )
+    compare_expected(
+        rt,
+        name=name,
+        tensors=tensors,
+        output_bindings=output_bindings,
+        expected=expected,
+        policy=policy,
+    )
+    return expected
+
+
+def _policy(policy: str | dict[str, str]) -> ComparePolicy | dict[str, ComparePolicy]:
+    if isinstance(policy, dict):
+        return {key: _COMPARE_POLICIES[value] for key, value in policy.items()}
+    return _COMPARE_POLICIES[policy]
+
+{{ reference_functions_source }}

@@ -699,33 +699,20 @@ PyTorch。
 1. 进入 rt.frame(...)
 2. 跑 Vulkan candidate eager forward
 3. 调用生成的 reference.run_xxx(...) 推进同粒度 PyTorch reference
-4. generated helper 调用 compare_expected_with_spec()
-5. helper 根据 ReferenceSpec.tensors/output_bindings 找到 LogicalTensor
+4. generated helper 调用 compare_expected()
+5. helper 根据内联的 tensors/output_bindings 找到 LogicalTensor
 6. RuntimeSession readback candidate 当前 buffer
-7. 按 ReferenceSpec.policy 比较
+7. 按内联 policy 比较
 8. mismatch 时报告 frame、tensor、writer shader 和 artifact path
 9. 释放或复用 Frame workspace
 ```
 
-PyTorch model 不决定比较哪些 tensors。比较哪些输出由 `ReferenceSpec.output_bindings` 和 reference callable
+PyTorch model 不决定比较哪些 tensors。比较哪些输出由生成 wrapper 的 `output_bindings` 和 reference callable
 返回的 `expected` dict 决定。
 
-### ReferenceSpec
+### Generated reference metadata
 
-推荐结构：
-
-```python
-@dataclass(frozen=True, slots=True)
-class ReferenceSpec:
-    program: str | None
-    tensors: str
-    name: str
-    policy: ReferencePolicy
-    input_bindings: dict[str, str]
-    output_bindings: dict[str, str]
-```
-
-`ReferenceSpec` 是 export 生成的 reference binding，不是 runtime 状态。生成的 `reference.py` 消费其中的
+reference metadata 是 export 生成的 binding，不是 runtime 状态。生成的 `reference.py` 直接内联
 `tensors`、`name`、`policy` 和 `output_bindings` 来定位 candidate tensor 并执行 compare。
 
 禁止在任何独立 registry 或 helper 里手写 candidate 公式：

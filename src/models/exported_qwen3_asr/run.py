@@ -26,7 +26,7 @@ from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
 from models.optimized_qwen3_asr.shaders.token_select_f32 import QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
 from models.optimized_qwen3_asr.shaders.token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
-from models.exported_qwen3_asr import dispatch, reference, reference_setup
+from models.exported_qwen3_asr import dispatch, reference
 from models.exported_qwen3_asr.pytorch_modules import (
     AudioEncoderReference,
     AudioInjectReference,
@@ -46,7 +46,6 @@ from torch2vk.runtime.session import RuntimeSession
 
 @dataclass(slots=True)
 class _QwenCompareReferences:
-    loaded: reference_setup.LoadedReferences
     text_state: TextReferenceState
     audio_encoder: AudioEncoderReference
     audio_inject: AudioInjectReference
@@ -165,15 +164,14 @@ def _load_qwen_reference_model(model_dir: Path) -> Qwen3ASRForConditionalGenerat
 def _build_compare_references(
     model: Qwen3ASRForConditionalGeneration,
     *,
-    base_dir: Path,
     max_new_tokens: int,
 ) -> _QwenCompareReferences:
     thinker = cast(nn.Module, getattr(model, "thinker"))
+    reference.set_model(model)
     text_state = TextReferenceState(thinker)
     decode_state = text_state
     audio_tower = cast(nn.Module, thinker.get_submodule("audio_tower"))
     return _QwenCompareReferences(
-        loaded=reference_setup.load_references(model, base_dir=base_dir),
         text_state=text_state,
         audio_encoder=AudioEncoderReference(audio_tower),
         audio_inject=AudioInjectReference(),
@@ -245,7 +243,6 @@ def _run_decode_step_with_compare(
         dispatch.run_decode_embed(rt)
         embed_expected = reference.run_decode_embed(
             rt,
-            refs.loaded.decode_embed,
             step=step,
             input=refs.next_token,
         )
@@ -271,7 +268,6 @@ def _run_decode_step_with_compare(
         dispatch.run_decode_norm(rt)
         norm_expected = reference.run_decode_norm(
             rt,
-            refs.loaded.decode_norm,
             step=step,
             hidden_states=ref_hidden,
         )
@@ -279,7 +275,6 @@ def _run_decode_step_with_compare(
         dispatch.run_decode_lm_head(rt)
         lm_head_expected = reference.run_decode_lm_head(
             rt,
-            refs.loaded.decode_lm_head,
             step=step,
             input=ref_hidden,
         )
@@ -388,7 +383,6 @@ def main(
         print("Loading PyTorch reference for compare...")
         compare_refs = _build_compare_references(
             _load_qwen_reference_model(Path(model_dir)),
-            base_dir=Path(__file__).parent,
             max_new_tokens=max_new_tokens,
         )
 
@@ -497,7 +491,6 @@ def main(
         if compare_refs is not None:
             embed_expected = reference.run_embed_tokens(
                 rt,
-                compare_refs.loaded.embed_tokens,
                 input=prepared.input_ids,
             )
             ref_hidden = _reference_input(embed_expected["embedding"])
@@ -545,7 +538,6 @@ def main(
                 raise RuntimeError("text norm compare requires reference hidden state")
             norm_expected = reference.run_text_norm(
                 rt,
-                compare_refs.loaded.text_norm,
                 hidden_states=ref_hidden,
             )
             ref_hidden = _reference_input(norm_expected["mul_1"])
@@ -555,7 +547,6 @@ def main(
                 raise RuntimeError("lm_head compare requires reference hidden state")
             lm_head_expected = reference.run_lm_head(
                 rt,
-                compare_refs.loaded.lm_head,
                 input=ref_hidden,
             )
         else:

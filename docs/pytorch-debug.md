@@ -1,58 +1,57 @@
 # PyTorch 对拍调试
 
 本文定义当前 `torch2vk` 的 PyTorch/Vulkan lockstep 对拍方式。对拍边界不再绑在
-`rt.frame(...)` 的 PyTorch hook 上，而是由模型运行代码显式推进 reference 计算，再用生成阶段产出的
-`ReferenceSpec` 绑定 Vulkan 输出。
+`rt.frame(...)` 的 PyTorch hook 上，而是由模型运行代码显式推进 reference 计算，再用生成阶段内联到
+`reference.py` 的 metadata 绑定 Vulkan 输出。
 
 ## 核心规则
 
 ```text
 Vulkan candidate: rt.frame(...) 内按 dispatch 顺序执行 shader。
-PyTorch reference: reference_setup.py 只加载 .pt2 graph reference；不好机械生成的 reference state 由 run.py
-手写推进，再调用生成的 reference.run_xxx(...) 同步执行同粒度 tensor reference。
-绑定关系: ReferenceSpec.output_bindings 把 reference output key 映射到 LogicalTensor 字段。
-比较动作: 生成的 reference.py 调用 compare_expected_with_spec(...)。
+PyTorch reference: reference.py 的 run_xxx(...) 首次执行时按需加载 .pt2 graph reference；不好机械生成的
+reference state 由 run.py 手写推进，再调用生成的 reference.run_xxx(...) 同步执行同粒度 tensor reference。
+绑定关系: reference.py 内联 output_bindings，把 reference output key 映射到 LogicalTensor 字段。
+比较动作: 生成的 reference.py 调用 compare_expected(...)。
 ```
 
 RuntimeSession 只负责 shader dispatch、materialization、readback、compare artifact 和 replay 记录。它不安装
 PyTorch hook，不推断 PyTorch forward 参数，也不维护另一套 probe registry。
 
-## ReferenceSpec
+## Generated Metadata
 
-`ReferenceSpec` 由 export 阶段生成：
+reference metadata 由 export 阶段收集，并直接内联到生成的 `reference.py`：
 
 ```python
-ReferenceSpec(
-    program="reference_programs/text_norm.pt2",
-    tensors="model_tensors().text_norm",
-    name="spike.text.norm",
-    policy="tensor",
-    input_bindings={"hidden_states": "hidden_states"},
-    output_bindings={"mul_1": "mul_1"},
-)
+def run_text_norm(rt, *, hidden_states):
+    return _execute_and_compare(
+        rt,
+        name="spike.text.norm",
+        reference=_load_text_norm(),
+        tensors=model_tensors().text_norm,
+        output_bindings={"mul_1": "mul_1"},
+        policy=_policy("tensor"),
+        inputs={"hidden_states": hidden_states},
+    )
 ```
 
 字段语义：
 
-1. `program`: 可选 `.pt2` 路径。有值表示可以用 `load_exported_reference()` 加载 torch.export graph reference；
-   `None` 表示调用方用显式 PyTorch callable 计算 expected。
+1. `.pt2` path: 内联到 `reference.py` 的 `_load_xxx()`，用于首次执行时加载 exported graph reference。
 2. `tensors`: compare 时作为 root 的 generated tensor 表达式。
 3. `name`: compare artifact/frame 名称，可以包含 `{step}`、`{layer_idx}` 或 `{name}`。
 4. `policy`: `"tensor"`、`"token"`，或按 output key 指定的 policy dict。
-5. `input_bindings`: reference input key 到 tensor dataclass 字段路径的映射，也是生成 wrapper 参数的来源。
+5. `inputs`: reference wrapper 参数，也是 `reference.execute(...)` 的输入 key。
 6. `output_bindings`: reference output key 到 tensor dataclass 字段路径的映射，是实际对拍依据。
 
 ## 对拍入口
 
-`torch2vk.export.render_reference_loader_module()` 生成 `reference_setup.py`，只负责把已加载的 PyTorch 模型中的
-权重子模块绑定到 `.pt2` reference program。`torch2vk.export.render_reference_module()` 根据 `ReferenceSpec`
-生成 `reference.py`。模型 `run.py` 在 Vulkan dispatch 后调用生成 wrapper：
+`torch2vk.export.render_reference_module()` 直接把 compare metadata 和 `.pt2` lazy loader 内联到 `reference.py`。
+模型 `run.py` 先调用 `reference.set_model(model)`，之后在 Vulkan dispatch 后调用生成 wrapper：
 
 ```python
 dispatch.run_text_norm(rt)
 expected = reference.run_text_norm(
     rt,
-    refs.text_norm,
     hidden_states=hidden,
 )
 ```
@@ -60,14 +59,7 @@ expected = reference.run_text_norm(
 多输出 shader 可以按 output key 指定不同 policy：
 
 ```python
-ReferenceSpec(
-    program=None,
-    tensors="model_tensors()",
-    name="omnivoice.step.{step:04d}.token_score",
-    policy={"candidate_tokens": "token", "candidate_scores": "tensor"},
-    input_bindings={...},
-    output_bindings={...},
-)
+policy=_policy({"candidate_tokens": "token", "candidate_scores": "tensor"})
 ```
 
 ## 有状态 reference
@@ -96,9 +88,9 @@ PyTorch: loaded module state_dict or .pt2 lifted parameters
 
 ## Artifact 和失败报告
 
-`compare_expected_with_spec()` 会：
+`compare_expected()` 会：
 
-1. 用 `ReferenceSpec.output_bindings` 找到 Vulkan `LogicalTensor`；
+1. 用生成 wrapper 传入的 `output_bindings` 找到 Vulkan `LogicalTensor`；
 2. readback candidate；
 3. 将 expected 转成 numpy；
 4. 按 `ComparePolicy` 比较；

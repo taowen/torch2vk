@@ -29,25 +29,27 @@ from models.optimized_omnivoice.pytorch.example import REPO_ID
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
 from torch2vk.export import (
     LayerLoopHint,
+    ReferencePolicy,
+    TensorClassContext,
     export_submodule,
-    generate_dispatch_function_source,
-    generate_reference_spec,
-    generate_tensor_class_source,
 )
-from torch2vk.export.codegen import (
-    render_reference_loader_module,
+from torch2vk.export._templates import render_simple_init
+from torch2vk.export.dispatch_codegen import generate_dispatch_function_source
+from torch2vk.export.reference_codegen import (
+    render_exported_reference_function,
+    render_reference_function,
+    render_reference_loader,
     render_reference_module,
-    render_reference_specs_module,
-    render_shader_file,
-    render_simple_init,
-    render_tensor_helpers,
+)
+from torch2vk.export.shader_codegen import render_shader_file
+from torch2vk.export.tensor_codegen import (
+    generate_tensor_class_source,
     render_tensor_module,
 )
 from torch2vk.export.codegen_loop import (
     generate_looped_dispatch_function_source,
     generate_looped_tensor_class_sources,
 )
-from torch2vk.runtime.reference import ReferencePolicy, ReferenceSpec
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
@@ -212,26 +214,30 @@ def main() -> int:
     all_shader_variants: dict[str, ShaderVariant] = {
         variant.name: variant for variant in custom_variants
     }
-    tensor_sources: dict[str, list[str]] = {}
+    tensor_sources: dict[str, list[TensorClassContext]] = {}
     tensor_file_classes: dict[str, list[str]] = {}
     dispatch_sources: list[str] = []
-    reference_specs: dict[str, ReferenceSpec] = {}
-    reference_loaders: dict[str, str] = {}
-    reference_specs["input_embed"] = ReferenceSpec(
-        program=None,
+    reference_functions: list[str] = []
+    pt2_loader_fields: list[str] = []
+    pt2_loader_sources: list[str] = []
+    reference_functions.append(render_reference_function(
+        name="input_embed",
+        reference_source="reference",
         tensors="model_tensors()",
-        name="omnivoice.step.{step:04d}.input_embed",
+        frame_name="omnivoice.step.{step:04d}.input_embed",
         policy="tensor",
         input_bindings={
             "input_ids": "batch_input_ids",
             "audio_mask": "batch_audio_mask",
         },
         output_bindings={"hidden_states": "llm_forward.hidden_states"},
-    )
-    reference_specs["token_score"] = ReferenceSpec(
-        program=None,
+        needs_reference=True,
+    ))
+    reference_functions.append(render_reference_function(
+        name="token_score",
+        reference_source="reference",
         tensors="model_tensors()",
-        name="omnivoice.step.{step:04d}.token_score",
+        frame_name="omnivoice.step.{step:04d}.token_score",
         policy={"candidate_tokens": "token", "candidate_scores": "tensor"},
         input_bindings={
             "logits": "audio_head.linear",
@@ -244,11 +250,13 @@ def main() -> int:
             "candidate_tokens": "candidate_tokens",
             "candidate_scores": "candidate_scores",
         },
-    )
-    reference_specs["token_update"] = ReferenceSpec(
-        program=None,
+        needs_reference=True,
+    ))
+    reference_functions.append(render_reference_function(
+        name="token_update",
+        reference_source="reference",
         tensors="model_tensors()",
-        name="omnivoice.step.{step:04d}.token_update",
+        frame_name="omnivoice.step.{step:04d}.token_update",
         policy="token",
         input_bindings={
             "tokens": "tokens",
@@ -261,7 +269,8 @@ def main() -> int:
             "tokens": "tokens",
             "batch_input_ids": "batch_input_ids",
         },
-    )
+        needs_reference=True,
+    ))
 
     def export_one(
         name,
@@ -288,17 +297,25 @@ def main() -> int:
         if program is not None:
             if reference_state_dict is None:
                 raise ValueError(f"{name} saves a reference program but has no reference_state_dict")
-            reference_loaders[func_name] = reference_state_dict
+            pt2_loader_fields.append(func_name)
+            pt2_loader_sources.append(
+                render_reference_loader(
+                    field=func_name,
+                    program=program,
+                    state_dict_path=reference_state_dict,
+                )
+            )
             torch.export.save(reference_prog, output_dir / program)
-        reference_specs[func_name] = generate_reference_spec(
+        reference_functions.append(render_exported_reference_function(
             reference_prog,
-            program=program,
+            name=func_name,
+            reference_source=f"_load_{func_name}()" if program is not None else "reference",
             tensors=reference_tensors if reference_tensors is not None else "model_tensors()",
-            name=reference_name if reference_name is not None else func_name,
+            frame_name=reference_name if reference_name is not None else func_name,
             policy=reference_policy,
             input_bindings=reference_input_bindings,
             output_bindings=reference_output_bindings,
-        )
+        ))
 
         if layer_loop is not None:
             layer_cls_name = "LlmLayerTensors"
@@ -449,9 +466,8 @@ def main() -> int:
     # Write tensors/
     for f in tensors_dir.glob("*.py"):
         f.unlink()
-    helper_source = render_tensor_helpers()
     for group, sources in tensor_sources.items():
-        (tensors_dir / f"{group}.py").write_text(render_tensor_module(sources, helper_source))
+        (tensors_dir / f"{group}.py").write_text(render_tensor_module(sources))
     tensor_init_imports = []
     for group in sorted(tensor_file_classes):
         for cls in tensor_file_classes[group]:
@@ -483,26 +499,17 @@ def main() -> int:
     (output_dir / "dispatch.py").write_text(dispatch_source)
     print(f"  dispatch.py written ({len(dispatch_sources)} functions)")
 
-    (output_dir / "reference_specs.py").write_text(render_reference_specs_module(reference_specs))
-    print(f"  reference_specs.py written ({len(reference_specs)} specs)")
-
     (output_dir / "reference.py").write_text(
         render_reference_module(
             model_package="models.exported_omnivoice",
-            reference_specs=reference_specs,
+            model_imports=["from omnivoice.models.omnivoice import OmniVoice"],
+            model_type="OmniVoice",
+            reference_functions=reference_functions,
+            pt2_loader_fields=pt2_loader_fields,
+            pt2_loader_sources=pt2_loader_sources,
         )
     )
     print("  reference.py written")
-
-    (output_dir / "reference_setup.py").write_text(
-        render_reference_loader_module(
-            model_package="models.exported_omnivoice",
-            model_imports=["from omnivoice.models.omnivoice import OmniVoice"],
-            model_type="OmniVoice",
-            reference_loaders=reference_loaders,
-        )
-    )
-    print("  reference_setup.py written")
 
     print("\nDone!")
     return 0
