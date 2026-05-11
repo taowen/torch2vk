@@ -223,9 +223,11 @@ def materialize_input(rt: RuntimeSession, tensor: LogicalTensor) -> None:
     if tensor not in rt._inputs:
         raise RuntimeError(f"{tensor.name} requires missing input")
     value = rt._inputs[tensor]
-    array = np.ascontiguousarray(value)
     if tensor.spec.dtype == "bool":
+        array = np.ascontiguousarray(value)
         array = np.ascontiguousarray(np.asarray(array, dtype=np.bool_).astype(np.uint32))
+    else:
+        array = np.ascontiguousarray(value, dtype=np.dtype(tensor.spec.dtype))
     expected = tensor_nbytes(tensor.spec)
     if array.nbytes != expected:
         raise ValueError(f"{tensor.name} input has {array.nbytes} bytes, expected {expected}")

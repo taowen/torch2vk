@@ -14,6 +14,9 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+)
 
 
 TRANSPOSE_F32_6A3397F037 = ShaderVariant(
@@ -27,13 +30,13 @@ TRANSPOSE_F32_6A3397F037 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('I0', 'I1', 'I2',)),
+                contract=TensorContract(dtype='float16', shape=('I0', 'I1', 'I2',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('O0', 'O1', 'O2',)),
+                contract=TensorContract(dtype='float16', shape=('O0', 'O1', 'O2',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -51,12 +54,14 @@ TRANSPOSE_F32_6A3397F037 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul(mul('O0', 'O1'), 'O2'), 256), 1, 1),
     ),
-    execution_requirements=None,
+    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
+layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint N;
     uint O0;

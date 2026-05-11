@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+import re
+
 from torch.fx import Node
 
 from torch2vk.runtime.shader import (
@@ -18,6 +21,7 @@ from torch2vk.runtime.shader import (
     mul,
 )
 from torch2vk.vulkan.types import Dim
+from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
 
 _DIM_SYMBOLS = ("B", "T", "H", "D")
 
@@ -85,6 +89,88 @@ def weight_extension_source(dtype: str) -> str:
     raise ValueError(f"Unsupported weight dtype for shader generation: {dtype}")
 
 
+def activation_glsl_type(dtype: str) -> str:
+    if dtype == "float16":
+        return "float16_t"
+    if dtype == "float32":
+        return "float"
+    raise ValueError(f"Unsupported activation dtype for shader generation: {dtype}")
+
+
+def activation_extension_source(dtype: str) -> str:
+    if dtype == "float16":
+        return (
+            "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
+            "#extension GL_EXT_shader_16bit_storage : require\n"
+        )
+    if dtype == "float32":
+        return ""
+    raise ValueError(f"Unsupported activation dtype for shader generation: {dtype}")
+
+
+def activation_extension_source_for_shader(source: str, dtype: str) -> str:
+    if dtype == "float32":
+        return ""
+    if dtype != "float16":
+        raise ValueError(f"Unsupported activation dtype for shader generation: {dtype}")
+    extensions: list[str] = []
+    if "GL_EXT_shader_explicit_arithmetic_types_float16" not in source:
+        extensions.append("#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require")
+    if "GL_EXT_shader_16bit_storage" not in source:
+        extensions.append("#extension GL_EXT_shader_16bit_storage : require")
+    if not extensions:
+        return ""
+    return "\n".join(extensions) + "\n"
+
+
+def activation_requirements(
+    dtype: str,
+    requirements: ShaderExecutionRequirements | None = None,
+) -> ShaderExecutionRequirements | None:
+    if dtype == "float32":
+        return requirements
+    if dtype != "float16":
+        raise ValueError(f"Unsupported activation dtype for shader generation: {dtype}")
+    if requirements is None:
+        return ShaderExecutionRequirements(require_storage_buffer_16bit_access=True)
+    return ShaderExecutionRequirements(
+        subgroup=requirements.subgroup,
+        cooperative_matrix=requirements.cooperative_matrix,
+        require_integer_dot_product=requirements.require_integer_dot_product,
+        require_shader_int64=requirements.require_shader_int64,
+        require_buffer_device_address=requirements.require_buffer_device_address,
+        require_storage_buffer_16bit_access=True,
+    )
+
+
+def activation_io_requirements(
+    input_dtype: str,
+    output_dtype: str,
+    requirements: ShaderExecutionRequirements | None = None,
+) -> ShaderExecutionRequirements | None:
+    if "float16" in {input_dtype, output_dtype}:
+        return activation_requirements("float16", requirements)
+    return requirements
+
+
+def activation_store(value: str, dtype: str) -> str:
+    if dtype == "float16":
+        return f"float16_t({value})"
+    if dtype == "float32":
+        return value
+    raise ValueError(f"Unsupported activation dtype for shader generation: {dtype}")
+
+
+def render_shader_template(source: str, replacements: Mapping[str, str]) -> str:
+    rendered = source
+    for key, value in replacements.items():
+        rendered = rendered.replace(f"{{{{{key}}}}}", value)
+    placeholders = tuple(sorted(set(re.findall(r"\{\{[A-Z0-9_]+\}\}", rendered))))
+    if placeholders:
+        raise ValueError(f"shader source has unresolved placeholders: {', '.join(placeholders)}")
+    return rendered
+
+
 def shape_to_contract(shape: tuple[int, ...], symbols: tuple[str, ...] | None = None) -> tuple[Dim, ...]:
     if symbols is None:
         symbols = _DIM_SYMBOLS if len(shape) <= 4 else tuple(f"D{i}" for i in range(len(shape)))
@@ -125,7 +211,14 @@ def product_expr(values: tuple[ExprDim, ...]) -> ExprDim:
     return expr
 
 
-def make_unary_elementwise(glsl_source: str, name: str, node: Node) -> ShaderVariant | None:
+def make_unary_elementwise(
+    glsl_source: str,
+    name: str,
+    node: Node,
+    *,
+    input_dtype: str = "float32",
+    output_dtype: str = "float32",
+) -> ShaderVariant | None:
     out_shape = node_output_shape(node)
     if not out_shape:
         return None
@@ -139,8 +232,8 @@ def make_unary_elementwise(glsl_source: str, name: str, node: Node) -> ShaderVar
             class_name=f"Export{name.title().replace('_','')}Program",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=contract_shape)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=contract_shape)),
+                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=input_dtype, shape=contract_shape)),
+                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=output_dtype, shape=contract_shape)),
             ),
             push_constants=PushConstantSpec(
                 size=4,
@@ -149,10 +242,18 @@ def make_unary_elementwise(glsl_source: str, name: str, node: Node) -> ShaderVar
             dispatch=(ceil_div(n_expr, 256), 1, 1),
         ),
         source=glsl_source,
+        execution_requirements=activation_io_requirements(input_dtype, output_dtype),
     )
 
 
-def make_binary_same_shape(glsl_source: str, name: str, node: Node) -> ShaderVariant | None:
+def make_binary_same_shape(
+    glsl_source: str,
+    name: str,
+    node: Node,
+    *,
+    input_dtype: str = "float32",
+    output_dtype: str = "float32",
+) -> ShaderVariant | None:
     out_shape = node_output_shape(node)
     if not out_shape:
         return None
@@ -166,9 +267,9 @@ def make_binary_same_shape(glsl_source: str, name: str, node: Node) -> ShaderVar
             class_name=f"Export{name.title().replace('_','')}Program",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=contract_shape)),
-                TensorFieldSpec("y", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=contract_shape)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=contract_shape)),
+                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=input_dtype, shape=contract_shape)),
+                TensorFieldSpec("y", IOKind.INPUT, "input", TensorContract(dtype=input_dtype, shape=contract_shape)),
+                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=output_dtype, shape=contract_shape)),
             ),
             push_constants=PushConstantSpec(
                 size=4,
@@ -177,4 +278,5 @@ def make_binary_same_shape(glsl_source: str, name: str, node: Node) -> ShaderVar
             dispatch=(ceil_div(n_expr, 256), 1, 1),
         ),
         source=glsl_source,
+        execution_requirements=activation_io_requirements(input_dtype, output_dtype),
     )

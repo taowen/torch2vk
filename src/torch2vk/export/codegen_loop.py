@@ -25,6 +25,7 @@ from torch2vk.export.dispatch_codegen import (
     _prune_dead_ops,
     _resolve_all_variants,
 )
+from torch2vk.export.dtype_policy import logical_tensor_dtype, requires_float32_intermediate
 from torch2vk.export.graph import SKIP_OPS, LayerLoopHint
 from torch2vk.export.quantization import Q4KMWeightQuantization
 from torch2vk.export.tensor_codegen import (
@@ -35,7 +36,6 @@ from torch2vk.export.tensor_codegen import (
     _shape_dim_names,
     _shape_source,
     _tensor_factory_signature,
-    _logical_dtype,
     _node_dtype,
     render_tensor_class,
 )
@@ -266,6 +266,11 @@ def _graph_tensor_metas(graph: Graph, sig) -> dict[str, _TensorMeta]:
             shape=tuple(int(d) for d in tm.shape),
             dtype=_node_dtype(node),
             kind=input_kinds.get(node.name, _TensorKind.INTERMEDIATE),
+            force_float32=(
+                node.op == "call_function"
+                and input_kinds.get(node.name, _TensorKind.INTERMEDIATE) == _TensorKind.INTERMEDIATE
+                and requires_float32_intermediate(node)
+            ),
         )
     return tensor_metas
 
@@ -475,7 +480,12 @@ def generate_looped_tensor_class_sources(
             if tm:
                 shape = tuple(int(d) for d in tm.shape)
                 dtype = _node_dtype(node)
-                tensors[node.name] = _TensorMeta(shape=shape, dtype=dtype, kind=_TensorKind.INTERMEDIATE)
+                tensors[node.name] = _TensorMeta(
+                    shape=shape,
+                    dtype=dtype,
+                    kind=_TensorKind.INTERMEDIATE,
+                    force_float32=requires_float32_intermediate(node),
+                )
 
     # Prune dead tensors using full graph
     all_ops = _collect_ops(graph, node_variants)
@@ -606,7 +616,11 @@ def _render_layer_class(
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
-        dtype = _logical_dtype(kind=kind, dtype=meta.dtype)
+        dtype = logical_tensor_dtype(
+            is_parameter=kind == _TensorKind.PARAMETER,
+            dtype=meta.dtype,
+            force_float32=meta.force_float32,
+        )
         shape = meta.shape
         layout_source = "CONTIGUOUS_LAYOUT"
         if kind == _TensorKind.PARAMETER:
@@ -694,7 +708,11 @@ def _render_parent_class(
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
-        dtype = _logical_dtype(kind=kind, dtype=meta.dtype)
+        dtype = logical_tensor_dtype(
+            is_parameter=kind == _TensorKind.PARAMETER,
+            dtype=meta.dtype,
+            force_float32=meta.force_float32,
+        )
         shape = meta.shape
         layout_source = "CONTIGUOUS_LAYOUT"
         if kind == _TensorKind.PARAMETER:

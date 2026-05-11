@@ -29,7 +29,7 @@ QWEN3_ASR_TOKEN_SELECT_GREEDY_F32 = ShaderVariant(
                 name='logits',
                 io_kind=IOKind.INPUT,
                 role='logits',
-                contract=TensorContract(dtype='float32', shape=(1, 'T', 'V',)),
+                contract=TensorContract(dtype='float16', shape=(1, 'T', 'V',)),
             ),
             TensorFieldSpec(
                 name='eos_token_ids',
@@ -61,18 +61,20 @@ QWEN3_ASR_TOKEN_SELECT_GREEDY_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(1, 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_shader_int64=True),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_shader_int64=True, require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
 
 layout(std430) buffer;
 
 layout(set = 0, binding = 0) buffer restrict readonly LogitsBuffer {
-    float logits[];
+    float16_t logits[];
 };
 
 layout(set = 0, binding = 1) buffer restrict readonly EosBuffer {

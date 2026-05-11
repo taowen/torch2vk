@@ -4,7 +4,14 @@ import hashlib
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape, product_expr
+from torch2vk.export.shaders._factory import (
+    activation_extension_source,
+    activation_glsl_type,
+    activation_requirements,
+    node_input_shape,
+    node_output_shape,
+    product_expr,
+)
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -19,9 +26,10 @@ from torch2vk.runtime.shader import (
 
 _SOURCE_TEMPLATE = """\
 #version 450
+{{ACTIVATION_EXTENSION}}\
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
+layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint N;
 __PUSH_CONSTANT_DECLS__
@@ -40,7 +48,7 @@ __ENCODE_INPUT_INDEX__
 """
 
 
-def make_transpose_variant(node: Node) -> ShaderVariant | None:
+def make_transpose_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
     in_shape = node_input_shape(node, 0)
     out_shape = node_output_shape(node)
     if not in_shape or not out_shape:
@@ -76,8 +84,8 @@ def make_transpose_variant(node: Node) -> ShaderVariant | None:
             class_name="ExportTransposeProgram",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=in_contract)),
+                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
             ),
             push_constants=PushConstantSpec(
                 size=offset,
@@ -85,7 +93,8 @@ def make_transpose_variant(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(ceil_div(n_total, 256), 1, 1),
         ),
-        source=_transpose_source(len(in_shape), len(out_shape), dim0, dim1),
+        source=_transpose_source(len(in_shape), len(out_shape), dim0, dim1, activation_dtype),
+        execution_requirements=activation_requirements(activation_dtype),
     )
 
 
@@ -105,6 +114,7 @@ def _transpose_source(
     out_rank: int,
     dim0: int,
     dim1: int,
+    activation_dtype: str,
 ) -> str:
     push_lines = []
     for index in range(out_rank):
@@ -124,6 +134,8 @@ def _transpose_source(
 
     return (
         _SOURCE_TEMPLATE
+        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("__PUSH_CONSTANT_DECLS__", "\n".join(push_lines))
         .replace("__DECODE_OUTPUT_COORDS__", "\n".join(decode_lines))
         .replace("__ENCODE_INPUT_INDEX__", "\n".join(encode_lines))

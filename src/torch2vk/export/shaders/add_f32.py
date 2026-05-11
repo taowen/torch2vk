@@ -3,6 +3,9 @@ from __future__ import annotations
 from torch.fx import Node
 
 from torch2vk.export.shaders._factory import (
+    activation_extension_source,
+    activation_glsl_type,
+    activation_store,
     flat_numel_expr,
     make_binary_same_shape,
     node_output_shape,
@@ -22,15 +25,16 @@ from torch2vk.runtime.shader import (
 
 _SAME_SOURCE = """\
 #version 450
+{{ACTIVATION_EXTENSION}}\
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
+layout(set = 0, binding = 1) buffer restrict readonly YBuffer { {{ACTIVATION_TYPE}} y[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants { uint N; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) { output_values[idx] = x[idx] + y[idx]; }
+    if (idx < pc.N) { output_values[idx] = {{STORE_ADD}}; }
 }
 """
 
@@ -43,12 +47,12 @@ layout(push_constant) uniform PushConstants { uint N; float scalar; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) { output_values[idx] = x[idx] + pc.scalar; }
+    if (idx < pc.N) { output_values[idx] = float(x[idx]) + pc.scalar; }
 }
 """
 
 
-def make_add_variant(node: Node) -> ShaderVariant | None:
+def make_add_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
     out_shape = node_output_shape(node)
     if not out_shape:
         return None
@@ -56,7 +60,22 @@ def make_add_variant(node: Node) -> ShaderVariant | None:
     if len(node.args) >= 2 and not isinstance(node.args[1], Node):
         return _make_add_scalar(node, out_shape)
 
-    return make_binary_same_shape(_SAME_SOURCE, "add_f32", node)
+    return make_binary_same_shape(
+        _same_source(activation_dtype),
+        "add_f32",
+        node,
+        input_dtype=activation_dtype,
+        output_dtype=activation_dtype,
+    )
+
+
+def _same_source(activation_dtype: str) -> str:
+    return (
+        _SAME_SOURCE
+        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
+        .replace("{{STORE_ADD}}", activation_store("x[idx] + y[idx]", activation_dtype))
+    )
 
 
 def _make_add_scalar(node: Node, out_shape: tuple[int, ...]) -> ShaderVariant:

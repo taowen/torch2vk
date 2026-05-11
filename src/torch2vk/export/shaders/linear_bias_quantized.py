@@ -3,10 +3,14 @@ from __future__ import annotations
 from torch.fx import Node
 
 from torch2vk.export.shaders._factory import (
+    activation_extension_source_for_shader,
+    activation_glsl_type,
+    activation_store,
     node_input_dtype,
     node_input_shape,
     node_output_shape,
     product_expr,
+    render_shader_template,
     weight_dtype_suffix,
     weight_extension_source,
     weight_glsl_type,
@@ -29,7 +33,7 @@ from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequire
 from torch2vk.vulkan.types import q8_0_halfwords_layout
 
 
-def make_linear_bias_q8_0_variant(node: Node) -> ShaderVariant | None:
+def make_linear_bias_q8_0_variant(node: Node, activation_dtype: str = "float16") -> ShaderVariant | None:
     x_shape = node_input_shape(node, 0)
     w_shape = node_input_shape(node, 1)
     out_shape = node_output_shape(node)
@@ -37,7 +41,7 @@ def make_linear_bias_q8_0_variant(node: Node) -> ShaderVariant | None:
         return None
     k = int(x_shape[-1])
     if k % 32 != 0:
-        return make_linear_bias_variant(node)
+        return make_linear_bias_variant(node, activation_dtype)
 
     x_contract = tuple(f"X{i}" for i in range(len(x_shape) - 1)) + ("K",)
     b_contract = ("N",)
@@ -56,12 +60,13 @@ def make_linear_bias_q8_0_variant(node: Node) -> ShaderVariant | None:
                 b_contract=b_contract,
                 out_contract=out_contract,
                 bias_dtype=bias_dtype,
+                activation_dtype=activation_dtype,
                 shader_name=f"linear_bias_q8_0w_{bias_suffix}b_matvec_f32",
                 class_name=f"ExportLinearBiasQ8_0Weight{bias_suffix.title()}BiasMatvecProgram",
                 matvec=True,
             ),
             execution_requirements=_SUBGROUP64_16BIT_REQUIREMENTS,
-            source=_matvec_source(bias_dtype),
+            source=_matvec_source(bias_dtype, activation_dtype),
         )
     return ShaderVariant(
         name=f"linear_bias_q8_0w_{bias_suffix}b_f32",
@@ -71,12 +76,13 @@ def make_linear_bias_q8_0_variant(node: Node) -> ShaderVariant | None:
             b_contract=b_contract,
             out_contract=out_contract,
             bias_dtype=bias_dtype,
+            activation_dtype=activation_dtype,
             shader_name=f"linear_bias_q8_0w_{bias_suffix}b_f32",
             class_name=f"ExportLinearBiasQ8_0Weight{bias_suffix.title()}BiasProgram",
             matvec=False,
         ),
         execution_requirements=_COOPMAT_REQUIREMENTS,
-        source=_coopmat_source(bias_dtype),
+        source=_coopmat_source(bias_dtype, activation_dtype),
     )
 
 
@@ -86,6 +92,7 @@ def _contract(
     b_contract: tuple[ExprDim, ...],
     out_contract: tuple[ExprDim, ...],
     bias_dtype: str,
+    activation_dtype: str,
     shader_name: str,
     class_name: str,
     matvec: bool,
@@ -95,7 +102,7 @@ def _contract(
         class_name=class_name,
         shader_name=shader_name,
         fields=(
-            TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=x_contract)),
+            TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)),
             TensorFieldSpec(
                 "weight",
                 IOKind.INPUT,
@@ -107,7 +114,7 @@ def _contract(
                 ),
             ),
             TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=b_contract)),
-            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
         ),
         push_constants=PushConstantSpec(
             size=12,
@@ -125,20 +132,24 @@ def _contract(
     )
 
 
-def _matvec_source(bias_dtype: str) -> str:
-    return (
-        _Q8_0_MATVEC_BIAS_SOURCE
-        .replace("{{BIAS_EXTENSION}}", weight_extension_source("bfloat16") if bias_dtype == "bfloat16" else "")
-        .replace("{{BIAS_TYPE}}", weight_glsl_type(bias_dtype))
-    )
+def _matvec_source(bias_dtype: str, activation_dtype: str) -> str:
+    return render_shader_template(_Q8_0_MATVEC_BIAS_SOURCE, {
+        "ACTIVATION_EXTENSION": activation_extension_source_for_shader(_Q8_0_MATVEC_BIAS_SOURCE, activation_dtype),
+        "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+        "BIAS_EXTENSION": weight_extension_source("bfloat16") if bias_dtype == "bfloat16" else "",
+        "BIAS_TYPE": weight_glsl_type(bias_dtype),
+        "STORE_ACC0": activation_store("acc0 + float(bias[col0])", activation_dtype),
+        "STORE_ACC1": activation_store("acc1 + float(bias[col1])", activation_dtype),
+    })
 
 
-def _coopmat_source(bias_dtype: str) -> str:
-    return (
-        _Q8_0_COOPMAT_BIAS_SOURCE
-        .replace("{{BIAS_EXTENSION}}", weight_extension_source("bfloat16") if bias_dtype == "bfloat16" else "")
-        .replace("{{BIAS_TYPE}}", weight_glsl_type(bias_dtype))
-    )
+def _coopmat_source(bias_dtype: str, activation_dtype: str) -> str:
+    return render_shader_template(_Q8_0_COOPMAT_BIAS_SOURCE, {
+        "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+        "BIAS_EXTENSION": weight_extension_source("bfloat16") if bias_dtype == "bfloat16" else "",
+        "BIAS_TYPE": weight_glsl_type(bias_dtype),
+        "STORE_OUT": activation_store("shared_out[i] + float(bias[n])", activation_dtype),
+    })
 
 
 _SUBGROUP64_16BIT_REQUIREMENTS = ShaderExecutionRequirements(
@@ -157,16 +168,17 @@ _Q8_0_MATVEC_BIAS_SOURCE = """\
 #extension GL_EXT_control_flow_attributes : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_16bit_storage : require
+{{ACTIVATION_EXTENSION}}\
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 {{BIAS_EXTENSION}}\
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
 layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { {{BIAS_TYPE}} bias[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -194,7 +206,7 @@ void main() {
     float acc1 = 0.0;
     if (row < pc.M) {
         for (uint k = lane; k < pc.K; k += 64u) {
-            const float x_value = x[row * pc.K + k];
+            const float x_value = float(x[row * pc.K + k]);
             if (col0 < pc.N) { acc0 = fma(x_value, q8_0_value(col0, k), acc0); }
             if (col1 < pc.N) { acc1 = fma(x_value, q8_0_value(col1, k), acc1); }
         }
@@ -202,8 +214,8 @@ void main() {
     acc0 = subgroupAdd(acc0);
     acc1 = subgroupAdd(acc1);
     if (lane == 0u && row < pc.M) {
-        if (col0 < pc.N) { output_values[row * pc.N + col0] = acc0 + float(bias[col0]); }
-        if (col1 < pc.N) { output_values[row * pc.N + col1] = acc1 + float(bias[col1]); }
+        if (col0 < pc.N) { output_values[row * pc.N + col0] = {{STORE_ACC0}}; }
+        if (col1 < pc.N) { output_values[row * pc.N + col1] = {{STORE_ACC1}}; }
     }
 }
 """
@@ -224,10 +236,10 @@ _Q8_0_COOPMAT_BIAS_SOURCE = """\
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
 layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { {{BIAS_TYPE}} bias[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -261,7 +273,7 @@ void load_a_tile(uint lane, uint row_base, uint k_base) {
         const uint col = i - row * TILE_K;
         const uint m = row_base + row;
         const uint k = k_base + col;
-        shared_a[i] = float16_t((m < pc.M && k < pc.K) ? x[m * pc.K + k] : 0.0);
+        shared_a[i] = float16_t((m < pc.M && k < pc.K) ? float(x[m * pc.K + k]) : 0.0);
     }
 }
 
@@ -304,7 +316,7 @@ void main() {
         const uint m = row_base + row;
         const uint n = col_base + col;
         if (m < pc.M && n < pc.N) {
-            output_values[m * pc.N + n] = shared_out[i] + float(bias[n]);
+            output_values[m * pc.N + n] = {{STORE_OUT}};
         }
     }
 }

@@ -12,6 +12,10 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
+    mul,
+)
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
 )
 
 
@@ -26,7 +30,7 @@ CONV2D_BF16W_BF16B_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('B', 'Ci', 'Hi', 'Wi',)),
+                contract=TensorContract(dtype='float16', shape=('B', 'Ci', 'Hi', 'Wi',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -44,21 +48,21 @@ CONV2D_BF16W_BF16B_F32 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('B', 'Co2', 'Ho', 'Wo',)),
+                contract=TensorContract(dtype='float16', shape=('B', 'Co2', 'Ho', 'Wo',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=52,
             fields=(
-                PushConstantFieldSpec('batch', PushConstantType.UINT32, 0, 11, dynamic=False),
-                PushConstantFieldSpec('in_c', PushConstantType.UINT32, 4, 1, dynamic=False),
-                PushConstantFieldSpec('in_h', PushConstantType.UINT32, 8, 128, dynamic=False),
-                PushConstantFieldSpec('in_w', PushConstantType.UINT32, 12, 100, dynamic=False),
-                PushConstantFieldSpec('out_c', PushConstantType.UINT32, 16, 480, dynamic=False),
-                PushConstantFieldSpec('out_h', PushConstantType.UINT32, 20, 64, dynamic=False),
-                PushConstantFieldSpec('out_w', PushConstantType.UINT32, 24, 50, dynamic=False),
-                PushConstantFieldSpec('kh', PushConstantType.UINT32, 28, 3, dynamic=False),
-                PushConstantFieldSpec('kw', PushConstantType.UINT32, 32, 3, dynamic=False),
+                PushConstantFieldSpec('batch', PushConstantType.UINT32, 0, 'B', dynamic=False),
+                PushConstantFieldSpec('in_c', PushConstantType.UINT32, 4, 'Ci', dynamic=False),
+                PushConstantFieldSpec('in_h', PushConstantType.UINT32, 8, 'Hi', dynamic=False),
+                PushConstantFieldSpec('in_w', PushConstantType.UINT32, 12, 'Wi', dynamic=False),
+                PushConstantFieldSpec('out_c', PushConstantType.UINT32, 16, 'Co2', dynamic=False),
+                PushConstantFieldSpec('out_h', PushConstantType.UINT32, 20, 'Ho', dynamic=False),
+                PushConstantFieldSpec('out_w', PushConstantType.UINT32, 24, 'Wo', dynamic=False),
+                PushConstantFieldSpec('kh', PushConstantType.UINT32, 28, 'Kh', dynamic=False),
+                PushConstantFieldSpec('kw', PushConstantType.UINT32, 32, 'Kw', dynamic=False),
                 PushConstantFieldSpec('stride_h', PushConstantType.UINT32, 36, 2, dynamic=False),
                 PushConstantFieldSpec('stride_w', PushConstantType.UINT32, 40, 2, dynamic=False),
                 PushConstantFieldSpec('pad_h', PushConstantType.UINT32, 44, 1, dynamic=False),
@@ -66,17 +70,19 @@ CONV2D_BF16W_BF16B_F32 = ShaderVariant(
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(3200, 16), ceil_div(480, 16), 11),
+        dispatch=(ceil_div(mul('Ho', 'Wo'), 16), ceil_div('Co2', 16), 'B'),
     ),
-    execution_requirements=None,
+    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_bfloat16 : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { bfloat16_t weight[]; };
 layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { bfloat16_t bias[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint batch; uint in_c; uint in_h; uint in_w;
     uint out_c; uint out_h; uint out_w;
@@ -91,7 +97,7 @@ void main() {
     if (b >= pc.batch || oc >= pc.out_c || spatial >= pc.out_h * pc.out_w) return;
     const uint oh = spatial / pc.out_w;
     const uint ow = spatial - oh * pc.out_w;
-    float acc = fma(1.0, bias[oc], 0.0);
+    float acc = float(bias[oc]);
     for (uint ic = 0u; ic < pc.in_c; ++ic) {
         for (uint fh = 0u; fh < pc.kh; ++fh) {
             for (uint fw = 0u; fw < pc.kw; ++fw) {
@@ -100,12 +106,12 @@ void main() {
                 if (ih < pc.in_h && iw < pc.in_w) {
                     const uint x_idx = ((b * pc.in_c + ic) * pc.in_h + ih) * pc.in_w + iw;
                     const uint w_idx = ((oc * pc.in_c + ic) * pc.kh + fh) * pc.kw + fw;
-                    acc = fma(x[x_idx], weight[w_idx], acc);
+                    acc = fma(float(x[x_idx]), float(weight[w_idx]), acc);
                 }
             }
         }
     }
-    output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = acc;
+    output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = float16_t(acc);
 }
 """,
 )

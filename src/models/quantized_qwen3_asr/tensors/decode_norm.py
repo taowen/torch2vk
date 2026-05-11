@@ -72,7 +72,7 @@ def create_decode_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -85,7 +85,7 @@ def create_decode_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to',
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -150,7 +150,7 @@ def create_decode_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul',
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -163,7 +163,7 @@ def create_decode_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_1',
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -176,7 +176,7 @@ def create_decode_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_1',
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,

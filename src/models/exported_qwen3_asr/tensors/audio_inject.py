@@ -60,7 +60,7 @@ def create_audio_inject(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(133, 1024)),
+                spec=TensorSpec(dtype='float16', shape=(133, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -73,7 +73,7 @@ def create_audio_inject(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='unsqueeze',
-                spec=TensorSpec(dtype='float32', shape=(1, 133, 1024)),
+                spec=TensorSpec(dtype='float16', shape=(1, 133, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -86,7 +86,7 @@ def create_audio_inject(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='index_copy',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                spec=TensorSpec(dtype='float16', shape=(1, 151, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,

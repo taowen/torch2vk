@@ -34,7 +34,7 @@ LINEAR_BIAS_Q8_0W_F32B_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('X0', 'K',)),
+                contract=TensorContract(dtype='float16', shape=('X0', 'K',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -52,7 +52,7 @@ LINEAR_BIAS_Q8_0W_F32B_F32 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('X0', 'N',)),
+                contract=TensorContract(dtype='float16', shape=('X0', 'N',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -81,10 +81,10 @@ LINEAR_BIAS_Q8_0W_F32B_F32 = ShaderVariant(
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
 layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { float bias[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -118,7 +118,7 @@ void load_a_tile(uint lane, uint row_base, uint k_base) {
         const uint col = i - row * TILE_K;
         const uint m = row_base + row;
         const uint k = k_base + col;
-        shared_a[i] = float16_t((m < pc.M && k < pc.K) ? x[m * pc.K + k] : 0.0);
+        shared_a[i] = float16_t((m < pc.M && k < pc.K) ? float(x[m * pc.K + k]) : 0.0);
     }
 }
 
@@ -161,7 +161,7 @@ void main() {
         const uint m = row_base + row;
         const uint n = col_base + col;
         if (m < pc.M && n < pc.N) {
-            output_values[m * pc.N + n] = shared_out[i] + float(bias[n]);
+            output_values[m * pc.N + n] = float16_t(shared_out[i] + float(bias[n]));
         }
     }
 }

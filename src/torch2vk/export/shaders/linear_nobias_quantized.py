@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape, product_expr
+from torch2vk.export.shaders._factory import (
+    activation_extension_source_for_shader,
+    activation_glsl_type,
+    activation_requirements,
+    activation_store,
+    node_input_shape,
+    node_output_shape,
+    product_expr,
+    render_shader_template,
+)
 from torch2vk.export.shaders.linear_nobias_f32 import make_linear_nobias_variant
 from torch2vk.runtime.shader import (
     IOKind,
@@ -20,7 +29,7 @@ from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequire
 from torch2vk.vulkan.types import q4_k_words_layout, q8_0_halfwords_layout
 
 
-def make_linear_nobias_q4_k_m_variant(node: Node) -> ShaderVariant | None:
+def make_linear_nobias_q4_k_m_variant(node: Node, activation_dtype: str = "float16") -> ShaderVariant | None:
     x_shape = node_input_shape(node, 0)
     w_shape = node_input_shape(node, 1)
     out_shape = node_output_shape(node)
@@ -39,10 +48,11 @@ def make_linear_nobias_q4_k_m_variant(node: Node) -> ShaderVariant | None:
                 weight_contract=TensorContract(
                     dtype="uint32",
                     shape=("N", mul(ceil_div("K", 256), 36)),
-                layout=q4_k_words_layout(logical_k="K"),
+                    layout=q4_k_words_layout(logical_k="K"),
                 ),
                 source=_Q4_K_MATVEC_SOURCE,
                 execution_requirements=_SUBGROUP64_REQUIREMENTS,
+                activation_dtype=activation_dtype,
             )
         return _make_quantized_variant(
             name="linear_nobias_q4_k_f32",
@@ -57,10 +67,16 @@ def make_linear_nobias_q4_k_m_variant(node: Node) -> ShaderVariant | None:
             ),
             source=_Q4_K_COOPMAT_SOURCE,
             execution_requirements=_COOPMAT_REQUIREMENTS,
+            activation_dtype=activation_dtype,
         )
     if k % 32 == 0:
         if m <= 8:
-            return _make_q8_0_matvec_variant(x_shape=x_shape, w_shape=w_shape, out_shape=out_shape)
+            return _make_q8_0_matvec_variant(
+                x_shape=x_shape,
+                w_shape=w_shape,
+                out_shape=out_shape,
+                activation_dtype=activation_dtype,
+            )
         return _make_quantized_variant(
             name="linear_nobias_q8_0_f32",
             class_name="ExportLinearNobiasQ8_0Program",
@@ -74,11 +90,12 @@ def make_linear_nobias_q4_k_m_variant(node: Node) -> ShaderVariant | None:
             ),
             source=_Q8_0_COOPMAT_SOURCE,
             execution_requirements=_COOPMAT_REQUIREMENTS,
+            activation_dtype=activation_dtype,
         )
-    return make_linear_nobias_variant(node)
+    return make_linear_nobias_variant(node, activation_dtype)
 
 
-def make_linear_nobias_q8_0_variant(node: Node) -> ShaderVariant | None:
+def make_linear_nobias_q8_0_variant(node: Node, activation_dtype: str = "float16") -> ShaderVariant | None:
     x_shape = node_input_shape(node, 0)
     w_shape = node_input_shape(node, 1)
     out_shape = node_output_shape(node)
@@ -86,10 +103,15 @@ def make_linear_nobias_q8_0_variant(node: Node) -> ShaderVariant | None:
         return None
     k = int(x_shape[-1])
     if k % 32 != 0:
-        return make_linear_nobias_variant(node)
+        return make_linear_nobias_variant(node, activation_dtype)
     m = _flattened_rows(x_shape)
     if m <= 8:
-        return _make_q8_0_matvec_variant(x_shape=x_shape, w_shape=w_shape, out_shape=out_shape)
+        return _make_q8_0_matvec_variant(
+            x_shape=x_shape,
+            w_shape=w_shape,
+            out_shape=out_shape,
+            activation_dtype=activation_dtype,
+        )
     return _make_quantized_variant(
         name="linear_nobias_q8_0_f32",
         class_name="ExportLinearNobiasQ8_0Program",
@@ -103,6 +125,7 @@ def make_linear_nobias_q8_0_variant(node: Node) -> ShaderVariant | None:
         ),
         source=_Q8_0_COOPMAT_SOURCE,
         execution_requirements=_COOPMAT_REQUIREMENTS,
+        activation_dtype=activation_dtype,
     )
 
 
@@ -116,6 +139,7 @@ def _make_quantized_variant(
     weight_contract: TensorContract,
     source: str,
     execution_requirements: ShaderExecutionRequirements | None = None,
+    activation_dtype: str = "float16",
 ) -> ShaderVariant:
     x_contract = tuple(f"X{i}" for i in range(len(x_shape) - 1)) + ("K",)
     out_contract = tuple(f"X{i}" for i in range(len(out_shape) - 1)) + ("N",)
@@ -132,9 +156,9 @@ def _make_quantized_variant(
             class_name=class_name,
             shader_name=name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=x_contract)),
+                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)),
                 TensorFieldSpec("weight", IOKind.INPUT, "weight", weight_contract),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
             ),
             push_constants=PushConstantSpec(
                 size=12,
@@ -146,8 +170,8 @@ def _make_quantized_variant(
             ),
             dispatch=dispatch,
         ),
-        execution_requirements=execution_requirements,
-        source=source,
+        execution_requirements=activation_requirements(activation_dtype, execution_requirements),
+        source=_source(source, activation_dtype),
     )
 
 
@@ -156,6 +180,7 @@ def _make_q8_0_matvec_variant(
     x_shape: tuple[int, ...],
     w_shape: tuple[int, ...],
     out_shape: tuple[int, ...],
+    activation_dtype: str,
 ) -> ShaderVariant:
     return _make_quantized_variant(
         name="linear_nobias_q8_0_matvec_f32",
@@ -170,6 +195,7 @@ def _make_q8_0_matvec_variant(
         ),
         source=_Q8_0_MATVEC_SOURCE,
         execution_requirements=_SUBGROUP64_16BIT_REQUIREMENTS,
+        activation_dtype=activation_dtype,
     )
 
 
@@ -178,6 +204,21 @@ def _flattened_rows(x_shape: tuple[int, ...]) -> int:
     for dim in x_shape[:-1]:
         m *= int(dim)
     return m
+
+
+def _source(source: str, activation_dtype: str) -> str:
+    return render_shader_template(source, {
+        "ACTIVATION_EXTENSION": activation_extension_source_for_shader(source, activation_dtype),
+        "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+        "MATVEC_PAIR_X_VALUE": "float(x[row * pc.K + k_base + pair * 64u])",
+        "MATVEC_X_VALUE": "float(x[row * pc.K + k])",
+        "LOAD_A0": "float(x[m0 * pc.K + k])",
+        "LOAD_A1": "float(x[m1 * pc.K + k])",
+        "STORE_ACC0": activation_store("acc0", activation_dtype),
+        "STORE_ACC1": activation_store("acc1", activation_dtype),
+        "STORE_OUT0": activation_store("shared_out0[i]", activation_dtype),
+        "STORE_OUT1": activation_store("shared_out1[i]", activation_dtype),
+    })
 
 
 _SUBGROUP64_REQUIREMENTS = ShaderExecutionRequirements(
@@ -199,12 +240,13 @@ _Q4_K_MATVEC_SOURCE = """\
 #extension GL_EXT_control_flow_attributes : enable
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
+{{ACTIVATION_EXTENSION}}\
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint weight[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -251,7 +293,7 @@ void q4k_accumulate_pair(
     const vec2 dm1 = has_col1 ? unpackHalf2x16(weight[block_word1]) : vec2(0.0);
 
     [[unroll]] for (uint pair = 0u; pair < 4u; ++pair) {
-        const float x_value = x[row * pc.K + k_base + pair * 64u];
+        const float x_value = {{MATVEC_PAIR_X_VALUE}};
         const uint q_byte_offset = 16u + pair * 32u + byte_index;
         const uint subblock = pair * 2u + subblock_base;
         if (has_col0) {
@@ -289,8 +331,8 @@ void main() {
     acc0 = subgroupAdd(acc0);
     acc1 = subgroupAdd(acc1);
     if (lane == 0u && row < pc.M) {
-        if (col0 < pc.N) { output_values[row * pc.N + col0] = acc0; }
-        if (col1 < pc.N) { output_values[row * pc.N + col1] = acc1; }
+        if (col0 < pc.N) { output_values[row * pc.N + col0] = {{STORE_ACC0}}; }
+        if (col1 < pc.N) { output_values[row * pc.N + col1] = {{STORE_ACC1}}; }
     }
 }
 """
@@ -304,12 +346,13 @@ _Q8_0_MATVEC_SOURCE = """\
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
+{{ACTIVATION_EXTENSION}}\
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -337,7 +380,7 @@ void main() {
     float acc1 = 0.0;
     if (row < pc.M) {
         for (uint k = lane; k < pc.K; k += 64u) {
-            const float x_value = x[row * pc.K + k];
+            const float x_value = {{MATVEC_X_VALUE}};
             if (col0 < pc.N) { acc0 = fma(x_value, q8_0_value(col0, k), acc0); }
             if (col1 < pc.N) { acc1 = fma(x_value, q8_0_value(col1, k), acc1); }
         }
@@ -345,8 +388,8 @@ void main() {
     acc0 = subgroupAdd(acc0);
     acc1 = subgroupAdd(acc1);
     if (lane == 0u && row < pc.M) {
-        if (col0 < pc.N) { output_values[row * pc.N + col0] = acc0; }
-        if (col1 < pc.N) { output_values[row * pc.N + col1] = acc1; }
+        if (col0 < pc.N) { output_values[row * pc.N + col0] = {{STORE_ACC0}}; }
+        if (col1 < pc.N) { output_values[row * pc.N + col1] = {{STORE_ACC1}}; }
     }
 }
 """
@@ -366,9 +409,9 @@ _COOPMAT_COMMON_HEADER = """\
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
 {{WEIGHT_BUFFER}}
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -397,8 +440,8 @@ void load_a_tile_pair(uint lane, uint row_base, uint k_base) {
         const uint m0 = row_base + row;
         const uint m1 = row_base + TILE_M + row;
         const uint k = k_base + col;
-        shared_a0[i] = float16_t((m0 < pc.M && k < pc.K) ? x[m0 * pc.K + k] : 0.0);
-        shared_a1[i] = float16_t((m1 < pc.M && k < pc.K) ? x[m1 * pc.K + k] : 0.0);
+        shared_a0[i] = float16_t((m0 < pc.M && k < pc.K) ? {{LOAD_A0}} : 0.0);
+        shared_a1[i] = float16_t((m1 < pc.M && k < pc.K) ? {{LOAD_A1}} : 0.0);
     }
 }
 
@@ -449,10 +492,10 @@ void main() {
         const uint n = col_base + col;
         if (n < pc.N) {
             if (m0 < pc.M) {
-                output_values[m0 * pc.N + n] = shared_out0[i];
+                output_values[m0 * pc.N + n] = {{STORE_OUT0}};
             }
             if (m1 < pc.M) {
-                output_values[m1 * pc.N + n] = shared_out1[i];
+                output_values[m1 * pc.N + n] = {{STORE_OUT1}};
             }
         }
     }
@@ -521,8 +564,8 @@ void load_a_tile_pair(uint lane, uint row_base, uint k_base) {
         const uint m0 = row_base + row;
         const uint m1 = row_base + TILE_M + row;
         const uint k = k_base + col;
-        shared_a0[i] = float16_t((m0 < pc.M && k < pc.K) ? x[m0 * pc.K + k] : 0.0);
-        shared_a1[i] = float16_t((m1 < pc.M && k < pc.K) ? x[m1 * pc.K + k] : 0.0);
+        shared_a0[i] = float16_t((m0 < pc.M && k < pc.K) ? {{LOAD_A0}} : 0.0);
+        shared_a1[i] = float16_t((m1 < pc.M && k < pc.K) ? {{LOAD_A1}} : 0.0);
     }
 }
 
@@ -594,10 +637,10 @@ void main() {
         const uint n = col_base + col;
         if (n < pc.N) {
             if (m0 < pc.M) {
-                output_values[m0 * pc.N + n] = shared_out0[i];
+                output_values[m0 * pc.N + n] = {{STORE_OUT0}};
             }
             if (m1 < pc.M) {
-                output_values[m1 * pc.N + n] = shared_out1[i];
+                output_values[m1 * pc.N + n] = {{STORE_OUT1}};
             }
         }
     }

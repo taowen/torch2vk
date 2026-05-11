@@ -41,7 +41,7 @@ void main() {
 """
 
 
-def make_mean_dim_variant(node: Node) -> ShaderVariant | None:
+def make_mean_dim_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
     in_shape = node_input_shape(node, 0)
     out_shape = node_output_shape(node)
     if not in_shape or not out_shape:

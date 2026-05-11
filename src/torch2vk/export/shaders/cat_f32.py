@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_output_shape, product_expr
+from torch2vk.export.shaders._factory import (
+    activation_extension_source,
+    activation_glsl_type,
+    activation_requirements,
+    node_output_shape,
+    product_expr,
+)
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -17,10 +23,11 @@ from torch2vk.runtime.shader import (
 
 _SOURCE = """\
 #version 450
+{{ACTIVATION_EXTENSION}}\
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly ABuffer { float a[]; };
-layout(set = 0, binding = 1) buffer restrict readonly BBuffer { float b[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly ABuffer { {{ACTIVATION_TYPE}} a[]; };
+layout(set = 0, binding = 1) buffer restrict readonly BBuffer { {{ACTIVATION_TYPE}} b[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants { uint N_OUT; uint A_STRIDE; uint B_STRIDE; uint OUT_STRIDE; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
@@ -38,7 +45,7 @@ void main() {
 """
 
 
-def make_cat_variant(node: Node) -> ShaderVariant | None:
+def make_cat_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
     out_shape = node_output_shape(node)
     if not out_shape:
         return None
@@ -86,9 +93,9 @@ def make_cat_variant(node: Node) -> ShaderVariant | None:
             class_name="ExportCatProgram",
             shader_name="cat_f32",
             fields=(
-                TensorFieldSpec("a", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=a_contract)),
-                TensorFieldSpec("b", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=b_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+                TensorFieldSpec("a", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=a_contract)),
+                TensorFieldSpec("b", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=b_contract)),
+                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
             ),
             push_constants=PushConstantSpec(
                 size=16,
@@ -101,5 +108,14 @@ def make_cat_variant(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(ceil_div(n_out, 256), 1, 1),
         ),
-        source=_SOURCE,
+        source=_source(activation_dtype),
+        execution_requirements=activation_requirements(activation_dtype),
+    )
+
+
+def _source(activation_dtype: str) -> str:
+    return (
+        _SOURCE
+        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
     )

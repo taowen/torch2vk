@@ -20,6 +20,7 @@ from torch2vk.export.dispatch_codegen import (
     _prune_dead_ops,
     _resolve_all_variants,
 )
+from torch2vk.export.dtype_policy import logical_tensor_dtype, requires_float32_intermediate
 from torch2vk.export.graph import SKIP_OPS
 from torch2vk.export.quantization import Q4KMWeightQuantization
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
@@ -39,6 +40,7 @@ class _TensorMeta:
     shape: tuple[int, ...]
     dtype: str
     kind: _TensorKind
+    force_float32: bool = False
 
 
 def render_tensor_module(classes: list[TensorClassContext]) -> str:
@@ -152,7 +154,12 @@ def generate_tensor_class_source(
             if tm:
                 shape = tuple(int(d) for d in tm.shape)
                 dtype = _node_dtype(node)
-                tensors[node.name] = _TensorMeta(shape=shape, dtype=dtype, kind=_TensorKind.INTERMEDIATE)
+                tensors[node.name] = _TensorMeta(
+                    shape=shape,
+                    dtype=dtype,
+                    kind=_TensorKind.INTERMEDIATE,
+                    force_float32=requires_float32_intermediate(node),
+                )
 
     output_name = _find_output_name(graph, tensors)
 
@@ -227,7 +234,11 @@ def _tensor_entry(
     shape_exprs: Mapping[int, str] | None = None,
 ) -> dict[str, object]:
     kind = meta.kind
-    dtype = _logical_dtype(kind=kind, dtype=meta.dtype)
+    dtype = logical_tensor_dtype(
+        is_parameter=kind == _TensorKind.PARAMETER,
+        dtype=meta.dtype,
+        force_float32=meta.force_float32,
+    )
     shape = meta.shape
     layout_source = "CONTIGUOUS_LAYOUT"
     if kind == _TensorKind.PARAMETER and weight_quantization is not None:
@@ -302,14 +313,6 @@ def _node_dtype(node: Node) -> str:
     if tm is None:
         return ""
     return str(tm.dtype).removeprefix("torch.")
-
-
-def _logical_dtype(*, kind: _TensorKind, dtype: str) -> str:
-    if kind == _TensorKind.PARAMETER:
-        if dtype in {"bfloat16", "float32", "float16", "int64", "int32", "uint32"}:
-            return dtype
-        raise ValueError(f"Unsupported checkpoint parameter dtype: {dtype}")
-    return dtype if dtype in ("int64", "int32", "uint32") else "float32"
 
 
 def _checkpoint_key_expr(

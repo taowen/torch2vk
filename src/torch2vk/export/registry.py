@@ -1,4 +1,9 @@
-"""Maps aten op targets to shader variant factories."""
+"""Maps aten op targets to shader variant factories.
+
+Historical shader names often keep an ``_f32`` suffix because the shader family
+uses f32 arithmetic or accumulation. Activation storage dtype is defined by the
+ShaderVariant contracts produced by each factory, not by the name suffix.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +16,7 @@ from torch2vk.export.shaders import (
     make_add_variant,
     make_argmax_variant,
     make_cat_variant,
+    make_conv2d_q8_0_variant,
     make_conv2d_variant,
     make_embedding_q8_0_variant,
     make_embedding_variant,
@@ -41,41 +47,45 @@ from torch2vk.runtime.shader import ShaderVariant
 @dataclass(frozen=True, slots=True)
 class ShaderBinding:
     target: str
-    factory: Callable[[Node], ShaderVariant | None]
+    factory: Callable[[Node, str], ShaderVariant | None]
 
 
 class ShaderRegistry:
-    def __init__(self, bindings: list[ShaderBinding]) -> None:
+    def __init__(self, bindings: list[ShaderBinding], *, activation_dtype: str = "float16") -> None:
         self._bindings = bindings
+        self._activation_dtype = activation_dtype
 
     def resolve(self, node: Node) -> ShaderVariant | None:
         target = str(node.target)
         for binding in self._bindings:
             if binding.target != target:
                 continue
-            return binding.factory(node)
+            variant = binding.factory(node, self._activation_dtype)
+            if variant is None:
+                return None
+            return variant
         return None
 
 
-def _make_linear_variant(node: Node) -> ShaderVariant | None:
+def _make_linear_variant(node: Node, activation_dtype: str) -> ShaderVariant | None:
     has_bias = len(node.args) >= 3 and isinstance(node.args[2], Node)
     if has_bias:
-        return make_linear_bias_variant(node)
-    return make_linear_nobias_variant(node)
+        return make_linear_bias_variant(node, activation_dtype)
+    return make_linear_nobias_variant(node, activation_dtype)
 
 
-def _make_q4_k_m_linear_variant(node: Node) -> ShaderVariant | None:
+def _make_q4_k_m_linear_variant(node: Node, activation_dtype: str) -> ShaderVariant | None:
     has_bias = len(node.args) >= 3 and isinstance(node.args[2], Node)
     if has_bias:
-        return make_linear_bias_variant(node)
-    return make_linear_nobias_q4_k_m_variant(node)
+        return make_linear_bias_variant(node, activation_dtype)
+    return make_linear_nobias_q4_k_m_variant(node, activation_dtype)
 
 
-def _make_q8_0_linear_variant(node: Node) -> ShaderVariant | None:
+def _make_q8_0_linear_variant(node: Node, activation_dtype: str) -> ShaderVariant | None:
     has_bias = len(node.args) >= 3 and isinstance(node.args[2], Node)
     if has_bias:
-        return make_linear_bias_q8_0_variant(node)
-    return make_linear_nobias_q8_0_variant(node)
+        return make_linear_bias_q8_0_variant(node, activation_dtype)
+    return make_linear_nobias_q8_0_variant(node, activation_dtype)
 
 
 DEFAULT_REGISTRY = ShaderRegistry([
@@ -144,7 +154,7 @@ Q8_0_REGISTRY = ShaderRegistry([
     ShaderBinding("aten.layer_norm.default", make_layer_norm_variant),
     ShaderBinding("aten.max.default", make_max_variant),
     ShaderBinding("aten.embedding.default", make_embedding_q8_0_variant),
-    ShaderBinding("aten.conv2d.default", make_conv2d_variant),
+    ShaderBinding("aten.conv2d.default", make_conv2d_q8_0_variant),
     ShaderBinding("aten.argmax.default", make_argmax_variant),
     ShaderBinding("aten.index_copy.default", make_index_copy_variant),
     ShaderBinding("aten.index_select.default", make_index_select_variant),

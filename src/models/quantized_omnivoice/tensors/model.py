@@ -62,7 +62,7 @@ def create_model_tensors(*, target_len: int) -> QuantizedOmniVoiceTensors:
     )
     batch_input_ids = _state_tensor("int64", (2, 8, 85))
     batch_audio_mask = _state_tensor("uint32", (2, 85))
-    attention_mask = _state_tensor("float32", (2, 1, 85, 85))
+    attention_mask = _state_tensor("float16", (2, 1, 85, 85))
     audio_mask_id = _state_tensor("int64", (1,))
     rng_seed = _state_tensor("uint32", (1,))
     step_index = _host_input_tensor("uint32", (1,))
@@ -77,7 +77,7 @@ def create_model_tensors(*, target_len: int) -> QuantizedOmniVoiceTensors:
         head_dim=128,
     )
     hidden_states = _activation_tensor(
-        "float32",
+        "float16",
         (2, 85, 1024),
     )
     llm_forward = create_llm_forward(

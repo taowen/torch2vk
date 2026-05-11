@@ -54,7 +54,7 @@ OMNIVOICE_INPUT_EMBED_F32 = ShaderVariant(
                 name='hidden_states',
                 io_kind=IOKind.OUTPUT,
                 role='hidden_states',
-                contract=TensorContract(dtype='float32', shape=('B', 'S', 'H',)),
+                contract=TensorContract(dtype='float16', shape=('B', 'S', 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -70,11 +70,13 @@ OMNIVOICE_INPUT_EMBED_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul(mul('B', 'S'), 'H'), 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True, require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 
 layout(std430) buffer;
 
@@ -95,7 +97,7 @@ layout(set = 0, binding = 3) buffer restrict readonly BatchAudioMaskBuffer {
 };
 
 layout(set = 0, binding = 4) buffer restrict writeonly HiddenStatesBuffer {
-    float hidden_states[];
+    float16_t hidden_states[];
 };
 
 layout(push_constant) uniform PushConstants {
@@ -128,13 +130,13 @@ void main() {
             const uint row = c * pc.V + token;
             value += float(audio_weight[row * pc.H + h]);
         }
-        hidden_states[idx] = value;
+        hidden_states[idx] = float16_t(value);
         return;
     }
 
     const uint text_offset = (b * pc.C) * pc.S + s;
     const uint text_token = uint(batch_input_ids[text_offset]);
-    hidden_states[idx] = float(text_weight[text_token * pc.H + h]);
+    hidden_states[idx] = float16_t(text_weight[text_token * pc.H + h]);
 }
 """,
 )

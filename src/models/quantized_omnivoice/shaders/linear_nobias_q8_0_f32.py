@@ -34,7 +34,7 @@ LINEAR_NOBIAS_Q8_0_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('X0', 'X1', 'K',)),
+                contract=TensorContract(dtype='float16', shape=('X0', 'X1', 'K',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -46,19 +46,19 @@ LINEAR_NOBIAS_Q8_0_F32 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('X0', 'X1', 'N',)),
+                contract=TensorContract(dtype='float16', shape=('X0', 'X1', 'N',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 170, dynamic=False),
-                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 1024, dynamic=False),
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 8200, dynamic=False),
+                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, mul('X0', 'X1'), dynamic=False),
+                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 'K', dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 'N', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(170, 32), ceil_div(8200, 16), 1),
+        dispatch=(ceil_div(mul('X0', 'X1'), 32), ceil_div('N', 16), 1),
     ),
     execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_storage_buffer_16bit_access=True),
     source="""\
@@ -75,10 +75,10 @@ LINEAR_NOBIAS_Q8_0_F32 = ShaderVariant(
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
 
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -116,8 +116,8 @@ void load_a_tile_pair(uint lane, uint row_base, uint k_base) {
         const uint m0 = row_base + row;
         const uint m1 = row_base + TILE_M + row;
         const uint k = k_base + col;
-        shared_a0[i] = float16_t((m0 < pc.M && k < pc.K) ? x[m0 * pc.K + k] : 0.0);
-        shared_a1[i] = float16_t((m1 < pc.M && k < pc.K) ? x[m1 * pc.K + k] : 0.0);
+        shared_a0[i] = float16_t((m0 < pc.M && k < pc.K) ? float(x[m0 * pc.K + k]) : 0.0);
+        shared_a1[i] = float16_t((m1 < pc.M && k < pc.K) ? float(x[m1 * pc.K + k]) : 0.0);
     }
 }
 
@@ -168,10 +168,10 @@ void main() {
         const uint n = col_base + col;
         if (n < pc.N) {
             if (m0 < pc.M) {
-                output_values[m0 * pc.N + n] = shared_out0[i];
+                output_values[m0 * pc.N + n] = float16_t(shared_out0[i]);
             }
             if (m1 < pc.M) {
-                output_values[m1 * pc.N + n] = shared_out1[i];
+                output_values[m1 * pc.N + n] = float16_t(shared_out1[i]);
             }
         }
     }

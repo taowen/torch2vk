@@ -12,6 +12,9 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
 )
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+)
 
 
 LAYER_NORM_F32W_F32B_F32 = ShaderVariant(
@@ -25,7 +28,7 @@ LAYER_NORM_F32W_F32B_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('I0', 'I1',)),
+                contract=TensorContract(dtype='float16', shape=('I0', 'I1',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -43,7 +46,7 @@ LAYER_NORM_F32W_F32B_F32 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('O0', 'O1',)),
+                contract=TensorContract(dtype='float16', shape=('O0', 'O1',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -57,14 +60,16 @@ LAYER_NORM_F32W_F32B_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=('I0', 1, 1),
     ),
-    execution_requirements=None,
+    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { float weight[]; };
 layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { float bias[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants { uint ROWS; uint COLS; float eps; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 shared float partial_sum[256];
@@ -76,7 +81,7 @@ void main() {
     float sum = 0.0;
     float sumsq = 0.0;
     for (uint c = tid; c < pc.COLS; c += 256u) {
-        float v = x[row * pc.COLS + c];
+        float v = float(x[row * pc.COLS + c]);
         sum += v;
         sumsq += v * v;
     }
@@ -95,7 +100,7 @@ void main() {
     float inv_std = inversesqrt(var + pc.eps);
     for (uint c = tid; c < pc.COLS; c += 256u) {
         uint idx = row * pc.COLS + c;
-        output_values[idx] = fma((x[idx] - mean) * inv_std, weight[c], bias[c]);
+        output_values[idx] = float16_t((float(x[idx]) - mean) * inv_std * float(weight[c]) + float(bias[c]));
     }
 }
 """,

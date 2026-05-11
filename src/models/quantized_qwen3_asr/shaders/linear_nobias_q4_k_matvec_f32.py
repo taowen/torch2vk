@@ -34,7 +34,7 @@ LINEAR_NOBIAS_Q4_K_MATVEC_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('X0', 'X1', 'K',)),
+                contract=TensorContract(dtype='float16', shape=('X0', 'X1', 'K',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -46,7 +46,7 @@ LINEAR_NOBIAS_Q4_K_MATVEC_F32 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('X0', 'X1', 'N',)),
+                contract=TensorContract(dtype='float16', shape=('X0', 'X1', 'N',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -60,19 +60,21 @@ LINEAR_NOBIAS_Q4_K_MATVEC_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div('N', 2), mul('X0', 'X1'), 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 
 #extension GL_EXT_control_flow_attributes : enable
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint weight[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -119,7 +121,7 @@ void q4k_accumulate_pair(
     const vec2 dm1 = has_col1 ? unpackHalf2x16(weight[block_word1]) : vec2(0.0);
 
     [[unroll]] for (uint pair = 0u; pair < 4u; ++pair) {
-        const float x_value = x[row * pc.K + k_base + pair * 64u];
+        const float x_value = float(x[row * pc.K + k_base + pair * 64u]);
         const uint q_byte_offset = 16u + pair * 32u + byte_index;
         const uint subblock = pair * 2u + subblock_base;
         if (has_col0) {
@@ -157,8 +159,8 @@ void main() {
     acc0 = subgroupAdd(acc0);
     acc1 = subgroupAdd(acc1);
     if (lane == 0u && row < pc.M) {
-        if (col0 < pc.N) { output_values[row * pc.N + col0] = acc0; }
-        if (col1 < pc.N) { output_values[row * pc.N + col1] = acc1; }
+        if (col0 < pc.N) { output_values[row * pc.N + col0] = float16_t(acc0); }
+        if (col1 < pc.N) { output_values[row * pc.N + col1] = float16_t(acc1); }
     }
 }
 """,

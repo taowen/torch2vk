@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape, product_expr
+from torch2vk.export.shaders._factory import (
+    activation_extension_source,
+    activation_glsl_type,
+    activation_requirements,
+    node_input_shape,
+    node_output_shape,
+    product_expr,
+)
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -17,9 +24,10 @@ from torch2vk.runtime.shader import (
 
 _SOURCE = """\
 #version 450
+{{ACTIVATION_EXTENSION}}\
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
+layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants { uint N_OUT; uint IN_STRIDE; uint OUT_STRIDE; uint OFFSET; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
@@ -33,7 +41,7 @@ void main() {
 """
 
 
-def make_slice_variant(node: Node) -> ShaderVariant | None:
+def make_slice_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
     in_shape = node_input_shape(node, 0)
     out_shape = node_output_shape(node)
     if not in_shape or not out_shape:
@@ -75,8 +83,8 @@ def make_slice_variant(node: Node) -> ShaderVariant | None:
             class_name="ExportSliceProgram",
             shader_name="slice_f32",
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=in_contract)),
+                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
             ),
             push_constants=PushConstantSpec(
                 size=16,
@@ -89,5 +97,14 @@ def make_slice_variant(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(ceil_div(n_out, 256), 1, 1),
         ),
-        source=_SOURCE,
+        source=_source(activation_dtype),
+        execution_requirements=activation_requirements(activation_dtype),
+    )
+
+
+def _source(activation_dtype: str) -> str:
+    return (
+        _SOURCE
+        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
     )

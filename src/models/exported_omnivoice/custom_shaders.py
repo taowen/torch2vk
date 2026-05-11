@@ -55,7 +55,7 @@ OMNIVOICE_INPUT_EMBED_F32 = ShaderVariant(
                 "hidden_states",
                 IOKind.OUTPUT,
                 "hidden_states",
-                TensorContract(dtype="float32", shape=("B", "S", "H")),
+                TensorContract(dtype="float16", shape=("B", "S", "H")),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -70,11 +70,16 @@ OMNIVOICE_INPUT_EMBED_F32 = ShaderVariant(
         ),
         dispatch=(ceil_div(mul(mul("B", "S"), "H"), 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+    execution_requirements=ShaderExecutionRequirements(
+        require_shader_int64=True,
+        require_storage_buffer_16bit_access=True,
+    ),
     source="""
 #version 450
 
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 
 layout(std430) buffer;
 
@@ -95,7 +100,7 @@ layout(set = 0, binding = 3) buffer restrict readonly BatchAudioMaskBuffer {
 };
 
 layout(set = 0, binding = 4) buffer restrict writeonly HiddenStatesBuffer {
-    float hidden_states[];
+    float16_t hidden_states[];
 };
 
 layout(push_constant) uniform PushConstants {
@@ -128,13 +133,13 @@ void main() {
             const uint row = c * pc.V + token;
             value += float(audio_weight[row * pc.H + h]);
         }
-        hidden_states[idx] = value;
+        hidden_states[idx] = float16_t(value);
         return;
     }
 
     const uint text_offset = (b * pc.C) * pc.S + s;
     const uint text_token = uint(batch_input_ids[text_offset]);
-    hidden_states[idx] = float(text_weight[text_token * pc.H + h]);
+    hidden_states[idx] = float16_t(text_weight[text_token * pc.H + h]);
 }
 """.lstrip(),
 )
@@ -151,7 +156,7 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
                 "logits",
                 IOKind.INPUT,
                 "logits",
-                TensorContract(dtype="float32", shape=(2, "S", "CV")),
+                TensorContract(dtype="float16", shape=(2, "S", "CV")),
             ),
             TensorFieldSpec(
                 "tokens",
@@ -204,16 +209,21 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
         ),
         dispatch=(ceil_div(mul("C", "T"), 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+    execution_requirements=ShaderExecutionRequirements(
+        require_shader_int64=True,
+        require_storage_buffer_16bit_access=True,
+    ),
     source="""
 #version 450
 
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 
 layout(std430) buffer;
 
 layout(set = 0, binding = 0) buffer restrict readonly LogitsBuffer {
-    float logits[];
+    float16_t logits[];
 };
 
 layout(set = 0, binding = 1) buffer restrict readonly TokensBuffer {
@@ -277,8 +287,8 @@ float gumbel_noise(uint flat_pos) {
 
 float guided_logit(uint batch, uint seq, uint codebook, uint token, float c_max, float c_sum, float u_max, float u_sum) {
     const uint offset = codebook * pc.V + token;
-    const float c_logit = logits[(0u * pc.S + seq) * (pc.C * pc.V) + offset];
-    const float u_logit = logits[(1u * pc.S + batch) * (pc.C * pc.V) + offset];
+    const float c_logit = float(logits[(0u * pc.S + seq) * (pc.C * pc.V) + offset]);
+    const float u_logit = float(logits[(1u * pc.S + batch) * (pc.C * pc.V) + offset]);
     const float c_log_prob = c_logit - c_max - log(c_sum);
     const float u_log_prob = u_logit - u_max - log(u_sum);
     return c_log_prob + pc.guidance_scale * (c_log_prob - u_log_prob);
@@ -302,16 +312,16 @@ void main() {
     float u_max = -3.4028234663852886e+38;
     for (uint token = 0u; token < pc.V; ++token) {
         const uint offset = vocab_offset + token;
-        c_max = max(c_max, logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset]);
-        u_max = max(u_max, logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset]);
+        c_max = max(c_max, float(logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset]));
+        u_max = max(u_max, float(logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset]));
     }
 
     float c_sum = 0.0;
     float u_sum = 0.0;
     for (uint token = 0u; token < pc.V; ++token) {
         const uint offset = vocab_offset + token;
-        c_sum += exp(logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset] - c_max);
-        u_sum += exp(logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset] - u_max);
+        c_sum += exp(float(logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset]) - c_max);
+        u_sum += exp(float(logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset]) - u_max);
     }
 
     float guided_max = -3.4028234663852886e+38;

@@ -38,15 +38,22 @@ from models.optimized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
 from models.optimized_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
-from torch2vk.runtime.rope_table import run_rope_table_f32
+from torch2vk.runtime.rope_table import ROPE_TABLE_F32, run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.shader_loader import make_shader_loader
 
-_DECODE_REPLAY_CACHE = "optimized_qwen3_asr_decode_step:v1"
+_DECODE_REPLAY_CACHE = "optimized_qwen3_asr_decode_step:v2"
 _PROMPT_LENGTH = 151
 _MAX_NEW_TOKENS = 64
 _STOP_CHECK_INTERVAL = 2
-get_shader = make_shader_loader("models.optimized_qwen3_asr.shaders")
+_model_shader = make_shader_loader("models.optimized_qwen3_asr.shaders")
+
+
+def get_shader(name: str) -> ShaderVariant:
+    if name == ROPE_TABLE_F32.name:
+        return ROPE_TABLE_F32
+    return _model_shader(name)
 
 
 def _require_gpu_output(tensor: LogicalTensor) -> None:
@@ -102,6 +109,13 @@ def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
     if not tensors.decode_layers:
         raise ValueError("decode_layers must not be empty")
     with rt.frame(f"spike.decode.{step:04d}"):
+        ROPE_TABLE_F32(
+            rt,
+            start_position=tensors.decode_rope.start_position,
+            theta=tensors.decode_rope.theta,
+            cos=tensors.decode_rope.cos,
+            sin=tensors.decode_rope.sin,
+        )
         run_decode_embed(rt)
         for layer_idx in range(len(tensors.decode_layers)):
             run_decode_layer(rt, layer_idx)
@@ -152,6 +166,7 @@ def _run_rope_table(
 def _decode_step_inputs(
     *,
     cache_position: int,
+    rope_theta: float,
     eos_token_array: np.ndarray,
     token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
@@ -159,6 +174,8 @@ def _decode_step_inputs(
     if not tensors.decode_layers:
         raise ValueError("decode_layers must not be empty")
     return {
+        tensors.decode_rope.start_position: np.array([cache_position], dtype=np.int64),
+        tensors.decode_rope.theta: np.array([rope_theta], dtype=np.float32),
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
         tensors.eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
         tensors.token_index: np.array([token_index_value], dtype=np.int64),
@@ -412,118 +429,85 @@ def main(
     print("\n=== Phase 3: Decode Loop ===")
     decode_replay_plan: ReplayPlan | None = None
 
-    # Memory sampling
-    memory_trace: list[tuple[int, float, float, float]] = []
     baseline_stats = rt.device.allocation_stats()
     print(f"  Baseline GPU memory: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
           f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB")
 
     decode_start = time.perf_counter()
-    for step in range(max_new_tokens - 1):
-        if _request_stopped(rt):
-            print(f"  EOS at step {step}")
-            break
+    decode_steps = 0
+    if _request_stopped(rt):
+        print("  EOS after prefill")
+    else:
+        for step in range(max_new_tokens - 1):
+            cache_pos = prompt_length + step
 
-        cache_pos = prompt_length + step
-
-        rt.register_inputs(
-            {
-                model_tensors().decode_rope.start_position: np.array(
-                    [cache_pos],
-                    dtype=np.int64,
-                ),
-                model_tensors().decode_rope.theta: np.array(
-                    [rope_theta],
-                    dtype=np.float32,
-                ),
-            }
-        )
-        _run_rope_table(
-            rt,
-            phase="decode",
-            frame_name=f"spike.decode.rope.{step:04d}",
-        )
-
-        decode_step_inputs = _decode_step_inputs(
-            cache_position=cache_pos,
-            eos_token_array=eos_token_array,
-            token_index_value=step + 1,
-        )
-        if decode_replay_plan is None:
-            rt.register_inputs(decode_step_inputs)
-            decode_replay_plan = _cached_decode_replay_plan(
-                rt,
-                cache_namespace=replay_cache_namespace,
+            decode_step_inputs = _decode_step_inputs(
+                cache_position=cache_pos,
+                rope_theta=rope_theta,
+                eos_token_array=eos_token_array,
+                token_index_value=step + 1,
             )
             if decode_replay_plan is None:
-                _run_decode_step(
+                rt.register_inputs(decode_step_inputs)
+                decode_replay_plan = _cached_decode_replay_plan(
                     rt,
-                    step=step,
-                )
-                decode_replay_plan = _build_decode_replay_plan(
-                    rt,
-                    frame=f"spike.decode.{step:04d}",
                     cache_namespace=replay_cache_namespace,
                 )
+                if decode_replay_plan is None:
+                    _run_decode_step(
+                        rt,
+                        step=step,
+                    )
+                    decode_replay_plan = _build_decode_replay_plan(
+                        rt,
+                        frame=f"spike.decode.{step:04d}",
+                        cache_namespace=replay_cache_namespace,
+                    )
+                else:
+                    stage_replay_step_inputs(
+                        rt,
+                        plan=decode_replay_plan,
+                        inputs=decode_step_inputs,
+                        write_through=(
+                            model_tensors().decode_rope.start_position,
+                            model_tensors().decode_rope.theta,
+                            model_tensors().decode_layers[0].cache_position,
+                            model_tensors().token_index,
+                        ),
+                    )
+                    execute_replay(decode_replay_plan)
             else:
                 stage_replay_step_inputs(
                     rt,
                     plan=decode_replay_plan,
                     inputs=decode_step_inputs,
                     write_through=(
+                        model_tensors().decode_rope.start_position,
+                        model_tensors().decode_rope.theta,
                         model_tensors().decode_layers[0].cache_position,
                         model_tensors().token_index,
                     ),
                 )
                 execute_replay(decode_replay_plan)
-        else:
-            stage_replay_step_inputs(
-                rt,
-                plan=decode_replay_plan,
-                inputs=decode_step_inputs,
-                write_through=(
-                    model_tensors().decode_layers[0].cache_position,
-                    model_tensors().token_index,
-                ),
-            )
-            execute_replay(decode_replay_plan)
 
-        stats = rt.device.allocation_stats()
-        memory_trace.append(
-            (
-                step,
-                stats.device_local_live_bytes / 1024**2,
-                stats.device_local_reserved_bytes / 1024**2,
-                stats.host_upload_live_bytes / 1024**2,
-            )
-        )
+            decode_steps += 1
 
-        if step < 5 or step % 20 == 0:
-            print(f"  Step {step}: gpu={stats.device_local_live_bytes / 1024**2:.1f}MB")
+            if step < 5 or step % 20 == 0:
+                print(f"  Step {step}")
 
-        if (step + 1) % _STOP_CHECK_INTERVAL == 0 and _request_stopped(rt):
-            print(f"  EOS at step {step + 1}")
-            break
+            if (step + 1) % _STOP_CHECK_INTERVAL == 0 and _request_stopped(rt):
+                print(f"  EOS at step {step + 1}")
+                break
 
     decode_elapsed = time.perf_counter() - decode_start
-    decode_steps = len(memory_trace)
     print(f"\n  Decode: {decode_steps} steps in {decode_elapsed:.3f}s "
           f"({decode_elapsed / decode_steps * 1000:.1f} ms/token)" if decode_steps > 0 else "")
 
-    # Memory summary
-    print("\n=== GPU Memory Trace ===")
-    if memory_trace:
-        final_stats = rt.device.allocation_stats()
-        print(f"  Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB")
-        print(f"  Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB")
-        print(f"  Final device_local live: {final_stats.device_local_live_bytes / 1024**2:.1f} MB")
-        print(f"  Steps sampled: {len(memory_trace)}")
-        print()
-        print("  Step | GPU Live (MB) | GPU Reserved (MB) | Host Upload (MB)")
-        print("  -----|---------------|-------------------|------------------")
-        for step, device_local_live_mb, device_local_reserved_mb, host_upload_live_mb in memory_trace:
-            print(f"  {step:4d} | {device_local_live_mb:13.1f} | "
-                  f"{device_local_reserved_mb:17.1f} | {host_upload_live_mb:.1f}")
+    final_stats = rt.device.allocation_stats()
+    print("\n=== GPU Memory ===")
+    print(f"  Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB")
+    print(f"  Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB")
+    print(f"  Final device_local live: {final_stats.device_local_live_bytes / 1024**2:.1f} MB")
 
     # Decode text
     print("\n=== Result ===")

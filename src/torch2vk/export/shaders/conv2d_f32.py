@@ -3,6 +3,10 @@ from __future__ import annotations
 from torch.fx import Node
 
 from torch2vk.export.shaders._factory import (
+    activation_extension_source,
+    activation_glsl_type,
+    activation_requirements,
+    activation_store,
     node_input_dtype,
     node_input_shape,
     node_output_shape,
@@ -25,12 +29,13 @@ from torch2vk.runtime.shader import (
 
 _SOURCE_TEMPLATE = """\
 #version 450
+{{ACTIVATION_EXTENSION}}\
 {{WEIGHT_EXTENSION}}\
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { {{WEIGHT_TYPE}} weight[]; };
 layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { {{BIAS_TYPE}} bias[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint batch; uint in_c; uint in_h; uint in_w;
     uint out_c; uint out_h; uint out_w;
@@ -45,7 +50,7 @@ void main() {
     if (b >= pc.batch || oc >= pc.out_c || spatial >= pc.out_h * pc.out_w) return;
     const uint oh = spatial / pc.out_w;
     const uint ow = spatial - oh * pc.out_w;
-    float acc = fma(1.0, bias[oc], 0.0);
+    float acc = float(bias[oc]);
     for (uint ic = 0u; ic < pc.in_c; ++ic) {
         for (uint fh = 0u; fh < pc.kh; ++fh) {
             for (uint fw = 0u; fw < pc.kw; ++fw) {
@@ -54,17 +59,17 @@ void main() {
                 if (ih < pc.in_h && iw < pc.in_w) {
                     const uint x_idx = ((b * pc.in_c + ic) * pc.in_h + ih) * pc.in_w + iw;
                     const uint w_idx = ((oc * pc.in_c + ic) * pc.kh + fh) * pc.kw + fw;
-                    acc = fma(x[x_idx], weight[w_idx], acc);
+                    acc = fma(float(x[x_idx]), float(weight[w_idx]), acc);
                 }
             }
         }
     }
-    output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = acc;
+    output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = {{STORE_ACC}};
 }
 """
 
 
-def make_conv2d_variant(node: Node) -> ShaderVariant | None:
+def make_conv2d_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
     x_shape = node_input_shape(node, 0)
     w_shape = node_input_shape(node, 1)
     out_shape = node_output_shape(node)
@@ -97,7 +102,7 @@ def make_conv2d_variant(node: Node) -> ShaderVariant | None:
     out_contract = ("B", "Co2", "Ho", "Wo")
 
     fields = [
-        TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=x_contract)),
+        TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)),
     ]
     weight_dtype = node_input_dtype(node, 1)
     weight_suffix = weight_dtype_suffix(weight_dtype)
@@ -108,7 +113,7 @@ def make_conv2d_variant(node: Node) -> ShaderVariant | None:
         bias_dtype = node_input_dtype(node, 2)
         bias_suffix = weight_dtype_suffix(bias_dtype)
         fields.append(TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("Co3",))))
-    fields.append(TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)))
+    fields.append(TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)))
     shader_name = f"conv2d_{weight_suffix}w_{bias_suffix}b_f32"
 
     return ShaderVariant(
@@ -138,11 +143,12 @@ def make_conv2d_variant(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(ceil_div(mul("Ho", "Wo"), 16), ceil_div("Co2", 16), "B"),
         ),
-        source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype),
+        source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype, activation_dtype=activation_dtype),
+        execution_requirements=activation_requirements(activation_dtype),
     )
 
 
-def _source(*, weight_dtype: str, bias_dtype: str) -> str:
+def _source(*, weight_dtype: str, bias_dtype: str, activation_dtype: str) -> str:
     extension = (
         weight_extension_source("bfloat16")
         if "bfloat16" in {weight_dtype, bias_dtype}
@@ -150,7 +156,10 @@ def _source(*, weight_dtype: str, bias_dtype: str) -> str:
     )
     return (
         _SOURCE_TEMPLATE
+        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{WEIGHT_EXTENSION}}", extension)
         .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))
         .replace("{{BIAS_TYPE}}", weight_glsl_type(bias_dtype))
+        .replace("{{STORE_ACC}}", activation_store("acc", activation_dtype))
     )

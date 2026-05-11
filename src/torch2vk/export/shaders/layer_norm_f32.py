@@ -5,6 +5,10 @@ import math
 from torch.fx import Node
 
 from torch2vk.export.shaders._factory import (
+    activation_extension_source,
+    activation_glsl_type,
+    activation_requirements,
+    activation_store,
     node_input_dtype,
     node_input_shape,
     node_output_shape,
@@ -26,12 +30,13 @@ from torch2vk.runtime.shader import (
 
 _SOURCE_TEMPLATE = """\
 #version 450
+{{ACTIVATION_EXTENSION}}\
 {{WEIGHT_EXTENSION}}\
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { {{WEIGHT_TYPE}} weight[]; };
 layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { {{BIAS_TYPE}} bias[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants { uint ROWS; uint COLS; float eps; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 shared float partial_sum[256];
@@ -43,7 +48,7 @@ void main() {
     float sum = 0.0;
     float sumsq = 0.0;
     for (uint c = tid; c < pc.COLS; c += 256u) {
-        float v = x[row * pc.COLS + c];
+        float v = float(x[row * pc.COLS + c]);
         sum += v;
         sumsq += v * v;
     }
@@ -62,13 +67,13 @@ void main() {
     float inv_std = inversesqrt(var + pc.eps);
     for (uint c = tid; c < pc.COLS; c += 256u) {
         uint idx = row * pc.COLS + c;
-        output_values[idx] = fma((x[idx] - mean) * inv_std, weight[c], bias[c]);
+        output_values[idx] = {{STORE_NORM}};
     }
 }
 """
 
 
-def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
+def make_layer_norm_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
     in_shape = node_input_shape(node, 0)
     out_shape = node_output_shape(node)
     if not in_shape or not out_shape:
@@ -115,10 +120,10 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
             class_name=f"ExportLayerNorm{weight_suffix.title()}Weight{bias_suffix.title()}BiasProgram",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
+                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=in_contract)),
                 TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=("W0",))),
                 TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("W0",))),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
             ),
             push_constants=PushConstantSpec(
                 size=12,
@@ -130,11 +135,12 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(rows, 1, 1),
         ),
-        source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype),
+        source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype, activation_dtype=activation_dtype),
+        execution_requirements=activation_requirements(activation_dtype),
     )
 
 
-def _source(*, weight_dtype: str, bias_dtype: str) -> str:
+def _source(*, weight_dtype: str, bias_dtype: str, activation_dtype: str) -> str:
     extension = (
         weight_extension_source("bfloat16")
         if "bfloat16" in {weight_dtype, bias_dtype}
@@ -142,7 +148,13 @@ def _source(*, weight_dtype: str, bias_dtype: str) -> str:
     )
     return (
         _SOURCE_TEMPLATE
+        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{WEIGHT_EXTENSION}}", extension)
         .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))
         .replace("{{BIAS_TYPE}}", weight_glsl_type(bias_dtype))
+        .replace(
+            "{{STORE_NORM}}",
+            activation_store("(float(x[idx]) - mean) * inv_std * float(weight[c]) + float(bias[c])", activation_dtype),
+        )
     )

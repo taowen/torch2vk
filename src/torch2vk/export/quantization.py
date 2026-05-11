@@ -27,7 +27,24 @@ class Q4KMWeightQuantization:
         shape: tuple[int, ...],
     ) -> QuantizedWeightDeclaration:
         dtype = _checkpoint_float_dtype(dtype)
-        if dtype != "float32" or len(shape) != 2:
+        if dtype != "float32":
+            return QuantizedWeightDeclaration(
+                dtype=dtype,
+                shape=shape,
+                layout_source="CONTIGUOUS_LAYOUT",
+            )
+
+        force_q8 = checkpoint_key in self.q8_tensor_names or checkpoint_key.startswith(self.q8_tensor_prefixes)
+        if force_q8 and len(shape) >= 2:
+            n, k = _matrix_shape(shape)
+            padded_k = _round_up(k, 32)
+            return QuantizedWeightDeclaration(
+                dtype="uint16",
+                shape=(n, padded_k // 32 * 17),
+                layout_source=f"q8_0_halfwords_layout(logical_k={k})",
+            )
+
+        if len(shape) != 2:
             return QuantizedWeightDeclaration(
                 dtype=dtype,
                 shape=shape,
@@ -35,7 +52,6 @@ class Q4KMWeightQuantization:
             )
 
         n, k = shape
-        force_q8 = checkpoint_key in self.q8_tensor_names or checkpoint_key.startswith(self.q8_tensor_prefixes)
         if force_q8 or k % 256 != 0:
             if k % 32 != 0:
                 return QuantizedWeightDeclaration(
@@ -60,3 +76,15 @@ def _checkpoint_float_dtype(dtype: str) -> str:
     if dtype in {"float32", "float16", "bfloat16"}:
         return "float32"
     return dtype
+
+
+def _matrix_shape(shape: tuple[int, ...]) -> tuple[int, int]:
+    rows = shape[0]
+    cols = 1
+    for dim in shape[1:]:
+        cols *= dim
+    return rows, cols
+
+
+def _round_up(value: int, multiple: int) -> int:
+    return ((value + multiple - 1) // multiple) * multiple

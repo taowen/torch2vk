@@ -35,7 +35,10 @@ def initialize_request_state(
         tensor.validate_declaration()
         if tensor.memory is not MemoryClass.REQUEST_STATE:
             raise ValueError(f"{tensor.name} is not REQUEST_STATE memory")
-        array = np.ascontiguousarray(value)
+        if tensor.spec.dtype == "bool":
+            array = np.ascontiguousarray(np.asarray(value, dtype=np.bool_).astype(np.uint32))
+        else:
+            array = np.ascontiguousarray(value, dtype=np.dtype(tensor.spec.dtype))
         expected = tensor_nbytes(tensor.spec)
         if array.nbytes != expected:
             raise ValueError(

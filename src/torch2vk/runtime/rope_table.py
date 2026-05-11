@@ -18,6 +18,7 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
+from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
 from torch2vk.vulkan.types import TensorSpec
 
 
@@ -52,13 +53,13 @@ ROPE_TABLE_F32 = ShaderVariant(
                 name="cos",
                 io_kind=IOKind.OUTPUT,
                 role="output",
-                contract=TensorContract(dtype="float32", shape=("B", "T", "D")),
+                contract=TensorContract(dtype="float16", shape=("B", "T", "D")),
             ),
             TensorFieldSpec(
                 name="sin",
                 io_kind=IOKind.OUTPUT,
                 role="output",
-                contract=TensorContract(dtype="float32", shape=("B", "T", "D")),
+                contract=TensorContract(dtype="float16", shape=("B", "T", "D")),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -73,10 +74,16 @@ ROPE_TABLE_F32 = ShaderVariant(
         ),
         dispatch=(ceil_div(mul(mul("B", "T"), "D"), 256), 1, 1),
     ),
+    execution_requirements=ShaderExecutionRequirements(
+        require_shader_int64=True,
+        require_storage_buffer_16bit_access=True,
+    ),
     source="""
 #version 450
 
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 
 layout(std430) buffer;
 
@@ -89,11 +96,11 @@ layout(set = 0, binding = 1) buffer restrict readonly ThetaBuffer {
 };
 
 layout(set = 0, binding = 2) buffer restrict writeonly CosBuffer {
-    float cos_values[];
+    float16_t cos_values[];
 };
 
 layout(set = 0, binding = 3) buffer restrict writeonly SinBuffer {
-    float sin_values[];
+    float16_t sin_values[];
 };
 
 layout(push_constant) uniform PushConstants {
@@ -122,8 +129,8 @@ void main() {
     const float inv_freq = pow(theta_values[0], -exponent);
     const float position = float(start_position_values[0] + int64_t(token));
     const float angle = position * inv_freq;
-    cos_values[index] = cos(angle) * pc.attention_scaling;
-    sin_values[index] = sin(angle) * pc.attention_scaling;
+    cos_values[index] = float16_t(cos(angle) * pc.attention_scaling);
+    sin_values[index] = float16_t(sin(angle) * pc.attention_scaling);
 }
 """.lstrip(),
 )
@@ -192,7 +199,7 @@ def _declare_rope_output(
 ) -> LogicalTensor:
     return LogicalTensor(
         name=name,
-        spec=TensorSpec(dtype="float32", shape=(batch, sequence_length, head_dim)),
+        spec=TensorSpec(dtype="float16", shape=(batch, sequence_length, head_dim)),
         role=TensorRole.STATE,
         memory=MemoryClass.REQUEST_STATE,
         lifetime=TensorLifetime.REQUEST,

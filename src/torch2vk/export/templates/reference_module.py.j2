@@ -94,8 +94,9 @@ def _execute_reference(
     output_bindings: dict[str, str],
 ) -> ReferenceExpected:
     if isinstance(reference, torch.nn.Module):
+        float_dtype = _module_float_dtype(reference)
         args = [
-            torch.from_numpy(np.ascontiguousarray(value)).cuda()
+            _reference_arg(value, float_dtype)
             for value in inputs.values()
         ]
         with torch.no_grad():
@@ -106,6 +107,23 @@ def _execute_reference(
             output = output[0]
         return {_single_output_name(output_bindings): output}
     return reference.execute(inputs)
+
+
+def _reference_arg(value: np.ndarray, float_dtype: torch.dtype | None) -> torch.Tensor:
+    tensor = torch.from_numpy(np.ascontiguousarray(value)).cuda()
+    if float_dtype is not None and tensor.is_floating_point():
+        return tensor.to(dtype=float_dtype)
+    return tensor
+
+
+def _module_float_dtype(module: torch.nn.Module) -> torch.dtype | None:
+    for parameter in module.parameters(recurse=True):
+        if parameter.is_floating_point():
+            return parameter.dtype
+    for buffer in module.buffers(recurse=True):
+        if buffer.is_floating_point():
+            return buffer.dtype
+    return None
 
 
 def _single_output_name(output_bindings: dict[str, str]) -> str:

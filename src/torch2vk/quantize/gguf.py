@@ -104,8 +104,8 @@ def _gguf_matches_quantization(
         for name, entry in gguf.tensors.items():
             if (
                 name.startswith(q8_tensor_prefixes)
-                and len(entry.logical_shape) == 2
-                and entry.logical_shape[-1] % 32 == 0
+                and name.endswith(".weight")
+                and len(entry.logical_shape) >= 2
                 and entry.ggml_type is not GGUFTensorType.Q8_0
             ):
                 return False
@@ -131,6 +131,22 @@ def _tensor_to_gguf_tensor(
     q8_tensor_prefixes: tuple[str, ...],
 ) -> _GGUFTensor:
     array = tensor.float().numpy() if tensor.dtype == torch.bfloat16 else tensor.numpy()
+    force_q8 = name in q8_tensor_names or name.startswith(q8_tensor_prefixes)
+    if force_q8 and name.endswith(".weight") and array.ndim >= 2:
+        rows, cols = _matrix_shape(tuple(int(dim) for dim in array.shape))
+        f32 = np.ascontiguousarray(array.reshape(rows, cols), dtype=np.float32)
+        padded_cols = _round_up(cols, 32)
+        if padded_cols != cols:
+            padded = np.zeros((rows, padded_cols), dtype=np.float32)
+            padded[:, :cols] = f32
+            f32 = padded
+        return _GGUFTensor(
+            name=name,
+            data=quantize_q8_0_vulkan(rt, f32, name=name),
+            ggml_type=GGUFTensorType.Q8_0,
+            logical_shape=(rows, padded_cols),
+        )
+
     if array.ndim != 2:
         return _GGUFTensor(
             name=name,
@@ -139,7 +155,7 @@ def _tensor_to_gguf_tensor(
             logical_shape=tuple(int(dim) for dim in array.shape),
         )
     f32 = np.ascontiguousarray(array, dtype=np.float32)
-    if name in q8_tensor_names or name.startswith(q8_tensor_prefixes) or f32.shape[-1] % 256 != 0:
+    if f32.shape[-1] % 256 != 0:
         if f32.shape[-1] % 32 != 0:
             return _GGUFTensor(
                 name=name,
@@ -240,6 +256,18 @@ def _pad_to_alignment(nbytes: int) -> int:
     if padding == 0:
         return nbytes
     return nbytes + GGUF_DEFAULT_ALIGNMENT - padding
+
+
+def _matrix_shape(shape: tuple[int, ...]) -> tuple[int, int]:
+    rows = shape[0]
+    cols = 1
+    for dim in shape[1:]:
+        cols *= dim
+    return rows, cols
+
+
+def _round_up(value: int, multiple: int) -> int:
+    return ((value + multiple - 1) // multiple) * multiple
 
 
 def _write_string(handle: BinaryIO, value: str) -> None:

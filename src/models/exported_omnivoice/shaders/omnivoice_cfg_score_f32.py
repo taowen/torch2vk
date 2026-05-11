@@ -30,7 +30,7 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
                 name='logits',
                 io_kind=IOKind.INPUT,
                 role='logits',
-                contract=TensorContract(dtype='float32', shape=(2, 'S', 'CV',)),
+                contract=TensorContract(dtype='float16', shape=(2, 'S', 'CV',)),
             ),
             TensorFieldSpec(
                 name='tokens',
@@ -84,16 +84,18 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul('C', 'T'), 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True, require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 
 layout(std430) buffer;
 
 layout(set = 0, binding = 0) buffer restrict readonly LogitsBuffer {
-    float logits[];
+    float16_t logits[];
 };
 
 layout(set = 0, binding = 1) buffer restrict readonly TokensBuffer {
@@ -157,8 +159,8 @@ float gumbel_noise(uint flat_pos) {
 
 float guided_logit(uint batch, uint seq, uint codebook, uint token, float c_max, float c_sum, float u_max, float u_sum) {
     const uint offset = codebook * pc.V + token;
-    const float c_logit = logits[(0u * pc.S + seq) * (pc.C * pc.V) + offset];
-    const float u_logit = logits[(1u * pc.S + batch) * (pc.C * pc.V) + offset];
+    const float c_logit = float(logits[(0u * pc.S + seq) * (pc.C * pc.V) + offset]);
+    const float u_logit = float(logits[(1u * pc.S + batch) * (pc.C * pc.V) + offset]);
     const float c_log_prob = c_logit - c_max - log(c_sum);
     const float u_log_prob = u_logit - u_max - log(u_sum);
     return c_log_prob + pc.guidance_scale * (c_log_prob - u_log_prob);
@@ -182,16 +184,16 @@ void main() {
     float u_max = -3.4028234663852886e+38;
     for (uint token = 0u; token < pc.V; ++token) {
         const uint offset = vocab_offset + token;
-        c_max = max(c_max, logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset]);
-        u_max = max(u_max, logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset]);
+        c_max = max(c_max, float(logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset]));
+        u_max = max(u_max, float(logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset]));
     }
 
     float c_sum = 0.0;
     float u_sum = 0.0;
     for (uint token = 0u; token < pc.V; ++token) {
         const uint offset = vocab_offset + token;
-        c_sum += exp(logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset] - c_max);
-        u_sum += exp(logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset] - u_max);
+        c_sum += exp(float(logits[(0u * pc.S + cond_seq) * (pc.C * pc.V) + offset]) - c_max);
+        u_sum += exp(float(logits[(1u * pc.S + uncond_seq) * (pc.C * pc.V) + offset]) - u_max);
     }
 
     float guided_max = -3.4028234663852886e+38;

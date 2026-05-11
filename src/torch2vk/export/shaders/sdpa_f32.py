@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import (
+    activation_extension_source,
+    activation_glsl_type,
+    activation_requirements,
+    activation_store,
+    node_input_shape,
+    node_output_shape,
+    render_shader_template,
+)
 from torch2vk.runtime.shader import (
     ceil_div,
     IOKind,
@@ -19,11 +27,12 @@ from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequire
 
 _SOURCE_CAUSAL = """\
 #version 450
+{{ACTIVATION_EXTENSION}}\
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float q[]; };
-layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
-layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly QBuffer { {{ACTIVATION_TYPE}} q[]; };
+layout(set = 0, binding = 1) buffer restrict readonly KBuffer { {{ACTIVATION_TYPE}} k[]; };
+layout(set = 0, binding = 2) buffer restrict readonly VBuffer { {{ACTIVATION_TYPE}} v[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants { uint B; uint NH; uint NK; uint T; uint S; uint D; } pc;
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 void main() {
@@ -42,7 +51,7 @@ void main() {
     for (uint col = 0u; col <= row && col < pc.S; ++col) {
         float dot = 0.0;
         for (uint d = 0u; d < pc.D; ++d) {
-            dot += q[q_base + row * pc.D + d] * k[k_base + col * pc.D + d];
+            dot += float(q[q_base + row * pc.D + d]) * float(k[k_base + col * pc.D + d]);
         }
         max_score = max(max_score, dot * scale);
     }
@@ -50,7 +59,7 @@ void main() {
     for (uint col = 0u; col <= row && col < pc.S; ++col) {
         float dot = 0.0;
         for (uint d = 0u; d < pc.D; ++d) {
-            dot += q[q_base + row * pc.D + d] * k[k_base + col * pc.D + d];
+            dot += float(q[q_base + row * pc.D + d]) * float(k[k_base + col * pc.D + d]);
         }
         sum_exp += exp(dot * scale - max_score);
     }
@@ -58,22 +67,23 @@ void main() {
     for (uint col = 0u; col <= row && col < pc.S; ++col) {
         float dot = 0.0;
         for (uint dd = 0u; dd < pc.D; ++dd) {
-            dot += q[q_base + row * pc.D + dd] * k[k_base + col * pc.D + dd];
+            dot += float(q[q_base + row * pc.D + dd]) * float(k[k_base + col * pc.D + dd]);
         }
         float w = exp(dot * scale - max_score) / sum_exp;
-        acc += w * v[v_base + col * pc.D + d_out];
+        acc += w * float(v[v_base + col * pc.D + d_out]);
     }
-    output_values[(batch * pc.NH + head) * pc.T * pc.D + row * pc.D + d_out] = acc;
+    output_values[(batch * pc.NH + head) * pc.T * pc.D + row * pc.D + d_out] = {{STORE_ACC}};
 }
 """
 
 _SOURCE_NONCAUSAL = """\
 #version 450
+{{ACTIVATION_EXTENSION}}\
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float q[]; };
-layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
-layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly QBuffer { {{ACTIVATION_TYPE}} q[]; };
+layout(set = 0, binding = 1) buffer restrict readonly KBuffer { {{ACTIVATION_TYPE}} k[]; };
+layout(set = 0, binding = 2) buffer restrict readonly VBuffer { {{ACTIVATION_TYPE}} v[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants { uint B; uint NH; uint NK; uint T; uint S; uint D; } pc;
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 void main() {
@@ -92,7 +102,7 @@ void main() {
     for (uint col = 0u; col < pc.S; ++col) {
         float dot = 0.0;
         for (uint d = 0u; d < pc.D; ++d) {
-            dot += q[q_base + row * pc.D + d] * k[k_base + col * pc.D + d];
+            dot += float(q[q_base + row * pc.D + d]) * float(k[k_base + col * pc.D + d]);
         }
         max_score = max(max_score, dot * scale);
     }
@@ -100,7 +110,7 @@ void main() {
     for (uint col = 0u; col < pc.S; ++col) {
         float dot = 0.0;
         for (uint d = 0u; d < pc.D; ++d) {
-            dot += q[q_base + row * pc.D + d] * k[k_base + col * pc.D + d];
+            dot += float(q[q_base + row * pc.D + d]) * float(k[k_base + col * pc.D + d]);
         }
         sum_exp += exp(dot * scale - max_score);
     }
@@ -108,27 +118,28 @@ void main() {
     for (uint col = 0u; col < pc.S; ++col) {
         float dot = 0.0;
         for (uint dd = 0u; dd < pc.D; ++dd) {
-            dot += q[q_base + row * pc.D + dd] * k[k_base + col * pc.D + dd];
+            dot += float(q[q_base + row * pc.D + dd]) * float(k[k_base + col * pc.D + dd]);
         }
         float w = exp(dot * scale - max_score) / sum_exp;
-        acc += w * v[v_base + col * pc.D + d_out];
+        acc += w * float(v[v_base + col * pc.D + d_out]);
     }
-    output_values[(batch * pc.NH + head) * pc.T * pc.D + row * pc.D + d_out] = acc;
+    output_values[(batch * pc.NH + head) * pc.T * pc.D + row * pc.D + d_out] = {{STORE_ACC}};
 }
 """
 
 _SOURCE_MASKED = """\
 #version 450
 
+{{ACTIVATION_EXTENSION}}\
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
 
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float q[]; };
-layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
-layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
-layout(set = 0, binding = 3) buffer restrict readonly MaskBuffer { float mask[]; };
-layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly QBuffer { {{ACTIVATION_TYPE}} q[]; };
+layout(set = 0, binding = 1) buffer restrict readonly KBuffer { {{ACTIVATION_TYPE}} k[]; };
+layout(set = 0, binding = 2) buffer restrict readonly VBuffer { {{ACTIVATION_TYPE}} v[]; };
+layout(set = 0, binding = 3) buffer restrict readonly MaskBuffer { {{ACTIVATION_TYPE}} mask[]; };
+layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants { uint B; uint NH; uint NK; uint T; uint S; uint D; } pc;
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
@@ -151,8 +162,8 @@ void main() {
     const uint v_base = k_base;
     const uint mask_base = batch * pc.T * pc.S;
     const uint q_row_base = q_base + row * pc.D;
-    const float q0 = valid0 ? q[q_row_base + dim0] : 0.0;
-    const float q1 = valid1 ? q[q_row_base + dim1] : 0.0;
+    const float q0 = valid0 ? float(q[q_row_base + dim0]) : 0.0;
+    const float q1 = valid1 ? float(q[q_row_base + dim1]) : 0.0;
     const float scale = inversesqrt(float(pc.D));
 
     float running_max = NEG_INF;
@@ -162,18 +173,18 @@ void main() {
 
     for (uint col = 0u; col < pc.S; ++col) {
         const uint kv_offset = col * pc.D;
-        const float k0 = valid0 ? k[k_base + kv_offset + dim0] : 0.0;
-        const float k1 = valid1 ? k[k_base + kv_offset + dim1] : 0.0;
+        const float k0 = valid0 ? float(k[k_base + kv_offset + dim0]) : 0.0;
+        const float k1 = valid1 ? float(k[k_base + kv_offset + dim1]) : 0.0;
         const float dot = subgroupAdd(q0 * k0 + q1 * k1);
-        const float score = dot * scale + mask[mask_base + row * pc.S + col];
+        const float score = dot * scale + float(mask[mask_base + row * pc.S + col]);
         const float next_max = max(running_max, score);
         const float old_scale = running_max == NEG_INF ? 0.0 : exp(running_max - next_max);
         const float score_scale = exp(score - next_max);
         if (valid0) {
-            acc0 = acc0 * old_scale + score_scale * v[v_base + kv_offset + dim0];
+            acc0 = acc0 * old_scale + score_scale * float(v[v_base + kv_offset + dim0]);
         }
         if (valid1) {
-            acc1 = acc1 * old_scale + score_scale * v[v_base + kv_offset + dim1];
+            acc1 = acc1 * old_scale + score_scale * float(v[v_base + kv_offset + dim1]);
         }
         running_sum = running_sum * old_scale + score_scale;
         running_max = next_max;
@@ -182,10 +193,10 @@ void main() {
     if (running_sum > 0.0) {
         const uint output_base = (batch * pc.NH + head) * pc.T * pc.D + row * pc.D;
         if (valid0) {
-            output_values[output_base + dim0] = acc0 / running_sum;
+            output_values[output_base + dim0] = {{STORE_ACC0}};
         }
         if (valid1) {
-            output_values[output_base + dim1] = acc1 / running_sum;
+            output_values[output_base + dim1] = {{STORE_ACC1}};
         }
     }
 }
@@ -195,16 +206,17 @@ void main() {
 _SOURCE_DECODE_CACHE = """\
 #version 450
 
+{{ACTIVATION_EXTENSION}}\
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
 {{CACHE_POSITION_EXTENSION}}
 
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float q[]; };
-layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
-layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
+layout(set = 0, binding = 0) buffer restrict readonly QBuffer { {{ACTIVATION_TYPE}} q[]; };
+layout(set = 0, binding = 1) buffer restrict readonly KBuffer { {{ACTIVATION_TYPE}} k[]; };
+layout(set = 0, binding = 2) buffer restrict readonly VBuffer { {{ACTIVATION_TYPE}} v[]; };
 layout(set = 0, binding = 3) buffer restrict readonly CachePositionBuffer { {{CACHE_POSITION_TYPE}} cache_position[]; };
-layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; } pc;
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
@@ -219,7 +231,7 @@ void main() {
     const bool valid_dim = dim < pc.D;
 
     const uint kv_head = head * pc.NK / pc.NH;
-    const float q_value = valid_dim ? q[head * pc.D + dim] : 0.0;
+    const float q_value = valid_dim ? float(q[head * pc.D + dim]) : 0.0;
     const float scale = inversesqrt(float(pc.D));
 
     float running_max = NEG_INF;
@@ -229,8 +241,8 @@ void main() {
     const uint cache_head_base = kv_head * pc.S * pc.D;
     const uint cache_len = min(uint(cache_position[0]) + 1u, pc.S);
     for (uint key_pos = 0u; key_pos < cache_len; ++key_pos) {
-        const float k_val = valid_dim ? k[cache_head_base + key_pos * pc.D + dim] : 0.0;
-        const float v_val = valid_dim ? v[cache_head_base + key_pos * pc.D + dim] : 0.0;
+        const float k_val = valid_dim ? float(k[cache_head_base + key_pos * pc.D + dim]) : 0.0;
+        const float v_val = valid_dim ? float(v[cache_head_base + key_pos * pc.D + dim]) : 0.0;
         barrier();
 
         const float dot_part = valid_dim ? q_value * k_val : 0.0;
@@ -257,7 +269,7 @@ void main() {
     }
 
     if (valid_dim && running_sum > 0.0) {
-        output_values[head * pc.D + dim] = acc / running_sum;
+        output_values[head * pc.D + dim] = {{STORE_ACC}};
     }
 }
 """
@@ -279,7 +291,7 @@ def _has_mask(node: Node) -> bool:
     return tm is not None
 
 
-def make_sdpa_variant(node: Node) -> ShaderVariant | None:
+def make_sdpa_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
     q_shape = node_input_shape(node, 0)
     k_shape = node_input_shape(node, 1)
     v_shape = node_input_shape(node, 2)
@@ -312,6 +324,7 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
             s,
             d,
             cache_position_dtype,
+            activation_dtype,
         )
 
     causal = _is_causal(node)
@@ -337,18 +350,18 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
         mask_shape = node_input_shape(node, 3)
         mask_contract = tuple(f"M{i}" for i in range(len(mask_shape)))
         fields = (
-            TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=q_contract)),
-            TensorFieldSpec("k", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=k_contract)),
-            TensorFieldSpec("v", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=v_contract)),
-            TensorFieldSpec("mask", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=mask_contract)),
-            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+            TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=q_contract)),
+            TensorFieldSpec("k", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=k_contract)),
+            TensorFieldSpec("v", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=v_contract)),
+            TensorFieldSpec("mask", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=mask_contract)),
+            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
         )
     else:
         fields = (
-            TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=q_contract)),
-            TensorFieldSpec("k", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=k_contract)),
-            TensorFieldSpec("v", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=v_contract)),
-            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+            TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=q_contract)),
+            TensorFieldSpec("k", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=k_contract)),
+            TensorFieldSpec("v", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=v_contract)),
+            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
         )
 
     return ShaderVariant(
@@ -371,8 +384,8 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
             ),
             dispatch=(mul("Q0", "Q1"), "Q2", 1 if masked else ceil_div("Q3", 64)),
         ),
-        execution_requirements=execution_requirements,
-        source=source,
+        execution_requirements=activation_requirements(activation_dtype, execution_requirements),
+        source=_source(source, activation_dtype),
     )
 
 
@@ -387,6 +400,7 @@ def _make_decode_cache_variant(
     s: int,
     d: int,
     cache_position_dtype: str,
+    activation_dtype: str,
 ) -> ShaderVariant | None:
     if len(q_shape) != 4 or len(k_shape) != 4 or len(v_shape) != 4 or len(out_shape) != 4:
         return None
@@ -401,11 +415,11 @@ def _make_decode_cache_variant(
             class_name="ExportSdpaDecodeCacheF32Program",
             shader_name="sdpa_decode_cache_f32",
             fields=(
-                TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("B", "NH", "T", "D"))),
-                TensorFieldSpec("k", IOKind.INPUT, "state", TensorContract(dtype="float32", shape=("B", "NK", "S", "D"))),
-                TensorFieldSpec("v", IOKind.INPUT, "state", TensorContract(dtype="float32", shape=("B", "NK", "S", "D"))),
+                TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=("B", "NH", "T", "D"))),
+                TensorFieldSpec("k", IOKind.INPUT, "state", TensorContract(dtype=activation_dtype, shape=("B", "NK", "S", "D"))),
+                TensorFieldSpec("v", IOKind.INPUT, "state", TensorContract(dtype=activation_dtype, shape=("B", "NK", "S", "D"))),
                 TensorFieldSpec("cache_position", IOKind.INPUT, "cache_position", TensorContract(dtype=cache_position_dtype, shape=("T",))),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=("B", "NH", "T", "D"))),
+                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=("B", "NH", "T", "D"))),
             ),
             push_constants=PushConstantSpec(
                 size=16,
@@ -418,23 +432,38 @@ def _make_decode_cache_variant(
             ),
             dispatch=("NH", 1, 1),
         ),
-        execution_requirements=ShaderExecutionRequirements(
-            subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
-            require_shader_int64=cache_position_dtype == "int64",
+        execution_requirements=activation_requirements(
+            activation_dtype,
+            ShaderExecutionRequirements(
+                subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
+                require_shader_int64=cache_position_dtype == "int64",
+            ),
         ),
-        source=_decode_cache_source(cache_position_dtype),
+        source=_decode_cache_source(cache_position_dtype, activation_dtype),
     )
 
 
-def _decode_cache_source(cache_position_dtype: str) -> str:
+def _decode_cache_source(cache_position_dtype: str, activation_dtype: str) -> str:
     cache_position_type = "int64_t" if cache_position_dtype == "int64" else "int"
     extension = (
         "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require"
         if cache_position_dtype == "int64"
         else ""
     )
-    return (
-        _SOURCE_DECODE_CACHE
-        .replace("{{CACHE_POSITION_EXTENSION}}", extension)
-        .replace("{{CACHE_POSITION_TYPE}}", cache_position_type)
-    )
+    return render_shader_template(_SOURCE_DECODE_CACHE, {
+        "ACTIVATION_EXTENSION": activation_extension_source(activation_dtype),
+        "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+        "CACHE_POSITION_EXTENSION": extension,
+        "CACHE_POSITION_TYPE": cache_position_type,
+        "STORE_ACC": activation_store("acc / running_sum", activation_dtype),
+    })
+
+
+def _source(source: str, activation_dtype: str) -> str:
+    return render_shader_template(source, {
+        "ACTIVATION_EXTENSION": activation_extension_source(activation_dtype),
+        "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+        "STORE_ACC": activation_store("acc", activation_dtype),
+        "STORE_ACC0": activation_store("acc0 / running_sum", activation_dtype),
+        "STORE_ACC1": activation_store("acc1 / running_sum", activation_dtype),
+    })

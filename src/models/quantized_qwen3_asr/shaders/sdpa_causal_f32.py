@@ -14,6 +14,9 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+)
 
 
 SDPA_CAUSAL_F32 = ShaderVariant(
@@ -27,25 +30,25 @@ SDPA_CAUSAL_F32 = ShaderVariant(
                 name='q',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('Q0', 'Q1', 'Q2', 'Q3',)),
+                contract=TensorContract(dtype='float16', shape=('Q0', 'Q1', 'Q2', 'Q3',)),
             ),
             TensorFieldSpec(
                 name='k',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('K0', 'K1', 'K2', 'K3',)),
+                contract=TensorContract(dtype='float16', shape=('K0', 'K1', 'K2', 'K3',)),
             ),
             TensorFieldSpec(
                 name='v',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('V0', 'V1', 'V2', 'V3',)),
+                contract=TensorContract(dtype='float16', shape=('V0', 'V1', 'V2', 'V3',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('O0', 'O1', 'O2', 'O3',)),
+                contract=TensorContract(dtype='float16', shape=('O0', 'O1', 'O2', 'O3',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -62,14 +65,16 @@ SDPA_CAUSAL_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(mul('Q0', 'Q1'), 'Q2', ceil_div('Q3', 64)),
     ),
-    execution_requirements=None,
+    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float q[]; };
-layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
-layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float16_t q[]; };
+layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float16_t k[]; };
+layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float16_t v[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants { uint B; uint NH; uint NK; uint T; uint S; uint D; } pc;
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 void main() {
@@ -88,7 +93,7 @@ void main() {
     for (uint col = 0u; col <= row && col < pc.S; ++col) {
         float dot = 0.0;
         for (uint d = 0u; d < pc.D; ++d) {
-            dot += q[q_base + row * pc.D + d] * k[k_base + col * pc.D + d];
+            dot += float(q[q_base + row * pc.D + d]) * float(k[k_base + col * pc.D + d]);
         }
         max_score = max(max_score, dot * scale);
     }
@@ -96,7 +101,7 @@ void main() {
     for (uint col = 0u; col <= row && col < pc.S; ++col) {
         float dot = 0.0;
         for (uint d = 0u; d < pc.D; ++d) {
-            dot += q[q_base + row * pc.D + d] * k[k_base + col * pc.D + d];
+            dot += float(q[q_base + row * pc.D + d]) * float(k[k_base + col * pc.D + d]);
         }
         sum_exp += exp(dot * scale - max_score);
     }
@@ -104,12 +109,12 @@ void main() {
     for (uint col = 0u; col <= row && col < pc.S; ++col) {
         float dot = 0.0;
         for (uint dd = 0u; dd < pc.D; ++dd) {
-            dot += q[q_base + row * pc.D + dd] * k[k_base + col * pc.D + dd];
+            dot += float(q[q_base + row * pc.D + dd]) * float(k[k_base + col * pc.D + dd]);
         }
         float w = exp(dot * scale - max_score) / sum_exp;
-        acc += w * v[v_base + col * pc.D + d_out];
+        acc += w * float(v[v_base + col * pc.D + d_out]);
     }
-    output_values[(batch * pc.NH + head) * pc.T * pc.D + row * pc.D + d_out] = acc;
+    output_values[(batch * pc.NH + head) * pc.T * pc.D + row * pc.D + d_out] = float16_t(acc);
 }
 """,
 )
