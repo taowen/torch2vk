@@ -93,6 +93,8 @@ def create_model_tensors(
     input_features_shape: tuple[int, ...],
     feature_attention_mask_shape: tuple[int, ...],
     prompt_length: int,
+    audio_chunk_count: int,
+    audio_sequence_length: int,
     max_sequence_length: int,
     num_hidden_layers: int,
     num_key_value_heads: int,
@@ -108,20 +110,25 @@ def create_model_tensors(
 
     audio_encoder = create_audio_encoder(
         "spike.audio",
+        audio_chunk_count=audio_chunk_count,
+        audio_sequence_length=audio_sequence_length,
         request_state_outputs={AUDIO_ENCODER_OUTPUT},
     )
     embed_tokens = create_embed_tokens(
         "spike.text.embed",
+        sequence_length=prompt_length,
         input=input_ids,
     )
     audio_inject = create_audio_inject(
         "spike.text.audio_inject",
+        sequence_length=prompt_length,
+        audio_sequence_length=audio_sequence_length,
         audio_features=audio_encoder.linear_110,
         index_copy=embed_tokens.embedding,
     )
     key_caches = tuple(
         _request_state_tensor(
-            "float32",
+            "float16",
             (1, num_key_value_heads, max_sequence_length, head_dim),
             semantic=TensorSemantic.KV_CACHE,
         )
@@ -129,7 +136,7 @@ def create_model_tensors(
     )
     value_caches = tuple(
         _request_state_tensor(
-            "float32",
+            "float16",
             (1, num_key_value_heads, max_sequence_length, head_dim),
             semantic=TensorSemantic.KV_CACHE,
         )
@@ -154,6 +161,8 @@ def create_model_tensors(
         layer_tensors = create_text_layer(
             f"spike.text.layer.{layer_idx}",
             layer_idx=layer_idx,
+            sequence_length=prompt_length,
+            max_sequence_length=max_sequence_length,
             hidden_states=text_hidden,
             index_copy=key_caches[layer_idx],
             index_copy_1=value_caches[layer_idx],
@@ -167,10 +176,12 @@ def create_model_tensors(
 
     text_norm = create_text_norm(
         "spike.text.norm",
+        sequence_length=prompt_length,
         hidden_states=text_layers[-1].add_7,
     )
     lm_head = create_lm_head(
         "spike.text.lm_head",
+        sequence_length=prompt_length,
         input=text_norm.mul_1,
         request_state_outputs={LM_HEAD_OUTPUT},
     )
@@ -187,6 +198,7 @@ def create_model_tensors(
         layer_tensors = create_decode_layer(
             f"spike.decode.layer.{layer_idx}",
             layer_idx=layer_idx,
+            max_sequence_length=max_sequence_length,
             p_input_layernorm_weight=prefill_layer_tensors.p_input_layernorm_weight,
             p_post_attention_layernorm_weight=(
                 prefill_layer_tensors.p_post_attention_layernorm_weight

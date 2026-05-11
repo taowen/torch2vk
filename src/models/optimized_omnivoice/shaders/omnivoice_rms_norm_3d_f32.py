@@ -13,6 +13,7 @@ from torch2vk.runtime.shader import (
     TensorFieldSpec,
     mul,
 )
+from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
 
 
 OMNIVOICE_RMS_NORM_3D_F32 = ShaderVariant(
@@ -26,7 +27,7 @@ OMNIVOICE_RMS_NORM_3D_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('D0', 'D1', 'H',)),
+                contract=TensorContract(dtype='float16', shape=('D0', 'D1', 'H',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -38,7 +39,7 @@ OMNIVOICE_RMS_NORM_3D_F32 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('D0', 'D1', 'H',)),
+                contract=TensorContract(dtype='float16', shape=('D0', 'D1', 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -51,15 +52,18 @@ OMNIVOICE_RMS_NORM_3D_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(mul('D0', 'D1'), 1, 1),
     ),
-    execution_requirements=None,
+    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
+
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { float weight[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint rows; uint H; } pc;
 
@@ -73,7 +77,7 @@ void main() {
     float sum = 0.0;
 
     for (uint h = lane; h < pc.H; h += 256u) {
-        const float value = x[row * pc.H + h];
+        const float value = float(x[row * pc.H + h]);
         sum += value * value;
     }
     partial[lane] = sum;
@@ -89,7 +93,7 @@ void main() {
     const float scale = inversesqrt(partial[0] / float(pc.H) + 0.000001);
     for (uint h = lane; h < pc.H; h += 256u) {
         const uint index = row * pc.H + h;
-        output_values[index] = x[index] * scale * weight[h];
+        output_values[index] = float16_t(float(x[index]) * scale * weight[h]);
     }
 }
 """,

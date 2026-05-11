@@ -12,6 +12,12 @@ class _IndexableObject(Protocol):
     def __getitem__(self, index: int) -> object: ...
 
 
+@runtime_checkable
+class _SizedIndexableObject(Protocol):
+    def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> object: ...
+
+
 @dataclass(frozen=True, slots=True)
 class VkDeviceNameProperties:
     device_name: bytes | str
@@ -97,9 +103,10 @@ def cooperative_matrix_properties_proc(value: object | None) -> Callable[[object
 
     def query(physical_device: object) -> tuple[VkCooperativeMatrixProperty, ...]:
         raw_properties = fn(physical_device)
-        if not isinstance(raw_properties, Sequence):
-            raise TypeError("vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR did not return a sequence")
-        return tuple(VkCooperativeMatrixProperty(prop) for prop in raw_properties)
+        if not isinstance(raw_properties, _SizedIndexableObject):
+            raise TypeError("vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR did not return an array")
+        property_count = len(raw_properties)
+        return tuple(VkCooperativeMatrixProperty(raw_properties[index]) for index in range(property_count))
 
     return query
 

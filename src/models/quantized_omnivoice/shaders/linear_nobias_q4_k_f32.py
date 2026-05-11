@@ -16,6 +16,7 @@ from torch2vk.runtime.shader import (
 )
 from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,
+    CooperativeMatrixRequirements,
     SubgroupRequirements,
 )
 from torch2vk.vulkan.types import (
@@ -60,7 +61,7 @@ LINEAR_NOBIAS_Q4_K_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul('X0', 'X1'), 32), ceil_div('N', 16), 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_storage_buffer_16bit_access=True),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), cooperative_matrix=CooperativeMatrixRequirements(scope='subgroup', m_size=16, n_size=16, k_size=16, a_type='float16', b_type='float16', c_type='float32', result_type='float32', saturating_accumulation=False), require_storage_buffer_16bit_access=True),
     source="""\
 #version 460
 

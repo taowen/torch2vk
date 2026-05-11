@@ -12,6 +12,7 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
+    mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,
@@ -44,18 +45,18 @@ EMBEDDING_Q8_0_F32 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('O0', 'O1', 'O2',)),
+                contract=TensorContract(dtype='float16', shape=('I0', 'I1', 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('num_indices', PushConstantType.UINT32, 0, 151, dynamic=False),
-                PushConstantFieldSpec('embedding_dim', PushConstantType.UINT32, 4, 1024, dynamic=False),
+                PushConstantFieldSpec('num_indices', PushConstantType.UINT32, 0, mul('I0', 'I1'), dynamic=False),
+                PushConstantFieldSpec('embedding_dim', PushConstantType.UINT32, 4, 'H', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(154624, 256), 1, 1),
+        dispatch=(ceil_div(mul(mul('I0', 'I1'), 'H'), 256), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(require_shader_int64=True, require_storage_buffer_16bit_access=True),
     source="""\
@@ -66,7 +67,7 @@ EMBEDDING_Q8_0_F32 = ShaderVariant(
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
 layout(set = 0, binding = 1) buffer restrict readonly IndicesBuffer { int64_t indices[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants { uint num_indices; uint embedding_dim; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
@@ -91,7 +92,7 @@ void main() {
     const uint token_idx = idx / pc.embedding_dim;
     const uint dim_idx = idx - token_idx * pc.embedding_dim;
     const int64_t token_id = indices[token_idx];
-    output_values[idx] = q8_0_value(uint(token_id), dim_idx);
+    output_values[idx] = float16_t(q8_0_value(uint(token_id), dim_idx));
 }
 """,
 )

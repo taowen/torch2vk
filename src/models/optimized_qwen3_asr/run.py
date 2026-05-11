@@ -28,7 +28,10 @@ from models.optimized_qwen3_asr.dispatch.embed_tokens import run_embed_tokens
 from models.optimized_qwen3_asr.dispatch.lm_head import run_lm_head
 from models.optimized_qwen3_asr.dispatch.text_layer import run_text_layer
 from models.optimized_qwen3_asr.dispatch.text_norm import run_text_norm
-from models.optimized_qwen3_asr.pytorch_modules import preprocess_audio_inputs
+from models.optimized_qwen3_asr.pytorch_modules import (
+    audio_position_embedding_shape,
+    preprocess_audio_inputs,
+)
 from models.optimized_qwen3_asr.shaders.qwen3_asr_token_select_greedy_f32 import (
     QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
 )
@@ -269,6 +272,22 @@ def main(
     if prompt_length != _PROMPT_LENGTH:
         raise ValueError(f"optimized_qwen3_asr is generated for prompt_length={_PROMPT_LENGTH}")
     max_sequence_length = prepared.prompt_length + max_new_tokens
+    audio_feature_length = int(
+        np.asarray(prepared.feature_attention_mask).sum(axis=-1).reshape(-1)[0]
+    )
+    audio_position_shape = audio_position_embedding_shape(
+        feature_length=audio_feature_length,
+        d_model=ac.d_model,
+    )
+    preprocessed = preprocess_audio_inputs(
+        prepared.input_ids,
+        prepared.input_features,
+        prepared.feature_attention_mask,
+        position_embedding_shape=audio_position_shape,
+        d_model=ac.d_model,
+    )
+    audio_chunk_count = int(preprocessed["padded_feature"].shape[0])
+    audio_sequence_length = int(preprocessed["compact_index"].shape[0])
 
     # === Create all tensor objects upfront ===
     print("Declaring tensors...")
@@ -281,6 +300,8 @@ def main(
             int(dim) for dim in prepared.feature_attention_mask.shape
         ),
         prompt_length=prompt_length,
+        audio_chunk_count=audio_chunk_count,
+        audio_sequence_length=audio_sequence_length,
         max_sequence_length=max_sequence_length,
         num_hidden_layers=tc.num_hidden_layers,
         num_key_value_heads=tc.num_key_value_heads,
@@ -297,7 +318,7 @@ def main(
 
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
-        dtype=np.float32,
+        dtype=np.float16,
     )
     rt.initialize_request_state(
         {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
@@ -305,15 +326,6 @@ def main(
 
     # === Audio Tower ===
     print("\n=== Phase 1: Audio Tower ===")
-    preprocessed = preprocess_audio_inputs(
-        prepared.input_ids,
-        prepared.input_features,
-        prepared.feature_attention_mask,
-        position_embedding_shape=tuple(
-            int(dim) for dim in model_tensors().audio_encoder.position_embedding.spec.shape
-        ),
-        d_model=ac.d_model,
-    )
     print(f"  hidden_states after compact: {model_tensors().audio_encoder.index_select.spec.shape}")
     print(f"  audio encoder ({model_tensors().audio_encoder.x.spec.shape})...")
     rt.register_inputs(

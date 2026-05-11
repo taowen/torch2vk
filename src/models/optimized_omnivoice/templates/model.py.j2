@@ -1,4 +1,4 @@
-"""Generated model-level tensor wiring for optimized OmniVoice."""
+"""Generated model-level tensor wiring for quantized OmniVoice."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def create_model_tensors(*, target_len: int) -> QuantizedOmniVoiceTensors:
     )
     batch_input_ids = _state_tensor("int64", ({{ batch_size }}, {{ num_audio_codebook }}, {{ seq_len }}))
     batch_audio_mask = _state_tensor("uint32", ({{ batch_size }}, {{ seq_len }}))
-    attention_mask = _state_tensor("float32", ({{ batch_size }}, 1, {{ seq_len }}, {{ seq_len }}))
+    attention_mask = _state_tensor("float16", ({{ batch_size }}, 1, {{ seq_len }}, {{ seq_len }}))
     audio_mask_id = _state_tensor("int64", (1,))
     rng_seed = _state_tensor("uint32", (1,))
     step_index = _host_input_tensor("uint32", (1,))
@@ -77,7 +77,7 @@ def create_model_tensors(*, target_len: int) -> QuantizedOmniVoiceTensors:
         head_dim={{ head_dim }},
     )
     hidden_states = _activation_tensor(
-        "float32",
+        "float16",
         ({{ batch_size }}, {{ seq_len }}, {{ hidden_size }}),
     )
     llm_forward = create_llm_forward(

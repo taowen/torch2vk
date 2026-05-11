@@ -14,6 +14,7 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
+from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
 
 
 OMNIVOICE_SILU_MUL_F32 = ShaderVariant(
@@ -27,19 +28,19 @@ OMNIVOICE_SILU_MUL_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('D0', 'D1', 'H',)),
+                contract=TensorContract(dtype='float16', shape=('D0', 'D1', 'H',)),
             ),
             TensorFieldSpec(
                 name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('D0', 'D1', 'H',)),
+                contract=TensorContract(dtype='float16', shape=('D0', 'D1', 'H',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('D0', 'D1', 'H',)),
+                contract=TensorContract(dtype='float16', shape=('D0', 'D1', 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -51,15 +52,18 @@ OMNIVOICE_SILU_MUL_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul(mul('D0', 'D1'), 'H'), 256), 1, 1),
     ),
-    execution_requirements=None,
+    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
+
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
+layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float16_t y[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint N; } pc;
 
@@ -70,8 +74,8 @@ void main() {
     if (idx >= pc.N) {
         return;
     }
-    const float value = x[idx];
-    output_values[idx] = (value / (1.0 + exp(-value))) * y[idx];
+    const float value = float(x[idx]);
+    output_values[idx] = float16_t((value / (1.0 + exp(-value))) * float(y[idx]));
 }
 """,
 )

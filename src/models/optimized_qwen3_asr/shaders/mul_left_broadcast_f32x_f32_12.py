@@ -14,6 +14,9 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+)
 
 
 MUL_LEFT_BROADCAST_F32X_F32_12 = ShaderVariant(
@@ -33,13 +36,13 @@ MUL_LEFT_BROADCAST_F32X_F32_12 = ShaderVariant(
                 name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H', 'D',)),
+                contract=TensorContract(dtype='float16', shape=(1, 'T', 'H', 'D',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H', 'D',)),
+                contract=TensorContract(dtype='float16', shape=(1, 'T', 'H', 'D',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -52,18 +55,20 @@ MUL_LEFT_BROADCAST_F32X_F32_12 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul(mul('T', 'H'), 'D'), 256), 1, 1),
     ),
-    execution_requirements=None,
+    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float16_t y[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants { uint N; uint H; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) { output_values[idx] = fma(y[idx], x[idx % pc.H], 0.0); }
+    if (idx < pc.N) { output_values[idx] = float16_t(float(y[idx]) * float(x[idx % pc.H])); }
 }
 """,
 )

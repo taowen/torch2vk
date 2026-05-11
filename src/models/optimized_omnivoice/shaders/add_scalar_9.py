@@ -56,7 +56,7 @@ layout(push_constant) uniform PushConstants { uint N; float scalar; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) { output_values[idx] = x[idx] + pc.scalar; }
+    if (idx < pc.N) { output_values[idx] = float(x[idx]) + pc.scalar; }
 }
 """,
 )

@@ -192,7 +192,7 @@ def main(
     expected_seq_len = model_tensors().batch_input_ids.spec.shape[2]
     if expected_seq_len != seq_len:
         raise ValueError(
-            f"exported OmniVoice seq_len is {expected_seq_len}, "
+            f"optimized OmniVoice seq_len is {expected_seq_len}, "
             f"but prepared inputs require {seq_len}; regenerate optimized_omnivoice"
         )
     rt = RuntimeSession.open(

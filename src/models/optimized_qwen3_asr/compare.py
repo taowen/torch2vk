@@ -1,4 +1,4 @@
-"""PyTorch/Vulkan comparison entry points for quantized Qwen3-ASR.
+"""PyTorch/Vulkan comparison entry points for optimized Qwen3-ASR.
 
 Run from project root:
     .venv/bin/python -m models.optimized_qwen3_asr.compare
@@ -42,6 +42,7 @@ from models.optimized_qwen3_asr.pytorch_modules import (
     TextReferenceState,
     TokenSelectReference,
     TokenStoreReference,
+    audio_position_embedding_shape,
     preprocess_audio_inputs,
 )
 from models.optimized_qwen3_asr.shaders.qwen3_asr_token_select_greedy_f32 import (
@@ -378,6 +379,22 @@ def compare_decode_steps(
     processor, prepared = prepare_qwen3_asr_inputs(model_dir=model_dir, wav=str(wav_path))
     prompt_length = prepared.prompt_length
     max_sequence_length = prepared.prompt_length + 64
+    audio_feature_length = int(
+        np.asarray(prepared.feature_attention_mask).sum(axis=-1).reshape(-1)[0]
+    )
+    audio_position_shape = audio_position_embedding_shape(
+        feature_length=audio_feature_length,
+        d_model=ac.d_model,
+    )
+    preprocessed = preprocess_audio_inputs(
+        prepared.input_ids,
+        prepared.input_features,
+        prepared.feature_attention_mask,
+        position_embedding_shape=audio_position_shape,
+        d_model=ac.d_model,
+    )
+    audio_chunk_count = int(preprocessed["padded_feature"].shape[0])
+    audio_sequence_length = int(preprocessed["compact_index"].shape[0])
 
     # === Create all tensor objects upfront ===
     print("Declaring tensors...")
@@ -390,6 +407,8 @@ def compare_decode_steps(
             int(dim) for dim in prepared.feature_attention_mask.shape
         ),
         prompt_length=prompt_length,
+        audio_chunk_count=audio_chunk_count,
+        audio_sequence_length=audio_sequence_length,
         max_sequence_length=max_sequence_length,
         num_hidden_layers=tc.num_hidden_layers,
         num_key_value_heads=tc.num_key_value_heads,
@@ -419,15 +438,6 @@ def compare_decode_steps(
 
     # === Audio Tower ===
     print("\n=== Phase 1: Audio Tower ===")
-    preprocessed = preprocess_audio_inputs(
-        prepared.input_ids,
-        prepared.input_features,
-        prepared.feature_attention_mask,
-        position_embedding_shape=tuple(
-            int(dim) for dim in model_tensors().audio_encoder.position_embedding.spec.shape
-        ),
-        d_model=ac.d_model,
-    )
     print(f"  hidden_states after compact: {model_tensors().audio_encoder.index_select.spec.shape}")
     print(f"  audio encoder ({model_tensors().audio_encoder.x.spec.shape})...")
     rt.register_inputs(

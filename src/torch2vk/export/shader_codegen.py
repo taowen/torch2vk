@@ -69,6 +69,11 @@ def render_shader_file(variant: ShaderVariant) -> str:
     if execution_requirements_source != "None":
         imports.append("from torch2vk.vulkan.shader_execution_requirements import (")
         imports.append("    ShaderExecutionRequirements,")
+        if (
+            variant.execution_requirements is not None
+            and variant.execution_requirements.cooperative_matrix is not None
+        ):
+            imports.append("    CooperativeMatrixRequirements,")
         if variant.execution_requirements is not None and variant.execution_requirements.subgroup is not None:
             imports.append("    SubgroupRequirements,")
         imports.append(")")
@@ -256,7 +261,20 @@ def _execution_requirements_to_source(requirements: ShaderExecutionRequirements 
             ")"
         )
     if requirements.cooperative_matrix is not None:
-        raise NotImplementedError("generated shader files do not support cooperative matrix requirements yet")
+        cooperative_matrix = requirements.cooperative_matrix
+        fields.append(
+            "cooperative_matrix=CooperativeMatrixRequirements("
+            f"scope={cooperative_matrix.scope!r}, "
+            f"m_size={cooperative_matrix.m_size}, "
+            f"n_size={cooperative_matrix.n_size}, "
+            f"k_size={cooperative_matrix.k_size}, "
+            f"a_type={cooperative_matrix.a_type!r}, "
+            f"b_type={cooperative_matrix.b_type!r}, "
+            f"c_type={cooperative_matrix.c_type!r}, "
+            f"result_type={cooperative_matrix.result_type!r}, "
+            f"saturating_accumulation={cooperative_matrix.saturating_accumulation}"
+            ")"
+        )
     if requirements.require_integer_dot_product:
         fields.append("require_integer_dot_product=True")
     if requirements.require_shader_int64:

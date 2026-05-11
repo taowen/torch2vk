@@ -29,7 +29,7 @@ DECODE_RMS_NORM_F32 = ShaderVariant(
                 name="x",
                 io_kind=IOKind.INPUT,
                 role="input",
-                contract=TensorContract(dtype="float32", shape=("B", "T", "H")),
+                contract=TensorContract(dtype="float16", shape=("B", "T", "H")),
             ),
             TensorFieldSpec(
                 name="weight",
@@ -41,7 +41,7 @@ DECODE_RMS_NORM_F32 = ShaderVariant(
                 name="output",
                 io_kind=IOKind.OUTPUT,
                 role="output",
-                contract=TensorContract(dtype="float32", shape=("B", "T", "H")),
+                contract=TensorContract(dtype="float16", shape=("B", "T", "H")),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -56,18 +56,21 @@ DECODE_RMS_NORM_F32 = ShaderVariant(
     ),
     execution_requirements=ShaderExecutionRequirements(
         subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
+        require_storage_buffer_16bit_access=True,
     ),
     source="""\
 #version 450
 
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { float weight[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint ROWS; uint H; float EPS; } pc;
 
@@ -81,14 +84,14 @@ void main() {
     const uint row_offset = row * pc.H;
     float sum_sq = 0.0;
     for (uint h = lane; h < pc.H; h += 64u) {
-        const float value = x[row_offset + h];
+        const float value = float(x[row_offset + h]);
         sum_sq = fma(value, value, sum_sq);
     }
     sum_sq = subgroupAdd(sum_sq);
     const float scale = inversesqrt(sum_sq / float(pc.H) + pc.EPS);
 
     for (uint h = lane; h < pc.H; h += 64u) {
-        output_values[row_offset + h] = x[row_offset + h] * scale * weight[h];
+        output_values[row_offset + h] = float16_t(float(x[row_offset + h]) * scale * weight[h]);
     }
 }
 """,

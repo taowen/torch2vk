@@ -25,7 +25,11 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
-from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements, SubgroupRequirements
+from torch2vk.vulkan.shader_execution_requirements import (
+    CooperativeMatrixRequirements,
+    ShaderExecutionRequirements,
+    SubgroupRequirements,
+)
 from torch2vk.vulkan.types import q4_k_words_layout, q8_0_halfwords_layout
 
 
@@ -230,6 +234,16 @@ _SUBGROUP64_16BIT_REQUIREMENTS = ShaderExecutionRequirements(
 )
 _COOPMAT_REQUIREMENTS = ShaderExecutionRequirements(
     subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
+    cooperative_matrix=CooperativeMatrixRequirements(
+        scope="subgroup",
+        m_size=16,
+        n_size=16,
+        k_size=16,
+        a_type="float16",
+        b_type="float16",
+        c_type="float32",
+        result_type="float32",
+    ),
     require_storage_buffer_16bit_access=True,
 )
 
@@ -652,20 +666,91 @@ void main() {
 _Q8_0_COOPMAT_SOURCE = (
     _COOPMAT_COMMON_HEADER.replace("{{WEIGHT_BUFFER}}", "layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };\n")
     + """
-float q8_0_value(uint row, uint k) {
+shared float shared_q8_d[TILE_N];
+
+void prepare_q8_0_tile_scales(uint lane, uint col_base, uint k_base) {
+    const uint blocks_per_row = pc.K / 32u;
+    const uint block_index = k_base >> 5u;
+    for (uint col = lane; col < TILE_N; col += 64u) {
+        const uint n = col_base + col;
+        if (n < pc.N) {
+            const uint block_half = n * blocks_per_row * 17u + block_index * 17u;
+            shared_q8_d[col] = unpackHalf2x16(uint(weight[block_half])).x;
+        } else {
+            shared_q8_d[col] = 0.0;
+        }
+    }
+}
+
+float q8_0_value_prepared(uint row, uint k) {
     const uint blocks_per_row = pc.K / 32u;
     const uint block_index = k >> 5u;
     const uint block_half = row * blocks_per_row * 17u + block_index * 17u;
-    const float d = unpackHalf2x16(uint(weight[block_half])).x;
     const uint local = k & 31u;
     const uint packed = uint(weight[block_half + 1u + (local >> 1u)]);
     uint byte_value = ((local & 1u) == 0u) ? (packed & 255u) : (packed >> 8u);
     int quant = int(byte_value);
     if (quant >= 128) { quant -= 256; }
-    return d * float(quant);
+    return shared_q8_d[row & 15u] * float(quant);
 }
 """
-    + _COOPMAT_MAIN.replace("{{WEIGHT_VALUE}}", "q8_0_value")
+    + _COOPMAT_MAIN.replace(
+        "void load_b_tile(uint lane, uint col_base, uint k_base) {\n"
+        "    for (uint i = lane; i < TILE_SIZE; i += 64u) {\n"
+        "        const uint col = i / TILE_K;\n"
+        "        const uint k_offset = i - col * TILE_K;\n"
+        "        const uint n = col_base + col;\n"
+        "        const uint k = k_base + k_offset;\n"
+        "        shared_b[i] = float16_t((n < pc.N && k < pc.K) ? {{WEIGHT_VALUE}}(n, k) : 0.0);\n"
+        "    }\n"
+        "}\n",
+        "void load_b_tile(uint lane, uint col_base, uint k_base) {\n"
+        "    for (uint i = lane; i < TILE_SIZE; i += 64u) {\n"
+        "        const uint col = i / TILE_K;\n"
+        "        const uint k_offset = i - col * TILE_K;\n"
+        "        const uint n = col_base + col;\n"
+        "        const uint k = k_base + k_offset;\n"
+        "        shared_b[i] = float16_t((n < pc.N && k < pc.K) ? q8_0_value_prepared(n, k) : 0.0);\n"
+        "    }\n"
+        "}\n",
+    )
+    .replace(
+        "    for (uint k_base = 0u; k_base < pc.K; k_base += TILE_K) {\n"
+        "        load_a_tile_pair(lane, row_base, k_base);\n"
+        "        load_b_tile(lane, col_base, k_base);\n"
+        "        barrier();\n"
+        "        coopMatLoad(mat_a0, shared_a0, 0, int(TILE_K), gl_CooperativeMatrixLayoutRowMajor);\n"
+        "        coopMatLoad(mat_a1, shared_a1, 0, int(TILE_K), gl_CooperativeMatrixLayoutRowMajor);\n"
+        "        coopMatLoad(mat_b, shared_b, 0, int(TILE_K), gl_CooperativeMatrixLayoutColumnMajor);\n"
+        "        mat_c0 = coopMatMulAdd(mat_a0, mat_b, mat_c0);\n"
+        "        mat_c1 = coopMatMulAdd(mat_a1, mat_b, mat_c1);\n"
+        "        barrier();\n"
+        "    }\n",
+        "    for (uint k_base = 0u; k_base < pc.K; k_base += 32u) {\n"
+        "        prepare_q8_0_tile_scales(lane, col_base, k_base);\n"
+        "        barrier();\n"
+        "\n"
+        "        load_a_tile_pair(lane, row_base, k_base);\n"
+        "        load_b_tile(lane, col_base, k_base);\n"
+        "        barrier();\n"
+        "        coopMatLoad(mat_a0, shared_a0, 0, int(TILE_K), gl_CooperativeMatrixLayoutRowMajor);\n"
+        "        coopMatLoad(mat_a1, shared_a1, 0, int(TILE_K), gl_CooperativeMatrixLayoutRowMajor);\n"
+        "        coopMatLoad(mat_b, shared_b, 0, int(TILE_K), gl_CooperativeMatrixLayoutColumnMajor);\n"
+        "        mat_c0 = coopMatMulAdd(mat_a0, mat_b, mat_c0);\n"
+        "        mat_c1 = coopMatMulAdd(mat_a1, mat_b, mat_c1);\n"
+        "        barrier();\n"
+        "\n"
+        "        load_a_tile_pair(lane, row_base, k_base + TILE_K);\n"
+        "        load_b_tile(lane, col_base, k_base + TILE_K);\n"
+        "        barrier();\n"
+        "        coopMatLoad(mat_a0, shared_a0, 0, int(TILE_K), gl_CooperativeMatrixLayoutRowMajor);\n"
+        "        coopMatLoad(mat_a1, shared_a1, 0, int(TILE_K), gl_CooperativeMatrixLayoutRowMajor);\n"
+        "        coopMatLoad(mat_b, shared_b, 0, int(TILE_K), gl_CooperativeMatrixLayoutColumnMajor);\n"
+        "        mat_c0 = coopMatMulAdd(mat_a0, mat_b, mat_c0);\n"
+        "        mat_c1 = coopMatMulAdd(mat_a1, mat_b, mat_c1);\n"
+        "        barrier();\n"
+        "    }\n",
+    )
 )
 
 

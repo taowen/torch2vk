@@ -11,6 +11,7 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
+    mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,
@@ -41,12 +42,12 @@ MEAN_DIM_F32_8 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 2416, dynamic=False),
-                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 128, dynamic=False),
+                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, mul(mul('S0', 'S1'), 'S2'), dynamic=False),
+                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 'S3', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(2416, 1, 1),
+        dispatch=(mul(mul('S0', 'S1'), 'S2'), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)),
     source="""\
