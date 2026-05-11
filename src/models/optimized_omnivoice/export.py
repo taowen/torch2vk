@@ -33,6 +33,7 @@ from models.optimized_omnivoice.custom_shaders import (
     OMNIVOICE_RMS_NORM_3D_F32,
     OMNIVOICE_RMS_NORM_4D_F32,
     OMNIVOICE_ROTARY_FUSED_F32,
+    OMNIVOICE_SDPA_MASKED_F32,
     OMNIVOICE_SILU_MUL_F32,
 )
 from models.optimized_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
@@ -158,6 +159,7 @@ def main() -> int:
         OMNIVOICE_RMS_NORM_3D_F32,
         OMNIVOICE_RMS_NORM_4D_F32,
         OMNIVOICE_ROTARY_FUSED_F32,
+        OMNIVOICE_SDPA_MASKED_F32,
         OMNIVOICE_SILU_MUL_F32,
         OMNIVOICE_CFG_SCORE_F32,
         OMNIVOICE_TOKEN_UPDATE_TOPK_F32,

@@ -21,8 +21,10 @@ from models.optimized_omnivoice.shaders.omnivoice_rms_norm_4d_f32 import (
 from models.optimized_omnivoice.shaders.omnivoice_rotary_fused_f32 import (
     OMNIVOICE_ROTARY_FUSED_F32,
 )
+from models.optimized_omnivoice.shaders.omnivoice_sdpa_masked_f32 import (
+    OMNIVOICE_SDPA_MASKED_F32,
+)
 from models.optimized_omnivoice.shaders.omnivoice_silu_mul_f32 import OMNIVOICE_SILU_MUL_F32
-from models.optimized_omnivoice.shaders.sdpa_masked_f32 import SDPA_MASKED_F32
 from models.optimized_omnivoice.shaders.transpose_f32_322f87bdab import (
     TRANSPOSE_F32_322F87BDAB,
 )
@@ -91,7 +93,7 @@ def _run_llm_forward_with_tensors(rt: RuntimeSession, tensors: LlmForwardTensors
             sin=layer_t.unsqueeze_1,
             output=layer_t.add_4,
         )
-        SDPA_MASKED_F32(
+        OMNIVOICE_SDPA_MASKED_F32(
             rt,
             q=layer_t.add_3,
             k=layer_t.add_4,
