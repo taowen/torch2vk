@@ -1,22 +1,29 @@
-"""Full ASR pipeline using generated shaders and dispatch functions.
+"""PyTorch/Vulkan comparison entry points for exported Qwen3-ASR.
 
 Run from project root:
-    .venv/bin/python -m models.exported_qwen3_asr.run
+    .venv/bin/python -m models.exported_qwen3_asr.compare
 """
 
 from __future__ import annotations
 
 import json
 import os
-import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import numpy as np
+import torch
+from torch import nn
 from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRConfig
+from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
+    Qwen3ASRForConditionalGeneration,
+)
 
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
+from models.exported_qwen3_asr import reference
 from models.exported_qwen3_asr.dispatch.audio_encoder import run_audio_encoder
 from models.exported_qwen3_asr.dispatch.audio_inject import run_audio_inject
 from models.exported_qwen3_asr.dispatch.decode_embed import run_decode_embed
@@ -27,7 +34,15 @@ from models.exported_qwen3_asr.dispatch.embed_tokens import run_embed_tokens
 from models.exported_qwen3_asr.dispatch.lm_head import run_lm_head
 from models.exported_qwen3_asr.dispatch.text_layer import run_text_layer
 from models.exported_qwen3_asr.dispatch.text_norm import run_text_norm
-from models.exported_qwen3_asr.pytorch_modules import preprocess_audio_inputs
+from models.exported_qwen3_asr.pytorch_modules import (
+    AudioEncoderReference,
+    AudioInjectReference,
+    TextLayerReference,
+    TextReferenceState,
+    TokenSelectReference,
+    TokenStoreReference,
+    preprocess_audio_inputs,
+)
 from models.exported_qwen3_asr.shaders.qwen3_asr_token_select_greedy_f32 import (
     QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
 )
@@ -37,16 +52,35 @@ from models.exported_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
 from models.exported_qwen3_asr.shaders.registry import get_shader
 from models.exported_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
-from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 
-_DECODE_REPLAY_CACHE = "exported_qwen3_asr_decode_step:v1"
+
+@dataclass(slots=True)
+class _QwenCompareReferences:
+    text_state: TextReferenceState
+    audio_encoder: AudioEncoderReference
+    audio_inject: AudioInjectReference
+    text_layers: tuple[TextLayerReference, ...]
+    decode_layers: tuple[TextLayerReference, ...]
+    token_select: TokenSelectReference
+    token_store: TokenStoreReference
+    next_token: np.ndarray | None = None
+    done: np.ndarray | None = None
 
 
 def _require_gpu_output(tensor: LogicalTensor) -> None:
     if tensor.buffer is None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
+
+
+def _vulkan_input(rt: RuntimeSession, tensor: LogicalTensor) -> reference.ReferenceInput:
+    return np.ascontiguousarray(rt.readback(tensor))
+
+
+def _vulkan_request_state(rt: RuntimeSession, tensor: LogicalTensor) -> np.ndarray:
+    _require_gpu_output(tensor)
+    return np.ascontiguousarray(rt.read_request_state(tensor))
 
 
 def _run_token_select(
@@ -90,35 +124,6 @@ def _run_token_store(
             generated_length=generated_length,
             stopped=stopped,
         )
-
-
-def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
-    tensors = model_tensors()
-    if not tensors.decode_layers:
-        raise ValueError("decode_layers must not be empty")
-    with rt.frame(f"spike.decode.{step:04d}"):
-        run_decode_embed(rt)
-        for layer_idx in range(len(tensors.decode_layers)):
-            run_decode_layer(rt, layer_idx)
-        run_decode_norm(rt)
-        run_decode_lm_head(rt)
-        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
-            rt,
-            logits=tensors.decode_lm_head.linear,
-            eos_token_ids=tensors.eos_token_ids,
-            next_token=tensors.next_token,
-            done=tensors.done,
-        )
-        QWEN3_ASR_TOKEN_STORE_EOS_F32(
-            rt,
-            next_token=tensors.next_token,
-            token_index=tensors.token_index,
-            done=tensors.done,
-            generated_tokens=tensors.generated_tokens,
-            generated_length=tensors.generated_length,
-            stopped=tensors.stopped,
-        )
-    return _read_selected_token(rt, tensors.next_token)
 
 
 def _run_rope_table(
@@ -165,37 +170,175 @@ def _read_selected_token(rt: RuntimeSession, next_token: LogicalTensor) -> int:
     return int(rt.read_request_state(next_token).reshape(-1)[0])
 
 
-def _build_decode_replay_plan(
+def _load_qwen_reference_model(model_dir: Path) -> Qwen3ASRForConditionalGeneration:
+    model = Qwen3ASRForConditionalGeneration.from_pretrained(
+        str(model_dir),
+        dtype=torch.float32,
+        device_map="cuda",
+        attn_implementation="eager",
+    )
+    model.eval()
+    return cast(Qwen3ASRForConditionalGeneration, model)
+
+
+def _build_compare_references(
+    model: Qwen3ASRForConditionalGeneration,
+    *,
+    max_new_tokens: int,
+) -> _QwenCompareReferences:
+    thinker = cast(nn.Module, getattr(model, "thinker"))
+    reference.set_model(model)
+    text_state = TextReferenceState(thinker)
+    decode_state = text_state
+    audio_tower = cast(nn.Module, thinker.get_submodule("audio_tower"))
+    return _QwenCompareReferences(
+        text_state=text_state,
+        audio_encoder=AudioEncoderReference(audio_tower),
+        audio_inject=AudioInjectReference(),
+        text_layers=tuple(
+            TextLayerReference(text_state, layer_idx, prefill=True)
+            for layer_idx in range(len(text_state.layers))
+        ),
+        decode_layers=tuple(
+            TextLayerReference(decode_state, layer_idx, prefill=False)
+            for layer_idx in range(len(decode_state.layers))
+        ),
+        token_select=TokenSelectReference(),
+        token_store=TokenStoreReference(max_new_tokens),
+    )
+
+
+def _compare_token_select(
     rt: RuntimeSession,
     *,
-    frame: str,
-) -> ReplayPlan:
-    plan = rt.build_replay_plan(
-        name="exported_qwen3_asr_decode_step",
-        frame=frame,
+    frame_name: str,
+    logits: reference.ReferenceInput,
+    eos_token_ids: np.ndarray,
+    next_token: LogicalTensor,
+    done: LogicalTensor,
+    refs: _QwenCompareReferences,
+) -> None:
+    reference.run_token_select(
+        rt,
+        refs.token_select,
+        name=frame_name,
+        logits=logits,
+        eos_token_ids=eos_token_ids,
     )
-    if plan.readback_slots:
-        plan.close()
-        raise RuntimeError("Spike Qwen3-ASR decode replay must not use readback slots")
-    rt.cache_replay_plan(_DECODE_REPLAY_CACHE, plan)
-    return plan
+    refs.next_token = _vulkan_request_state(rt, next_token).astype(np.int64, copy=False)
+    refs.done = _vulkan_request_state(rt, done).astype(np.uint32, copy=False)
 
 
-def _cached_decode_replay_plan(rt: RuntimeSession) -> ReplayPlan | None:
-    for plan in rt.cached_replay_plans(_DECODE_REPLAY_CACHE):
-        if rt.replay_plan_compatible(plan):
-            return plan
-    return None
+def _compare_token_store(
+    rt: RuntimeSession,
+    *,
+    frame_name: str,
+    refs: _QwenCompareReferences,
+    next_token: reference.ReferenceInput,
+    token_index: reference.ReferenceInput,
+    done: reference.ReferenceInput,
+) -> None:
+    reference.run_token_store(
+        rt,
+        refs.token_store,
+        name=frame_name,
+        next_token=next_token,
+        token_index=token_index,
+        done=done,
+    )
+
+
+def _run_decode_step_with_compare(
+    rt: RuntimeSession,
+    *,
+    step: int,
+    cache_position: np.ndarray,
+    eos_token_ids: np.ndarray,
+    token_index: np.ndarray,
+    refs: _QwenCompareReferences,
+) -> int:
+    tensors = model_tensors()
+    if refs.next_token is None:
+        raise RuntimeError("decode compare requires a reference next_token from prefill")
+    with rt.frame(f"spike.decode.{step:04d}"):
+        run_decode_embed(rt)
+        reference.run_decode_embed(
+            rt,
+            step=step,
+            input=refs.next_token,
+        )
+        ref_hidden = _vulkan_input(rt, tensors.decode_embed.embedding)
+        cos = _vulkan_input(rt, tensors.decode_rope.cos)
+        sin = _vulkan_input(rt, tensors.decode_rope.sin)
+        for layer_idx in range(len(tensors.decode_layers)):
+            run_decode_layer(rt, layer_idx)
+            reference.run_decode_layer(
+                rt,
+                refs.decode_layers[layer_idx],
+                step=step,
+                layer_idx=layer_idx,
+                hidden_states=ref_hidden,
+                position_embeddings_0=cos,
+                position_embeddings_1=sin,
+                cache_position=cache_position,
+            )
+            ref_hidden = _vulkan_input(rt, tensors.decode_layers[layer_idx].add_7)
+        run_decode_norm(rt)
+        reference.run_decode_norm(
+            rt,
+            step=step,
+            hidden_states=ref_hidden,
+        )
+        ref_hidden = _vulkan_input(rt, tensors.decode_norm.mul_1)
+        run_decode_lm_head(rt)
+        reference.run_decode_lm_head(
+            rt,
+            step=step,
+            input=ref_hidden,
+        )
+        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
+            rt,
+            logits=tensors.decode_lm_head.linear,
+            eos_token_ids=tensors.eos_token_ids,
+            next_token=tensors.next_token,
+            done=tensors.done,
+        )
+        _compare_token_select(
+            rt,
+            frame_name=f"spike.decode.{step:04d}.token_select",
+            logits=_vulkan_input(rt, tensors.decode_lm_head.linear),
+            eos_token_ids=eos_token_ids,
+            next_token=tensors.next_token,
+            done=tensors.done,
+            refs=refs,
+        )
+        QWEN3_ASR_TOKEN_STORE_EOS_F32(
+            rt,
+            next_token=tensors.next_token,
+            token_index=tensors.token_index,
+            done=tensors.done,
+            generated_tokens=tensors.generated_tokens,
+            generated_length=tensors.generated_length,
+            stopped=tensors.stopped,
+        )
+        _compare_token_store(
+            rt,
+            frame_name=f"spike.decode.{step:04d}.token_store",
+            refs=refs,
+            next_token=_vulkan_request_state(rt, tensors.next_token),
+            token_index=token_index,
+            done=_vulkan_request_state(rt, tensors.done),
+        )
+    return int(_vulkan_request_state(rt, tensors.next_token).reshape(-1)[0])
 
 
 # ==============================================================
 # Main pipeline
 # ==============================================================
 
-def main(
+def compare_decode_steps(
     *,
-    use_replay: bool = True,
-    max_new_tokens: int = 64,
+    max_new_tokens: int = 2,
 ) -> str:
     if max_new_tokens <= 0 or max_new_tokens > 64:
         raise ValueError(f"max_new_tokens must be in [1, 64], got {max_new_tokens}")
@@ -251,6 +394,11 @@ def main(
         model_tensors=model_tensors(),
         get_shader=get_shader,
     )
+    print("Loading PyTorch reference for compare...")
+    compare_refs = _build_compare_references(
+        _load_qwen_reference_model(Path(model_dir)),
+        max_new_tokens=max_new_tokens,
+    )
 
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
@@ -283,6 +431,15 @@ def main(
     )
     with rt.frame("spike.audio"):
         run_audio_encoder(rt)
+        reference.run_audio_encoder(
+            rt,
+            compare_refs.audio_encoder,
+            x=preprocessed["padded_feature"],
+            position_embedding=preprocessed["position_embedding"],
+            compact_index=preprocessed["compact_index"],
+            attention_mask=preprocessed["audio_attention_mask"],
+        )
+        ref_audio_features = _vulkan_input(rt, model_tensors().audio_encoder.linear_110)
     _require_gpu_output(model_tensors().audio_encoder.linear_110)
     print(f"  Audio tower output: {model_tensors().audio_encoder.linear_110.spec.shape}")
 
@@ -340,13 +497,47 @@ def main(
             }
         )
         run_embed_tokens(rt)
+        reference.run_embed_tokens(
+            rt,
+            input=prepared.input_ids,
+        )
+        ref_hidden = _vulkan_input(rt, model_tensors().embed_tokens.embedding)
         run_audio_inject(rt)
+        reference.run_audio_inject(
+            rt,
+            compare_refs.audio_inject,
+            inputs_embeds=ref_hidden,
+            audio_positions=preprocessed["audio_positions"],
+            audio_features=ref_audio_features,
+        )
+        ref_hidden = _vulkan_input(rt, model_tensors().audio_inject.index_copy)
+        ref_cos = _vulkan_input(rt, model_tensors().prefill_rope.cos)
+        ref_sin = _vulkan_input(rt, model_tensors().prefill_rope.sin)
         for layer_idx in range(len(model_tensors().text_layers)):
             run_text_layer(rt, layer_idx)
+            reference.run_text_layer(
+                rt,
+                compare_refs.text_layers[layer_idx],
+                layer_idx=layer_idx,
+                hidden_states=ref_hidden,
+                position_embeddings_0=ref_cos,
+                position_embeddings_1=ref_sin,
+                cache_position=prefill_cache_position,
+            )
+            ref_hidden = _vulkan_input(rt, model_tensors().text_layers[layer_idx].add_7)
             if layer_idx % 7 == 6:
                 print(f"    layer {layer_idx} done")
         run_text_norm(rt)
+        reference.run_text_norm(
+            rt,
+            hidden_states=ref_hidden,
+        )
+        ref_hidden = _vulkan_input(rt, model_tensors().text_norm.mul_1)
         run_lm_head(rt)
+        reference.run_lm_head(
+            rt,
+            input=ref_hidden,
+        )
 
     print("  lm_head + token_select...")
     _require_gpu_output(model_tensors().lm_head.linear)
@@ -368,6 +559,15 @@ def main(
         done=model_tensors().done,
         frame_name="spike.text.token_select",
     )
+    _compare_token_select(
+        rt,
+        frame_name="spike.text.token_select",
+        logits=_vulkan_input(rt, model_tensors().lm_head.linear),
+        eos_token_ids=eos_token_array,
+        next_token=model_tensors().next_token,
+        done=model_tensors().done,
+        refs=compare_refs,
+    )
     rt.register_inputs({model_tensors().token_index: np.array([0], dtype=np.int64)})
     _run_token_store(
         rt,
@@ -379,6 +579,14 @@ def main(
         stopped=model_tensors().stopped,
         frame_name="spike.text.token_store",
     )
+    _compare_token_store(
+        rt,
+        frame_name="spike.text.token_store",
+        refs=compare_refs,
+        next_token=_vulkan_request_state(rt, model_tensors().next_token),
+        token_index=np.array([0], dtype=np.int64),
+        done=_vulkan_request_state(rt, model_tensors().done),
+    )
     first_token = _read_selected_token(rt, model_tensors().next_token)
     print(f"  First token: {first_token}")
 
@@ -386,15 +594,7 @@ def main(
     print("\n=== Phase 3: Decode Loop ===")
     eos_token_set = set(eos_token_ids)
     generated_tokens = [first_token]
-    decode_replay_plan = _cached_decode_replay_plan(rt) if use_replay else None
 
-    # Memory sampling
-    memory_trace: list[tuple[int, float, float, float]] = []
-    baseline_stats = rt.device.allocation_stats()
-    print(f"  Baseline GPU memory: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
-          f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB")
-
-    decode_start = time.perf_counter()
     for step in range(max_new_tokens - 1):
         if generated_tokens[-1] in eos_token_set:
             print(f"  EOS at step {step}")
@@ -425,66 +625,18 @@ def main(
             eos_token_array=eos_token_array,
             token_index_value=step + 1,
         )
-        if decode_replay_plan is None:
-            rt.register_inputs(decode_step_inputs)
-            next_token = _run_decode_step(
-                rt,
-                step=step,
-            )
-            generated_tokens.append(next_token)
-            if use_replay:
-                decode_replay_plan = _build_decode_replay_plan(
-                    rt,
-                    frame=f"spike.decode.{step:04d}",
-                )
-        else:
-            stage_replay_step_inputs(
-                rt,
-                plan=decode_replay_plan,
-                inputs=decode_step_inputs,
-                write_through=(
-                    model_tensors().decode_layers[0].cache_position,
-                    model_tensors().token_index,
-                ),
-            )
-            execute_replay(decode_replay_plan)
-
-        stats = rt.device.allocation_stats()
-        memory_trace.append(
-            (
-                step,
-                stats.device_local_live_bytes / 1024**2,
-                stats.device_local_reserved_bytes / 1024**2,
-                stats.host_upload_live_bytes / 1024**2,
-            )
+        rt.register_inputs(decode_step_inputs)
+        next_token = _run_decode_step_with_compare(
+            rt,
+            step=step,
+            cache_position=np.array([cache_pos], dtype=np.int64),
+            eos_token_ids=eos_token_array,
+            token_index=np.array([step + 1], dtype=np.int64),
+            refs=compare_refs,
         )
-
+        generated_tokens.append(next_token)
         if step < 5 or step % 20 == 0:
-            if use_replay:
-                print(f"  Step {step}: gpu={stats.device_local_live_bytes / 1024**2:.1f}MB")
-            else:
-                print(f"  Step {step}: token={generated_tokens[-1]}  "
-                      f"gpu={stats.device_local_live_bytes / 1024**2:.1f}MB")
-
-    decode_elapsed = time.perf_counter() - decode_start
-    decode_steps = len(memory_trace)
-    print(f"\n  Decode: {decode_steps} steps in {decode_elapsed:.3f}s "
-          f"({decode_elapsed / decode_steps * 1000:.1f} ms/token)" if decode_steps > 0 else "")
-
-    # Memory summary
-    print("\n=== GPU Memory Trace ===")
-    if memory_trace:
-        final_stats = rt.device.allocation_stats()
-        print(f"  Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB")
-        print(f"  Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB")
-        print(f"  Final device_local live: {final_stats.device_local_live_bytes / 1024**2:.1f} MB")
-        print(f"  Steps sampled: {len(memory_trace)}")
-        print()
-        print("  Step | GPU Live (MB) | GPU Reserved (MB) | Host Upload (MB)")
-        print("  -----|---------------|-------------------|------------------")
-        for step, device_local_live_mb, device_local_reserved_mb, host_upload_live_mb in memory_trace:
-            print(f"  {step:4d} | {device_local_live_mb:13.1f} | "
-                  f"{device_local_reserved_mb:17.1f} | {host_upload_live_mb:.1f}")
+            print(f"  Step {step}: token={generated_tokens[-1]}")
 
     # Decode text
     print("\n=== Result ===")
@@ -508,5 +660,5 @@ def main(
 
 
 if __name__ == "__main__":
-    result = main()
+    result = compare_decode_steps()
     print(result)

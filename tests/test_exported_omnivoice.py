@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from models.exported_omnivoice.run import main
+from models.exported_omnivoice.compare import compare_generation_steps
 
 
 def test_exported_omnivoice_two_step_pytorch_compare() -> None:
-    main(pytorch_compare=True, num_steps=2)
+    compare_generation_steps(num_steps=2)

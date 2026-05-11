@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from models.exported_qwen3_asr.compare import compare_decode_steps
 from models.exported_qwen3_asr.run import main
 
 _EXPECTED_ASKNOT_TEXT = (
@@ -15,4 +16,4 @@ def test_exported_qwen3_asr_transcribes_asknot() -> None:
 
 
 def test_exported_qwen3_asr_pytorch_compare_decode_step() -> None:
-    assert main(pytorch_compare=True, max_new_tokens=2) == "And so"
+    assert compare_decode_steps(max_new_tokens=2) == "And so"

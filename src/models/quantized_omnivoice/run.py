@@ -20,7 +20,7 @@ from transformers import AutoTokenizer
 from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.hf_cache import resolve_cached_model
-from models.quantized_omnivoice.dispatch.audio_head import _run_audio_head_with_tensors, run_audio_head
+from models.quantized_omnivoice.dispatch.audio_head import run_audio_head
 from models.quantized_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.quantized_omnivoice.export_gguf import export_omnivoice_q4_k_m_gguf
 from models.quantized_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
@@ -30,17 +30,16 @@ from models.quantized_omnivoice.shaders.omnivoice_token_update_topk_f32 import (
     OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
 )
 from models.quantized_omnivoice.shaders.registry import get_shader
-from models.quantized_omnivoice.tensors.audio_head import create_audio_head
 from models.quantized_omnivoice.tensors.model import create_model_tensors, model_tensors
-from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
+from omnivoice.models.omnivoice import OmniVoiceConfig
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
-from torch2vk.runtime.compare import compare_arrays
-from torch2vk.runtime.logical import ComparePolicy, LogicalTensor
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_quantized.wav")
+_GENERATION_REPLAY_CACHE = "quantized_omnivoice_generation_step:v1"
 
 
 class _AudioDecodeOutput(Protocol):
@@ -112,51 +111,6 @@ def _run_generation_step(rt: RuntimeSession, *, step: int) -> None:
         _run_token_update(rt)
 
 
-def compare_audio_head_q8(
-    *,
-    model_dir: str | Path | None = None,
-    gguf_path: str | Path | None = None,
-) -> None:
-    resolved_model_dir = resolve_cached_model(REPO_ID) if model_dir is None else Path(model_dir)
-    resolved_gguf_path = (
-        export_omnivoice_q4_k_m_gguf(model_dir=resolved_model_dir)
-        if gguf_path is None
-        else Path(gguf_path)
-    )
-    tensors = create_audio_head("quantized_omnivoice.compare.audio_head")
-    rng = np.random.default_rng(0)
-    x = rng.standard_normal((2, 85, 1024)).astype(np.float32)
-    rt = RuntimeSession.open(
-        device_index=0,
-        model_dir=resolved_gguf_path.parent,
-        model_tensors=tensors,
-        get_shader=get_shader,
-    )
-    try:
-        rt.register_inputs({tensors.input: x})
-        with rt.frame("quantized_omnivoice.audio_head.q8_compare"):
-            _run_audio_head_with_tensors(rt, tensors)
-            candidate = rt.readback(tensors.linear)
-    finally:
-        rt.close()
-
-    model = OmniVoice.from_pretrained(
-        str(resolved_model_dir),
-        dtype=torch.float32,
-        device_map="cuda",
-        train=True,
-    ).eval()
-    with torch.no_grad():
-        expected = model.audio_heads(torch.from_numpy(x).cuda()).float().cpu().numpy()
-    compare_arrays(
-        tensor=tensors.linear,
-        frame="quantized_omnivoice.audio_head.q8_compare",
-        candidate=candidate,
-        expected=expected,
-        policy=ComparePolicy(kind="tensor", rtol=1e-2, atol=8e-2, max_abs=8e-2),
-    )
-
-
 def _generation_step_inputs(step: int, unmask_count: int) -> dict[LogicalTensor, np.ndarray]:
     return {
         model_tensors().step_index: np.array([step], dtype=np.uint32),
@@ -175,14 +129,21 @@ def _build_generation_replay_plan(
     )
     if plan.readback_slots:
         raise RuntimeError("OmniVoice generation replay must not use readback slots")
+    rt.cache_replay_plan(_GENERATION_REPLAY_CACHE, plan)
     return plan
+
+
+def _cached_generation_replay_plan(rt: RuntimeSession) -> ReplayPlan | None:
+    for plan in rt.cached_replay_plans(_GENERATION_REPLAY_CACHE):
+        if rt.replay_plan_compatible(plan):
+            return plan
+    return None
 
 
 def main(
     *,
     text: str = DEFAULT_TEXT,
     output: str | Path = DEFAULT_OUTPUT_WAV,
-    pytorch_compare: bool = False,
     num_steps: int = 32,
 ) -> Path:
     output_path = Path(output)
@@ -252,10 +213,6 @@ def main(
         rem -= int(num)
 
     rng_seed = 0x1234ABCD
-    if pytorch_compare:
-        print("Running single-layer PyTorch Q8 compare...")
-        compare_audio_head_q8(model_dir=model_dir, gguf_path=gguf_path)
-
     rt.initialize_request_state(
         {
             model_tensors().batch_input_ids: batch_input_ids,
@@ -275,7 +232,7 @@ def main(
     _run_rope_table(rt, frame_name="omnivoice.rope")
 
     unmasked = 0
-    generation_replay_plan: ReplayPlan | None = None
+    generation_replay_plan = _cached_generation_replay_plan(rt) if num_steps > 1 else None
     use_replay = num_steps > 1
     for step in range(num_steps):
         k = schedule[step]

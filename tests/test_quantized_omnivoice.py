@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from models.optimized_qwen3_asr import Qwen3AsrRecognizer
-from models.quantized_omnivoice.run import compare_audio_head_q8, main
+from models.quantized_omnivoice.compare import compare_audio_head_q8
+from models.quantized_omnivoice.run import main
 
 _EXPECTED_TEXT = "Hello world. This is a speech recognition test."
 
@@ -16,7 +17,6 @@ def test_quantized_omnivoice_audio_head_q8_compare() -> None:
 
 def test_quantized_omnivoice_wav_transcribes_prompt(tmp_path: Path) -> None:
     wav = main(
-        pytorch_compare=False,
         num_steps=32,
         output=tmp_path / "quantized_omnivoice.wav",
     )
