@@ -271,6 +271,7 @@ def main(
             model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
         }
     )
+    rt.materialize_model_weights()
 
     print(f"Prefill prompt_length={prompt_length}...")
     eos_token_array = np.array(eos_token_ids, dtype=np.int64)

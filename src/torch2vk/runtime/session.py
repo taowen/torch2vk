@@ -189,6 +189,13 @@ class RuntimeSession:
     def debug_materialization(self, tensor: LogicalTensor) -> BufferSlice | None:
         return tensor.buffer
 
+    def materialize_model_weights(self) -> None:
+        if self._model_tensors is None:
+            raise RuntimeError("RuntimeSession has no model_tensors to materialize")
+        for tensor in collect_named_logical_tensors(self._model_tensors).values():
+            if tensor.role is TensorRole.WEIGHT:
+                self._materialize_weight(tensor)
+
     def build_replay_plan(
         self,
         *,
