@@ -55,7 +55,7 @@ from torch2vk.export import (
     render_reference_loader,
     render_reference_module,
     write_shader_file,
-    write_shader_metadata,
+    write_shader_init,
 )
 from torch2vk.export.registry import ShaderRegistry
 from torch2vk.export.tensor_codegen import render_tensor_module
@@ -397,7 +397,7 @@ def main() -> int:
         export_registry=Q8_0_REGISTRY,
     )
 
-    write_shader_metadata(shaders_dir)
+    write_shader_init(shaders_dir)
     print(f"\n  {shader_file_count} shader files written")
 
     (tensors_dir / "model.py").write_text(

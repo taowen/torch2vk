@@ -111,10 +111,6 @@ def render_shader_file(variant: ShaderVariant) -> str:
     )
 
 
-def render_shader_registry_module() -> str:
-    return render_template("shader_registry.py.j2")
-
-
 def clear_shader_package(shaders_dir: Path) -> None:
     for f in shaders_dir.glob("*.py"):
         f.unlink()
@@ -124,9 +120,8 @@ def write_shader_file(shaders_dir: Path, variant: ShaderVariant) -> None:
     (shaders_dir / f"{variant.name}.py").write_text(render_shader_file(variant))
 
 
-def write_shader_metadata(shaders_dir: Path) -> None:
+def write_shader_init(shaders_dir: Path) -> None:
     (shaders_dir / "__init__.py").write_text('"""Generated shader package."""\n')
-    (shaders_dir / "registry.py").write_text(render_shader_registry_module())
 
 
 def rename_shader_variant(variant: ShaderVariant, new_name: str) -> ShaderVariant:

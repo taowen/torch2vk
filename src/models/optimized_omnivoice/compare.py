@@ -32,11 +32,13 @@ from models.optimized_omnivoice.run import (
     _run_token_score,
     _run_token_update,
 )
-from models.optimized_omnivoice.shaders.registry import get_shader
 from models.optimized_omnivoice.tensors.model import create_model_tensors, model_tensors
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.runtime.shader_loader import make_shader_loader
+
+get_shader = make_shader_loader("models.optimized_omnivoice.shaders")
 
 
 @dataclass(slots=True)

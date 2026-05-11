@@ -54,7 +54,7 @@ from torch2vk.export.shader_codegen import (
     clear_shader_package,
     rename_shader_variant,
     write_shader_file,
-    write_shader_metadata,
+    write_shader_init,
 )
 from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
@@ -560,7 +560,7 @@ def main() -> int:
                export_registry=Q4_K_M_REGISTRY,
                weight_quantization=_QUANTIZED_WEIGHTS)
 
-    write_shader_metadata(shaders_dir)
+    write_shader_init(shaders_dir)
     print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.

@@ -39,9 +39,8 @@ from torch2vk.export.tensor_codegen import (
 from torch2vk.export.shader_codegen import (
     clear_shader_package,
     rename_shader_variant,
-    render_shader_registry_module,
     write_shader_file,
-    write_shader_metadata,
+    write_shader_init,
 )
 
 __all__ = [
@@ -71,8 +70,7 @@ __all__ = [
     "render_reference_loader",
     "render_reference_module",
     "render_model_dispatch_module",
-    "render_shader_registry_module",
     "set_module_checkpoint_dtypes",
     "write_shader_file",
-    "write_shader_metadata",
+    "write_shader_init",
 ]

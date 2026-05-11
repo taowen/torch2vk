@@ -52,7 +52,7 @@ from torch2vk.export.shader_codegen import (
     clear_shader_package,
     rename_shader_variant,
     write_shader_file,
-    write_shader_metadata,
+    write_shader_init,
 )
 from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
@@ -528,7 +528,7 @@ def main() -> int:
                reference_tensors="model_tensors().decode_lm_head",
                reference_name="spike.decode.{step:04d}.lm_head")
 
-    write_shader_metadata(shaders_dir)
+    write_shader_init(shaders_dir)
     print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.

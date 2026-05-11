@@ -29,7 +29,6 @@ from models.quantized_omnivoice.shaders.omnivoice_input_embed_q8_0_f32 import OM
 from models.quantized_omnivoice.shaders.omnivoice_token_update_topk_f32 import (
     OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
 )
-from models.quantized_omnivoice.shaders.registry import get_shader
 from models.quantized_omnivoice.tensors.model import create_model_tensors, model_tensors
 from omnivoice.models.omnivoice import OmniVoiceConfig
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
@@ -37,9 +36,11 @@ from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.runtime.shader_loader import make_shader_loader
 
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_quantized.wav")
 _GENERATION_REPLAY_CACHE = "quantized_omnivoice_generation_step:v1"
+get_shader = make_shader_loader("models.quantized_omnivoice.shaders")
 
 
 class _AudioDecodeOutput(Protocol):

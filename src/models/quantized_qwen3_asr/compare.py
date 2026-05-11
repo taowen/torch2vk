@@ -50,11 +50,13 @@ from models.quantized_qwen3_asr.shaders.qwen3_asr_token_select_greedy_f32 import
 from models.quantized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
     QWEN3_ASR_TOKEN_STORE_EOS_F32,
 )
-from models.quantized_qwen3_asr.shaders.registry import get_shader
 from models.quantized_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.runtime.shader_loader import make_shader_loader
+
+get_shader = make_shader_loader("models.quantized_qwen3_asr.shaders")
 
 
 @dataclass(slots=True)
