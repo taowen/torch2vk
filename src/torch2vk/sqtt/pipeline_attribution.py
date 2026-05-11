@@ -117,6 +117,11 @@ def _require_single_shader(artifact: DriverPipelineArtifact) -> DriverShaderArti
 
 
 def _glsl_path_for_row(row: dict[str, Any]) -> Path:
+    profiled_source = row.get("shader_glsl_path")
+    if isinstance(profiled_source, str) and profiled_source:
+        path = Path(profiled_source)
+        if path.is_file():
+            return path
     spv_path = Path(_expect_str(row, "shader_spv_path"))
     candidates = [
         spv_path.with_suffix(".comp"),

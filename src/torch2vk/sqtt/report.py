@@ -17,6 +17,7 @@ REPORT_MARKDOWN = "report.md"
 UNAVAILABLE_DATA = (
     "cache_hit_miss_counters",
     "memory_transaction_counters",
+    "hardware_flop_counters_from_rgp_derived_spm",
     "wait_dependency_chain",
     "occupancy_from_sgpr_vgpr_lds",
 )
@@ -72,7 +73,9 @@ def compact_hotspot_focus(
         result["debug_hotspot_path"] = hotspot_path
     glsl_path = _first_str((line.get("glsl_path") for line in source_hot_lines if isinstance(line, dict)))
     if glsl_path:
-        result["glsl_path"] = _relative_or_str(Path(glsl_path), root)
+        path = Path(glsl_path)
+        result["glsl_path"] = _relative_or_str(path, root)
+        result["glsl_path_available"] = path.is_file()
     return result
 
 
@@ -82,6 +85,7 @@ def build_report_payload(
     attribution_rows: list[dict[str, Any]],
     capture_rows: list[dict[str, Any]],
     source_isa_reports: list[dict[str, Any]],
+    spm_counter_reports: list[dict[str, Any]],
     focus: list[dict[str, Any]],
     debug_artifacts: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -94,8 +98,9 @@ def build_report_payload(
             for row in attribution_rows
         ],
         "focus": focus,
-        "limits": list(UNAVAILABLE_DATA),
+        "limits": _unavailable_data(spm_counter_reports),
         "source_isa_reports": source_isa_reports,
+        "spm_counter_reports": spm_counter_reports,
         "artifact_inventory": _artifact_inventory(root=root, attribution_rows=attribution_rows),
         "debug_artifacts": {} if debug_artifacts is None else debug_artifacts,
     }
@@ -124,6 +129,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append(f"- Not reported: {_escape_markdown_cell(', '.join(str(item) for item in limits))}")
 
     _append_source_isa_status(lines, report.get("source_isa_reports"))
+    _append_spm_counter_status(lines, report.get("spm_counter_reports"))
     focus_items = report.get("focus")
     if not isinstance(focus_items, list) or not focus_items:
         lines.extend(["", "No source/ISA focus data was available."])
@@ -140,6 +146,10 @@ def render_markdown(report: dict[str, Any]) -> str:
                 f"- Output: `{item.get('output_op')}`",
                 f"- RGP: `{item.get('rgp_path')}`",
             ])
+            glsl_path = item.get("glsl_path")
+            if isinstance(glsl_path, str) and glsl_path:
+                presence = "present" if item.get("glsl_path_available") is True else "missing"
+                lines.append(f"- GLSL source: `{glsl_path}` ({presence})")
             debug_hotspot_path = item.get("debug_hotspot_path")
             if isinstance(debug_hotspot_path, str):
                 lines.append(f"- Debug hotspot JSON: `{debug_hotspot_path}`")
@@ -162,30 +172,29 @@ def render_markdown(report: dict[str, Any]) -> str:
                     f"wave={resources.get('wave_size')}"
                 )
             lines.extend(["", "### Top Source Lines", ""])
-            lines.append("| Rank | Line | Share | Cycles | Source |")
-            lines.append("| ---: | ---: | ---: | ---: | --- |")
+            if _all_source_text_missing(item.get("top_source_lines")):
+                lines.append(
+                    "- Source text is unavailable because the GLSL file recorded by the driver "
+                    "is no longer readable from this report."
+                )
             for rank, row in enumerate(_dict_items(item.get("top_source_lines")), start=1):
                 source = str(row.get("source_text", "")).strip() or "source unavailable"
-                lines.append(
-                    "| "
-                    f"{rank} | {row.get('line')} | "
-                    f"{_format_ratio(_optional_float(row.get('reported_cycle_ratio')))} | "
-                    f"{row.get('total_cycles')} | "
-                    f"`{_escape_markdown_cell(source)}` |"
-                )
+                lines.extend([
+                    f"{rank}. Line {row.get('line')}: "
+                    f"{_format_ratio(_optional_float(row.get('reported_cycle_ratio')))}, "
+                    f"{row.get('total_cycles')} cycles",
+                    f"   Source: `{_escape_markdown_text(source)}`",
+                ])
             lines.extend(["", "### Top ISA Ranges", ""])
-            lines.append("| Rank | Line | Opcode | ISA | Share | Cycles | Categories |")
-            lines.append("| ---: | ---: | --- | --- | ---: | ---: | --- |")
             for rank, row in enumerate(_dict_items(item.get("top_isa_ranges")), start=1):
-                lines.append(
-                    "| "
-                    f"{rank} | {row.get('line')} | "
-                    f"`{_escape_markdown_cell(str(row.get('opcode', '')))}` | "
-                    f"`{_escape_markdown_cell(str(row.get('isa_text', '')))}` | "
-                    f"{_format_ratio(_optional_float(row.get('reported_cycle_ratio')))} | "
-                    f"{row.get('total_cycles')} | "
-                    f"{_escape_markdown_cell(_format_pairs(row.get('categories')))} |"
-                )
+                lines.extend([
+                    f"{rank}. Line {row.get('line')}: "
+                    f"`{_escape_markdown_text(str(row.get('opcode', '')))}`, "
+                    f"{_format_ratio(_optional_float(row.get('reported_cycle_ratio')))}, "
+                    f"{row.get('total_cycles')} cycles",
+                    f"   ISA: `{_escape_markdown_text(str(row.get('isa_text', '')))}`",
+                    f"   Categories: {_escape_markdown_text(_format_pairs(row.get('categories')))}",
+                ])
 
     inventory = report.get("artifact_inventory")
     if isinstance(inventory, list) and inventory:
@@ -207,6 +216,20 @@ def _append_source_isa_status(lines: list[str], reports: object) -> None:
     if not rows:
         return
     lines.extend(["", "## Source/ISA Status", ""])
+    if len(rows) == 1:
+        row = rows[0]
+        lines.extend([
+            f"- Submit: {row.get('submit_ordinal', '')}",
+            f"- Availability: {_escape_markdown_text(str(row.get('availability', '')))}",
+            "- Instruction events: "
+            f"{row.get('matched_instruction_event_count', '')} matched / "
+            f"{row.get('total_instruction_event_count', '')} total",
+            f"- Zero PC events: {row.get('zero_pc_instruction_event_count', '')}",
+        ])
+        reason = str(row.get("unavailable_reason") or "")
+        if reason:
+            lines.append(f"- Reason: {_escape_markdown_text(reason)}")
+        return
     lines.append("| Submit | Availability | Matched | Total | Zero PC | Reason |")
     lines.append("| ---: | --- | ---: | ---: | ---: | --- |")
     for row in rows:
@@ -219,6 +242,136 @@ def _append_source_isa_status(lines: list[str], reports: object) -> None:
             f"{row.get('zero_pc_instruction_event_count', '')} | "
             f"{_escape_markdown_cell(str(row.get('unavailable_reason') or ''))} |"
         )
+
+
+def _append_spm_counter_status(lines: list[str], reports: object) -> None:
+    rows = list(_dict_items(reports))
+    if not rows:
+        return
+
+    lines.extend(["", "## Roofline Summary", ""])
+    lines.append(
+        "- Memory bytes are hardware SPM counters: `Fetch size + Write size` from the RGP derived SPM chunk."
+    )
+    lines.append(
+        "- FLOPs are algorithmic estimates from shader symbols; this derived SPM stream does not contain VALU/FLOP counters."
+    )
+    lines.append(
+        "- Capture rows use the full SPM timestamp span. Busy-span rows use sampled `Memory unity busy` activity and are diagnostic only."
+    )
+    lines.append(
+        "- `Tmath` and `Tmem` are lower-bound times at trace shader clock and trace memory clock; the larger one determines `Bound`."
+    )
+    if len(rows) == 1:
+        _append_single_roofline_summary(lines, rows[0])
+        _append_single_memory_summary(lines, rows[0])
+        return
+    lines.append(
+        "| Submit | Shader | Status | Bound | FLOPs | SPM Bytes | AI | Ridge | Tmath | Tmem | Trace Roof | Capture Perf | Capture/Roof | Busy Perf | Busy/Roof | Source |"
+    )
+    lines.append("| ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |")
+    for row in rows:
+        memory = _dict_or_empty(row.get("memory"))
+        compute = _dict_or_empty(row.get("compute_roofline"))
+        lines.append(
+            "| "
+            f"{row.get('submit_ordinal', '')} | "
+            f"`{_escape_markdown_cell(str(row.get('shader') or ''))}` | "
+            f"{_escape_markdown_cell(str(compute.get('availability', '')))} | "
+            f"{_escape_markdown_cell(str(compute.get('trace_roof_bound') or ''))} | "
+            f"{_format_count(_optional_int(compute.get('flops')))} | "
+            f"{_format_bytes(_optional_int(memory.get('total_size_bytes')))} | "
+            f"{_format_flop_per_byte(_maybe_float(compute.get('arithmetic_intensity_flop_per_byte')))} | "
+            f"{_format_flop_per_byte(_maybe_float(compute.get('trace_ridge_point_flop_per_byte')))} | "
+            f"{_format_ns(_maybe_float(compute.get('trace_compute_time_ns')))} | "
+            f"{_format_ns(_maybe_float(compute.get('trace_memory_time_ns')))} | "
+            f"{_format_tflops_s(_maybe_float(compute.get('trace_roof_tflops_s')))} | "
+            f"{_format_tflops_s(_maybe_float(compute.get('capture_tflops_s')))} | "
+            f"{_format_ratio_or_dash(_maybe_float(compute.get('capture_trace_roof_ratio')))} | "
+            f"{_format_tflops_s(_maybe_float(compute.get('memory_busy_tflops_s')))} | "
+            f"{_format_ratio_or_dash(_maybe_float(compute.get('memory_busy_trace_roof_ratio')))} | "
+            f"{_escape_markdown_cell(str(compute.get('unavailable_reason') or compute.get('flop_source') or ''))} |"
+        )
+
+    lines.extend(["", "## Memory/SPM Counter Details", ""])
+    lines.append(
+        "| Submit | Status | SPM Span | Fetch | Write | Trace Peak BW | Capture BW | Capture/Peak | Busy Span | Busy BW | Busy/Peak | L2 Hit | Mem Busy |"
+    )
+    lines.append("| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+    for row in rows:
+        time = _dict_or_empty(row.get("time"))
+        memory = _dict_or_empty(row.get("memory"))
+        cache = _dict_or_empty(row.get("cache"))
+        memory_unit = _dict_or_empty(row.get("memory_unit"))
+        roofline = _dict_or_empty(row.get("roofline"))
+        lines.append(
+            "| "
+            f"{row.get('submit_ordinal', '')} | "
+            f"{_escape_markdown_cell(str(row.get('availability', '')))} | "
+            f"{_format_ns(_maybe_float(time.get('spm_capture_span_ns')))} | "
+            f"{_format_bytes(_optional_int(memory.get('fetch_size_bytes')))} | "
+            f"{_format_bytes(_optional_int(memory.get('write_size_bytes')))} | "
+            f"{_format_gb_s(_maybe_float(roofline.get('trace_peak_bandwidth_gb_s')))} | "
+            f"{_format_gb_s(_maybe_float(roofline.get('capture_bandwidth_gb_s')))} | "
+            f"{_format_ratio_or_dash(_maybe_float(roofline.get('capture_trace_peak_ratio')))} | "
+            f"{_format_ns(_maybe_float(time.get('memory_busy_span_ns')))} | "
+            f"{_format_gb_s(_maybe_float(roofline.get('memory_busy_bandwidth_gb_s')))} | "
+            f"{_format_ratio_or_dash(_maybe_float(roofline.get('memory_busy_trace_peak_ratio')))} | "
+            f"{_format_percent(_maybe_float(cache.get('l2_cache_hit_max_percent')))} | "
+            f"{_format_percent(_maybe_float(memory_unit.get('busy_max_percent')))} |"
+        )
+
+
+def _append_single_roofline_summary(lines: list[str], row: dict[str, Any]) -> None:
+    memory = _dict_or_empty(row.get("memory"))
+    compute = _dict_or_empty(row.get("compute_roofline"))
+    lines.extend([
+        "",
+        "### Roofline",
+        "",
+        f"- Submit: {row.get('submit_ordinal', '')}",
+        f"- Shader: `{_escape_markdown_text(str(row.get('shader') or ''))}`",
+        f"- Status: {_escape_markdown_text(str(compute.get('availability', '')))}",
+        f"- Bound: {_escape_markdown_text(str(compute.get('trace_roof_bound') or ''))}",
+        f"- FLOPs: {_format_count(_optional_int(compute.get('flops')))}",
+        f"- SPM bytes: {_format_bytes(_optional_int(memory.get('total_size_bytes')))}",
+        f"- Arithmetic intensity: {_format_flop_per_byte(_maybe_float(compute.get('arithmetic_intensity_flop_per_byte')))} FLOP/B",
+        f"- Ridge point: {_format_flop_per_byte(_maybe_float(compute.get('trace_ridge_point_flop_per_byte')))} FLOP/B",
+        f"- Tmath: {_format_ns(_maybe_float(compute.get('trace_compute_time_ns')))}",
+        f"- Tmem: {_format_ns(_maybe_float(compute.get('trace_memory_time_ns')))}",
+        f"- Trace roof: {_format_tflops_s(_maybe_float(compute.get('trace_roof_tflops_s')))} TFLOP/s",
+        f"- Capture perf: {_format_tflops_s(_maybe_float(compute.get('capture_tflops_s')))} TFLOP/s "
+        f"({_format_ratio_or_dash(_maybe_float(compute.get('capture_trace_roof_ratio')))} of roof)",
+        f"- Busy-span perf: {_format_tflops_s(_maybe_float(compute.get('memory_busy_tflops_s')))} TFLOP/s "
+        f"({_format_ratio_or_dash(_maybe_float(compute.get('memory_busy_trace_roof_ratio')))} of roof)",
+        f"- FLOP source: {_escape_markdown_text(str(compute.get('unavailable_reason') or compute.get('flop_source') or ''))}",
+    ])
+
+
+def _append_single_memory_summary(lines: list[str], row: dict[str, Any]) -> None:
+    time = _dict_or_empty(row.get("time"))
+    memory = _dict_or_empty(row.get("memory"))
+    cache = _dict_or_empty(row.get("cache"))
+    memory_unit = _dict_or_empty(row.get("memory_unit"))
+    roofline = _dict_or_empty(row.get("roofline"))
+    lines.extend([
+        "",
+        "## Memory/SPM Counter Details",
+        "",
+        f"- Submit: {row.get('submit_ordinal', '')}",
+        f"- Status: {_escape_markdown_text(str(row.get('availability', '')))}",
+        f"- SPM span: {_format_ns(_maybe_float(time.get('spm_capture_span_ns')))}",
+        f"- Fetch: {_format_bytes(_optional_int(memory.get('fetch_size_bytes')))}",
+        f"- Write: {_format_bytes(_optional_int(memory.get('write_size_bytes')))}",
+        f"- Trace peak bandwidth: {_format_gb_s(_maybe_float(roofline.get('trace_peak_bandwidth_gb_s')))}",
+        f"- Capture bandwidth: {_format_gb_s(_maybe_float(roofline.get('capture_bandwidth_gb_s')))} "
+        f"({_format_ratio_or_dash(_maybe_float(roofline.get('capture_trace_peak_ratio')))} of peak)",
+        f"- Memory-busy span: {_format_ns(_maybe_float(time.get('memory_busy_span_ns')))}",
+        f"- Memory-busy bandwidth: {_format_gb_s(_maybe_float(roofline.get('memory_busy_bandwidth_gb_s')))} "
+        f"({_format_ratio_or_dash(_maybe_float(roofline.get('memory_busy_trace_peak_ratio')))} of peak)",
+        f"- L2 hit: {_format_percent(_maybe_float(cache.get('l2_cache_hit_max_percent')))}",
+        f"- Memory unit busy: {_format_percent(_maybe_float(memory_unit.get('busy_max_percent')))}",
+    ])
 
 
 def _compact_attribution_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -325,6 +478,13 @@ def _artifact_inventory(*, root: Path, attribution_rows: list[dict[str, Any]]) -
             "role": "Mesa shader cache",
             "bytes": _path_size(cache_dir),
         })
+    shader_dir = root / "shaders"
+    if shader_dir.is_dir():
+        entries.append({
+            "path": "shaders/",
+            "role": "profiled GLSL sources",
+            "bytes": _path_size(shader_dir),
+        })
     entries.sort(key=lambda item: int(item.get("bytes", 0)), reverse=True)
     return entries
 
@@ -362,6 +522,23 @@ def _dict_items(value: object) -> Iterable[dict[str, Any]]:
     return tuple(item for item in value if isinstance(item, dict))
 
 
+def _dict_or_empty(value: object) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def _unavailable_data(spm_counter_reports: list[dict[str, Any]]) -> list[str]:
+    limits: list[str] = [str(item) for item in UNAVAILABLE_DATA]
+    if any(row.get("availability") == "present" for row in spm_counter_reports):
+        limits = [
+            item
+            for item in limits
+            if item not in {"cache_hit_miss_counters", "memory_transaction_counters"}
+        ]
+    return limits
+
+
 def _sum_int_field(rows: Iterable[Any], key: str) -> int:
     total = 0
     for row in rows:
@@ -389,6 +566,14 @@ def _optional_float(value: object) -> float:
     return 0.0
 
 
+def _maybe_float(value: object) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    return None
+
+
 def _ratio(numerator: int, denominator: int) -> float:
     if denominator <= 0:
         return 0.0
@@ -397,6 +582,46 @@ def _ratio(numerator: int, denominator: int) -> float:
 
 def _format_ratio(value: float) -> str:
     return f"{value * 100.0:.1f}%"
+
+
+def _format_ratio_or_dash(value: float | None) -> str:
+    if value is None:
+        return "-"
+    return _format_ratio(value)
+
+
+def _format_percent(value: float | None) -> str:
+    if value is None:
+        return "-"
+    return f"{value:.1f}%"
+
+
+def _format_gb_s(value: float | None) -> str:
+    if value is None:
+        return "-"
+    return f"{value:.2f} GB/s"
+
+
+def _format_tflops_s(value: float | None) -> str:
+    if value is None:
+        return "-"
+    return f"{value:.3f}"
+
+
+def _format_flop_per_byte(value: float | None) -> str:
+    if value is None:
+        return "-"
+    return f"{value:.2f}"
+
+
+def _format_ns(value: float | None) -> str:
+    if value is None:
+        return "-"
+    if value < 1_000.0:
+        return f"{value:.0f} ns"
+    if value < 1_000_000.0:
+        return f"{value / 1_000.0:.1f} us"
+    return f"{value / 1_000_000.0:.2f} ms"
 
 
 def _format_bytes(value: int) -> str:
@@ -410,6 +635,21 @@ def _format_bytes(value: int) -> str:
     if unit == "B":
         return f"{int(current)} B"
     return f"{current:.1f} {unit}"
+
+
+def _format_count(value: int) -> str:
+    if value <= 0:
+        return "-"
+    units = ("", "K", "M", "G", "T")
+    current = float(value)
+    unit = units[0]
+    for unit in units:
+        if current < 1000.0 or unit == units[-1]:
+            break
+        current /= 1000.0
+    if unit == "":
+        return str(value)
+    return f"{current:.2f}{unit}"
 
 
 def _top_pairs(value: object, *, limit: int) -> list[list[Any]]:
@@ -438,6 +678,10 @@ def _escape_markdown_cell(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ")
 
 
+def _escape_markdown_text(value: str) -> str:
+    return value.replace("`", "\\`").replace("\n", " ")
+
+
 def _format_pairs(value: object) -> str:
     pairs = _top_pairs(value, limit=4)
     return ", ".join(f"{name}:{count}" for name, count in pairs)
@@ -448,3 +692,10 @@ def _relative_or_str(path: Path, root: Path) -> str:
         return str(path.relative_to(root))
     except ValueError:
         return str(path)
+
+
+def _all_source_text_missing(value: object) -> bool:
+    rows = list(_dict_items(value))
+    if not rows:
+        return False
+    return all(not str(row.get("source_text", "")).strip() for row in rows)

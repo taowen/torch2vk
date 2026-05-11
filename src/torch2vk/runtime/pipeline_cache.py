@@ -72,8 +72,8 @@ def spv_path_for_variant(rt: RuntimeSession, variant: ShaderVariant) -> Path:
     glsl_path = rt.artifact_dir / f"{stem}.comp"
     spv_path = rt.artifact_dir / f"{stem}.spv"
     rt.artifact_dir.mkdir(parents=True, exist_ok=True)
+    glsl_path.write_text(variant.source, encoding="utf-8")
     if not spv_path.is_file():
-        glsl_path.write_text(variant.source, encoding="utf-8")
         include_args: list[str | Path] = []
         for include_dir in variant.include_dirs:
             include_args.extend(("-I", include_dir))

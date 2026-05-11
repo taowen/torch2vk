@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import statistics
 import time
 from collections import defaultdict
@@ -65,6 +66,7 @@ class RuntimeProfiler:
             phase="record",
             elapsed_wall_ns=elapsed_wall_ns,
         )
+        self._attach_profile_shader_source(row, pipeline)
         self._append_dispatch_row(row)
 
     def sqtt_label(
@@ -106,6 +108,7 @@ class RuntimeProfiler:
                 elapsed_ns=elapsed_ns,
                 sample_index=len(self._replay_dispatch_samples[(plan.name, i)]) - 1,
             )
+            self._attach_profile_shader_source(row, entry.pipeline)
             self._append_dispatch_row(row)
 
     def summary(self) -> dict[str, Any]:
@@ -163,6 +166,19 @@ class RuntimeProfiler:
             encoding="utf-8",
         )
 
+    def _attach_profile_shader_source(self, row: dict[str, Any], pipeline: "ComputePipeline") -> None:
+        if self.root is None:
+            return
+        source_path = _shader_source_path(pipeline.shader_spv_path)
+        if source_path is None:
+            return
+        source_dir = self.root / "shaders"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        destination = source_dir / source_path.name
+        if source_path.resolve() != destination.resolve():
+            shutil.copy2(source_path, destination)
+        row["shader_glsl_path"] = str(destination)
+
 
 def _dispatch_record_row(
     *,
@@ -200,6 +216,14 @@ def _dispatch_record_row(
         "elapsed_ns": None,
         "elapsed_wall_ns": elapsed_wall_ns,
     }
+
+
+def _shader_source_path(shader_spv_path: Path) -> Path | None:
+    for suffix in (".comp", ".glsl"):
+        candidate = shader_spv_path.with_suffix(suffix)
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _replay_dispatch_row(
