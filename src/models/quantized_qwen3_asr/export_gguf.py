@@ -13,6 +13,8 @@ from torch2vk.quantize import Q4KMQuantizationConfig, export_q4_k_m_gguf
 REPO_ROOT = Path(__file__).resolve().parents[3]
 QUANTIZE_GGUF_ARCH = "qwen3-asr"
 DEFAULT_Q4_K_M_GGUF = REPO_ROOT / "dist" / "quantized_qwen3_asr" / "model.gguf"
+Q8_TENSOR_NAMES = ("thinker.model.embed_tokens.weight",)
+Q8_TENSOR_PREFIXES = ("thinker.audio_tower.",)
 
 
 def export_qwen3_asr_q4_k_m_gguf(
@@ -27,6 +29,8 @@ def export_qwen3_asr_q4_k_m_gguf(
         config=Q4KMQuantizationConfig(
             model_name="Qwen3-ASR",
             gguf_arch=QUANTIZE_GGUF_ARCH,
+            q8_tensor_names=Q8_TENSOR_NAMES,
+            q8_tensor_prefixes=Q8_TENSOR_PREFIXES,
         ),
         overwrite=overwrite,
     )

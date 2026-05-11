@@ -15,6 +15,7 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
 )
 from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
+from torch2vk.vulkan.types import CONTIGUOUS_LAYOUT, Q4KWordsLayout, Q8_0HalfwordsLayout
 
 
 def render_shader_file(variant: ShaderVariant) -> str:
@@ -52,6 +53,14 @@ def render_shader_file(variant: ShaderVariant) -> str:
         for field in contract.params_buffer.fields:
             check_expr(field.value)
 
+    layout_import_names: set[str] = set()
+    for field in contract.fields:
+        for dim in field.contract.shape:
+            check_expr(dim)
+        layout_source = _layout_to_source(field.contract.layout)
+        if layout_source != "CONTIGUOUS_LAYOUT":
+            layout_import_names.add(layout_source.split("(", 1)[0])
+
     imports = ["from __future__ import annotations", "", "from torch2vk.runtime.shader import ("]
     for name in sorted(needed):
         imports.append(f"    {name},")
@@ -63,9 +72,15 @@ def render_shader_file(variant: ShaderVariant) -> str:
         if variant.execution_requirements is not None and variant.execution_requirements.subgroup is not None:
             imports.append("    SubgroupRequirements,")
         imports.append(")")
+    if layout_import_names:
+        imports.append("from torch2vk.vulkan.types import (")
+        for name in sorted(layout_import_names):
+            imports.append(f"    {name},")
+        imports.append(")")
 
     fields_lines = []
     for field in contract.fields:
+        layout_source = _layout_to_source(field.contract.layout)
         fields_lines.append("            TensorFieldSpec(")
         fields_lines.append(f"                name={field.name!r},")
         fields_lines.append(f"                io_kind=IOKind.{field.io_kind.name},")
@@ -73,7 +88,7 @@ def render_shader_file(variant: ShaderVariant) -> str:
         fields_lines.append(
             "                "
             f"contract=TensorContract(dtype={field.contract.dtype!r}, "
-            f"shape={_shape_to_source(field.contract.shape)}),"
+            f"shape={_shape_to_source(field.contract.shape)}{_layout_arg_source(layout_source)}),"
         )
         fields_lines.append("            ),")
 
@@ -130,6 +145,28 @@ def _expr_to_source(expr) -> str:
 
 def _shape_to_source(shape: tuple) -> str:
     return f"({', '.join(_expr_to_source(dim) for dim in shape)},)"
+
+
+def _layout_to_source(layout) -> str:
+    if layout == CONTIGUOUS_LAYOUT:
+        return "CONTIGUOUS_LAYOUT"
+    if isinstance(layout, Q4KWordsLayout):
+        return (
+            f"q4_k_words_layout(logical_k={_expr_to_source(layout.logical_k)}, "
+            f"block_size={layout.block_size}, words_per_block={layout.words_per_block})"
+        )
+    if isinstance(layout, Q8_0HalfwordsLayout):
+        return (
+            f"q8_0_halfwords_layout(logical_k={_expr_to_source(layout.logical_k)}, "
+            f"block_size={layout.block_size}, halfwords_per_block={layout.halfwords_per_block})"
+        )
+    raise TypeError(f"Unsupported generated shader tensor layout: {layout!r}")
+
+
+def _layout_arg_source(layout_source: str) -> str:
+    if layout_source == "CONTIGUOUS_LAYOUT":
+        return ""
+    return f", layout={layout_source}"
 
 
 def _variant_uses_push_constant_input(variant: ShaderVariant) -> bool:

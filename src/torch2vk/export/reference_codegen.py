@@ -11,7 +11,10 @@ from torch2vk.export._templates import render_template
 from torch2vk.export.dispatch_codegen import _find_graph_outputs
 
 
-ReferencePolicy: TypeAlias = Literal["tensor", "token"] | dict[str, Literal["tensor", "token"]]
+ReferencePolicy: TypeAlias = (
+    Literal["tensor", "q8_tensor", "q4_tensor", "token"]
+    | dict[str, Literal["tensor", "q8_tensor", "q4_tensor", "token"]]
+)
 
 
 def render_reference_module(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind
@@ -21,6 +21,7 @@ from torch2vk.export.dispatch_codegen import (
     _resolve_all_variants,
 )
 from torch2vk.export.graph import SKIP_OPS
+from torch2vk.export.quantization import Q4KMWeightQuantization
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
 
 
@@ -41,7 +42,20 @@ class _TensorMeta:
 
 
 def render_tensor_module(classes: list[TensorClassContext]) -> str:
-    return render_template("tensor_module.py.j2", classes=classes).rstrip() + "\n"
+    return render_template(
+        "tensor_module.py.j2",
+        classes=classes,
+        uses_q4_k_words_layout=_uses_layout_source(classes, "q4_k_words_layout"),
+        uses_q8_0_halfwords_layout=_uses_layout_source(classes, "q8_0_halfwords_layout"),
+    ).rstrip() + "\n"
+
+
+def _uses_layout_source(classes: list[TensorClassContext], name: str) -> bool:
+    for cls in classes:
+        tensors = cast(tuple[dict[str, str], ...], cls["tensors"])
+        if any(name in tensor["layout_source"] for tensor in tensors):
+            return True
+    return False
 
 
 def render_tensor_class(
@@ -99,6 +113,7 @@ def generate_tensor_class_source(
     weight_prefix: str = "",
     is_layered: bool | None = None,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
+    weight_quantization: Q4KMWeightQuantization | None = None,
 ) -> TensorClassContext:
     """Generate tensor dataclass + factory function context for a single submodule."""
     graph = prog.graph_module.graph
@@ -172,7 +187,9 @@ def generate_tensor_class_source(
                 param_map=param_map,
                 is_layered=is_layered,
             ),
+            concrete_checkpoint_key=param_map.get(name),
             reference_key="None" if meta.kind != _TensorKind.INTERMEDIATE else repr(name),
+            weight_quantization=weight_quantization,
         ))
 
     output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
@@ -198,10 +215,25 @@ def _tensor_entry(
     name: str,
     meta: _TensorMeta,
     checkpoint_key: str,
+    concrete_checkpoint_key: str | None,
     reference_key: str,
+    weight_quantization: Q4KMWeightQuantization | None = None,
 ) -> dict[str, str]:
     kind = meta.kind
     dtype = _logical_dtype(kind=kind, dtype=meta.dtype)
+    shape = meta.shape
+    layout_source = "CONTIGUOUS_LAYOUT"
+    if kind == _TensorKind.PARAMETER and weight_quantization is not None:
+        if concrete_checkpoint_key is None:
+            raise ValueError(f"parameter tensor {name} is missing checkpoint key")
+        quantized = weight_quantization.declare(
+            checkpoint_key=concrete_checkpoint_key,
+            dtype=dtype,
+            shape=shape,
+        )
+        dtype = quantized.dtype
+        shape = quantized.shape
+        layout_source = quantized.layout_source
     if kind == _TensorKind.PARAMETER:
         role = "TensorRole.WEIGHT"
         memory = "MemoryClass.MODEL_WEIGHT"
@@ -220,7 +252,8 @@ def _tensor_entry(
         "checkpoint_key_expr": checkpoint_key,
         "reference_key_expr": reference_key,
         "dtype_source": repr(dtype),
-        "shape_source": repr(meta.shape),
+        "shape_source": repr(shape),
+        "layout_source": layout_source,
         "role": role,
         "memory": memory,
         "lifetime": lifetime,

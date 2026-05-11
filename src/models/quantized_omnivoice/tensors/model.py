@@ -1,4 +1,4 @@
-"""Generated model-level tensor wiring for OmniVoice."""
+"""Generated model-level tensor wiring for quantized OmniVoice."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from torch2vk.vulkan.types import (
     CONTIGUOUS_LAYOUT,
     Q4KWordsLayout,
     Q8_0HalfwordsLayout,
+    TensorLayout,
     TensorSpec,
     q4_k_words_layout,
     q8_0_halfwords_layout,
@@ -25,7 +26,7 @@ from torch2vk.vulkan.types import (
 
 
 @dataclass(frozen=True, slots=True)
-class ExportedOmniVoiceTensors:
+class QuantizedOmniVoiceTensors:
     text_embedding_weight: LogicalTensor
     audio_embedding_weight: LogicalTensor
     batch_input_ids: LogicalTensor
@@ -43,10 +44,10 @@ class ExportedOmniVoiceTensors:
     audio_head: AudioHeadTensors
 
 
-_MODEL_TENSORS: ExportedOmniVoiceTensors | None = None
+_MODEL_TENSORS: QuantizedOmniVoiceTensors | None = None
 
 
-def create_model_tensors(*, target_len: int) -> ExportedOmniVoiceTensors:
+def create_model_tensors(*, target_len: int) -> QuantizedOmniVoiceTensors:
     text_embedding_weight = _weight_tensor(
         "float32",
         (151676, 1024),
@@ -92,7 +93,7 @@ def create_model_tensors(*, target_len: int) -> ExportedOmniVoiceTensors:
     )
 
     global _MODEL_TENSORS
-    _MODEL_TENSORS = ExportedOmniVoiceTensors(
+    _MODEL_TENSORS = QuantizedOmniVoiceTensors(
         text_embedding_weight=text_embedding_weight,
         audio_embedding_weight=audio_embedding_weight,
         batch_input_ids=batch_input_ids,
@@ -113,7 +114,7 @@ def create_model_tensors(*, target_len: int) -> ExportedOmniVoiceTensors:
     return _MODEL_TENSORS
 
 
-def model_tensors() -> ExportedOmniVoiceTensors:
+def model_tensors() -> QuantizedOmniVoiceTensors:
     if _MODEL_TENSORS is None:
         raise RuntimeError("create_model_tensors must be called before generated dispatch")
     return _MODEL_TENSORS
@@ -127,29 +128,29 @@ def _weight_tensor(
     quantize_q4_k: bool = True,
     quantize_q8_0: bool = False,
 ) -> LogicalTensor:
-    layout = None
+    quantized_layout: Q4KWordsLayout | Q8_0HalfwordsLayout | None = None
     if quantize_q8_0 and dtype == "float32" and len(shape) == 2:
-        layout = q8_0_halfwords_layout(logical_k=shape[1])
+        quantized_layout = q8_0_halfwords_layout(logical_k=shape[1])
     elif quantize_q4_k and dtype == "float32" and len(shape) == 2:
-        layout = q4_k_words_layout(logical_k=shape[1])
-    if layout is not None:
-        if shape[1] % layout.block_size != 0:
-            raise ValueError(f"Quantized weight {checkpoint_key} requires K divisible by {layout.block_size}")
-        if isinstance(layout, Q4KWordsLayout):
+        quantized_layout = q4_k_words_layout(logical_k=shape[1])
+    layout: TensorLayout = CONTIGUOUS_LAYOUT
+    if quantized_layout is not None:
+        if shape[1] % quantized_layout.block_size != 0:
+            raise ValueError(f"Quantized weight {checkpoint_key} requires K divisible by {quantized_layout.block_size}")
+        layout = quantized_layout
+        if isinstance(quantized_layout, Q4KWordsLayout):
             dtype = "uint32"
-            shape = (shape[0], shape[1] // layout.block_size * layout.words_per_block)
-        elif isinstance(layout, Q8_0HalfwordsLayout):
+            shape = (shape[0], shape[1] // quantized_layout.block_size * quantized_layout.words_per_block)
+        elif isinstance(quantized_layout, Q8_0HalfwordsLayout):
             dtype = "uint16"
-            shape = (shape[0], shape[1] // layout.block_size * layout.halfwords_per_block)
-        else:
-            raise TypeError(f"Unsupported quantized layout {layout!r}")
+            shape = (shape[0], shape[1] // quantized_layout.block_size * quantized_layout.halfwords_per_block)
     return LogicalTensor(
         spec=TensorSpec(dtype=dtype, shape=shape),
         role=TensorRole.WEIGHT,
         memory=MemoryClass.MODEL_WEIGHT,
         lifetime=TensorLifetime.MODEL,
         checkpoint_key=checkpoint_key,
-        layout=layout if layout is not None else CONTIGUOUS_LAYOUT,
+        layout=layout,
     )
 
 

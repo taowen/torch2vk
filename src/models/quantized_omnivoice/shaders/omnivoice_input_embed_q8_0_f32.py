@@ -1,4 +1,4 @@
-"""Q8_0 embedding shader for quantized OmniVoice."""
+"""Generated shader: omnivoice_input_embed_q8_0_f32."""
 
 from __future__ import annotations
 
@@ -14,72 +14,66 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
-from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
-from torch2vk.vulkan.types import q8_0_halfwords_layout
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+)
+from torch2vk.vulkan.types import (
+    q8_0_halfwords_layout,
+)
 
 
 OMNIVOICE_INPUT_EMBED_Q8_0_F32 = ShaderVariant(
-    name="omnivoice_input_embed_q8_0_f32",
-    family="quantized_omnivoice",
+    name='omnivoice_input_embed_q8_0_f32',
+    family='quantized_omnivoice',
     contract=ShaderContract(
-        class_name="OmniVoiceInputEmbedQ8_0Program",
-        shader_name="omnivoice_input_embed_q8_0_f32",
+        class_name='OmniVoiceInputEmbedQ8_0Program',
+        shader_name='omnivoice_input_embed_q8_0_f32',
         fields=(
             TensorFieldSpec(
-                name="text_weight",
+                name='text_weight',
                 io_kind=IOKind.INPUT,
-                role="weight",
-                contract=TensorContract(
-                    dtype="uint16",
-                    shape=("TV", 544),
-                    layout=q8_0_halfwords_layout(logical_k="H"),
-                ),
+                role='weight',
+                contract=TensorContract(dtype='uint16', shape=('TV', 544,), layout=q8_0_halfwords_layout(logical_k='H', block_size=32, halfwords_per_block=17)),
             ),
             TensorFieldSpec(
-                name="audio_weight",
+                name='audio_weight',
                 io_kind=IOKind.INPUT,
-                role="weight",
-                contract=TensorContract(
-                    dtype="uint16",
-                    shape=("CV", 544),
-                    layout=q8_0_halfwords_layout(logical_k="H"),
-                ),
+                role='weight',
+                contract=TensorContract(dtype='uint16', shape=('CV', 544,), layout=q8_0_halfwords_layout(logical_k='H', block_size=32, halfwords_per_block=17)),
             ),
             TensorFieldSpec(
-                name="batch_input_ids",
+                name='batch_input_ids',
                 io_kind=IOKind.INPUT,
-                role="tokens",
-                contract=TensorContract(dtype="int64", shape=("B", "C", "S")),
+                role='tokens',
+                contract=TensorContract(dtype='int64', shape=('B', 'C', 'S',)),
             ),
             TensorFieldSpec(
-                name="batch_audio_mask",
+                name='batch_audio_mask',
                 io_kind=IOKind.INPUT,
-                role="mask",
-                contract=TensorContract(dtype="uint32", shape=("B", "S")),
+                role='mask',
+                contract=TensorContract(dtype='uint32', shape=('B', 'S',)),
             ),
             TensorFieldSpec(
-                name="hidden_states",
+                name='hidden_states',
                 io_kind=IOKind.OUTPUT,
-                role="hidden_states",
-                contract=TensorContract(dtype="float32", shape=("B", "S", "H")),
+                role='hidden_states',
+                contract=TensorContract(dtype='float32', shape=('B', 'S', 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=20,
             fields=(
-                PushConstantFieldSpec("B", PushConstantType.UINT32, 0, "B", dynamic=False),
-                PushConstantFieldSpec("C", PushConstantType.UINT32, 4, "C", dynamic=False),
-                PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S", dynamic=False),
-                PushConstantFieldSpec("H", PushConstantType.UINT32, 12, "H", dynamic=False),
-                PushConstantFieldSpec("V", PushConstantType.UINT32, 16, 1025, dynamic=False),
+                PushConstantFieldSpec('B', PushConstantType.UINT32, 0, 'B', dynamic=False),
+                PushConstantFieldSpec('C', PushConstantType.UINT32, 4, 'C', dynamic=False),
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 8, 'S', dynamic=False),
+                PushConstantFieldSpec('H', PushConstantType.UINT32, 12, 'H', dynamic=False),
+                PushConstantFieldSpec('V', PushConstantType.UINT32, 16, 1025, dynamic=False),
             ),
         ),
-        dispatch=(ceil_div(mul(mul("B", "S"), "H"), 256), 1, 1),
+        params_buffer=None,
+        dispatch=(ceil_div(mul(mul('B', 'S'), 'H'), 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(
-        require_shader_int64=True,
-        require_storage_buffer_16bit_access=True,
-    ),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True, require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 

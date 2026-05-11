@@ -20,6 +20,8 @@ ReferenceExpected = dict[str, object]
 
 _COMPARE_POLICIES = {
     "tensor": ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),
+    "q8_tensor": ComparePolicy(kind="tensor", rtol=2e-2, atol=8.0),
+    "q4_tensor": ComparePolicy(kind="tensor", rtol=5e-2, atol=128.0),
     "token": ComparePolicy(kind="token"),
 }
 

@@ -33,6 +33,7 @@ class Q4KMQuantizationConfig:
     model_name: str
     gguf_arch: str
     q8_tensor_names: tuple[str, ...] = ()
+    q8_tensor_prefixes: tuple[str, ...] = ()
     extra_uint32_metadata: tuple[tuple[str, int], ...] = ()
 
 
@@ -66,6 +67,7 @@ def export_q4_k_m_gguf(
     if output_path.exists() and not overwrite and _gguf_matches_quantization(
         output_path,
         q8_tensor_names=config.q8_tensor_names,
+        q8_tensor_prefixes=config.q8_tensor_prefixes,
     ):
         return output_path
 
@@ -81,17 +83,31 @@ def export_q4_k_m_gguf(
                 name=name,
                 tensor=tensor,
                 q8_tensor_names=config.q8_tensor_names,
+                q8_tensor_prefixes=config.q8_tensor_prefixes,
             ))
     _write_gguf(path=output_path, metadata=_metadata(config), tensors=tuple(tensors))
     return output_path
 
 
-def _gguf_matches_quantization(path: Path, *, q8_tensor_names: tuple[str, ...]) -> bool:
+def _gguf_matches_quantization(
+    path: Path,
+    *,
+    q8_tensor_names: tuple[str, ...],
+    q8_tensor_prefixes: tuple[str, ...],
+) -> bool:
     with open_gguf_mmap(path) as gguf:
         if gguf.metadata.get("general.file_type") != GGUF_FILE_TYPE_MOSTLY_Q4_K_M:
             return False
         for name in q8_tensor_names:
             if gguf.entry(name).ggml_type is not GGUFTensorType.Q8_0:
+                return False
+        for name, entry in gguf.tensors.items():
+            if (
+                name.startswith(q8_tensor_prefixes)
+                and len(entry.logical_shape) == 2
+                and entry.logical_shape[-1] % 32 == 0
+                and entry.ggml_type is not GGUFTensorType.Q8_0
+            ):
                 return False
     return True
 
@@ -112,6 +128,7 @@ def _tensor_to_gguf_tensor(
     name: str,
     tensor: torch.Tensor,
     q8_tensor_names: tuple[str, ...],
+    q8_tensor_prefixes: tuple[str, ...],
 ) -> _GGUFTensor:
     array = tensor.float().numpy() if tensor.dtype == torch.bfloat16 else tensor.numpy()
     if array.ndim != 2:
@@ -122,7 +139,7 @@ def _tensor_to_gguf_tensor(
             logical_shape=tuple(int(dim) for dim in array.shape),
         )
     f32 = np.ascontiguousarray(array, dtype=np.float32)
-    if name in q8_tensor_names or f32.shape[-1] % 256 != 0:
+    if name in q8_tensor_names or name.startswith(q8_tensor_prefixes) or f32.shape[-1] % 256 != 0:
         if f32.shape[-1] % 32 != 0:
             return _GGUFTensor(
                 name=name,

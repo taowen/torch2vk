@@ -13,7 +13,17 @@ from torch2vk.runtime.logical import (
     bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
-from torch2vk.vulkan.types import TensorSpec
+from torch2vk.vulkan.types import (
+    CONTIGUOUS_LAYOUT,
+    TensorLayout,
+    TensorSpec,
+{% if uses_q4_k_words_layout %}
+    q4_k_words_layout,
+{% endif %}
+{% if uses_q8_0_halfwords_layout %}
+    q8_0_halfwords_layout,
+{% endif %}
+)
 
 
 {% for cls in classes %}
@@ -40,6 +50,7 @@ class {{ cls.class_name }}:
                 checkpoint_key={{ tensor.checkpoint_key_expr }},
                 reference_key={{ tensor.reference_key_expr }},
                 spec=TensorSpec(dtype={{ tensor.dtype_source }}, shape={{ tensor.shape_source }}),
+                layout={{ tensor.layout_source }},
                 role={{ tensor.role }},
                 memory={{ tensor.memory }},
                 lifetime={{ tensor.lifetime }},
@@ -65,6 +76,7 @@ def _declare_tensor(
     role: TensorRole,
     memory: MemoryClass,
     lifetime: TensorLifetime,
+    layout: TensorLayout = CONTIGUOUS_LAYOUT,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -80,6 +92,7 @@ def _declare_tensor(
         lifetime=lifetime,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
+        layout=layout,
     )
 
 

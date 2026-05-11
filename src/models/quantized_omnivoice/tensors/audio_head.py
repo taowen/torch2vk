@@ -13,7 +13,12 @@ from torch2vk.runtime.logical import (
     bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
-from torch2vk.vulkan.types import CONTIGUOUS_LAYOUT, TensorLayout, TensorSpec, q8_0_halfwords_layout
+from torch2vk.vulkan.types import (
+    CONTIGUOUS_LAYOUT,
+    TensorLayout,
+    TensorSpec,
+    q8_0_halfwords_layout,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,10 +47,10 @@ def create_audio_head(
                 checkpoint_key="audio_heads.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='uint16', shape=(8200, 544)),
+                layout=q8_0_halfwords_layout(logical_k=1024),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                layout=q8_0_halfwords_layout(logical_k=1024),
                 request_state='p_weight' in request_state_outputs,
             ),
         ),
@@ -55,6 +60,7 @@ def create_audio_head(
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
@@ -67,6 +73,7 @@ def create_audio_head(
                 checkpoint_key=None,
                 reference_key='linear',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 8200)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -84,9 +91,9 @@ def _declare_tensor(
     role: TensorRole,
     memory: MemoryClass,
     lifetime: TensorLifetime,
+    layout: TensorLayout = CONTIGUOUS_LAYOUT,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
-    layout: TensorLayout = CONTIGUOUS_LAYOUT,
     request_state: bool = False,
 ) -> LogicalTensor:
     if request_state:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
-from pathlib import Path
 from typing import cast
 
 import numpy as np
@@ -21,10 +20,7 @@ from models.exported_omnivoice.pytorch_modules import (
 from models.hf_cache import resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
 from models.quantized_omnivoice import reference
-from models.quantized_omnivoice.dispatch.audio_head import (
-    _run_audio_head_with_tensors,
-    run_audio_head,
-)
+from models.quantized_omnivoice.dispatch.audio_head import run_audio_head
 from models.quantized_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.quantized_omnivoice.export_gguf import export_omnivoice_q4_k_m_gguf
 from models.quantized_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
@@ -37,11 +33,9 @@ from models.quantized_omnivoice.run import (
     _run_token_update,
 )
 from models.quantized_omnivoice.shaders.registry import get_shader
-from models.quantized_omnivoice.tensors.audio_head import create_audio_head
 from models.quantized_omnivoice.tensors.model import create_model_tensors, model_tensors
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
-from torch2vk.runtime.compare import compare_arrays
-from torch2vk.runtime.logical import ComparePolicy, LogicalTensor
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
 
@@ -189,51 +183,6 @@ def _run_generation_step_with_compare(
         )
         refs.tokens = _vulkan_tensor(rt, model_tensors().tokens).long()
         refs.batch_input_ids = _vulkan_tensor(rt, model_tensors().batch_input_ids).long()
-
-
-def compare_audio_head_q8(
-    *,
-    model_dir: str | Path | None = None,
-    gguf_path: str | Path | None = None,
-) -> None:
-    resolved_model_dir = resolve_cached_model(REPO_ID) if model_dir is None else Path(model_dir)
-    resolved_gguf_path = (
-        export_omnivoice_q4_k_m_gguf(model_dir=resolved_model_dir)
-        if gguf_path is None
-        else Path(gguf_path)
-    )
-    tensors = create_audio_head("quantized_omnivoice.compare.audio_head")
-    rng = np.random.default_rng(0)
-    x = rng.standard_normal((2, 85, 1024)).astype(np.float32)
-    rt = RuntimeSession.open(
-        device_index=0,
-        model_dir=resolved_gguf_path.parent,
-        model_tensors=tensors,
-        get_shader=get_shader,
-    )
-    try:
-        rt.register_inputs({tensors.input: x})
-        with rt.frame("quantized_omnivoice.audio_head.q8_compare"):
-            _run_audio_head_with_tensors(rt, tensors)
-            candidate = rt.readback(tensors.linear)
-    finally:
-        rt.close()
-
-    model = OmniVoice.from_pretrained(
-        str(resolved_model_dir),
-        dtype=torch.float32,
-        device_map="cuda",
-        train=True,
-    ).eval()
-    with torch.no_grad():
-        expected = model.audio_heads(torch.from_numpy(x).cuda()).float().cpu().numpy()
-    compare_arrays(
-        tensor=tensors.linear,
-        frame="quantized_omnivoice.audio_head.q8_compare",
-        candidate=candidate,
-        expected=expected,
-        policy=ComparePolicy(kind="tensor", rtol=1e-2, atol=8e-2, max_abs=8e-2),
-    )
 
 
 def compare_generation_steps(

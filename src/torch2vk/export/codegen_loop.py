@@ -25,6 +25,7 @@ from torch2vk.export.dispatch_codegen import (
     _resolve_all_variants,
 )
 from torch2vk.export.graph import SKIP_OPS, LayerLoopHint
+from torch2vk.export.quantization import Q4KMWeightQuantization
 from torch2vk.export.tensor_codegen import (
     TensorClassContext,
     _TensorKind,
@@ -428,6 +429,7 @@ def generate_looped_tensor_class_sources(
     weight_prefix: str = "",
     hint: LayerLoopHint,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
+    weight_quantization: Q4KMWeightQuantization | None = None,
 ) -> tuple[TensorClassContext, TensorClassContext]:
     """Generate parent + layer tensor classes.
 
@@ -549,6 +551,7 @@ def generate_looped_tensor_class_sources(
         class_name=layer_class_name,
         function_name=layer_function_name,
         weight_prefix=weight_prefix,
+        weight_quantization=weight_quantization,
     )
 
     # Generate parent tensor class
@@ -564,6 +567,7 @@ def generate_looped_tensor_class_sources(
         output_name=output_name,
         analysis=analysis,
         classification=classification,
+        weight_quantization=weight_quantization,
     )
 
     return parent_src, layer_src
@@ -586,21 +590,34 @@ def _render_layer_class(
     class_name: str,
     function_name: str,
     weight_prefix: str,
+    weight_quantization: Q4KMWeightQuantization | None = None,
 ) -> TensorClassContext:
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
         dtype = _logical_dtype(kind=kind, dtype=meta.dtype)
+        shape = meta.shape
+        layout_source = "CONTIGUOUS_LAYOUT"
         if kind == _TensorKind.PARAMETER:
             safetensors_key = param_map[name]
             name_template = re.sub(r"\.layers\.0\.", ".layers.{layer_idx}.", safetensors_key)
+            if weight_quantization is not None:
+                quantized = weight_quantization.declare(
+                    checkpoint_key=safetensors_key,
+                    dtype=dtype,
+                    shape=shape,
+                )
+                dtype = quantized.dtype
+                shape = quantized.shape
+                layout_source = quantized.layout_source
             tensor_entries.append({
                 "name": name,
                 "name_source": repr(name),
                 "checkpoint_key_expr": f'f"{name_template}"',
                 "reference_key_expr": "None",
                 "dtype_source": repr(dtype),
-                "shape_source": repr(meta.shape),
+                "shape_source": repr(shape),
+                "layout_source": layout_source,
                 "role": "TensorRole.WEIGHT",
                 "memory": "MemoryClass.MODEL_WEIGHT",
                 "lifetime": "TensorLifetime.MODEL",
@@ -612,7 +629,8 @@ def _render_layer_class(
                 "checkpoint_key_expr": "None",
                 "reference_key_expr": repr(name),
                 "dtype_source": repr(dtype),
-                "shape_source": repr(meta.shape),
+                "shape_source": repr(shape),
+                "layout_source": layout_source,
                 "role": "TensorRole.ACTIVATION",
                 "memory": "MemoryClass.FRAME_WORKSPACE",
                 "lifetime": "TensorLifetime.FRAME",
@@ -653,19 +671,33 @@ def _render_parent_class(
     output_name: str | None,
     analysis: _LoopAnalysis,
     classification: dict[str, str],
+    weight_quantization: Q4KMWeightQuantization | None = None,
 ) -> TensorClassContext:
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
         dtype = _logical_dtype(kind=kind, dtype=meta.dtype)
+        shape = meta.shape
+        layout_source = "CONTIGUOUS_LAYOUT"
         if kind == _TensorKind.PARAMETER:
+            safetensors_key = param_map[name]
+            if weight_quantization is not None:
+                quantized = weight_quantization.declare(
+                    checkpoint_key=safetensors_key,
+                    dtype=dtype,
+                    shape=shape,
+                )
+                dtype = quantized.dtype
+                shape = quantized.shape
+                layout_source = quantized.layout_source
             tensor_entries.append({
                 "name": name,
                 "name_source": repr(name),
-                "checkpoint_key_expr": f'"{param_map[name]}"',
+                "checkpoint_key_expr": f'"{safetensors_key}"',
                 "reference_key_expr": "None",
                 "dtype_source": repr(dtype),
-                "shape_source": repr(meta.shape),
+                "shape_source": repr(shape),
+                "layout_source": layout_source,
                 "role": "TensorRole.WEIGHT",
                 "memory": "MemoryClass.MODEL_WEIGHT",
                 "lifetime": "TensorLifetime.MODEL",
@@ -677,7 +709,8 @@ def _render_parent_class(
                 "checkpoint_key_expr": "None",
                 "reference_key_expr": "None",
                 "dtype_source": repr(dtype),
-                "shape_source": repr(meta.shape),
+                "shape_source": repr(shape),
+                "layout_source": layout_source,
                 "role": "TensorRole.INPUT",
                 "memory": "MemoryClass.HOST_INPUT",
                 "lifetime": "TensorLifetime.FRAME",
@@ -689,7 +722,8 @@ def _render_parent_class(
                 "checkpoint_key_expr": "None",
                 "reference_key_expr": repr(name),
                 "dtype_source": repr(dtype),
-                "shape_source": repr(meta.shape),
+                "shape_source": repr(shape),
+                "layout_source": layout_source,
                 "role": "TensorRole.ACTIVATION",
                 "memory": "MemoryClass.FRAME_WORKSPACE",
                 "lifetime": "TensorLifetime.FRAME",

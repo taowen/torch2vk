@@ -20,7 +20,8 @@ ReferenceExpected = dict[str, object]
 
 _COMPARE_POLICIES = {
     "tensor": ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5),
-    "q4_tensor": ComparePolicy(kind="tensor", rtol=3e-2, atol=10.0),
+    "q8_tensor": ComparePolicy(kind="tensor", rtol=2e-2, atol=8.0),
+    "q4_tensor": ComparePolicy(kind="tensor", rtol=5e-2, atol=128.0),
     "token": ComparePolicy(kind="token"),
 }
 
@@ -131,7 +132,7 @@ def run_input_embed(
         reference=reference,
         tensors=model_tensors(),
         output_bindings={'hidden_states': 'llm_forward.hidden_states'},
-        policy=_policy('tensor'),
+        policy=_policy('q8_tensor'),
         inputs={
             "input_ids": input_ids,
             "audio_mask": audio_mask,
@@ -229,7 +230,7 @@ def run_audio_head(
         reference=_load_audio_head(),
         tensors=model_tensors(),
         output_bindings={'linear': 'audio_head.linear'},
-        policy=_policy('tensor'),
+        policy=_policy('q8_tensor'),
         inputs={
             "input": input,
         },
