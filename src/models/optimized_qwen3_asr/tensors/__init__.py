@@ -1,2 +1,1 @@
-"""Qwen3-ASR LogicalTensor declarations."""
-
+"""Generated tensor package."""

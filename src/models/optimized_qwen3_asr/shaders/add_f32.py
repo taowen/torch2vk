@@ -1,4 +1,4 @@
-"""Qwen3-ASR elementwise add shader for residual connections."""
+"""Generated shader: add_f32."""
 
 from __future__ import annotations
 
@@ -16,66 +16,53 @@ from torch2vk.runtime.shader import (
 )
 
 
-QWEN3_ASR_ADD_F32 = ShaderVariant(
-    name="qwen3_asr_add_f32",
-    family="qwen3_asr.audio_tower",
+ADD_F32 = ShaderVariant(
+    name='add_f32',
+    family='export',
     contract=ShaderContract(
-        class_name="Qwen3AsrAddF32Program",
-        shader_name="qwen3_asr_add_f32",
+        class_name='ExportAddF32Program',
+        shader_name='add_f32',
         fields=(
             TensorFieldSpec(
-                name="x",
+                name='x',
                 io_kind=IOKind.INPUT,
-                role="input",
-                contract=TensorContract(dtype="float32", shape=("M", "H")),
+                role='input',
+                contract=TensorContract(dtype='float32', shape=('B', 'T', 'H',)),
             ),
             TensorFieldSpec(
-                name="y",
+                name='y',
                 io_kind=IOKind.INPUT,
-                role="input",
-                contract=TensorContract(dtype="float32", shape=("M", "H")),
+                role='input',
+                contract=TensorContract(dtype='float32', shape=('B', 'T', 'H',)),
             ),
             TensorFieldSpec(
-                name="output",
+                name='output',
                 io_kind=IOKind.OUTPUT,
-                role="output",
-                contract=TensorContract(dtype="float32", shape=("M", "H")),
+                role='output',
+                contract=TensorContract(dtype='float32', shape=('B', 'T', 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=4,
-            fields=(PushConstantFieldSpec("N", PushConstantType.UINT32, 0, mul("M", "H")),),
+            fields=(
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('B', 'T'), 'H'), dynamic=False),
+            ),
         ),
-        dispatch=(ceil_div(mul("M", "H"), 256), 1, 1),
+        params_buffer=None,
+        dispatch=(ceil_div(mul(mul('B', 'T'), 'H'), 256), 1, 1),
     ),
-    source="""
+    execution_requirements=None,
+    source="""\
 #version 450
-
 layout(std430) buffer;
-
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer {
-    float x[];
-};
-
-layout(set = 0, binding = 1) buffer restrict readonly YBuffer {
-    float y[];
-};
-
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer {
-    float output_values[];
-};
-
-layout(push_constant) uniform PushConstants {
-    uint N;
-} pc;
-
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(push_constant) uniform PushConstants { uint N; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
-
 void main() {
-    const uint index = gl_GlobalInvocationID.x;
-    if (index < pc.N) {
-        output_values[index] = x[index] + y[index];
-    }
+    const uint idx = gl_GlobalInvocationID.x;
+    if (idx < pc.N) { output_values[idx] = x[idx] + y[idx]; }
 }
-""".lstrip(),
+""",
 )

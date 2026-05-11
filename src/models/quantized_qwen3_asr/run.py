@@ -43,6 +43,7 @@ from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
 
 _DECODE_REPLAY_CACHE = "quantized_qwen3_asr_decode_step:v1"
+_STOP_CHECK_INTERVAL = 2
 get_shader = make_shader_loader("models.quantized_qwen3_asr.shaders")
 
 
@@ -165,6 +166,10 @@ def _decode_step_inputs(
 def _read_selected_token(rt: RuntimeSession, next_token: LogicalTensor) -> int:
     _require_gpu_output(next_token)
     return int(rt.read_request_state(next_token).reshape(-1)[0])
+
+
+def _request_stopped(rt: RuntimeSession) -> bool:
+    return bool(rt.read_request_state(model_tensors().stopped).reshape(-1)[0])
 
 
 def _build_decode_replay_plan(
@@ -468,6 +473,10 @@ def main(
             else:
                 print(f"  Step {step}: token={generated_tokens[-1]}  "
                       f"gpu={stats.device_local_live_bytes / 1024**2:.1f}MB")
+
+        if (step + 1) % _STOP_CHECK_INTERVAL == 0 and _request_stopped(rt):
+            print(f"  EOS at step {step + 1}")
+            break
 
     decode_elapsed = time.perf_counter() - decode_start
     decode_steps = len(memory_trace)
