@@ -1,4 +1,4 @@
-"""Hand-written fused RoPE shader for optimized OmniVoice."""
+"""Generated shader: omnivoice_rotary_fused_f32."""
 
 from __future__ import annotations
 
@@ -17,48 +17,50 @@ from torch2vk.runtime.shader import (
 
 
 OMNIVOICE_ROTARY_FUSED_F32 = ShaderVariant(
-    name="omnivoice_rotary_fused_f32",
-    family="optimized_omnivoice",
+    name='omnivoice_rotary_fused_f32',
+    family='optimized_omnivoice',
     contract=ShaderContract(
-        class_name="OmniVoiceRotaryFusedF32Program",
-        shader_name="omnivoice_rotary_fused_f32",
+        class_name='OmniVoiceRotaryFusedF32Program',
+        shader_name='omnivoice_rotary_fused_f32',
         fields=(
             TensorFieldSpec(
-                name="x",
+                name='x',
                 io_kind=IOKind.INPUT,
-                role="input",
-                contract=TensorContract(dtype="float32", shape=("B", "N", "S", "D")),
+                role='input',
+                contract=TensorContract(dtype='float32', shape=('B', 'N', 'S', 'D',)),
             ),
             TensorFieldSpec(
-                name="cos",
+                name='cos',
                 io_kind=IOKind.INPUT,
-                role="cos",
-                contract=TensorContract(dtype="float32", shape=("B", 1, "S", "D")),
+                role='cos',
+                contract=TensorContract(dtype='float32', shape=('B', 1, 'S', 'D',)),
             ),
             TensorFieldSpec(
-                name="sin",
+                name='sin',
                 io_kind=IOKind.INPUT,
-                role="sin",
-                contract=TensorContract(dtype="float32", shape=("B", 1, "S", "D")),
+                role='sin',
+                contract=TensorContract(dtype='float32', shape=('B', 1, 'S', 'D',)),
             ),
             TensorFieldSpec(
-                name="output",
+                name='output',
                 io_kind=IOKind.OUTPUT,
-                role="output",
-                contract=TensorContract(dtype="float32", shape=("B", "N", "S", "D")),
+                role='output',
+                contract=TensorContract(dtype='float32', shape=('B', 'N', 'S', 'D',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=16,
             fields=(
-                PushConstantFieldSpec("B", PushConstantType.UINT32, 0, "B"),
-                PushConstantFieldSpec("N", PushConstantType.UINT32, 4, "N"),
-                PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S"),
-                PushConstantFieldSpec("D", PushConstantType.UINT32, 12, "D"),
+                PushConstantFieldSpec('B', PushConstantType.UINT32, 0, 'B', dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 4, 'N', dynamic=False),
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 8, 'S', dynamic=False),
+                PushConstantFieldSpec('D', PushConstantType.UINT32, 12, 'D', dynamic=False),
             ),
         ),
-        dispatch=(ceil_div(mul(mul(mul("B", "N"), "S"), "D"), 256), 1, 1),
+        params_buffer=None,
+        dispatch=(ceil_div(mul(mul(mul('B', 'N'), 'S'), 'D'), 256), 1, 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 
@@ -86,7 +88,6 @@ void main() {
     const uint head_index = seq_index / pc.S;
     const uint b = head_index / pc.N;
     const uint half_d = pc.D >> 1u;
-    const uint rotated_d = (d < half_d) ? (d + half_d) : (d - half_d);
     const float rotated = (d < half_d) ? -x[idx + half_d] : x[idx - half_d];
     const uint rope_index = (b * pc.S + s) * pc.D + d;
 

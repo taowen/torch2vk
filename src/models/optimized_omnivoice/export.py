@@ -30,6 +30,10 @@ from models.hf_cache import resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
 from models.optimized_omnivoice.custom_shaders import (
     OMNIVOICE_INPUT_EMBED_Q8_0_F32,
+    OMNIVOICE_RMS_NORM_3D_F32,
+    OMNIVOICE_RMS_NORM_4D_F32,
+    OMNIVOICE_ROTARY_FUSED_F32,
+    OMNIVOICE_SILU_MUL_F32,
 )
 from models.optimized_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
@@ -151,6 +155,10 @@ def main() -> int:
 
     custom_variants = (
         OMNIVOICE_INPUT_EMBED_Q8_0_F32,
+        OMNIVOICE_RMS_NORM_3D_F32,
+        OMNIVOICE_RMS_NORM_4D_F32,
+        OMNIVOICE_ROTARY_FUSED_F32,
+        OMNIVOICE_SILU_MUL_F32,
         OMNIVOICE_CFG_SCORE_F32,
         OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
     )

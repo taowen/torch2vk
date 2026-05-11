@@ -1,4 +1,4 @@
-"""Hand-written fused 3D RMSNorm shader for optimized OmniVoice."""
+"""Generated shader: omnivoice_rms_norm_3d_f32."""
 
 from __future__ import annotations
 
@@ -15,7 +15,44 @@ from torch2vk.runtime.shader import (
 )
 
 
-RMS_NORM_SOURCE = """\
+OMNIVOICE_RMS_NORM_3D_F32 = ShaderVariant(
+    name='omnivoice_rms_norm_3d_f32',
+    family='optimized_omnivoice',
+    contract=ShaderContract(
+        class_name='OmniVoiceRmsNorm3DF32Program',
+        shader_name='omnivoice_rms_norm_3d_f32',
+        fields=(
+            TensorFieldSpec(
+                name='x',
+                io_kind=IOKind.INPUT,
+                role='input',
+                contract=TensorContract(dtype='float32', shape=('D0', 'D1', 'H',)),
+            ),
+            TensorFieldSpec(
+                name='weight',
+                io_kind=IOKind.INPUT,
+                role='weight',
+                contract=TensorContract(dtype='float32', shape=('H',)),
+            ),
+            TensorFieldSpec(
+                name='output',
+                io_kind=IOKind.OUTPUT,
+                role='output',
+                contract=TensorContract(dtype='float32', shape=('D0', 'D1', 'H',)),
+            ),
+        ),
+        push_constants=PushConstantSpec(
+            size=8,
+            fields=(
+                PushConstantFieldSpec('rows', PushConstantType.UINT32, 0, mul('D0', 'D1'), dynamic=False),
+                PushConstantFieldSpec('H', PushConstantType.UINT32, 4, 'H', dynamic=False),
+            ),
+        ),
+        params_buffer=None,
+        dispatch=(mul('D0', 'D1'), 1, 1),
+    ),
+    execution_requirements=None,
+    source="""\
 #version 450
 
 layout(std430) buffer;
@@ -55,43 +92,5 @@ void main() {
         output_values[index] = x[index] * scale * weight[h];
     }
 }
-"""
-
-
-OMNIVOICE_RMS_NORM_3D_F32 = ShaderVariant(
-    name="omnivoice_rms_norm_3d_f32",
-    family="optimized_omnivoice",
-    contract=ShaderContract(
-        class_name="OmniVoiceRmsNorm3DF32Program",
-        shader_name="omnivoice_rms_norm_3d_f32",
-        fields=(
-            TensorFieldSpec(
-                name="x",
-                io_kind=IOKind.INPUT,
-                role="input",
-                contract=TensorContract(dtype="float32", shape=("D0", "D1", "H")),
-            ),
-            TensorFieldSpec(
-                name="weight",
-                io_kind=IOKind.INPUT,
-                role="weight",
-                contract=TensorContract(dtype="float32", shape=("H",)),
-            ),
-            TensorFieldSpec(
-                name="output",
-                io_kind=IOKind.OUTPUT,
-                role="output",
-                contract=TensorContract(dtype="float32", shape=("D0", "D1", "H")),
-            ),
-        ),
-        push_constants=PushConstantSpec(
-            size=8,
-            fields=(
-                PushConstantFieldSpec("rows", PushConstantType.UINT32, 0, mul("D0", "D1")),
-                PushConstantFieldSpec("H", PushConstantType.UINT32, 4, "H"),
-            ),
-        ),
-        dispatch=(mul("D0", "D1"), 1, 1),
-    ),
-    source=RMS_NORM_SOURCE,
+""",
 )
