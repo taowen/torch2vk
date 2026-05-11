@@ -37,8 +37,11 @@ from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
 )
 from torch2vk.export.shader_codegen import (
+    clear_shader_package,
+    rename_shader_variant,
     render_shader_registry_module,
-    write_shader_package,
+    write_shader_file,
+    write_shader_metadata,
 )
 
 __all__ = [
@@ -55,12 +58,14 @@ __all__ = [
     "TensorClassContext",
     "bind_dispatch_function_to_tensors",
     "cast_floating_tensors",
+    "clear_shader_package",
     "generate_dispatch_function_source",
     "generate_dispatch_source",
     "generate_looped_dispatch_function_source",
     "generate_looped_tensor_class_sources",
     "generate_tensor_class_source",
     "module_floating_dtype",
+    "rename_shader_variant",
     "render_exported_reference_function",
     "render_reference_function",
     "render_reference_loader",
@@ -68,5 +73,6 @@ __all__ = [
     "render_model_dispatch_module",
     "render_shader_registry_module",
     "set_module_checkpoint_dtypes",
-    "write_shader_package",
+    "write_shader_file",
+    "write_shader_metadata",
 ]

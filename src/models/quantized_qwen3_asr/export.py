@@ -50,7 +50,12 @@ from torch2vk.export.reference_codegen import (
     render_reference_module,
 )
 from torch2vk.export.registry import DEFAULT_REGISTRY
-from torch2vk.export.shader_codegen import write_shader_package
+from torch2vk.export.shader_codegen import (
+    clear_shader_package,
+    rename_shader_variant,
+    write_shader_file,
+    write_shader_metadata,
+)
 from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
     render_tensor_module,
@@ -59,7 +64,7 @@ from torch2vk.export.codegen_loop import (
     generate_looped_dispatch_function_source,
     generate_looped_tensor_class_sources,
 )
-from torch2vk.runtime.shader import ShaderContract, ShaderVariant
+from torch2vk.runtime.shader import ShaderVariant
 
 
 MODEL_PACKAGE = "models.quantized_qwen3_asr"
@@ -201,6 +206,7 @@ def main() -> int:
     output_dir = Path(__file__).parent
     shaders_dir = output_dir / "shaders"
     shaders_dir.mkdir(exist_ok=True)
+    clear_shader_package(shaders_dir)
     tensors_dir = output_dir / "tensors"
     tensors_dir.mkdir(exist_ok=True)
     dispatch_dir = output_dir / "dispatch"
@@ -222,9 +228,23 @@ def main() -> int:
         QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
         QWEN3_ASR_TOKEN_STORE_EOS_F32,
     )
-    all_shader_variants: dict[str, ShaderVariant] = {
-        variant.name: variant for variant in custom_shader_variants
-    }
+    seen_shader_variants: dict[str, ShaderVariant] = {}
+    shader_file_count = 0
+
+    def write_generated_shader(variant: ShaderVariant) -> None:
+        nonlocal shader_file_count
+        existing = seen_shader_variants.get(variant.name)
+        if existing is not None:
+            if existing.contract != variant.contract:
+                raise ValueError(f"shader name conflict after rename: {variant.name}")
+            return
+        seen_shader_variants[variant.name] = variant
+        write_shader_file(shaders_dir, variant)
+        shader_file_count += 1
+
+    for variant in custom_shader_variants:
+        write_generated_shader(variant)
+
     reference_functions: list[str] = []
     loader_fields: list[str] = []
     loader_sources: list[str] = []
@@ -363,29 +383,15 @@ def main() -> int:
         # Handle cross-submodule shader name conflicts
         rename_map: dict[str, str] = {}
         for v in used_variants.values():
-            if v.name in all_shader_variants:
-                if all_shader_variants[v.name].contract == v.contract:
-                    continue
-                new_name = f"{func_name}_{v.name}"
-                rename_map[v.name] = new_name
-                new_contract = ShaderContract(
-                    class_name=v.contract.class_name,
-                    shader_name=new_name,
-                    fields=v.contract.fields,
-                    dispatch=v.contract.dispatch,
-                    push_constants=v.contract.push_constants,
-                    params_buffer=v.contract.params_buffer,
-                )
-                renamed = ShaderVariant(
-                    name=new_name, family=v.family, contract=new_contract,
-                    source=v.source, precompiled_spv_path=v.precompiled_spv_path,
-                    specialization_constants=v.specialization_constants,
-                    include_dirs=v.include_dirs, compile_defines=v.compile_defines,
-                    execution_requirements=v.execution_requirements,
-                )
-                all_shader_variants[new_name] = renamed
-            else:
-                all_shader_variants[v.name] = v
+            existing = seen_shader_variants.get(v.name)
+            if existing is None:
+                write_generated_shader(v)
+                continue
+            if existing.contract == v.contract:
+                continue
+            renamed = rename_shader_variant(v, f"{func_name}_{v.name}")
+            rename_map[v.name] = renamed.name
+            write_generated_shader(renamed)
 
         # Apply renames to dispatch source (use word boundary to avoid substring matches)
         for old_name in sorted(rename_map, key=len, reverse=True):
@@ -554,9 +560,8 @@ def main() -> int:
                export_registry=Q4_K_M_REGISTRY,
                weight_quantization=_QUANTIZED_WEIGHTS)
 
-    # Write shaders/
-    write_shader_package(shaders_dir, all_shader_variants)
-    print(f"\n  {len(all_shader_variants)} shader files written")
+    write_shader_metadata(shaders_dir)
+    print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.
     (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))

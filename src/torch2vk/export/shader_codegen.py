@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from pathlib import Path
 
 from torch2vk.export._templates import render_template
@@ -12,6 +11,7 @@ from torch2vk.runtime.shader import (
     MulExpr,
     ParamsBufferSpec,
     PushConstantInput,
+    ShaderContract,
     ShaderVariant,
 )
 from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
@@ -115,16 +115,39 @@ def render_shader_registry_module() -> str:
     return render_template("shader_registry.py.j2")
 
 
-def write_shader_package(
-    shaders_dir: Path,
-    variants: Mapping[str, ShaderVariant],
-) -> None:
+def clear_shader_package(shaders_dir: Path) -> None:
     for f in shaders_dir.glob("*.py"):
         f.unlink()
-    for shader_name in sorted(variants):
-        (shaders_dir / f"{shader_name}.py").write_text(render_shader_file(variants[shader_name]))
+
+
+def write_shader_file(shaders_dir: Path, variant: ShaderVariant) -> None:
+    (shaders_dir / f"{variant.name}.py").write_text(render_shader_file(variant))
+
+
+def write_shader_metadata(shaders_dir: Path) -> None:
     (shaders_dir / "__init__.py").write_text('"""Generated shader package."""\n')
     (shaders_dir / "registry.py").write_text(render_shader_registry_module())
+
+
+def rename_shader_variant(variant: ShaderVariant, new_name: str) -> ShaderVariant:
+    return ShaderVariant(
+        name=new_name,
+        family=variant.family,
+        contract=ShaderContract(
+            class_name=variant.contract.class_name,
+            shader_name=new_name,
+            fields=variant.contract.fields,
+            dispatch=variant.contract.dispatch,
+            push_constants=variant.contract.push_constants,
+            params_buffer=variant.contract.params_buffer,
+        ),
+        source=variant.source,
+        precompiled_spv_path=variant.precompiled_spv_path,
+        specialization_constants=variant.specialization_constants,
+        include_dirs=variant.include_dirs,
+        compile_defines=variant.compile_defines,
+        execution_requirements=variant.execution_requirements,
+    )
 
 
 def _expr_to_source(expr) -> str:

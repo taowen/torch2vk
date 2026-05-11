@@ -13,7 +13,11 @@ from torch2vk.runtime.logical import (
     bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
-from torch2vk.vulkan.types import TensorSpec
+from torch2vk.vulkan.types import (
+    CONTIGUOUS_LAYOUT,
+    TensorLayout,
+    TensorSpec,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +46,7 @@ def create_decode_lm_head(
                 checkpoint_key="thinker.lm_head.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(151936, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -54,6 +59,7 @@ def create_decode_lm_head(
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
@@ -66,6 +72,7 @@ def create_decode_lm_head(
                 checkpoint_key=None,
                 reference_key='linear',
                 spec=TensorSpec(dtype='float32', shape=(1, 1, 151936)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -83,6 +90,7 @@ def _declare_tensor(
     role: TensorRole,
     memory: MemoryClass,
     lifetime: TensorLifetime,
+    layout: TensorLayout = CONTIGUOUS_LAYOUT,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -98,6 +106,7 @@ def _declare_tensor(
         lifetime=lifetime,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
+        layout=layout,
     )
 
 

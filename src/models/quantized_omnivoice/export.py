@@ -41,22 +41,25 @@ from torch2vk.export import (
     ReferencePolicy,
     bind_dispatch_function_to_tensors,
     cast_floating_tensors,
+    clear_shader_package,
     export_submodule,
     generate_dispatch_function_source,
     generate_looped_dispatch_function_source,
     generate_looped_tensor_class_sources,
     generate_tensor_class_source,
     module_floating_dtype,
+    rename_shader_variant,
     render_exported_reference_function,
     render_model_dispatch_module,
     render_reference_function,
     render_reference_loader,
     render_reference_module,
-    write_shader_package,
+    write_shader_file,
+    write_shader_metadata,
 )
 from torch2vk.export.registry import ShaderRegistry
 from torch2vk.export.tensor_codegen import render_tensor_module
-from torch2vk.runtime.shader import ShaderContract, ShaderVariant
+from torch2vk.runtime.shader import ShaderVariant
 
 
 MODEL_PACKAGE = "models.quantized_omnivoice"
@@ -131,6 +134,7 @@ def main() -> int:
     tensors_dir = output_dir / "tensors"
     dispatch_dir = output_dir / "dispatch"
     shaders_dir.mkdir(exist_ok=True)
+    clear_shader_package(shaders_dir)
     tensors_dir.mkdir(exist_ok=True)
     dispatch_dir.mkdir(exist_ok=True)
     for directory in (tensors_dir, dispatch_dir):
@@ -154,9 +158,23 @@ def main() -> int:
         OMNIVOICE_CFG_SCORE_F32,
         OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
     )
-    all_shader_variants: dict[str, ShaderVariant] = {
-        variant.name: variant for variant in custom_variants
-    }
+    seen_shader_variants: dict[str, ShaderVariant] = {}
+    shader_file_count = 0
+
+    def write_generated_shader(variant: ShaderVariant) -> None:
+        nonlocal shader_file_count
+        existing = seen_shader_variants.get(variant.name)
+        if existing is not None:
+            if existing.contract != variant.contract:
+                raise ValueError(f"shader name conflict after rename: {variant.name}")
+            return
+        seen_shader_variants[variant.name] = variant
+        write_shader_file(shaders_dir, variant)
+        shader_file_count += 1
+
+    for variant in custom_variants:
+        write_generated_shader(variant)
+
     reference_functions: list[str] = []
     loader_fields: list[str] = []
     loader_sources: list[str] = []
@@ -302,32 +320,15 @@ def main() -> int:
 
         rename_map: dict[str, str] = {}
         for variant in used_variants.values():
-            if variant.name not in all_shader_variants:
-                all_shader_variants[variant.name] = variant
+            existing = seen_shader_variants.get(variant.name)
+            if existing is None:
+                write_generated_shader(variant)
                 continue
-            if all_shader_variants[variant.name].contract == variant.contract:
+            if existing.contract == variant.contract:
                 continue
-            new_name = f"{function_name}_{variant.name}"
-            rename_map[variant.name] = new_name
-            new_contract = ShaderContract(
-                class_name=variant.contract.class_name,
-                shader_name=new_name,
-                fields=variant.contract.fields,
-                dispatch=variant.contract.dispatch,
-                push_constants=variant.contract.push_constants,
-                params_buffer=variant.contract.params_buffer,
-            )
-            all_shader_variants[new_name] = ShaderVariant(
-                name=new_name,
-                family=variant.family,
-                contract=new_contract,
-                source=variant.source,
-                precompiled_spv_path=variant.precompiled_spv_path,
-                specialization_constants=variant.specialization_constants,
-                include_dirs=variant.include_dirs,
-                compile_defines=variant.compile_defines,
-                execution_requirements=variant.execution_requirements,
-            )
+            renamed = rename_shader_variant(variant, f"{function_name}_{variant.name}")
+            rename_map[variant.name] = renamed.name
+            write_generated_shader(renamed)
 
         for old_name in sorted(rename_map, key=len, reverse=True):
             new_name = rename_map[old_name]
@@ -396,8 +397,8 @@ def main() -> int:
         export_registry=Q8_0_REGISTRY,
     )
 
-    write_shader_package(shaders_dir, all_shader_variants)
-    print(f"\n  {len(all_shader_variants)} shader files written")
+    write_shader_metadata(shaders_dir)
+    print(f"\n  {shader_file_count} shader files written")
 
     (tensors_dir / "model.py").write_text(
         _render_template(

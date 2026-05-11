@@ -13,7 +13,11 @@ from torch2vk.runtime.logical import (
     bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
-from torch2vk.vulkan.types import TensorSpec
+from torch2vk.vulkan.types import (
+    CONTIGUOUS_LAYOUT,
+    TensorLayout,
+    TensorSpec,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +48,7 @@ def create_audio_inject(
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='int64', shape=(133,)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
@@ -56,6 +61,7 @@ def create_audio_inject(
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(133, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
@@ -68,6 +74,7 @@ def create_audio_inject(
                 checkpoint_key=None,
                 reference_key='unsqueeze',
                 spec=TensorSpec(dtype='float32', shape=(1, 133, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -80,6 +87,7 @@ def create_audio_inject(
                 checkpoint_key=None,
                 reference_key='index_copy',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -98,6 +106,7 @@ def _declare_tensor(
     role: TensorRole,
     memory: MemoryClass,
     lifetime: TensorLifetime,
+    layout: TensorLayout = CONTIGUOUS_LAYOUT,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -113,6 +122,7 @@ def _declare_tensor(
         lifetime=lifetime,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
+        layout=layout,
     )
 
 

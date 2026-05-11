@@ -13,7 +13,11 @@ from torch2vk.runtime.logical import (
     bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
-from torch2vk.vulkan.types import TensorSpec
+from torch2vk.vulkan.types import (
+    CONTIGUOUS_LAYOUT,
+    TensorLayout,
+    TensorSpec,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +60,7 @@ def create_text_norm(
                 checkpoint_key="thinker.model.norm.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -68,6 +73,7 @@ def create_text_norm(
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
@@ -80,6 +86,7 @@ def create_text_norm(
                 checkpoint_key=None,
                 reference_key='to',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -92,6 +99,7 @@ def create_text_norm(
                 checkpoint_key=None,
                 reference_key='pow_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -104,6 +112,7 @@ def create_text_norm(
                 checkpoint_key=None,
                 reference_key='mean',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -116,6 +125,7 @@ def create_text_norm(
                 checkpoint_key=None,
                 reference_key='add',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -128,6 +138,7 @@ def create_text_norm(
                 checkpoint_key=None,
                 reference_key='rsqrt',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -140,6 +151,7 @@ def create_text_norm(
                 checkpoint_key=None,
                 reference_key='mul',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -152,6 +164,7 @@ def create_text_norm(
                 checkpoint_key=None,
                 reference_key='to_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -164,6 +177,7 @@ def create_text_norm(
                 checkpoint_key=None,
                 reference_key='mul_1',
                 spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
@@ -183,6 +197,7 @@ def _declare_tensor(
     role: TensorRole,
     memory: MemoryClass,
     lifetime: TensorLifetime,
+    layout: TensorLayout = CONTIGUOUS_LAYOUT,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -198,6 +213,7 @@ def _declare_tensor(
         lifetime=lifetime,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
+        layout=layout,
     )
 
 
