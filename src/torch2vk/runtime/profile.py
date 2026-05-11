@@ -173,6 +173,7 @@ def _dispatch_record_row(
 ) -> dict[str, Any]:
     return {
         "phase": phase,
+        "timing_kind": "eager_dispatch_wall_ns",
         "dispatch_index": record.index,
         "frame": record.frame,
         "shader": record.shader,
@@ -211,6 +212,7 @@ def _replay_dispatch_row(
 ) -> dict[str, Any]:
     return {
         "phase": "replay",
+        "timing_kind": "gpu_timestamp_ns",
         "replay_plan": plan_name,
         "replay_dispatch_index": replay_dispatch_index,
         "source_dispatch_index": entry.source_dispatch_index,
@@ -247,6 +249,7 @@ def _record_summary(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
         if row.get("elapsed_wall_ns") is not None
     ]
     return {
+        "timing_kind": "eager_dispatch_wall_ns",
         "dispatch_count": len(rows),
         "wall_elapsed_ns_total": sum(wall_values),
         "top_shaders_by_wall_ns": _top_groups(rows, key_field="shader", value_field="elapsed_wall_ns"),
@@ -292,6 +295,7 @@ def _replay_summary(
         top_dispatches.append(entry)
     top_dispatches.sort(key=lambda entry: int(entry.get("median_ns", 0)), reverse=True)
     return {
+        "timing_kind": "gpu_timestamp_ns",
         "dispatch_samples": len(replay_rows),
         "plans": plans,
         "top_shaders_by_median_ns": _top_median_groups(shader_groups),

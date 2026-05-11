@@ -93,6 +93,9 @@ shared float16_t shared_a[TILE_SIZE];
 shared float16_t shared_b[TILE_SIZE];
 shared float shared_out[TILE_M * TILE_N];
 
+shared float shared_q4_d[TILE_N];
+shared float shared_q4_m[TILE_N];
+
 uint q4k_byte(uint block_word, uint byte_offset) {
     const uint word_value = weight[block_word + (byte_offset >> 2u)];
     return (word_value >> ((byte_offset & 3u) * 8u)) & 0xffu;
@@ -112,22 +115,34 @@ void q4k_scale_min(uint block_word, uint subblock, out uint scale, out uint mini
     minimum = (packed >> 4u) | ((m_byte >> 2u) & 48u);
 }
 
-float q4k_value(uint row, uint k) {
-    const uint blocks_per_row = pc.K / 256u;
-    const uint block_index = k >> 8u;
-    const uint block_word = row * blocks_per_row * 36u + block_index * 36u;
-    const vec2 dm = unpackHalf2x16(weight[block_word]);
-    const uint local_k = k & 255u;
-    const uint subblock = local_k >> 5u;
-    uint scale;
-    uint minimum;
-    q4k_scale_min(block_word, subblock, scale, minimum);
+uint q4k_quant(uint block_word, uint local_k) {
     const uint pair = local_k >> 6u;
     const uint byte_index = local_k & 31u;
     const uint packed_q = q4k_byte(block_word, 16u + pair * 32u + byte_index);
-    const uint q = ((local_k & 32u) == 0u) ? (packed_q & 15u) : (packed_q >> 4u);
-    return dm.x * float(scale) * float(q) - dm.y * float(minimum);
+    return ((local_k & 32u) == 0u) ? (packed_q & 15u) : (packed_q >> 4u);
 }
+
+void prepare_q4k_tile_scales(uint lane, uint col_base, uint k_base) {
+    const uint blocks_per_row = pc.K / 256u;
+    const uint block_index = k_base >> 8u;
+    const uint subblock = (k_base & 255u) >> 5u;
+    for (uint col = lane; col < TILE_N; col += 64u) {
+        const uint n = col_base + col;
+        if (n < pc.N) {
+            const uint block_word = n * blocks_per_row * 36u + block_index * 36u;
+            const vec2 dm = unpackHalf2x16(weight[block_word]);
+            uint scale;
+            uint minimum;
+            q4k_scale_min(block_word, subblock, scale, minimum);
+            shared_q4_d[col] = dm.x * float(scale);
+            shared_q4_m[col] = dm.y * float(minimum);
+        } else {
+            shared_q4_d[col] = 0.0;
+            shared_q4_m[col] = 0.0;
+        }
+    }
+}
+
 void load_a_tile(uint lane, uint row_base, uint k_base) {
     for (uint i = lane; i < TILE_SIZE; i += 64u) {
         const uint row = i / TILE_K;
@@ -138,13 +153,21 @@ void load_a_tile(uint lane, uint row_base, uint k_base) {
     }
 }
 
-void load_b_tile(uint lane, uint col_base, uint k_base) {
+void load_b_tile_prepared(uint lane, uint col_base, uint k_base) {
+    const uint blocks_per_row = pc.K / 256u;
+    const uint block_index = k_base >> 8u;
     for (uint i = lane; i < TILE_SIZE; i += 64u) {
         const uint col = i / TILE_K;
         const uint k_offset = i - col * TILE_K;
         const uint n = col_base + col;
         const uint k = k_base + k_offset;
-        shared_b[i] = float16_t((n < pc.N && k < pc.K) ? q4k_value(n, k) : 0.0);
+        if (n < pc.N && k < pc.K) {
+            const uint block_word = n * blocks_per_row * 36u + block_index * 36u;
+            const uint q = q4k_quant(block_word, k & 255u);
+            shared_b[i] = float16_t(shared_q4_d[col] * float(q) - shared_q4_m[col]);
+        } else {
+            shared_b[i] = float16_t(0.0);
+        }
     }
 }
 
@@ -158,9 +181,20 @@ void main() {
     coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> mat_c;
     mat_c = coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(0.0);
 
-    for (uint k_base = 0u; k_base < pc.K; k_base += TILE_K) {
+    for (uint k_base = 0u; k_base < pc.K; k_base += 32u) {
+        prepare_q4k_tile_scales(lane, col_base, k_base);
+        barrier();
+
         load_a_tile(lane, row_base, k_base);
-        load_b_tile(lane, col_base, k_base);
+        load_b_tile_prepared(lane, col_base, k_base);
+        barrier();
+        coopMatLoad(mat_a, shared_a, 0, int(TILE_K), gl_CooperativeMatrixLayoutRowMajor);
+        coopMatLoad(mat_b, shared_b, 0, int(TILE_K), gl_CooperativeMatrixLayoutColumnMajor);
+        mat_c = coopMatMulAdd(mat_a, mat_b, mat_c);
+        barrier();
+
+        load_a_tile(lane, row_base, k_base + TILE_K);
+        load_b_tile_prepared(lane, col_base, k_base + TILE_K);
         barrier();
         coopMatLoad(mat_a, shared_a, 0, int(TILE_K), gl_CooperativeMatrixLayoutRowMajor);
         coopMatLoad(mat_b, shared_b, 0, int(TILE_K), gl_CooperativeMatrixLayoutColumnMajor);
