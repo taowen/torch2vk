@@ -1,4 +1,4 @@
-"""Generated shader: gelu_f32_124."""
+"""Generated shader: gelu_f32_86."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-GELU_F32_124 = ShaderVariant(
-    name='gelu_f32_124',
+GELU_F32_86 = ShaderVariant(
+    name='gelu_f32_86',
     family='export',
     contract=ShaderContract(
         class_name='ExportGeluF32Program',
-        shader_name='gelu_f32_124',
+        shader_name='gelu_f32_86',
         fields=(
             TensorFieldSpec(
                 name='x',

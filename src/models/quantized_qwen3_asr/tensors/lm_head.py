@@ -34,6 +34,7 @@ LM_HEAD_OUTPUT: str = 'linear'
 def create_lm_head(
     prefix: str,
     *,
+    sequence_length: int,
     p_weight: LogicalTensor | None = None,
     input: LogicalTensor | None = None,
     linear: LogicalTensor | None = None,
@@ -59,7 +60,7 @@ def create_lm_head(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -72,7 +73,7 @@ def create_lm_head(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 151936)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 151936)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,

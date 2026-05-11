@@ -1,4 +1,4 @@
-"""Generated shader: mul_broadcast_last_19."""
+"""Generated shader: mul_left_broadcast_f32x_f32_19."""
 
 from __future__ import annotations
 
@@ -16,24 +16,24 @@ from torch2vk.runtime.shader import (
 )
 
 
-MUL_BROADCAST_LAST_19 = ShaderVariant(
-    name='mul_broadcast_last_19',
+MUL_LEFT_BROADCAST_F32X_F32_19 = ShaderVariant(
+    name='mul_left_broadcast_f32x_f32_19',
     family='export',
     contract=ShaderContract(
-        class_name='ExportMulBroadcastLastProgram',
-        shader_name='mul_broadcast_last_19',
+        class_name='ExportMulLeftBroadcastF32XProgram',
+        shader_name='mul_left_broadcast_f32x_f32_19',
         fields=(
             TensorFieldSpec(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H', 'D',)),
+                contract=TensorContract(dtype='float32', shape=('D',)),
             ),
             TensorFieldSpec(
                 name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H', 1,)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H', 'D',)),
             ),
             TensorFieldSpec(
                 name='output',
@@ -63,7 +63,7 @@ layout(push_constant) uniform PushConstants { uint N; uint H; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) { output_values[idx] = x[idx] * y[idx / pc.H]; }
+    if (idx < pc.N) { output_values[idx] = fma(y[idx], x[idx % pc.H], 0.0); }
 }
 """,
 )

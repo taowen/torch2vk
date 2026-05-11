@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import node_input_shape, node_output_shape, product_expr
 from torch2vk.export.shaders.linear_nobias_f32 import make_linear_nobias_variant
 from torch2vk.runtime.shader import (
-    ExprDim,
     IOKind,
     PushConstantFieldSpec,
     PushConstantSpec,
@@ -40,10 +39,9 @@ def make_linear_nobias_q4_k_m_variant(node: Node) -> ShaderVariant | None:
                 weight_contract=TensorContract(
                     dtype="uint32",
                     shape=("N", mul(ceil_div("K", 256), 36)),
-                    layout=q4_k_words_layout(logical_k="K"),
+                layout=q4_k_words_layout(logical_k="K"),
                 ),
                 source=_Q4_K_MATVEC_SOURCE,
-                dispatch=(ceil_div(int(w_shape[0]), 2), m, 1),
                 execution_requirements=_SUBGROUP64_REQUIREMENTS,
             )
         return _make_quantized_variant(
@@ -58,7 +56,6 @@ def make_linear_nobias_q4_k_m_variant(node: Node) -> ShaderVariant | None:
                 layout=q4_k_words_layout(logical_k="K"),
             ),
             source=_Q4_K_COOPMAT_SOURCE,
-            dispatch=(ceil_div(m, 32), ceil_div(int(w_shape[0]), 16), 1),
             execution_requirements=_COOPMAT_REQUIREMENTS,
         )
     if k % 32 == 0:
@@ -76,7 +73,6 @@ def make_linear_nobias_q4_k_m_variant(node: Node) -> ShaderVariant | None:
                 layout=q8_0_halfwords_layout(logical_k="K"),
             ),
             source=_Q8_0_COOPMAT_SOURCE,
-            dispatch=(ceil_div(m, 32), ceil_div(int(w_shape[0]), 16), 1),
             execution_requirements=_COOPMAT_REQUIREMENTS,
         )
     return make_linear_nobias_variant(node)
@@ -106,7 +102,6 @@ def make_linear_nobias_q8_0_variant(node: Node) -> ShaderVariant | None:
             layout=q8_0_halfwords_layout(logical_k="K"),
         ),
         source=_Q8_0_COOPMAT_SOURCE,
-        dispatch=(ceil_div(m, 32), ceil_div(int(w_shape[0]), 16), 1),
         execution_requirements=_COOPMAT_REQUIREMENTS,
     )
 
@@ -120,14 +115,16 @@ def _make_quantized_variant(
     out_shape: tuple[int, ...],
     weight_contract: TensorContract,
     source: str,
-    dispatch: tuple[ExprDim, ExprDim, ExprDim],
     execution_requirements: ShaderExecutionRequirements | None = None,
 ) -> ShaderVariant:
     x_contract = tuple(f"X{i}" for i in range(len(x_shape) - 1)) + ("K",)
     out_contract = tuple(f"X{i}" for i in range(len(out_shape) - 1)) + ("N",)
-    m = 1
-    for dim in x_shape[:-1]:
-        m *= int(dim)
+    m = product_expr(tuple(f"X{i}" for i in range(len(x_shape) - 1)))
+    dispatch = (
+        (ceil_div("N", 2), m, 1)
+        if "matvec" in name
+        else (ceil_div(m, 32), ceil_div("N", 16), 1)
+    )
     return ShaderVariant(
         name=name,
         family="export",
@@ -143,8 +140,8 @@ def _make_quantized_variant(
                 size=12,
                 fields=(
                     PushConstantFieldSpec("M", PushConstantType.UINT32, 0, m),
-                    PushConstantFieldSpec("K", PushConstantType.UINT32, 4, int(x_shape[-1])),
-                    PushConstantFieldSpec("N", PushConstantType.UINT32, 8, int(w_shape[0])),
+                    PushConstantFieldSpec("K", PushConstantType.UINT32, 4, "K"),
+                    PushConstantFieldSpec("N", PushConstantType.UINT32, 8, "N"),
                 ),
             ),
             dispatch=dispatch,
@@ -172,7 +169,6 @@ def _make_q8_0_matvec_variant(
             layout=q8_0_halfwords_layout(logical_k="K"),
         ),
         source=_Q8_0_MATVEC_SOURCE,
-        dispatch=(ceil_div(int(w_shape[0]), 2), _flattened_rows(x_shape), 1),
         execution_requirements=_SUBGROUP64_16BIT_REQUIREMENTS,
     )
 

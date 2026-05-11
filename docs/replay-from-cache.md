@@ -85,15 +85,16 @@ vkQueueSubmit cached command buffer
 wait/readback only when caller explicitly needs host-visible output
 ```
 
-`mode` 语义：
+模型入口的语义固定：
 
 ```text
-default       use compatible cached plan, otherwise warmup and record
-require_cache fail on cache miss
-force_record  ignore cache and build a fresh plan
+cache hit     rebind descriptors / update params / submit cached command buffer
+cache miss    run the same eager step once, build ReplayPlan, cache it, then reuse it
+incompatible  raise immediately instead of silently falling back to a different path
 ```
 
-测试应该用 `force_record` 建立第一条 plan，再用 `require_cache` 验证第二个兼容请求确实没有重新 record。
+模型 `run.py` 不提供禁用 replay 的开关。需要对拍或逐 dispatch 调试时走独立 `compare.py` 或 profiler 入口，
+不要把调试分支塞回推理热路径。
 
 ## 显存和 Buffer 生命周期
 
@@ -240,7 +241,7 @@ Qwen3-ASR decode cache 命中条件：
 
 ```text
 same device
-same stop_on_eos replay namespace
+same replay namespace, scoped by model/weight directory
 same shader/pipeline ABI
 same command topology
 same descriptor set layout
@@ -256,13 +257,12 @@ request tensors can be rebound
 
 Replay 热路径不做 PyTorch compare，不做 full readback。常规正确性测试应该检查完整 transcript 和 EOS。
 
-Frame-level PyTorch compare 仍然有价值，但它是调试工具：
+显式 PyTorch compare 仍然有价值，但它是调试工具：
 
 ```text
-frame exit
-  run PyTorch model forward
-  capture frame boundary output such as logits
-  compare against Vulkan readback
+run Vulkan subgraph
+run generated reference.run_xxx(...) or explicit callable reference
+compare declared output bindings against Vulkan readback
 ```
 
 失败时再使用现有 writer drilldown 读取相关 dispatch 的输入输出。不要把 shader-level drilldown 放进 replay hot
@@ -273,8 +273,8 @@ path。
 关键测试应覆盖：
 
 ```text
-first request force_record
-second request require_cache
+first request misses cache and records one plan
+second request hits the compatible cached plan
 second request has different wav length / prompt length / audio feature length
 cached command_buffer identity unchanged
 second request adds no text_decode DispatchRecord

@@ -1,4 +1,4 @@
-"""Generated shader: add_f32_21."""
+"""Generated shader: add_f32_36."""
 
 from __future__ import annotations
 
@@ -16,40 +16,40 @@ from torch2vk.runtime.shader import (
 )
 
 
-ADD_F32_21 = ShaderVariant(
-    name='add_f32_21',
+ADD_F32_36 = ShaderVariant(
+    name='add_f32_36',
     family='export',
     contract=ShaderContract(
         class_name='ExportAddF32Program',
-        shader_name='add_f32_21',
+        shader_name='add_f32_36',
         fields=(
             TensorFieldSpec(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('B', 'T',)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H',)),
             ),
             TensorFieldSpec(
                 name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('B', 'T',)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('B', 'T',)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=4,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('B', 'T'), dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('T', 'H'), dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(mul('B', 'T'), 256), 1, 1),
+        dispatch=(ceil_div(mul('T', 'H'), 256), 1, 1),
     ),
     execution_requirements=None,
     source="""\

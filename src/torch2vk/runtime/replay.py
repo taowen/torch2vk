@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import struct
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -24,6 +25,7 @@ from vulkan import (
 )
 from vulkan._vulkan import ffi
 
+from torch2vk.runtime.logical import TensorRole
 from torch2vk.runtime.shader import (
     ExprDim,
     ParamsBufferSpec,
@@ -66,6 +68,7 @@ class ReplayDispatchEntry:
     dispatch_size: tuple[int, int, int]
     dispatch_formula: tuple[ExprDim, ExprDim, ExprDim]
     symbols: dict[str, int]
+    dynamic_symbol_names: tuple[str, ...] = ()
     indirect_offset: int | None = None
     params_buffer: BufferAllocation | None = None
     params_layout: ParamsBufferSpec | None = None
@@ -74,6 +77,29 @@ class ReplayDispatchEntry:
     source_shader: str | None = None
     source_logical_reads: tuple[tuple[str, str], ...] = ()
     source_logical_writes: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayDispatchTemplate:
+    """Device-independent dispatch metadata captured from an eager frame."""
+
+    shader: str
+    logical_reads: tuple[tuple[str, str], ...]
+    logical_writes: tuple[tuple[str, str], ...]
+    symbols: tuple[tuple[str, int], ...]
+    dispatch_size: tuple[int, int, int]
+    dynamic_symbol_names: tuple[str, ...]
+    source_dispatch_index: int | None = None
+    source_frame: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayPlanTemplate:
+    """Device-independent replay description reusable across RuntimeSession instances."""
+
+    name: str
+    entries: tuple[ReplayDispatchTemplate, ...]
+    dynamic_symbol_names: tuple[str, ...]
 
 
 @dataclass(slots=True)
@@ -148,6 +174,7 @@ class ReplayPlan:
     dispatch_entries: tuple[ReplayDispatchEntry, ...]
     params_entries: tuple[ReplayDispatchEntry, ...]
     dynamic_symbol_names: tuple[str, ...]
+    template: ReplayPlanTemplate | None
 
     readback_slots: dict[str, ReplayReadbackSlot]
 
@@ -190,39 +217,62 @@ def execute_replay(
     if plan._closed:
         raise RuntimeError("ReplayPlan is closed")
 
-    symbols = {} if dynamic_symbols is None else dynamic_symbols
-    unexpected_symbols = set(symbols) - set(plan.dynamic_symbol_names)
-    if unexpected_symbols:
-        raise ValueError(
-            f"ReplayPlan {plan.name!r} got unexpected dynamic symbols: {sorted(unexpected_symbols)}"
-        )
+    host_start_ns = time.perf_counter_ns()
+    profile_collection_ns = 0
+    try:
+        symbols = {} if dynamic_symbols is None else dynamic_symbols
+        unexpected_symbols = set(symbols) - set(plan.dynamic_symbol_names)
+        if unexpected_symbols:
+            raise ValueError(
+                f"ReplayPlan {plan.name!r} got unexpected dynamic symbols: {sorted(unexpected_symbols)}"
+            )
 
-    if plan.indirect_buffer is not None:
-        _write_indirect_dispatch_buffer(plan, symbols)
-    if plan.params_entries:
-        _write_params_buffers(plan, symbols)
+        if plan.indirect_buffer is not None:
+            _write_indirect_dispatch_buffer(plan, symbols)
+        if plan.params_entries:
+            _write_params_buffers(plan, symbols)
 
-    vkResetFences(plan.device.device, 1, [plan.fence])
-    submit_info = VkSubmitInfo(
-        commandBufferCount=1,
-        pCommandBuffers=[plan.command_buffer],
-    )
-    vkQueueSubmit(plan.device.queue, 1, [submit_info], plan.fence)
-    vkWaitForFences(plan.device.device, 1, [plan.fence], True, _WAIT_TIMEOUT_NS)
-    if plan.profile_state is not None and plan.profile_recorder is not None:
-        timestamps = plan.profile_state.read_timestamps(plan.device)
-        record_replay_execution = getattr(plan.profile_recorder, "record_replay_execution")
-        record_replay_execution(plan=plan, timestamps=timestamps)
+        vkResetFences(plan.device.device, 1, [plan.fence])
+        submit_info = VkSubmitInfo(
+            commandBufferCount=1,
+            pCommandBuffers=[plan.command_buffer],
+        )
+        vkQueueSubmit(plan.device.queue, 1, [submit_info], plan.fence)
+        vkWaitForFences(plan.device.device, 1, [plan.fence], True, _WAIT_TIMEOUT_NS)
+        if plan.profile_state is not None and plan.profile_recorder is not None:
+            profile_start_ns = time.perf_counter_ns()
+            timestamps = plan.profile_state.read_timestamps(plan.device)
+            record_replay_execution = getattr(plan.profile_recorder, "record_replay_execution")
+            record_replay_execution(plan=plan, timestamps=timestamps)
+            profile_collection_ns = time.perf_counter_ns() - profile_start_ns
+            record_host_event = getattr(plan.profile_recorder, "record_host_event", None)
+            if record_host_event is not None:
+                record_host_event(
+                    name="collect_replay_profile",
+                    replay_plan=plan.name,
+                    elapsed_wall_ns=profile_collection_ns,
+                )
 
-    results: dict[str, bytes] = {}
-    for name, slot in plan.readback_slots.items():
-        plan.device.memory_manager.host_upload_ring.invalidate(
-            allocation=slot.allocation, size=slot.nbytes,
-        )
-        results[name] = slot.allocation.buffer.read_bytes_at(
-            slot.allocation.offset, slot.nbytes
-        )
-    return results
+        results: dict[str, bytes] = {}
+        for name, slot in plan.readback_slots.items():
+            plan.device.memory_manager.host_upload_ring.invalidate(
+                allocation=slot.allocation, size=slot.nbytes,
+            )
+            results[name] = slot.allocation.buffer.read_bytes_at(
+                slot.allocation.offset, slot.nbytes
+            )
+        return results
+    finally:
+        if plan.profile_recorder is not None:
+            record_host_event = getattr(plan.profile_recorder, "record_host_event", None)
+            if record_host_event is not None:
+                record_host_event(
+                    name="execute_replay",
+                    replay_plan=plan.name,
+                    elapsed_wall_ns=(
+                        time.perf_counter_ns() - host_start_ns - profile_collection_ns
+                    ),
+                )
 
 
 def stage_replay_step_inputs(
@@ -233,15 +283,43 @@ def stage_replay_step_inputs(
     write_through: tuple["LogicalTensor", ...] = (),
 ) -> None:
     """Update replay step inputs and rebind plan descriptors to the latest buffers."""
-    rt.register_inputs(inputs)
-    for tensor in write_through:
-        value = inputs.get(tensor)
-        if value is None:
-            continue
-        if tensor.buffer is None:
-            rt._materialize_read(tensor)
-        _write_tensor_buffer(rt, tensor, value)
-    rt.rebind_replay_plan(plan)
+    host_start_ns = time.perf_counter_ns()
+    try:
+        if _can_stage_replay_inputs_in_place(inputs):
+            for tensor, value in inputs.items():
+                tensor.validate_declaration()
+                if tensor.role is not TensorRole.INPUT:
+                    raise ValueError(f"{tensor.name} is not an input tensor")
+                rt._inputs[tensor] = value
+                _write_tensor_buffer(rt, tensor, value)
+            rt.rebind_replay_plan(plan)
+            return
+
+        rt.register_inputs(inputs)
+        for tensor in write_through:
+            value = inputs.get(tensor)
+            if value is None:
+                continue
+            if tensor.buffer is None:
+                rt._materialize_read(tensor)
+            _write_tensor_buffer(rt, tensor, value)
+        rt.rebind_replay_plan(plan)
+    finally:
+        if rt.profiler.enabled:
+            rt.profiler.record_host_event(
+                name="stage_replay_step_inputs",
+                replay_plan=plan.name,
+                elapsed_wall_ns=time.perf_counter_ns() - host_start_ns,
+            )
+
+
+def _can_stage_replay_inputs_in_place(
+    inputs: Mapping["LogicalTensor", np.ndarray],
+) -> bool:
+    for tensor in inputs:
+        if tensor.buffer is None or tensor.buffer.allocation.released:
+            return False
+    return True
 
 
 def _write_tensor_buffer(
@@ -275,7 +353,7 @@ def _write_indirect_dispatch_buffer(
     for entry in plan.dispatch_entries:
         if entry.indirect_offset is None:
             continue
-        symbols = {**entry.symbols, **dynamic_symbols}
+        symbols = _entry_symbols(entry, dynamic_symbols)
         x = eval_expr(entry.dispatch_formula[0], symbols)
         y = eval_expr(entry.dispatch_formula[1], symbols)
         z = eval_expr(entry.dispatch_formula[2], symbols)
@@ -291,7 +369,7 @@ def _write_params_buffers(plan: ReplayPlan, dynamic_symbols: Mapping[str, int]) 
     for entry in plan.params_entries:
         if entry.params_buffer is None or entry.params_layout is None:
             raise RuntimeError("Replay params entry is missing its params buffer")
-        symbols = {**entry.symbols, **dynamic_symbols}
+        symbols = _entry_symbols(entry, dynamic_symbols)
         data = bytearray(entry.params_layout.size)
         for field in entry.params_layout.fields:
             raw = field.value
@@ -315,3 +393,17 @@ def _write_params_buffers(plan: ReplayPlan, dynamic_symbols: Mapping[str, int]) 
                 struct.pack_into("<Q", data, field.offset, int(value))
         entry.params_buffer.buffer.write_bytes_at(entry.params_buffer.offset, bytes(data))
         plan.device.memory_manager.host_upload_ring.flush(allocation=entry.params_buffer)
+
+
+def _entry_symbols(
+    entry: ReplayDispatchEntry,
+    dynamic_symbols: Mapping[str, int],
+) -> dict[str, int]:
+    if not dynamic_symbols or not entry.dynamic_symbol_names:
+        return entry.symbols
+    symbols = dict(entry.symbols)
+    for name in entry.dynamic_symbol_names:
+        value = dynamic_symbols.get(name)
+        if value is not None:
+            symbols[name] = value
+    return symbols

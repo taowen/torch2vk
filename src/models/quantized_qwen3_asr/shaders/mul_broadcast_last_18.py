@@ -1,4 +1,4 @@
-"""Generated shader: decode_layer_mul_broadcast_last_19."""
+"""Generated shader: mul_broadcast_last_18."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-DECODE_LAYER_MUL_BROADCAST_LAST_19 = ShaderVariant(
-    name='decode_layer_mul_broadcast_last_19',
+MUL_BROADCAST_LAST_18 = ShaderVariant(
+    name='mul_broadcast_last_18',
     family='export',
     contract=ShaderContract(
         class_name='ExportMulBroadcastLastProgram',
-        shader_name='decode_layer_mul_broadcast_last_19',
+        shader_name='mul_broadcast_last_18',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -33,7 +33,7 @@ DECODE_LAYER_MUL_BROADCAST_LAST_19 = ShaderVariant(
                 name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=(1, 1, 'H', 1,)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H', 1,)),
             ),
             TensorFieldSpec(
                 name='output',

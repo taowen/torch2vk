@@ -31,7 +31,7 @@ view 需要额外信息才能精确描述，优先扩展 `LogicalTensor` metadat
 ```text
 LogicalTensor 声明 tensor 是什么。
 ShaderVariant 携带 ShaderContract，声明 op 读写什么。
-Frame 声明一次 PyTorch model.forward 对齐的执行边界。
+Frame 声明 runtime 执行、显存生命周期和 dispatch history 边界。
 Eager execution 用普通 Python 顺序把 LogicalTensor 传给 `ShaderVariant`。
 RuntimeSession 根据 LogicalTensor + Frame 自动分配、复用、释放显存，并记录执行事实。
 ```
@@ -54,7 +54,7 @@ debug、artifact 路径和重复声明检查；当 `role == WEIGHT` 时，它同
 3. role、storage class、lifetime；
 4. 权重 checkpoint key 规则；
 5. 运行时输入绑定规则；
-6. PyTorch probe 和 compare policy；
+6. reference_key 等对拍定位 metadata；
 7. 运行时 materialize 所需的其它 metadata；
 8. 当前是否已经分配，以及当前对应的 buffer slice、descriptor range、writer/version 等执行态状态。
 
@@ -179,7 +179,7 @@ Replay Frame enter:
 5. 根据 `ShaderContract` 校验 shader 参数；
 6. 绑定 descriptor，提交 compute dispatch；
 7. 记录 dispatch records；
-8. 在 Frame 结束时执行 PyTorch 对拍；
+8. 调试入口显式执行 PyTorch reference 并按生成 binding 对拍；
 9. 在 Frame/request/session 生命周期结束时释放资源；
 10. 后续基于 dispatch records 生成 replay plan 和 liveness/aliasing plan。
 
@@ -191,14 +191,14 @@ Replay Frame enter:
 
 ```text
 tensors/ = 点
-  声明 LogicalTensor：name/spec/role/memory/lifetime/semantic/probe/compare
+  声明 LogicalTensor：name/spec/role/memory/lifetime/semantic/reference_key
 
 shaders/ = 线
   声明 ShaderContract + ShaderVariant：读哪些点、写哪些点、参数和 dispatch 规则是什么
 
 execution.py + 具体 frame 文件 = 连接方式
   例如 text_prefill.py、text_decode.py、audio_codec_decoder.py。
-  每个文件表达一次 PyTorch model.forward 边界，并用 eager Python 顺序调用 ShaderVariant，把点和线连起来
+  每个文件表达一个模型执行片段，并用 eager Python 顺序调用 ShaderVariant，把点和线连起来
 ```
 
 对应关系：
@@ -207,7 +207,7 @@ execution.py + 具体 frame 文件 = 连接方式
 LogicalTensor 是稳定 graph node declaration。
 ShaderContract 是 typed op/edge declaration。
 frame 文件是 eager graph construction + immediate execution。
-Frame 是一次 PyTorch model.forward 对齐的 runtime boundary。
+Frame 是 runtime 执行、lifetime、dispatch history 和 replay capture boundary。
 RuntimeSession 是执行态框架。
 ```
 
@@ -217,7 +217,7 @@ RuntimeSession 是执行态框架。
 有哪些 tensor 点
 有哪些 shader 线
 线怎么连接点
-点如何映射到 PyTorch probe
+点如何映射到生成阶段确定的 PyTorch reference output
 ```
 
 模型目录不表达：
@@ -227,7 +227,7 @@ RuntimeSession 是执行态框架。
 怎么释放显存
 怎么绑定 descriptor
 怎么 materialize activation
-怎么手写 compare
+怎么在 runtime 内自动猜 compare 目标
 怎么做 replay
 怎么做 liveness/aliasing
 ```

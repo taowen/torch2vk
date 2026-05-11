@@ -1,4 +1,4 @@
-"""Generated shader: decode_layer_slice_f32_31."""
+"""Generated shader: slice_f32_23."""
 
 from __future__ import annotations
 
@@ -12,15 +12,16 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
+    mul,
 )
 
 
-DECODE_LAYER_SLICE_F32_31 = ShaderVariant(
-    name='decode_layer_slice_f32_31',
+SLICE_F32_23 = ShaderVariant(
+    name='slice_f32_23',
     family='export',
     contract=ShaderContract(
         class_name='ExportSliceProgram',
-        shader_name='decode_layer_slice_f32_31',
+        shader_name='slice_f32_23',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -38,14 +39,14 @@ DECODE_LAYER_SLICE_F32_31 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=16,
             fields=(
-                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 512, dynamic=False),
+                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), dynamic=False),
                 PushConstantFieldSpec('IN_STRIDE', PushConstantType.UINT32, 4, 128, dynamic=False),
                 PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 8, 64, dynamic=False),
                 PushConstantFieldSpec('OFFSET', PushConstantType.UINT32, 12, 64, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(512, 256), 1, 1),
+        dispatch=(ceil_div(mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), 256), 1, 1),
     ),
     execution_requirements=None,
     source="""\

@@ -53,7 +53,7 @@ export/codegen 负责生成：
 1. `LogicalTensor.reference_key`：记录 tensor 来自哪个 FX node；
 2. `reference.py`：生成 `run_xxx(...)` wrapper，并内联 input/output key、tensor root、compare name、policy 和 lazy submodule loader。
 
-运行时不再从 tensor name 猜 reference key，也不把 compare/probe metadata 放到另一套表里。
+运行时不再从 tensor name 猜 reference key，也不把 compare metadata 放到另一套表里。
 
 ## 同步推进
 

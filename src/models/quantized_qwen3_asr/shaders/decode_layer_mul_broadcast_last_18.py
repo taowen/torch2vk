@@ -1,4 +1,4 @@
-"""Generated shader: mul_broadcast_inner_33."""
+"""Generated shader: decode_layer_mul_broadcast_last_18."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-MUL_BROADCAST_INNER_33 = ShaderVariant(
-    name='mul_broadcast_inner_33',
+DECODE_LAYER_MUL_BROADCAST_LAST_18 = ShaderVariant(
+    name='decode_layer_mul_broadcast_last_18',
     family='export',
     contract=ShaderContract(
-        class_name='ExportMulBroadcastInnerProgram',
-        shader_name='mul_broadcast_inner_33',
+        class_name='ExportMulBroadcastLastProgram',
+        shader_name='decode_layer_mul_broadcast_last_18',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -33,7 +33,7 @@ MUL_BROADCAST_INNER_33 = ShaderVariant(
                 name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=(1, 1, 'H', 'D',)),
+                contract=TensorContract(dtype='float32', shape=(1, 1, 'H', 1,)),
             ),
             TensorFieldSpec(
                 name='output',
@@ -43,11 +43,10 @@ MUL_BROADCAST_INNER_33 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=12,
+            size=8,
             fields=(
                 PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('T', 'H'), 'D'), dynamic=False),
-                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, 19328, dynamic=False),
-                PushConstantFieldSpec('REPEAT', PushConstantType.UINT32, 8, 8, dynamic=False),
+                PushConstantFieldSpec('H', PushConstantType.UINT32, 4, 'D', dynamic=False),
             ),
         ),
         params_buffer=None,
@@ -60,14 +59,11 @@ layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
-layout(push_constant) uniform PushConstants { uint N; uint STRIDE; uint REPEAT; } pc;
+layout(push_constant) uniform PushConstants { uint N; uint H; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) {
-        uint y_idx = (idx / pc.STRIDE) / pc.REPEAT * pc.STRIDE + idx % pc.STRIDE;
-        output_values[idx] = x[idx] * y[y_idx];
-    }
+    if (idx < pc.N) { output_values[idx] = x[idx] * y[idx / pc.H]; }
 }
 """,
 )

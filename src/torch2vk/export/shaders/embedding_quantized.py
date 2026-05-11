@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_dtype, node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import (
+    node_input_dtype,
+    node_input_shape,
+    node_output_shape,
+    product_expr,
+)
 from torch2vk.export.shaders.embedding_f32 import make_embedding_variant
 from torch2vk.runtime.shader import (
     IOKind,
@@ -14,6 +19,7 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
+    mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
 from torch2vk.vulkan.types import q8_0_halfwords_layout
@@ -70,12 +76,9 @@ def make_embedding_q8_0_variant(node: Node) -> ShaderVariant | None:
     if embedding_dim % 32 != 0:
         return make_embedding_variant(node)
 
-    num_indices = 1
-    for dim in indices_shape:
-        num_indices *= int(dim)
-
     idx_contract = tuple(f"I{i}" for i in range(len(indices_shape)))
-    out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
+    out_contract = idx_contract + ("H",)
+    num_indices = product_expr(idx_contract)
     return ShaderVariant(
         name="embedding_q8_0_f32",
         family="export",
@@ -100,10 +103,10 @@ def make_embedding_q8_0_variant(node: Node) -> ShaderVariant | None:
                 size=8,
                 fields=(
                     PushConstantFieldSpec("num_indices", PushConstantType.UINT32, 0, num_indices),
-                    PushConstantFieldSpec("embedding_dim", PushConstantType.UINT32, 4, embedding_dim),
+                    PushConstantFieldSpec("embedding_dim", PushConstantType.UINT32, 4, "H"),
                 ),
             ),
-            dispatch=(ceil_div(num_indices * embedding_dim, 256), 1, 1),
+            dispatch=(ceil_div(mul(num_indices, "H"), 256), 1, 1),
         ),
         execution_requirements=_execution_requirements(indices_dtype),
         source=_source(indices_dtype),

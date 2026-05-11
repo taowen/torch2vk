@@ -1,4 +1,4 @@
-"""Generated shader: mean_dim_f32_16."""
+"""Generated shader: mean_dim_f32_15."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
+    mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,
@@ -18,12 +19,12 @@ from torch2vk.vulkan.shader_execution_requirements import (
 )
 
 
-MEAN_DIM_F32_16 = ShaderVariant(
-    name='mean_dim_f32_16',
+MEAN_DIM_F32_15 = ShaderVariant(
+    name='mean_dim_f32_15',
     family='export',
     contract=ShaderContract(
         class_name='ExportMeanDimProgram',
-        shader_name='mean_dim_f32_16',
+        shader_name='mean_dim_f32_15',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -41,12 +42,12 @@ MEAN_DIM_F32_16 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 1208, dynamic=False),
-                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 128, dynamic=False),
+                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, mul(mul('S0', 'S1'), 'S2'), dynamic=False),
+                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 'S3', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(1208, 1, 1),
+        dispatch=(mul(mul('S0', 'S1'), 'S2'), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)),
     source="""\

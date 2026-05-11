@@ -12,6 +12,7 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
+    mul,
 )
 
 
@@ -44,14 +45,14 @@ CAT_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=16,
             fields=(
-                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, 309248, dynamic=False),
+                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), dynamic=False),
                 PushConstantFieldSpec('A_STRIDE', PushConstantType.UINT32, 4, 64, dynamic=False),
                 PushConstantFieldSpec('B_STRIDE', PushConstantType.UINT32, 8, 64, dynamic=False),
                 PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 12, 128, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(309248, 256), 1, 1),
+        dispatch=(ceil_div(mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), 256), 1, 1),
     ),
     execution_requirements=None,
     source="""\

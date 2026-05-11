@@ -111,6 +111,25 @@ class RuntimeProfiler:
             self._attach_profile_shader_source(row, entry.pipeline)
             self._append_dispatch_row(row)
 
+    def record_host_event(
+        self,
+        *,
+        name: str,
+        elapsed_wall_ns: int,
+        replay_plan: str | None = None,
+    ) -> None:
+        if not self.enabled:
+            return
+        self._append_dispatch_row(
+            {
+                "phase": "host",
+                "timing_kind": "host_wall_ns",
+                "event": name,
+                "replay_plan": replay_plan,
+                "elapsed_wall_ns": elapsed_wall_ns,
+            }
+        )
+
     def summary(self) -> dict[str, Any]:
         record_rows = [row for row in self._dispatch_rows if row.get("phase") == "record"]
         replay_rows = [row for row in self._dispatch_rows if row.get("phase") == "replay"]
@@ -121,6 +140,9 @@ class RuntimeProfiler:
                 replay_rows=replay_rows,
                 plan_samples=self._replay_plan_samples,
                 dispatch_samples=self._replay_dispatch_samples,
+            ),
+            "host": _host_summary(
+                [row for row in self._dispatch_rows if row.get("phase") == "host"]
             ),
         }
         if self._device_info:
@@ -325,6 +347,18 @@ def _replay_summary(
         "top_shaders_by_median_ns": _top_median_groups(shader_groups),
         "top_outputs_by_median_ns": _top_median_groups(output_groups),
         "top_dispatches_by_median_ns": top_dispatches[:20],
+    }
+
+
+def _host_summary(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "timing_kind": "host_wall_ns",
+        "event_count": len(rows),
+        "top_events_by_wall_ns": _top_groups(
+            rows,
+            key_field="event",
+            value_field="elapsed_wall_ns",
+        ),
     }
 
 

@@ -140,9 +140,6 @@ def main() -> int:
     for directory in (tensors_dir, dispatch_dir):
         for source in directory.glob("*.py"):
             source.unlink()
-    legacy_dispatch = output_dir / "dispatch.py"
-    if legacy_dispatch.exists():
-        legacy_dispatch.unlink()
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()

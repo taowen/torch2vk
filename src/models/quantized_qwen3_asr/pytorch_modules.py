@@ -65,7 +65,7 @@ def preprocess_audio_inputs(
         chunks.append(chunk)
         offset += int(chunk_length)
 
-    max_chunk_len = int(chunk_lengths.max())
+    max_chunk_len = n_window * 2
     num_mel = mel.shape[0]
     padded_feature = np.zeros((chunk_num, 1, num_mel, max_chunk_len), dtype=np.float32)
     for index, chunk in enumerate(chunks):
@@ -130,7 +130,7 @@ def audio_position_embedding_shape(
     remainder = feature_length % (n_window * 2)
     if remainder != 0:
         chunk_lengths[-1] = remainder
-    time = int(get_feat_extract_output_lengths(chunk_lengths).max())
+    time = int(get_feat_extract_output_lengths(np.array([n_window * 2], dtype=np.int64))[0])
     return (chunk_num, time, d_model)
 
 

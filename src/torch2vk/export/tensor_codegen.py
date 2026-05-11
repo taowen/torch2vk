@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import TypeAlias, cast
+from typing import Mapping, TypeAlias, cast
 
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind
@@ -95,11 +95,13 @@ def _tensor_factory_signature(
     *,
     fields: tuple[str, ...],
     layered: bool,
+    shape_parameters: tuple[str, ...] = (),
 ) -> str:
     params = ["prefix: str"]
     if layered:
         params.append("layer_idx: int")
     params.append("*")
+    params.extend(f"{name}: int" for name in shape_parameters)
     params.extend(f"{field}: LogicalTensor | None = None" for field in fields)
     params.append("request_state_outputs: Collection[str] = frozenset()")
     return f"def {function_name}(\n    " + ",\n    ".join(params) + f",\n) -> {class_name}:"
@@ -114,6 +116,7 @@ def generate_tensor_class_source(
     is_layered: bool | None = None,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
     weight_quantization: Q4KMWeightQuantization | None = None,
+    shape_exprs: Mapping[int, str] | None = None,
 ) -> TensorClassContext:
     """Generate tensor dataclass + factory function context for a single submodule."""
     graph = prog.graph_module.graph
@@ -190,10 +193,12 @@ def generate_tensor_class_source(
             concrete_checkpoint_key=param_map.get(name),
             reference_key="None" if meta.kind != _TensorKind.INTERMEDIATE else repr(name),
             weight_quantization=weight_quantization,
+            shape_exprs=shape_exprs,
         ))
 
     output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
     fields = tuple(tensors.keys())
+    shape_parameters = _shape_parameter_names(tensor_entries)
     return render_tensor_class(
         class_name=class_name,
         fields=fields,
@@ -204,6 +209,7 @@ def generate_tensor_class_source(
             class_name,
             fields=fields,
             layered=is_layered,
+            shape_parameters=shape_parameters,
         ),
         tensors=tensor_entries,
         alias_ops=alias_ops,
@@ -218,7 +224,8 @@ def _tensor_entry(
     concrete_checkpoint_key: str | None,
     reference_key: str,
     weight_quantization: Q4KMWeightQuantization | None = None,
-) -> dict[str, str]:
+    shape_exprs: Mapping[int, str] | None = None,
+) -> dict[str, object]:
     kind = meta.kind
     dtype = _logical_dtype(kind=kind, dtype=meta.dtype)
     shape = meta.shape
@@ -252,12 +259,42 @@ def _tensor_entry(
         "checkpoint_key_expr": checkpoint_key,
         "reference_key_expr": reference_key,
         "dtype_source": repr(dtype),
-        "shape_source": repr(shape),
+        "shape_source": _shape_source(shape, shape_exprs or {}),
+        "shape_parameters": tuple(_shape_dim_names(shape, shape_exprs or {})),
         "layout_source": layout_source,
         "role": role,
         "memory": memory,
         "lifetime": lifetime,
     }
+
+
+def _shape_source(shape: tuple[int, ...], shape_exprs: Mapping[int, str]) -> str:
+    if not shape:
+        return "()"
+    parts = tuple(shape_exprs.get(dim, repr(dim)) for dim in shape)
+    suffix = "," if len(parts) == 1 else ""
+    return "(" + ", ".join(parts) + suffix + ")"
+
+
+def _shape_dim_names(shape: tuple[int, ...], shape_exprs: Mapping[int, str]) -> tuple[str, ...]:
+    names: list[str] = []
+    for dim in shape:
+        expr = shape_exprs.get(dim)
+        if expr is None:
+            continue
+        for name in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", expr):
+            if name not in names:
+                names.append(name)
+    return tuple(names)
+
+
+def _shape_parameter_names(tensor_entries: list[dict[str, object]]) -> tuple[str, ...]:
+    names: list[str] = []
+    for entry in tensor_entries:
+        for name in cast(tuple[str, ...], entry["shape_parameters"]):
+            if name not in names:
+                names.append(name)
+    return tuple(names)
 
 
 def _node_dtype(node: Node) -> str:

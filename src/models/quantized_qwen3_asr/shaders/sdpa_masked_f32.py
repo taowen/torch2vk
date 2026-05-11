@@ -11,6 +11,7 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
+    mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,
@@ -59,16 +60,16 @@ SDPA_MASKED_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=24,
             fields=(
-                PushConstantFieldSpec('B', PushConstantType.UINT32, 0, 1, dynamic=False),
-                PushConstantFieldSpec('NH', PushConstantType.UINT32, 4, 14, dynamic=False),
-                PushConstantFieldSpec('NK', PushConstantType.UINT32, 8, 14, dynamic=False),
-                PushConstantFieldSpec('T', PushConstantType.UINT32, 12, 133, dynamic=False),
-                PushConstantFieldSpec('S', PushConstantType.UINT32, 16, 133, dynamic=False),
-                PushConstantFieldSpec('D', PushConstantType.UINT32, 20, 64, dynamic=False),
+                PushConstantFieldSpec('B', PushConstantType.UINT32, 0, 'Q0', dynamic=False),
+                PushConstantFieldSpec('NH', PushConstantType.UINT32, 4, 'Q1', dynamic=False),
+                PushConstantFieldSpec('NK', PushConstantType.UINT32, 8, 'K1', dynamic=False),
+                PushConstantFieldSpec('T', PushConstantType.UINT32, 12, 'Q2', dynamic=False),
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 16, 'K2', dynamic=False),
+                PushConstantFieldSpec('D', PushConstantType.UINT32, 20, 'Q3', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(14, 133, 1),
+        dispatch=(mul('Q0', 'Q1'), 'Q2', 1),
     ),
     execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)),
     source="""\

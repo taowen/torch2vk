@@ -393,13 +393,13 @@ audio_codec_decoder.decoder.block0.res_unit1.output
 audio_codec_decoder.decoder.waveform
 ```
 
-token normalization 必须作为 boundary contract 写清楚。OmniVoice audio token predictor 可能使用 `1024` 作为 audio mask token，而 audio codec decoder codebook 合法 index 是 `0..1023`。进入 decoder quantizer 前，candidate 和 PyTorch probe 必须使用一致规则，例如：
+token normalization 必须作为 boundary contract 写清楚。OmniVoice audio token predictor 可能使用 `1024` 作为 audio mask token，而 audio codec decoder codebook 合法 index 是 `0..1023`。进入 decoder quantizer 前，candidate 和 PyTorch reference 必须使用一致规则，例如：
 
 ```text
 normalized_token = clamp(token, 0, codebook_size - 1)
 ```
 
-这个规则应存在于 tensor boundary 或 shader contract 中，不能在 candidate 和 PyTorch probe 两边各自隐式处理。
+这个规则应存在于 tensor boundary 或 shader contract 中，不能在 candidate 和 PyTorch reference 两边各自隐式处理。
 
 ### tensors/ 禁止事项
 
@@ -510,7 +510,7 @@ def run_audio_codec_decoder_frame(
 ## Generated reference metadata
 
 reference metadata 由 export 生成，并直接内联到 `reference.py`。它描述 reference key
-到 tensor dataclass 字段路径的绑定，必须和生成的 tensor tree 一起维护，不能在 `probes.py` 或其它平行 registry
+到 tensor dataclass 字段路径的绑定，必须和生成的 tensor tree 一起维护，不能在其它平行 registry
 里再维护一份。
 
 流程：
@@ -751,6 +751,7 @@ KV cache 等 REQUEST_STATE tensor 需要在首次使用前初始化为零。由 
 
 自回归解码中 KV cache 和 generated_tokens 每步增长。由 `execution.py` 在 decode 循环中调用 `rt.grow_request_state(tensor, new_shape)` 完成。Runtime 使用 geometric growth 策略避免频繁重分配。
 
-### 不需要 pytorch_model 的 Frame
+### 不参与对拍的 Frame
 
-并非所有 frame 都对应一个 PyTorch model.forward。纯 runtime 操作（如 token_select、state copy）使用 `pytorch_model=None` 的 frame。RuntimeSession 在 frame exit 时跳过对拍。
+并非所有 frame 都需要 PyTorch reference。纯 runtime 操作（如 token_select、state copy）如果需要对拍，
+由模型 `compare.py` 显式调用对应 reference；否则 frame 只承担 dispatch history、lifetime 和 replay capture 语义。

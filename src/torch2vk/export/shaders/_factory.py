@@ -113,6 +113,18 @@ def flat_numel_expr(contract_shape: tuple[Dim, ...]) -> ExprDim:
     return expr
 
 
+def product_expr(values: tuple[ExprDim, ...]) -> ExprDim:
+    expr: ExprDim = 1
+    for value in values:
+        if value == 1:
+            continue
+        if expr == 1:
+            expr = value
+        else:
+            expr = mul(expr, value)
+    return expr
+
+
 def make_unary_elementwise(glsl_source: str, name: str, node: Node) -> ShaderVariant | None:
     out_shape = node_output_shape(node)
     if not out_shape:

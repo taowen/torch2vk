@@ -12,6 +12,7 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
+    mul,
 )
 
 
@@ -50,15 +51,15 @@ CONV2D_F32W_F32B_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=52,
             fields=(
-                PushConstantFieldSpec('batch', PushConstantType.UINT32, 0, 11, dynamic=False),
-                PushConstantFieldSpec('in_c', PushConstantType.UINT32, 4, 1, dynamic=False),
-                PushConstantFieldSpec('in_h', PushConstantType.UINT32, 8, 128, dynamic=False),
-                PushConstantFieldSpec('in_w', PushConstantType.UINT32, 12, 100, dynamic=False),
-                PushConstantFieldSpec('out_c', PushConstantType.UINT32, 16, 480, dynamic=False),
-                PushConstantFieldSpec('out_h', PushConstantType.UINT32, 20, 64, dynamic=False),
-                PushConstantFieldSpec('out_w', PushConstantType.UINT32, 24, 50, dynamic=False),
-                PushConstantFieldSpec('kh', PushConstantType.UINT32, 28, 3, dynamic=False),
-                PushConstantFieldSpec('kw', PushConstantType.UINT32, 32, 3, dynamic=False),
+                PushConstantFieldSpec('batch', PushConstantType.UINT32, 0, 'B', dynamic=False),
+                PushConstantFieldSpec('in_c', PushConstantType.UINT32, 4, 'Ci', dynamic=False),
+                PushConstantFieldSpec('in_h', PushConstantType.UINT32, 8, 'Hi', dynamic=False),
+                PushConstantFieldSpec('in_w', PushConstantType.UINT32, 12, 'Wi', dynamic=False),
+                PushConstantFieldSpec('out_c', PushConstantType.UINT32, 16, 'Co2', dynamic=False),
+                PushConstantFieldSpec('out_h', PushConstantType.UINT32, 20, 'Ho', dynamic=False),
+                PushConstantFieldSpec('out_w', PushConstantType.UINT32, 24, 'Wo', dynamic=False),
+                PushConstantFieldSpec('kh', PushConstantType.UINT32, 28, 'Kh', dynamic=False),
+                PushConstantFieldSpec('kw', PushConstantType.UINT32, 32, 'Kw', dynamic=False),
                 PushConstantFieldSpec('stride_h', PushConstantType.UINT32, 36, 2, dynamic=False),
                 PushConstantFieldSpec('stride_w', PushConstantType.UINT32, 40, 2, dynamic=False),
                 PushConstantFieldSpec('pad_h', PushConstantType.UINT32, 44, 1, dynamic=False),
@@ -66,7 +67,7 @@ CONV2D_F32W_F32B_F32 = ShaderVariant(
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(3200, 16), ceil_div(480, 16), 11),
+        dispatch=(ceil_div(mul('Ho', 'Wo'), 16), ceil_div('Co2', 16), 'B'),
     ),
     execution_requirements=None,
     source="""\

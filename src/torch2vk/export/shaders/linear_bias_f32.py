@@ -6,6 +6,7 @@ from torch2vk.export.shaders._factory import (
     node_input_dtype,
     node_input_shape,
     node_output_shape,
+    product_expr,
     weight_dtype_suffix,
     weight_extension_source,
     weight_glsl_type,
@@ -77,16 +78,12 @@ def make_linear_bias_variant(node: Node) -> ShaderVariant | None:
     b_contract = ("N",)
     out_contract = tuple(f"Y{i}" for i in range(len(out_shape)))
 
-    k = x_shape[-1]
-    n = w_shape[0]
     weight_dtype = node_input_dtype(node, 1)
     bias_dtype = node_input_dtype(node, 2)
     weight_suffix = weight_dtype_suffix(weight_dtype)
     bias_suffix = weight_dtype_suffix(bias_dtype)
     shader_name = f"linear_bias_{weight_suffix}w_{bias_suffix}b_f32"
-    m = 1
-    for d in x_shape[:-1]:
-        m *= d
+    m = product_expr(tuple(x_contract[:-1]))
 
     return ShaderVariant(
         name=shader_name,
@@ -104,11 +101,11 @@ def make_linear_bias_variant(node: Node) -> ShaderVariant | None:
                 size=12,
                 fields=(
                     PushConstantFieldSpec("M", PushConstantType.UINT32, 0, m),
-                    PushConstantFieldSpec("K", PushConstantType.UINT32, 4, k),
-                    PushConstantFieldSpec("N", PushConstantType.UINT32, 8, n),
+                    PushConstantFieldSpec("K", PushConstantType.UINT32, 4, x_contract[-1]),
+                    PushConstantFieldSpec("N", PushConstantType.UINT32, 8, w_contract[0]),
                 ),
             ),
-            dispatch=(ceil_div(m, 16), ceil_div(n, 16), 1),
+            dispatch=(ceil_div(m, 16), ceil_div(w_contract[0], 16), 1),
         ),
         source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype),
     )

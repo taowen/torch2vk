@@ -148,9 +148,6 @@ def main() -> int:
         f.unlink()
     for f in dispatch_dir.glob("*.py"):
         f.unlink()
-    legacy_dispatch = output_dir / "dispatch.py"
-    if legacy_dispatch.exists():
-        legacy_dispatch.unlink()
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()

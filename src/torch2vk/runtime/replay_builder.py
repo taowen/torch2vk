@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+import re
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
@@ -38,17 +39,37 @@ from torch2vk.runtime.logical import LogicalTensor, MemoryClass
 from torch2vk.runtime.replay import (
     ReplayDescriptorBinding,
     ReplayDispatchEntry,
+    ReplayDispatchTemplate,
     ReplayPlan,
+    ReplayPlanTemplate,
     ReplayProfileState,
     ReplayReadbackSlot,
 )
-from torch2vk.runtime.shader import DispatchRecord, IOKind, ShaderVariant, TensorFieldSpec
+from torch2vk.runtime.shader import (
+    DispatchRecord,
+    ExprDim,
+    IOKind,
+    ParamsBufferFieldSpec,
+    ParamsBufferSpec,
+    PushConstantFieldSpec,
+    PushConstantInput,
+    PushConstantSpec,
+    PushConstantType,
+    PushConstantValue,
+    ShaderContract,
+    ShaderVariant,
+    TensorFieldSpec,
+    referenced_symbols,
+)
 from torch2vk.vulkan.allocation import BufferAllocation, BufferSlice
 from torch2vk.vulkan.compute_pipeline import BoundComputeBinding, DescriptorBufferBinding
-from torch2vk.vulkan.types import tensor_nbytes
+from torch2vk.vulkan.types import tensor_layout_symbol_names, tensor_nbytes
 
 if TYPE_CHECKING:
     from torch2vk.runtime.session import RuntimeSession
+
+
+_REPLAY_TEMPLATE_CACHE: dict[str, list[ReplayPlanTemplate]] = {}
 
 
 def build_replay_plan(
@@ -64,12 +85,74 @@ def build_replay_plan(
     num_dispatches = len(frame_dispatch_records)
     if num_dispatches == 0:
         raise ValueError(f"Cannot build replay plan for frame {frame!r} with zero dispatches")
-    dynamic_symbol_names = _infer_dynamic_symbol_names(
-        get_shader=rt._model_shader,
+    logical_tensors = _collect_replay_tensors(rt, frame_dispatch_records)
+    template = _build_replay_template_from_records(
+        rt,
+        name=name,
         frame_dispatch_records=frame_dispatch_records,
+        logical_tensors=logical_tensors,
+    )
+    return _instantiate_replay_template(
+        rt,
+        template=template,
+        logical_tensors=logical_tensors,
+        readback_tensors=readback_tensors,
     )
 
-    logical_tensors = _collect_replay_tensors(rt, frame_dispatch_records)
+
+def _build_replay_template_from_records(
+    rt: RuntimeSession,
+    *,
+    name: str,
+    frame_dispatch_records: Sequence[DispatchRecord],
+    logical_tensors: Mapping[str, LogicalTensor],
+) -> ReplayPlanTemplate:
+    entry_dynamic_symbol_names = tuple(
+        _entry_dynamic_symbol_names(
+            variant=rt._model_shader(record.shader),
+            record=record,
+            logical_tensors=logical_tensors,
+        )
+        for record in frame_dispatch_records
+    )
+    dynamic_symbol_names = tuple(
+        sorted(
+            {
+                symbol
+                for entry_symbols in entry_dynamic_symbol_names
+                for symbol in entry_symbols
+            }
+        )
+    )
+    entries = tuple(
+        ReplayDispatchTemplate(
+            shader=record.shader,
+            logical_reads=tuple(record.logical_reads),
+            logical_writes=tuple(record.logical_writes),
+            symbols=tuple(record.symbols),
+            dispatch_size=record.dispatch_size,
+            dynamic_symbol_names=entry_dynamic_symbol_names[i],
+            source_dispatch_index=record.index,
+            source_frame=record.frame,
+        )
+        for i, record in enumerate(frame_dispatch_records)
+    )
+    return ReplayPlanTemplate(
+        name=name,
+        entries=entries,
+        dynamic_symbol_names=dynamic_symbol_names,
+    )
+
+
+def _instantiate_replay_template(
+    rt: RuntimeSession,
+    *,
+    template: ReplayPlanTemplate,
+    logical_tensors: Mapping[str, LogicalTensor],
+    readback_tensors: Mapping[str, LogicalTensor] | None = None,
+) -> ReplayPlan:
+    num_dispatches = len(template.entries)
+    dynamic_symbol_names = template.dynamic_symbol_names
 
     use_indirect_dispatch = len(dynamic_symbol_names) > 0
     indirect_buffer: BufferAllocation | None = None
@@ -90,13 +173,15 @@ def build_replay_plan(
     workspace_allocations: list[BufferAllocation] = []
     params_allocations: list[BufferAllocation] = []
 
-    for i, record in enumerate(frame_dispatch_records):
-        variant = rt._model_shader(record.shader)
+    for i, template_entry in enumerate(template.entries):
+        source_variant = rt._model_shader(template_entry.shader)
+        dynamic_symbols = template_entry.dynamic_symbol_names
+        variant = _replay_variant_for_dynamic_symbols(source_variant, dynamic_symbols)
         contract = variant.contract
         pipeline = rt._pipeline_for_variant(variant)
-        record_symbols = dict(record.symbols)
-        logical_by_field = dict(record.logical_reads)
-        logical_by_field.update(record.logical_writes)
+        record_symbols = dict(template_entry.symbols)
+        logical_by_field = dict(template_entry.logical_reads)
+        logical_by_field.update(template_entry.logical_writes)
         tensors = {
             field.name: logical_tensors[logical_by_field[field.name]]
             for field in contract.fields
@@ -110,24 +195,23 @@ def build_replay_plan(
                 tensor=tensor,
                 logical_tensors=logical_tensors,
             )
-            descriptor_rebindable = descriptor_tensor.memory not in {
-                MemoryClass.FRAME_WORKSPACE,
-                MemoryClass.MODEL_WEIGHT,
-                MemoryClass.OP_SCRATCH,
-            }
+            descriptor_rebindable = _replay_descriptor_rebindable(descriptor_tensor)
             if not _has_live_buffer(descriptor_tensor):
-                alloc = _allocate_replay_descriptor_tensor(
-                    rt,
-                    descriptor_tensor,
-                )
-                with descriptor_tensor.runtime_write_scope():
-                    descriptor_tensor.buffer = BufferSlice(
-                        allocation=alloc,
-                        offset=alloc.offset,
-                        nbytes=tensor_nbytes(descriptor_tensor.spec),
+                if descriptor_tensor.memory is MemoryClass.MODEL_WEIGHT:
+                    rt._materialize_weight(descriptor_tensor)
+                else:
+                    alloc = _allocate_replay_descriptor_tensor(
+                        rt,
+                        descriptor_tensor,
                     )
-                    descriptor_tensor.descriptor_nbytes = descriptor_tensor.buffer.nbytes
-                workspace_allocations.append(alloc)
+                    with descriptor_tensor.runtime_write_scope():
+                        descriptor_tensor.buffer = BufferSlice(
+                            allocation=alloc,
+                            offset=alloc.offset,
+                            nbytes=tensor_nbytes(descriptor_tensor.spec),
+                        )
+                        descriptor_tensor.descriptor_nbytes = descriptor_tensor.buffer.nbytes
+                    workspace_allocations.append(alloc)
 
             descriptor_buffer = descriptor_tensor.buffer
             if descriptor_buffer is None:
@@ -178,17 +262,18 @@ def build_replay_plan(
             binding=binding,
             descriptors=tuple(descriptor_bindings),
             push_constants=push_constants,
-            dispatch_size=record.dispatch_size,
+            dispatch_size=template_entry.dispatch_size,
             dispatch_formula=contract.dispatch,
             symbols=record_symbols,
+            dynamic_symbol_names=dynamic_symbols,
             indirect_offset=i * 12 if use_indirect_dispatch else None,
             params_buffer=params_alloc,
             params_layout=contract.params_buffer,
-            source_dispatch_index=record.index,
-            source_frame=record.frame,
-            source_shader=record.shader,
-            source_logical_reads=tuple(record.logical_reads),
-            source_logical_writes=tuple(record.logical_writes),
+            source_dispatch_index=template_entry.source_dispatch_index,
+            source_frame=template_entry.source_frame,
+            source_shader=template_entry.shader,
+            source_logical_reads=template_entry.logical_reads,
+            source_logical_writes=template_entry.logical_writes,
         )
         dispatch_entries.append(entry)
         if params_alloc is not None:
@@ -331,7 +416,7 @@ def build_replay_plan(
 
     return ReplayPlan(
         device=rt.device,
-        name=name,
+        name=template.name,
         command_buffer=command_buffer,
         fence=fence,
         indirect_buffer=indirect_buffer,
@@ -339,6 +424,7 @@ def build_replay_plan(
         dispatch_entries=tuple(dispatch_entries),
         params_entries=tuple(params_entries),
         dynamic_symbol_names=dynamic_symbol_names,
+        template=template,
         readback_slots=readback_slots,
         workspace_allocations=workspace_allocations + params_allocations,
         bindings=bindings,
@@ -362,28 +448,246 @@ def _frame_dispatch_records(
     return rt.dispatch_records[context.start_dispatch_index:context.end_dispatch_index]
 
 
-def _infer_dynamic_symbol_names(
+def _entry_dynamic_symbol_names(
     *,
-    get_shader: Callable[[str], ShaderVariant],
-    frame_dispatch_records: Sequence[DispatchRecord],
+    variant: ShaderVariant,
+    record: DispatchRecord,
+    logical_tensors: Mapping[str, LogicalTensor],
 ) -> tuple[str, ...]:
-    values_by_name: dict[str, set[int]] = {}
-    params_symbol_names: set[str] = set()
-    for record in frame_dispatch_records:
-        record_symbols = dict(record.symbols)
-        for symbol_name, symbol_value in record_symbols.items():
-            values_by_name.setdefault(symbol_name, set()).add(symbol_value)
-        params_buffer = get_shader(record.shader).contract.params_buffer
-        if params_buffer is None:
+    record_symbols = set(dict(record.symbols))
+    logical_by_field = dict(record.logical_reads)
+    logical_by_field.update(record.logical_writes)
+    rebindable_symbols: set[str] = set()
+    static_symbols: set[str] = set()
+    for field in variant.contract.fields:
+        tensor = logical_tensors[logical_by_field[field.name]]
+        descriptor_tensor = _canonical_replay_descriptor_tensor(
+            tensor=tensor,
+            logical_tensors=logical_tensors,
+        )
+        field_symbols = set(_tensor_field_symbol_names(field))
+        if _replay_descriptor_rebindable(descriptor_tensor):
+            rebindable_symbols.update(field_symbols)
             continue
-        for field in params_buffer.fields:
-            if isinstance(field.value, str) and field.value in record_symbols:
-                params_symbol_names.add(field.value)
+        static_symbols.update(field_symbols)
+    dynamic_symbols = rebindable_symbols - static_symbols
+    return tuple(sorted(symbol for symbol in dynamic_symbols if symbol in record_symbols))
 
-    varying_symbol_names = {
-        symbol_name for symbol_name, values in values_by_name.items() if len(values) > 1
-    }
-    return tuple(sorted(varying_symbol_names | params_symbol_names))
+
+def _tensor_field_symbol_names(field: TensorFieldSpec) -> tuple[str, ...]:
+    symbols = list(_referenced_symbols_in_dims(field.contract.shape))
+    symbols.extend(tensor_layout_symbol_names(field.contract.layout))
+    return tuple(symbols)
+
+
+def _referenced_symbols_in_dims(values: Sequence[ExprDim]) -> tuple[str, ...]:
+    symbols: list[str] = []
+    for value in values:
+        symbols.extend(referenced_symbols(value))
+    return tuple(symbols)
+
+
+_PUSH_CONSTANT_DECL_RE = re.compile(
+    r"layout\s*\(\s*push_constant\s*\)\s*uniform\s+\w+\s*\{.*?\}\s*pc\s*;",
+    re.DOTALL,
+)
+
+
+def _replay_variant_for_dynamic_symbols(
+    variant: ShaderVariant,
+    dynamic_symbol_names: tuple[str, ...],
+) -> ShaderVariant:
+    push_constants = variant.contract.push_constants
+    if push_constants is None or not dynamic_symbol_names:
+        return variant
+
+    dynamic_symbols = set(dynamic_symbol_names)
+    dynamic_fields = tuple(
+        field
+        for field in push_constants.fields
+        if dynamic_symbols.intersection(_push_constant_value_symbols(field.value))
+    )
+    if not dynamic_fields:
+        return variant
+    if variant.contract.params_buffer is not None:
+        raise RuntimeError(
+            f"Replay shader {variant.name!r} cannot move dynamic push constants "
+            "into params because it already has a params buffer"
+        )
+    if not variant.source:
+        raise RuntimeError(
+            f"Replay shader {variant.name!r} needs inline GLSL source for dynamic push constants"
+        )
+
+    dynamic_field_names = {field.name for field in dynamic_fields}
+    static_push_fields: list[PushConstantFieldSpec] = []
+    dynamic_param_fields: list[ParamsBufferFieldSpec] = []
+    static_offset = 0
+    params_offset = 0
+    for field in push_constants.fields:
+        if field.name in dynamic_field_names:
+            _validate_replay_param_value(variant.name, field)
+            params_offset = _align_push_constant_offset(params_offset, field.dtype)
+            dynamic_param_fields.append(
+                ParamsBufferFieldSpec(
+                    name=field.name,
+                    dtype=field.dtype,
+                    offset=params_offset,
+                    value=field.value,
+                )
+            )
+            params_offset += field.size
+            continue
+        static_offset = _align_push_constant_offset(static_offset, field.dtype)
+        static_push_fields.append(
+            PushConstantFieldSpec(
+                name=field.name,
+                dtype=field.dtype,
+                offset=static_offset,
+                value=field.value,
+                dynamic=field.dynamic,
+            )
+        )
+        static_offset += field.size
+
+    replay_name = f"{variant.name}__replay_dynamic"
+    replay_source = _rewrite_replay_push_constants(
+        shader_name=variant.name,
+        source=variant.source,
+        static_push_fields=tuple(static_push_fields),
+        dynamic_param_fields=tuple(dynamic_param_fields),
+        params_binding_index=len(variant.contract.fields),
+    )
+    replay_contract = ShaderContract(
+        class_name=variant.contract.class_name,
+        shader_name=replay_name,
+        fields=variant.contract.fields,
+        dispatch=variant.contract.dispatch,
+        push_constants=(
+            PushConstantSpec(
+                size=static_offset,
+                fields=tuple(static_push_fields),
+            )
+            if static_push_fields
+            else None
+        ),
+        params_buffer=ParamsBufferSpec(
+            size=params_offset,
+            fields=tuple(dynamic_param_fields),
+            binding_index=len(variant.contract.fields),
+        ),
+    )
+    return ShaderVariant(
+        name=replay_name,
+        family=variant.family,
+        contract=replay_contract,
+        source=replay_source,
+        precompiled_spv_path=None,
+        specialization_constants=variant.specialization_constants,
+        include_dirs=variant.include_dirs,
+        compile_defines=variant.compile_defines,
+        execution_requirements=variant.execution_requirements,
+    )
+
+
+def _push_constant_value_symbols(value: PushConstantValue) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, int | float):
+        return ()
+    if isinstance(value, PushConstantInput):
+        return ()
+    if callable(value):
+        return ()
+    return referenced_symbols(value)
+
+
+def _validate_replay_param_value(
+    shader_name: str,
+    field: PushConstantFieldSpec,
+) -> None:
+    if isinstance(field.value, PushConstantInput):
+        raise RuntimeError(
+            f"Replay shader {shader_name!r} cannot move PushConstantInput "
+            f"{field.name!r} into params"
+        )
+    if callable(field.value):
+        raise RuntimeError(
+            f"Replay shader {shader_name!r} cannot move callable push constant "
+            f"{field.name!r} into params"
+        )
+    if field.dtype is PushConstantType.UINT64:
+        raise RuntimeError(
+            f"Replay shader {shader_name!r} cannot move uint64 push constant "
+            f"{field.name!r} into params"
+        )
+
+
+def _align_push_constant_offset(offset: int, dtype: PushConstantType) -> int:
+    alignment = 8 if dtype is PushConstantType.UINT64 else 4
+    return ((offset + alignment - 1) // alignment) * alignment
+
+
+def _rewrite_replay_push_constants(
+    *,
+    shader_name: str,
+    source: str,
+    static_push_fields: tuple[PushConstantFieldSpec, ...],
+    dynamic_param_fields: tuple[ParamsBufferFieldSpec, ...],
+    params_binding_index: int,
+) -> str:
+    replacement_parts: list[str] = []
+    if static_push_fields:
+        replacement_parts.append(_push_constant_decl_source(static_push_fields))
+    replacement_parts.append(
+        _replay_params_decl_source(dynamic_param_fields, binding_index=params_binding_index)
+    )
+    rewritten, count = _PUSH_CONSTANT_DECL_RE.subn("\n".join(replacement_parts), source, count=1)
+    if count != 1:
+        raise RuntimeError(
+            f"Replay shader {shader_name!r} could not find a single push constant block named pc"
+        )
+    for field in dynamic_param_fields:
+        rewritten = re.sub(
+            rf"\bpc\.{re.escape(field.name)}\b",
+            f"_replay_params.{field.name}",
+            rewritten,
+        )
+    return rewritten
+
+
+def _push_constant_decl_source(fields: tuple[PushConstantFieldSpec, ...]) -> str:
+    lines = ["layout(push_constant) uniform PushConstants {"]
+    for field in fields:
+        lines.append(f"    {_glsl_scalar_type(field.dtype)} {field.name};")
+    lines.append("} pc;")
+    return "\n".join(lines)
+
+
+def _replay_params_decl_source(
+    fields: tuple[ParamsBufferFieldSpec, ...],
+    *,
+    binding_index: int,
+) -> str:
+    lines = [
+        f"layout(set = 0, binding = {binding_index}) buffer restrict readonly ReplayParamsBuffer {{"
+    ]
+    for field in fields:
+        lines.append(f"    {_glsl_scalar_type(field.dtype)} {field.name};")
+    lines.append("} _replay_params;")
+    return "\n".join(lines)
+
+
+def _glsl_scalar_type(dtype: PushConstantType) -> str:
+    if dtype is PushConstantType.UINT32:
+        return "uint"
+    if dtype is PushConstantType.INT32:
+        return "int"
+    if dtype is PushConstantType.FLOAT32:
+        return "float"
+    if dtype is PushConstantType.UINT64:
+        return "uint64_t"
+    raise ValueError(f"Unsupported push constant dtype {dtype!r}")
 
 
 def _collect_replay_tensors(
@@ -428,7 +732,8 @@ def rebind_replay_plan(rt: RuntimeSession, plan: ReplayPlan) -> None:
     logical_tensors = rt._named_model_tensors()
     for entry in plan.dispatch_entries:
         rebound_descriptors: list[ReplayDescriptorBinding] = []
-        rebound_field_tensors: dict[str, LogicalTensor] = {}
+        shape_field_tensors: dict[str, LogicalTensor] = {}
+        descriptors_changed = False
         for descriptor in entry.descriptors:
             if not descriptor.rebindable:
                 rebound_descriptors.append(descriptor)
@@ -443,25 +748,42 @@ def rebind_replay_plan(rt: RuntimeSession, plan: ReplayPlan) -> None:
             _materialize_replay_rebind_tensor(rt, tensor, field=descriptor.field)
             if tensor.buffer is None:
                 raise RuntimeError(f"{tensor.name} is not materialized for replay rebind")
-            binding = DescriptorBufferBinding.from_slice(
+            if descriptor.validate_shape:
+                shape_field_tensors[descriptor.field.name] = tensor
+            if descriptor.buffer.matches_slice(
                 tensor.buffer,
                 descriptor_nbytes=tensor.descriptor_nbytes,
+            ):
+                rebound_descriptors.append(descriptor)
+                continue
+            rebound_descriptors.append(
+                replace(
+                    descriptor,
+                    buffer=DescriptorBufferBinding.from_slice(
+                        tensor.buffer,
+                        descriptor_nbytes=tensor.descriptor_nbytes,
+                    ),
+                )
             )
-            rebound_descriptors.append(replace(descriptor, buffer=binding))
-            rebound_field_tensors[descriptor.field.name] = tensor
+            descriptors_changed = True
 
-        if rebound_field_tensors:
-            _validate_replay_rebind_symbols(
+        if shape_field_tensors:
+            rebound_symbols = _validate_replay_rebind_symbols(
                 rt,
                 plan=plan,
                 entry=entry,
-                field_tensors={
-                    descriptor.field.name: rebound_field_tensors[descriptor.field.name]
-                    for descriptor in rebound_descriptors
-                    if descriptor.validate_shape
-                    and descriptor.field.name in rebound_field_tensors
-                },
+                field_tensors=shape_field_tensors,
             )
+            if rebound_symbols:
+                updated_symbols = dict(entry.symbols)
+                for symbol_name in entry.dynamic_symbol_names:
+                    rebound_value = rebound_symbols.get(symbol_name)
+                    if rebound_value is not None:
+                        updated_symbols[symbol_name] = rebound_value
+                entry.symbols = updated_symbols
+
+        if not descriptors_changed:
+            continue
 
         buffer_views = [descriptor.buffer for descriptor in rebound_descriptors]
         if entry.params_buffer is not None:
@@ -510,9 +832,31 @@ def replay_plan_compatible(rt: RuntimeSession, plan: ReplayPlan) -> bool:
 def cached_replay_plans(rt: RuntimeSession, namespace: str) -> tuple[ReplayPlan, ...]:
     rt._require_open()
     plans = rt._replay_plan_cache.get(namespace, [])
-    live_plans = [plan for plan in plans if not plan._closed]
-    if len(live_plans) != len(plans):
-        rt._replay_plan_cache[namespace] = live_plans
+    live_plans = [
+        plan
+        for plan in plans
+        if not plan._closed and replay_plan_compatible(rt, plan)
+    ]
+    templates = _REPLAY_TEMPLATE_CACHE.get(namespace, [])
+    for template in templates:
+        if any(plan.template == template for plan in live_plans):
+            continue
+        if not _replay_template_compatible(rt, template):
+            continue
+        live_plans.append(
+            _instantiate_replay_template(
+                rt,
+                template=template,
+                logical_tensors=rt._named_model_tensors(),
+            )
+        )
+    rt._replay_plan_cache[namespace] = live_plans
+    if not live_plans and (
+        any(not plan._closed for plan in plans) or templates
+    ):
+        raise RuntimeError(
+            f"Replay cache {namespace!r} exists but is incompatible with current model tensors"
+        )
     return tuple(live_plans)
 
 
@@ -525,6 +869,54 @@ def cache_replay_plan(rt: RuntimeSession, namespace: str, plan: ReplayPlan) -> N
     plans = rt._replay_plan_cache.setdefault(namespace, [])
     if not any(existing is plan for existing in plans):
         plans.append(plan)
+    if plan.template is not None:
+        templates = _REPLAY_TEMPLATE_CACHE.setdefault(namespace, [])
+        if plan.template not in templates:
+            templates.append(plan.template)
+
+
+def _replay_template_compatible(rt: RuntimeSession, template: ReplayPlanTemplate) -> bool:
+    logical_tensors = rt._named_model_tensors()
+    for entry in template.entries:
+        source_variant = rt._model_shader(entry.shader)
+        logical_by_field = dict(entry.logical_reads)
+        logical_by_field.update(entry.logical_writes)
+        field_tensors: dict[str, LogicalTensor] = {}
+        for field in source_variant.contract.fields:
+            tensor_name = logical_by_field.get(field.name)
+            if tensor_name is None:
+                return False
+            tensor = logical_tensors.get(tensor_name)
+            if tensor is None:
+                return False
+            descriptor_tensor = _canonical_replay_descriptor_tensor(
+                tensor=tensor,
+                logical_tensors=logical_tensors,
+            )
+            if (
+                _replay_descriptor_rebindable(descriptor_tensor)
+                and descriptor_tensor is tensor
+            ):
+                field_tensors[field.name] = tensor
+        try:
+            rebound_symbols = rt._bind_shape_symbols(
+                tuple(
+                    field
+                    for field in source_variant.contract.fields
+                    if field.name in field_tensors
+                ),
+                field_tensors,
+            )
+        except ValueError:
+            return False
+        if not _replay_symbols_compatible(
+            plan_name=template.name,
+            entry_symbols=dict(entry.symbols),
+            dynamic_symbol_names=entry.dynamic_symbol_names,
+            rebound_symbols=rebound_symbols,
+        ):
+            return False
+    return True
 
 
 def _allocate_replay_descriptor_tensor(
@@ -613,6 +1005,14 @@ def _canonical_replay_descriptor_tensor(
     return tensor
 
 
+def _replay_descriptor_rebindable(tensor: LogicalTensor) -> bool:
+    return tensor.memory not in {
+        MemoryClass.FRAME_WORKSPACE,
+        MemoryClass.MODEL_WEIGHT,
+        MemoryClass.OP_SCRATCH,
+    }
+
+
 def _has_live_buffer(tensor: LogicalTensor) -> bool:
     return tensor.buffer is not None and not tensor.buffer.allocation.released
 
@@ -637,9 +1037,9 @@ def _validate_replay_rebind_symbols(
     plan: ReplayPlan,
     entry: ReplayDispatchEntry,
     field_tensors: Mapping[str, LogicalTensor],
-) -> None:
+) -> dict[str, int]:
     if not field_tensors:
-        return
+        return {}
     rebound_symbols = rt._bind_shape_symbols(
         tuple(
             descriptor.field
@@ -648,13 +1048,52 @@ def _validate_replay_rebind_symbols(
         ),
         field_tensors,
     )
-    dynamic_symbols = set(plan.dynamic_symbol_names)
+    if not _replay_symbols_compatible(
+        plan_name=plan.name,
+        entry_symbols=entry.symbols,
+        dynamic_symbol_names=entry.dynamic_symbol_names,
+        rebound_symbols=rebound_symbols,
+    ):
+        _raise_replay_symbol_mismatch(
+            plan_name=plan.name,
+            entry_symbols=entry.symbols,
+            dynamic_symbol_names=entry.dynamic_symbol_names,
+            rebound_symbols=rebound_symbols,
+        )
+    return rebound_symbols
+
+
+def _replay_symbols_compatible(
+    *,
+    plan_name: str,
+    entry_symbols: Mapping[str, int],
+    dynamic_symbol_names: tuple[str, ...],
+    rebound_symbols: Mapping[str, int],
+) -> bool:
+    dynamic_symbols = set(dynamic_symbol_names)
     for name, rebound_value in rebound_symbols.items():
         if name in dynamic_symbols:
             continue
-        original_value = entry.symbols.get(name)
+        original_value = entry_symbols.get(name)
+        if original_value is not None and rebound_value != original_value:
+            return False
+    return True
+
+
+def _raise_replay_symbol_mismatch(
+    *,
+    plan_name: str,
+    entry_symbols: Mapping[str, int],
+    dynamic_symbol_names: tuple[str, ...],
+    rebound_symbols: Mapping[str, int],
+) -> None:
+    dynamic_symbols = set(dynamic_symbol_names)
+    for name, rebound_value in rebound_symbols.items():
+        if name in dynamic_symbols:
+            continue
+        original_value = entry_symbols.get(name)
         if original_value is not None and rebound_value != original_value:
             raise ValueError(
-                f"ReplayPlan {plan.name!r} cannot rebind static symbol {name!r}: "
+                f"ReplayPlan {plan_name!r} cannot rebind static symbol {name!r}: "
                 f"recorded {original_value}, got {rebound_value}"
             )

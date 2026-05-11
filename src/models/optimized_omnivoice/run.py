@@ -123,6 +123,7 @@ def _build_generation_replay_plan(
     rt: RuntimeSession,
     *,
     frame: str,
+    cache_namespace: str,
 ) -> ReplayPlan:
     plan = rt.build_replay_plan(
         name="optimized_omnivoice_generation_step",
@@ -130,15 +131,22 @@ def _build_generation_replay_plan(
     )
     if plan.readback_slots:
         raise RuntimeError("OmniVoice generation replay must not use readback slots")
-    rt.cache_replay_plan(_GENERATION_REPLAY_CACHE, plan)
+    rt.cache_replay_plan(cache_namespace, plan)
     return plan
 
 
-def _cached_generation_replay_plan(rt: RuntimeSession) -> ReplayPlan | None:
-    for plan in rt.cached_replay_plans(_GENERATION_REPLAY_CACHE):
-        if rt.replay_plan_compatible(plan):
-            return plan
+def _cached_generation_replay_plan(
+    rt: RuntimeSession,
+    *,
+    cache_namespace: str,
+) -> ReplayPlan | None:
+    for plan in rt.cached_replay_plans(cache_namespace):
+        return plan
     return None
+
+
+def _generation_replay_cache_namespace(model_dir: Path) -> str:
+    return f"{_GENERATION_REPLAY_CACHE}:{model_dir.resolve()}"
 
 
 def main(
@@ -150,6 +158,7 @@ def main(
     output_path = Path(output)
     model_dir = resolve_cached_model(REPO_ID)
     gguf_path = export_omnivoice_q4_k_m_gguf(model_dir=model_dir)
+    replay_cache_namespace = _generation_replay_cache_namespace(gguf_path.parent)
     config_data = json.loads((model_dir / "config.json").read_text())
     config = OmniVoiceConfig(**config_data)
 
@@ -233,8 +242,7 @@ def main(
     _run_rope_table(rt, frame_name="omnivoice.rope")
 
     unmasked = 0
-    generation_replay_plan = _cached_generation_replay_plan(rt) if num_steps > 1 else None
-    use_replay = num_steps > 1
+    generation_replay_plan: ReplayPlan | None = None
     for step in range(num_steps):
         k = schedule[step]
         if k <= 0:
@@ -243,12 +251,28 @@ def main(
         step_inputs = _generation_step_inputs(step, k)
         if generation_replay_plan is None:
             rt.register_inputs(step_inputs)
-            _run_generation_step(rt, step=step)
-            if use_replay:
+            generation_replay_plan = _cached_generation_replay_plan(
+                rt,
+                cache_namespace=replay_cache_namespace,
+            )
+            if generation_replay_plan is None:
+                _run_generation_step(rt, step=step)
                 generation_replay_plan = _build_generation_replay_plan(
                     rt,
                     frame=f"omnivoice.step.{step:04d}",
+                    cache_namespace=replay_cache_namespace,
                 )
+            else:
+                stage_replay_step_inputs(
+                    rt,
+                    plan=generation_replay_plan,
+                    inputs=step_inputs,
+                    write_through=(
+                        model_tensors().step_index,
+                        model_tensors().unmask_count,
+                    ),
+                )
+                execute_replay(generation_replay_plan)
         else:
             stage_replay_step_inputs(
                 rt,

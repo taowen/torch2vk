@@ -52,13 +52,13 @@ LINEAR_NOBIAS_Q4_K_MATVEC_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 1, dynamic=False),
-                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 1024, dynamic=False),
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 2048, dynamic=False),
+                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, mul('X0', 'X1'), dynamic=False),
+                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 'K', dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 'N', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(2048, 2), 1, 1),
+        dispatch=(ceil_div('N', 2), mul('X0', 'X1'), 1),
     ),
     execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)),
     source="""\

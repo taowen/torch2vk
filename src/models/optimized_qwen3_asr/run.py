@@ -178,6 +178,7 @@ def _build_decode_replay_plan(
     rt: RuntimeSession,
     *,
     frame: str,
+    cache_namespace: str,
 ) -> ReplayPlan:
     plan = rt.build_replay_plan(
         name="optimized_qwen3_asr_decode_step",
@@ -186,15 +187,22 @@ def _build_decode_replay_plan(
     if plan.readback_slots:
         plan.close()
         raise RuntimeError("Spike Qwen3-ASR decode replay must not use readback slots")
-    rt.cache_replay_plan(_DECODE_REPLAY_CACHE, plan)
+    rt.cache_replay_plan(cache_namespace, plan)
     return plan
 
 
-def _cached_decode_replay_plan(rt: RuntimeSession) -> ReplayPlan | None:
-    for plan in rt.cached_replay_plans(_DECODE_REPLAY_CACHE):
-        if rt.replay_plan_compatible(plan):
-            return plan
+def _cached_decode_replay_plan(
+    rt: RuntimeSession,
+    *,
+    cache_namespace: str,
+) -> ReplayPlan | None:
+    for plan in rt.cached_replay_plans(cache_namespace):
+        return plan
     return None
+
+
+def _decode_replay_cache_namespace(model_dir: Path) -> str:
+    return f"{_DECODE_REPLAY_CACHE}:{model_dir.resolve()}"
 
 
 # ==============================================================
@@ -203,7 +211,6 @@ def _cached_decode_replay_plan(rt: RuntimeSession) -> ReplayPlan | None:
 
 def main(
     *,
-    use_replay: bool = True,
     max_new_tokens: int = 64,
     wav_path: str | Path | np.ndarray = Path("tests/fixtures/qwen3_asr_asknot.wav"),
     language: str | None = "English",
@@ -217,6 +224,7 @@ def main(
     print("Preparing inputs...")
     model_dir = resolve_cached_model(REPO_ID)
     gguf_path = export_qwen3_asr_q4_k_m_gguf(model_dir=model_dir)
+    replay_cache_namespace = _decode_replay_cache_namespace(gguf_path.parent)
     config_payload = (Path(model_dir) / "config.json").read_text()
 
     devnull = open(os.devnull, "w")
@@ -402,8 +410,7 @@ def main(
 
     # === Decode Loop ===
     print("\n=== Phase 3: Decode Loop ===")
-    eos_token_set = set(eos_token_ids)
-    decode_replay_plan = _cached_decode_replay_plan(rt) if use_replay else None
+    decode_replay_plan: ReplayPlan | None = None
 
     # Memory sampling
     memory_trace: list[tuple[int, float, float, float]] = []
@@ -413,7 +420,7 @@ def main(
 
     decode_start = time.perf_counter()
     for step in range(max_new_tokens - 1):
-        if first_token in eos_token_set:
+        if _request_stopped(rt):
             print(f"  EOS at step {step}")
             break
 
@@ -442,18 +449,33 @@ def main(
             eos_token_array=eos_token_array,
             token_index_value=step + 1,
         )
-        next_token = first_token
         if decode_replay_plan is None:
             rt.register_inputs(decode_step_inputs)
-            next_token = _run_decode_step(
+            decode_replay_plan = _cached_decode_replay_plan(
                 rt,
-                step=step,
+                cache_namespace=replay_cache_namespace,
             )
-            if use_replay:
+            if decode_replay_plan is None:
+                _run_decode_step(
+                    rt,
+                    step=step,
+                )
                 decode_replay_plan = _build_decode_replay_plan(
                     rt,
                     frame=f"spike.decode.{step:04d}",
+                    cache_namespace=replay_cache_namespace,
                 )
+            else:
+                stage_replay_step_inputs(
+                    rt,
+                    plan=decode_replay_plan,
+                    inputs=decode_step_inputs,
+                    write_through=(
+                        model_tensors().decode_layers[0].cache_position,
+                        model_tensors().token_index,
+                    ),
+                )
+                execute_replay(decode_replay_plan)
         else:
             stage_replay_step_inputs(
                 rt,
@@ -477,11 +499,7 @@ def main(
         )
 
         if step < 5 or step % 20 == 0:
-            if use_replay:
-                print(f"  Step {step}: gpu={stats.device_local_live_bytes / 1024**2:.1f}MB")
-            else:
-                print(f"  Step {step}: token={next_token}  "
-                      f"gpu={stats.device_local_live_bytes / 1024**2:.1f}MB")
+            print(f"  Step {step}: gpu={stats.device_local_live_bytes / 1024**2:.1f}MB")
 
         if (step + 1) % _STOP_CHECK_INTERVAL == 0 and _request_stopped(rt):
             print(f"  EOS at step {step + 1}")

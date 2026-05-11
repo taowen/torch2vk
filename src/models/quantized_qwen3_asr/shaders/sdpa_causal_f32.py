@@ -11,6 +11,8 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
+    ceil_div,
+    mul,
 )
 
 
@@ -49,16 +51,16 @@ SDPA_CAUSAL_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=24,
             fields=(
-                PushConstantFieldSpec('B', PushConstantType.UINT32, 0, 1, dynamic=False),
-                PushConstantFieldSpec('NH', PushConstantType.UINT32, 4, 16, dynamic=False),
-                PushConstantFieldSpec('NK', PushConstantType.UINT32, 8, 8, dynamic=False),
-                PushConstantFieldSpec('T', PushConstantType.UINT32, 12, 151, dynamic=False),
-                PushConstantFieldSpec('S', PushConstantType.UINT32, 16, 151, dynamic=False),
-                PushConstantFieldSpec('D', PushConstantType.UINT32, 20, 128, dynamic=False),
+                PushConstantFieldSpec('B', PushConstantType.UINT32, 0, 'Q0', dynamic=False),
+                PushConstantFieldSpec('NH', PushConstantType.UINT32, 4, 'Q1', dynamic=False),
+                PushConstantFieldSpec('NK', PushConstantType.UINT32, 8, 'K1', dynamic=False),
+                PushConstantFieldSpec('T', PushConstantType.UINT32, 12, 'Q2', dynamic=False),
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 16, 'K2', dynamic=False),
+                PushConstantFieldSpec('D', PushConstantType.UINT32, 20, 'Q3', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(16, 151, 2),
+        dispatch=(mul('Q0', 'Q1'), 'Q2', ceil_div('Q3', 64)),
     ),
     execution_requirements=None,
     source="""\

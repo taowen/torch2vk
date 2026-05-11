@@ -6,6 +6,7 @@ from torch2vk.export.shaders._factory import (
     node_input_dtype,
     node_input_shape,
     node_output_shape,
+    product_expr,
     weight_dtype_suffix,
     weight_extension_source,
     weight_glsl_type,
@@ -43,11 +44,10 @@ def make_linear_bias_q8_0_variant(node: Node) -> ShaderVariant | None:
     out_contract = tuple(f"X{i}" for i in range(len(out_shape) - 1)) + ("N",)
     bias_dtype = node_input_dtype(node, 2)
     bias_suffix = weight_dtype_suffix(bias_dtype)
-    m = 1
+    concrete_m = 1
     for dim in x_shape[:-1]:
-        m *= int(dim)
-    n = int(w_shape[0])
-    if m <= 8:
+        concrete_m *= int(dim)
+    if concrete_m <= 8:
         return ShaderVariant(
             name=f"linear_bias_q8_0w_{bias_suffix}b_matvec_f32",
             family="export",
@@ -58,9 +58,7 @@ def make_linear_bias_q8_0_variant(node: Node) -> ShaderVariant | None:
                 bias_dtype=bias_dtype,
                 shader_name=f"linear_bias_q8_0w_{bias_suffix}b_matvec_f32",
                 class_name=f"ExportLinearBiasQ8_0Weight{bias_suffix.title()}BiasMatvecProgram",
-                m=m,
-                k=k,
-                n=n,
+                matvec=True,
             ),
             execution_requirements=_SUBGROUP64_16BIT_REQUIREMENTS,
             source=_matvec_source(bias_dtype),
@@ -75,9 +73,7 @@ def make_linear_bias_q8_0_variant(node: Node) -> ShaderVariant | None:
             bias_dtype=bias_dtype,
             shader_name=f"linear_bias_q8_0w_{bias_suffix}b_f32",
             class_name=f"ExportLinearBiasQ8_0Weight{bias_suffix.title()}BiasProgram",
-            m=m,
-            k=k,
-            n=n,
+            matvec=False,
         ),
         execution_requirements=_COOPMAT_REQUIREMENTS,
         source=_coopmat_source(bias_dtype),
@@ -92,10 +88,9 @@ def _contract(
     bias_dtype: str,
     shader_name: str,
     class_name: str,
-    m: int,
-    k: int,
-    n: int,
+    matvec: bool,
 ) -> ShaderContract:
+    m = product_expr(tuple(x_contract[:-1]))
     return ShaderContract(
         class_name=class_name,
         shader_name=shader_name,
@@ -118,14 +113,14 @@ def _contract(
             size=12,
             fields=(
                 PushConstantFieldSpec("M", PushConstantType.UINT32, 0, m),
-                PushConstantFieldSpec("K", PushConstantType.UINT32, 4, k),
-                PushConstantFieldSpec("N", PushConstantType.UINT32, 8, n),
+                PushConstantFieldSpec("K", PushConstantType.UINT32, 4, "K"),
+                PushConstantFieldSpec("N", PushConstantType.UINT32, 8, "N"),
             ),
         ),
         dispatch=(
-            (ceil_div(n, 2), m, 1)
-            if "Matvec" in class_name
-            else (ceil_div(m, 16), ceil_div(n, 16), 1)
+            (ceil_div("N", 2), m, 1)
+            if matvec
+            else (ceil_div(m, 16), ceil_div("N", 16), 1)
         ),
     )
 

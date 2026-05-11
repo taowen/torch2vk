@@ -12,6 +12,7 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
+    mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,
@@ -44,18 +45,18 @@ EMBEDDING_Q8_0_F32 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('O0', 'O1', 'O2',)),
+                contract=TensorContract(dtype='float32', shape=('I0', 'I1', 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('num_indices', PushConstantType.UINT32, 0, 151, dynamic=False),
-                PushConstantFieldSpec('embedding_dim', PushConstantType.UINT32, 4, 1024, dynamic=False),
+                PushConstantFieldSpec('num_indices', PushConstantType.UINT32, 0, mul('I0', 'I1'), dynamic=False),
+                PushConstantFieldSpec('embedding_dim', PushConstantType.UINT32, 4, 'H', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(154624, 256), 1, 1),
+        dispatch=(ceil_div(mul(mul('I0', 'I1'), 'H'), 256), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(require_shader_int64=True, require_storage_buffer_16bit_access=True),
     source="""\

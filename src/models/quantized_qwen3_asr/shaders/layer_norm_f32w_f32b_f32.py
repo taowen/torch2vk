@@ -49,13 +49,13 @@ LAYER_NORM_F32W_F32B_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 133, dynamic=False),
-                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 896, dynamic=False),
+                PushConstantFieldSpec('ROWS', PushConstantType.UINT32, 0, 'I0', dynamic=False),
+                PushConstantFieldSpec('COLS', PushConstantType.UINT32, 4, 'I1', dynamic=False),
                 PushConstantFieldSpec('eps', PushConstantType.FLOAT32, 8, 1e-05, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(133, 1, 1),
+        dispatch=('I0', 1, 1),
     ),
     execution_requirements=None,
     source="""\

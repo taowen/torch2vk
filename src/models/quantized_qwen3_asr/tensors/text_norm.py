@@ -40,6 +40,7 @@ TEXT_NORM_OUTPUT: str = 'mul_1'
 def create_text_norm(
     prefix: str,
     *,
+    sequence_length: int,
     p_weight: LogicalTensor | None = None,
     hidden_states: LogicalTensor | None = None,
     to: LogicalTensor | None = None,
@@ -72,7 +73,7 @@ def create_text_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -85,7 +86,7 @@ def create_text_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -98,7 +99,7 @@ def create_text_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='pow_1',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -111,7 +112,7 @@ def create_text_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mean',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -124,7 +125,7 @@ def create_text_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -137,7 +138,7 @@ def create_text_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='rsqrt',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -150,7 +151,7 @@ def create_text_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -163,7 +164,7 @@ def create_text_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_1',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -176,7 +177,7 @@ def create_text_norm(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_1',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,

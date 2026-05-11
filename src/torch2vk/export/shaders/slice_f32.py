@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import math
-
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import node_input_shape, node_output_shape, product_expr
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -66,9 +64,9 @@ def make_slice_variant(node: Node) -> ShaderVariant | None:
         out_stride_val = out_dim_size * out_stride
         offset = start * in_stride
 
-    n_out = math.prod(out_shape)
     in_contract = tuple(f"I{i}" for i in range(len(in_shape)))
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
+    n_out = product_expr(out_contract)
 
     return ShaderVariant(
         name="slice_f32",

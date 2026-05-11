@@ -117,6 +117,7 @@ def create_decode_layer(
     prefix: str,
     layer_idx: int,
     *,
+    max_sequence_length: int,
     p_attn_q_proj_weight: LogicalTensor | None = None,
     p_attn_k_proj_weight: LogicalTensor | None = None,
     p_attn_v_proj_weight: LogicalTensor | None = None,
@@ -1043,7 +1044,7 @@ def create_decode_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='index_copy',
-                spec=TensorSpec(dtype='float32', shape=(1, 8, 215, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, 8, max_sequence_length, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1056,7 +1057,7 @@ def create_decode_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='index_copy_1',
-                spec=TensorSpec(dtype='float32', shape=(1, 8, 215, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, 8, max_sequence_length, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,

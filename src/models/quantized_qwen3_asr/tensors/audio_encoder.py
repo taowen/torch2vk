@@ -72,6 +72,7 @@ def create_encoder_layer(
     prefix: str,
     layer_idx: int,
     *,
+    audio_sequence_length: int,
     p_audio_tower_layers_0_self_attn_k_proj_weight: LogicalTensor | None = None,
     p_audio_tower_layers_0_self_attn_k_proj_bias: LogicalTensor | None = None,
     p_audio_tower_layers_0_self_attn_v_proj_weight: LogicalTensor | None = None,
@@ -329,7 +330,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='layer_norm',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -342,7 +343,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_1',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -355,7 +356,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='reshape_2',
-                spec=TensorSpec(dtype='float32', shape=(133, 14, 64)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 14, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -368,7 +369,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_2',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -381,7 +382,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='reshape_3',
-                spec=TensorSpec(dtype='float32', shape=(133, 14, 64)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 14, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -394,7 +395,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_3',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -407,7 +408,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='reshape_4',
-                spec=TensorSpec(dtype='float32', shape=(133, 14, 64)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 14, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -420,7 +421,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose_1',
-                spec=TensorSpec(dtype='float32', shape=(14, 133, 64)),
+                spec=TensorSpec(dtype='float32', shape=(14, audio_sequence_length, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -433,7 +434,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='unsqueeze',
-                spec=TensorSpec(dtype='float32', shape=(1, 14, 133, 64)),
+                spec=TensorSpec(dtype='float32', shape=(1, 14, audio_sequence_length, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -446,7 +447,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose_2',
-                spec=TensorSpec(dtype='float32', shape=(14, 133, 64)),
+                spec=TensorSpec(dtype='float32', shape=(14, audio_sequence_length, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -459,7 +460,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='unsqueeze_1',
-                spec=TensorSpec(dtype='float32', shape=(1, 14, 133, 64)),
+                spec=TensorSpec(dtype='float32', shape=(1, 14, audio_sequence_length, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -472,7 +473,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose_3',
-                spec=TensorSpec(dtype='float32', shape=(14, 133, 64)),
+                spec=TensorSpec(dtype='float32', shape=(14, audio_sequence_length, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -485,7 +486,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='unsqueeze_2',
-                spec=TensorSpec(dtype='float32', shape=(1, 14, 133, 64)),
+                spec=TensorSpec(dtype='float32', shape=(1, 14, audio_sequence_length, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -498,7 +499,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='scaled_dot_product_attention',
-                spec=TensorSpec(dtype='float32', shape=(1, 14, 133, 64)),
+                spec=TensorSpec(dtype='float32', shape=(1, 14, audio_sequence_length, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -511,7 +512,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose_4',
-                spec=TensorSpec(dtype='float32', shape=(1, 133, 14, 64)),
+                spec=TensorSpec(dtype='float32', shape=(1, audio_sequence_length, 14, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -524,7 +525,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='contiguous',
-                spec=TensorSpec(dtype='float32', shape=(1, 133, 14, 64)),
+                spec=TensorSpec(dtype='float32', shape=(1, audio_sequence_length, 14, 64)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -537,7 +538,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='reshape_5',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -550,7 +551,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_4',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -563,7 +564,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_1',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -576,7 +577,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='layer_norm_1',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -589,7 +590,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_5',
-                spec=TensorSpec(dtype='float32', shape=(133, 3584)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 3584)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -602,7 +603,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='gelu_3',
-                spec=TensorSpec(dtype='float32', shape=(133, 3584)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 3584)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -615,7 +616,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_6',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -628,7 +629,7 @@ def create_encoder_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_2',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -685,6 +686,8 @@ AUDIO_ENCODER_OUTPUT: str = 'linear_110'
 def create_audio_encoder(
     prefix: str,
     *,
+    audio_chunk_count: int,
+    audio_sequence_length: int,
     p_audio_tower_ln_post_weight: LogicalTensor | None = None,
     p_audio_tower_ln_post_bias: LogicalTensor | None = None,
     p_audio_tower_conv2d1_weight: LogicalTensor | None = None,
@@ -896,7 +899,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(11, 1, 128, 100)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 1, 128, 100)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -909,7 +912,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 13, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -922,7 +925,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='int64', shape=(133,)),
+                spec=TensorSpec(dtype='int64', shape=(audio_sequence_length,)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -935,7 +938,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 133, 133)),
+                spec=TensorSpec(dtype='float32', shape=(1, 1, audio_sequence_length, audio_sequence_length)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -948,7 +951,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='conv2d',
-                spec=TensorSpec(dtype='float32', shape=(11, 480, 64, 50)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 480, 64, 50)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -961,7 +964,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='gelu',
-                spec=TensorSpec(dtype='float32', shape=(11, 480, 64, 50)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 480, 64, 50)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -974,7 +977,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='conv2d_1',
-                spec=TensorSpec(dtype='float32', shape=(11, 480, 32, 25)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 480, 32, 25)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -987,7 +990,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='gelu_1',
-                spec=TensorSpec(dtype='float32', shape=(11, 480, 32, 25)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 480, 32, 25)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1000,7 +1003,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='conv2d_2',
-                spec=TensorSpec(dtype='float32', shape=(11, 480, 16, 13)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 480, 16, 13)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1013,7 +1016,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='gelu_2',
-                spec=TensorSpec(dtype='float32', shape=(11, 480, 16, 13)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 480, 16, 13)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1026,7 +1029,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='reshape',
-                spec=TensorSpec(dtype='float32', shape=(11, 7680, 13)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 7680, 13)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1039,7 +1042,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose',
-                spec=TensorSpec(dtype='float32', shape=(11, 13, 7680)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 13, 7680)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1052,7 +1055,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear',
-                spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 13, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1065,7 +1068,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add',
-                spec=TensorSpec(dtype='float32', shape=(11, 13, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count, 13, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1078,7 +1081,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='reshape_1',
-                spec=TensorSpec(dtype='float32', shape=(143, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_chunk_count * 13, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1091,7 +1094,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='index_select',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1104,7 +1107,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='layer_norm_36',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1117,7 +1120,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_109',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1130,7 +1133,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='gelu_21',
-                spec=TensorSpec(dtype='float32', shape=(133, 896)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1143,7 +1146,7 @@ def create_audio_encoder(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_110',
-                spec=TensorSpec(dtype='float32', shape=(133, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(audio_sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1151,7 +1154,7 @@ def create_audio_encoder(
                 request_state='linear_110' in request_state_outputs,
             ),
         ),
-        layers=[create_encoder_layer(prefix, layer_idx=i) for i in range(18)],
+        layers=[create_encoder_layer(prefix, layer_idx=i, audio_sequence_length=audio_sequence_length) for i in range(18)],
     )
     bind_logical_tensor_names(tensors, prefix)
     _bind_alias_source(tensors.gelu_2, tensors.reshape)

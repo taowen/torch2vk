@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Mapping
 
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind
@@ -30,6 +31,9 @@ from torch2vk.export.tensor_codegen import (
     TensorClassContext,
     _TensorKind,
     _TensorMeta,
+    _shape_parameter_names,
+    _shape_dim_names,
+    _shape_source,
     _tensor_factory_signature,
     _logical_dtype,
     _node_dtype,
@@ -430,6 +434,7 @@ def generate_looped_tensor_class_sources(
     hint: LayerLoopHint,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
     weight_quantization: Q4KMWeightQuantization | None = None,
+    shape_exprs: Mapping[int, str] | None = None,
 ) -> tuple[TensorClassContext, TensorClassContext]:
     """Generate parent + layer tensor classes.
 
@@ -545,6 +550,7 @@ def generate_looped_tensor_class_sources(
             break
 
     # Generate layer tensor class
+    layer_shape_parameters = _shape_params_for_tensors(layer_tensors, shape_exprs or {})
     layer_src = _render_layer_class(
         tensors=layer_tensors,
         param_map=layer_param_map,
@@ -552,6 +558,7 @@ def generate_looped_tensor_class_sources(
         function_name=layer_function_name,
         weight_prefix=weight_prefix,
         weight_quantization=weight_quantization,
+        shape_exprs=shape_exprs,
     )
 
     # Generate parent tensor class
@@ -564,10 +571,12 @@ def generate_looped_tensor_class_sources(
         layer_class_name=layer_class_name,
         layer_function_name=layer_function_name,
         num_layers=hint.num_layers,
+        layer_shape_parameters=layer_shape_parameters,
         output_name=output_name,
         analysis=analysis,
         classification=classification,
         weight_quantization=weight_quantization,
+        shape_exprs=shape_exprs,
     )
 
     return parent_src, layer_src
@@ -591,7 +600,9 @@ def _render_layer_class(
     function_name: str,
     weight_prefix: str,
     weight_quantization: Q4KMWeightQuantization | None = None,
+    shape_exprs: Mapping[int, str] | None = None,
 ) -> TensorClassContext:
+    shape_exprs = shape_exprs or {}
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
@@ -616,7 +627,8 @@ def _render_layer_class(
                 "checkpoint_key_expr": f'f"{name_template}"',
                 "reference_key_expr": "None",
                 "dtype_source": repr(dtype),
-                "shape_source": repr(shape),
+                "shape_source": _shape_source(shape, shape_exprs),
+                "shape_parameters": tuple(),
                 "layout_source": layout_source,
                 "role": "TensorRole.WEIGHT",
                 "memory": "MemoryClass.MODEL_WEIGHT",
@@ -629,7 +641,8 @@ def _render_layer_class(
                 "checkpoint_key_expr": "None",
                 "reference_key_expr": repr(name),
                 "dtype_source": repr(dtype),
-                "shape_source": repr(shape),
+                "shape_source": _shape_source(shape, shape_exprs),
+                "shape_parameters": _shape_dim_names(shape, shape_exprs),
                 "layout_source": layout_source,
                 "role": "TensorRole.ACTIVATION",
                 "memory": "MemoryClass.FRAME_WORKSPACE",
@@ -642,6 +655,7 @@ def _render_layer_class(
     )
     output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
     fields = tuple(tensors.keys())
+    shape_parameters = _shape_parameter_names(tensor_entries)
 
     return render_tensor_class(
         class_name=class_name,
@@ -653,6 +667,7 @@ def _render_layer_class(
             class_name,
             fields=fields,
             layered=True,
+            shape_parameters=shape_parameters,
         ),
         tensors=tensor_entries,
     )
@@ -668,11 +683,14 @@ def _render_parent_class(
     layer_class_name: str,
     layer_function_name: str,
     num_layers: int,
+    layer_shape_parameters: tuple[str, ...],
     output_name: str | None,
     analysis: _LoopAnalysis,
     classification: dict[str, str],
     weight_quantization: Q4KMWeightQuantization | None = None,
+    shape_exprs: Mapping[int, str] | None = None,
 ) -> TensorClassContext:
+    shape_exprs = shape_exprs or {}
     tensor_entries = []
     for name, meta in tensors.items():
         kind = meta.kind
@@ -696,7 +714,8 @@ def _render_parent_class(
                 "checkpoint_key_expr": f'"{safetensors_key}"',
                 "reference_key_expr": "None",
                 "dtype_source": repr(dtype),
-                "shape_source": repr(shape),
+                "shape_source": _shape_source(shape, shape_exprs),
+                "shape_parameters": tuple(),
                 "layout_source": layout_source,
                 "role": "TensorRole.WEIGHT",
                 "memory": "MemoryClass.MODEL_WEIGHT",
@@ -709,7 +728,8 @@ def _render_parent_class(
                 "checkpoint_key_expr": "None",
                 "reference_key_expr": "None",
                 "dtype_source": repr(dtype),
-                "shape_source": repr(shape),
+                "shape_source": _shape_source(shape, shape_exprs),
+                "shape_parameters": _shape_dim_names(shape, shape_exprs),
                 "layout_source": layout_source,
                 "role": "TensorRole.INPUT",
                 "memory": "MemoryClass.HOST_INPUT",
@@ -722,7 +742,8 @@ def _render_parent_class(
                 "checkpoint_key_expr": "None",
                 "reference_key_expr": repr(name),
                 "dtype_source": repr(dtype),
-                "shape_source": repr(shape),
+                "shape_source": _shape_source(shape, shape_exprs),
+                "shape_parameters": _shape_dim_names(shape, shape_exprs),
                 "layout_source": layout_source,
                 "role": "TensorRole.ACTIVATION",
                 "memory": "MemoryClass.FRAME_WORKSPACE",
@@ -737,6 +758,7 @@ def _render_parent_class(
 
     output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
     fields = tuple(tensors.keys())
+    shape_parameters = _shape_parameter_names(tensor_entries)
 
     return render_tensor_class(
         class_name=class_name,
@@ -749,13 +771,42 @@ def _render_parent_class(
             class_name,
             fields=fields,
             layered=False,
+            shape_parameters=shape_parameters,
         ),
         tensors=tensor_entries,
         extra_initializers=(
-            f"layers=[{layer_function_name}(prefix, layer_idx=i) for i in range({num_layers})]",
+            _layer_list_initializer(
+                layer_function_name=layer_function_name,
+                num_layers=num_layers,
+                shape_parameters=layer_shape_parameters,
+            ),
         ),
         alias_binding_lines=_loop_alias_binding_lines(analysis, classification),
     )
+
+
+def _shape_params_for_tensors(
+    tensors: dict[str, _TensorMeta],
+    shape_exprs: Mapping[int, str],
+) -> tuple[str, ...]:
+    names: list[str] = []
+    for meta in tensors.values():
+        for dim in meta.shape:
+            for name in _shape_dim_names((dim,), shape_exprs):
+                if name not in names:
+                    names.append(name)
+    return tuple(names)
+
+
+def _layer_list_initializer(
+    *,
+    layer_function_name: str,
+    num_layers: int,
+    shape_parameters: tuple[str, ...],
+) -> str:
+    args = ["prefix", "layer_idx=i"]
+    args.extend(f"{name}={name}" for name in shape_parameters)
+    return f"layers=[{layer_function_name}({', '.join(args)}) for i in range({num_layers})]"
 
 
 def _loop_alias_binding_lines(

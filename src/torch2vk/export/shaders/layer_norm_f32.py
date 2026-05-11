@@ -8,6 +8,7 @@ from torch2vk.export.shaders._factory import (
     node_input_dtype,
     node_input_shape,
     node_output_shape,
+    product_expr,
     weight_dtype_suffix,
     weight_extension_source,
     weight_glsl_type,
@@ -78,14 +79,16 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
         normalized_dims = [d for d in normalized_shape_arg if isinstance(d, int)]
         if len(normalized_dims) == len(normalized_shape_arg):
             cols = math.prod(normalized_dims)
+            normalized_rank = len(normalized_dims)
         else:
             cols = in_shape[-1]
+            normalized_rank = 1
     elif isinstance(normalized_shape_arg, int):
         cols = normalized_shape_arg
+        normalized_rank = 1
     else:
         cols = in_shape[-1]
-
-    rows = math.prod(in_shape) // cols
+        normalized_rank = 1
 
     eps_val = 1e-5
     if len(node.args) > 4 and isinstance(node.args[4], (int, float)):
@@ -97,6 +100,8 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
 
     in_contract = tuple(f"I{i}" for i in range(len(in_shape)))
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
+    rows = product_expr(in_contract[:-normalized_rank])
+    cols_expr = product_expr(in_contract[-normalized_rank:])
     weight_dtype = node_input_dtype(node, 2)
     bias_dtype = node_input_dtype(node, 3)
     weight_suffix = weight_dtype_suffix(weight_dtype)
@@ -119,7 +124,7 @@ def make_layer_norm_variant(node: Node) -> ShaderVariant | None:
                 size=12,
                 fields=(
                     PushConstantFieldSpec("ROWS", PushConstantType.UINT32, 0, rows),
-                    PushConstantFieldSpec("COLS", PushConstantType.UINT32, 4, cols),
+                    PushConstantFieldSpec("COLS", PushConstantType.UINT32, 4, cols_expr),
                     PushConstantFieldSpec("eps", PushConstantType.FLOAT32, 8, eps_val),
                 ),
             ),

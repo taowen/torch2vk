@@ -15,7 +15,7 @@ reference state 由 run.py 手写推进，再调用生成的 reference.run_xxx(.
 ```
 
 RuntimeSession 只负责 shader dispatch、materialization、readback、compare artifact 和 replay 记录。它不安装
-PyTorch hook，不推断 PyTorch forward 参数，也不维护另一套 probe registry。
+PyTorch hook，不推断 PyTorch forward 参数，也不维护另一套 compare registry。
 
 ## Generated Metadata
 
@@ -103,7 +103,7 @@ PyTorch: loaded module state_dict
 ```text
 不在 RuntimeSession 内安装 PyTorch hook。
 不让 frame 自动推断 PyTorch forward kwargs。
-不维护和 LogicalTensor tree 平行的 probe registry。
+不维护和 LogicalTensor tree 平行的 compare registry。
 不在 replay builder 中硬编码 token feedback 等业务语义。
 不在 compare 阶段 silent reshape / transpose / cast 来掩盖差异。
 ```

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import hashlib
-import math
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import node_input_shape, node_output_shape, product_expr
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -23,7 +22,10 @@ _SOURCE_TEMPLATE = """\
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
 layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
-layout(push_constant) uniform PushConstants { uint N; } pc;
+layout(push_constant) uniform PushConstants {
+    uint N;
+__PUSH_CONSTANT_DECLS__
+} pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
@@ -57,11 +59,15 @@ def make_transpose_variant(node: Node) -> ShaderVariant | None:
     if dim0 > dim1:
         dim0, dim1 = dim1, dim0
 
-    n_total = math.prod(out_shape)
-
     in_contract = tuple(f"I{i}" for i in range(len(in_shape)))
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
+    n_total = product_expr(out_contract)
     shader_name = _shader_name(in_shape, out_shape, dim0, dim1)
+    push_fields = [PushConstantFieldSpec("N", PushConstantType.UINT32, 0, n_total)]
+    offset = 4
+    for name in out_contract + in_contract:
+        push_fields.append(PushConstantFieldSpec(str(name), PushConstantType.UINT32, offset, name))
+        offset += 4
 
     return ShaderVariant(
         name=shader_name,
@@ -74,14 +80,12 @@ def make_transpose_variant(node: Node) -> ShaderVariant | None:
                 TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
             ),
             push_constants=PushConstantSpec(
-                size=4,
-                fields=(
-                    PushConstantFieldSpec("N", PushConstantType.UINT32, 0, n_total),
-                ),
+                size=offset,
+                fields=tuple(push_fields),
             ),
             dispatch=(ceil_div(n_total, 256), 1, 1),
         ),
-        source=_transpose_source(in_shape, out_shape, dim0, dim1),
+        source=_transpose_source(len(in_shape), len(out_shape), dim0, dim1),
     )
 
 
@@ -97,23 +101,30 @@ def _shader_name(
 
 
 def _transpose_source(
-    in_shape: tuple[int, ...],
-    out_shape: tuple[int, ...],
+    in_rank: int,
+    out_rank: int,
     dim0: int,
     dim1: int,
 ) -> str:
+    push_lines = []
+    for index in range(out_rank):
+        push_lines.append(f"    uint O{index};")
+    for index in range(in_rank):
+        push_lines.append(f"    uint I{index};")
+
     decode_lines: list[str] = []
-    for index in reversed(range(len(out_shape))):
-        decode_lines.append(f"        uint c{index} = rem % {out_shape[index]}u;")
-        decode_lines.append(f"        rem = rem / {out_shape[index]}u;")
+    for index in reversed(range(out_rank)):
+        decode_lines.append(f"        uint c{index} = rem % pc.O{index};")
+        decode_lines.append(f"        rem = rem / pc.O{index};")
 
     encode_lines: list[str] = []
-    for index, dim in enumerate(in_shape):
+    for index in range(in_rank):
         coord = _input_coord_name(index, dim0, dim1)
-        encode_lines.append(f"        in_idx = in_idx * {dim}u + {coord};")
+        encode_lines.append(f"        in_idx = in_idx * pc.I{index} + {coord};")
 
     return (
         _SOURCE_TEMPLATE
+        .replace("__PUSH_CONSTANT_DECLS__", "\n".join(push_lines))
         .replace("__DECODE_OUTPUT_COORDS__", "\n".join(decode_lines))
         .replace("__ENCODE_INPUT_INDEX__", "\n".join(encode_lines))
     )

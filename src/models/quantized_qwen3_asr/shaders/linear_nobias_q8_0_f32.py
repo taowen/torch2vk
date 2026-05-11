@@ -52,13 +52,13 @@ LINEAR_NOBIAS_Q8_0_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 143, dynamic=False),
-                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 7680, dynamic=False),
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 896, dynamic=False),
+                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, mul('X0', 'X1'), dynamic=False),
+                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 'K', dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 'N', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(143, 32), ceil_div(896, 16), 1),
+        dispatch=(ceil_div(mul('X0', 'X1'), 32), ceil_div('N', 16), 1),
     ),
     execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_storage_buffer_16bit_access=True),
     source="""\

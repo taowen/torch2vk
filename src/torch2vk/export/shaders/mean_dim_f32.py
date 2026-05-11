@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import math
-
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
+from torch2vk.export.shaders._factory import node_input_shape, node_output_shape, product_expr
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -49,11 +47,10 @@ def make_mean_dim_variant(node: Node) -> ShaderVariant | None:
     if not in_shape or not out_shape:
         return None
 
-    rows = math.prod(out_shape)
-    cols = math.prod(in_shape) // rows if rows > 0 else 1
-
     in_contract = tuple("S" + str(i) for i in range(len(in_shape)))
     out_contract = tuple("O" + str(i) for i in range(len(out_shape)))
+    rows = product_expr(in_contract[:-1])
+    cols = in_contract[-1]
 
     return ShaderVariant(
         name="mean_dim_f32",

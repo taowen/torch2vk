@@ -1,4 +1,4 @@
-"""Generated shader: add_scalar_17."""
+"""Generated shader: add_scalar_16."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-ADD_SCALAR_17 = ShaderVariant(
-    name='add_scalar_17',
+ADD_SCALAR_16 = ShaderVariant(
+    name='add_scalar_16',
     family='export',
     contract=ShaderContract(
         class_name='ExportAddScalarProgram',
-        shader_name='add_scalar_17',
+        shader_name='add_scalar_16',
         fields=(
             TensorFieldSpec(
                 name='x',

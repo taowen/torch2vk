@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import math
-
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import node_output_shape
+from torch2vk.export.shaders._factory import node_output_shape, product_expr
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -76,10 +74,10 @@ def make_cat_variant(node: Node) -> ShaderVariant | None:
     b_stride = b_shape[dim] * b_dim_stride
     out_stride = out_shape[dim] * a_dim_stride
 
-    n_out = math.prod(out_shape)
     a_contract = tuple(f"A{i}" for i in range(len(a_shape)))
     b_contract = tuple(f"B{i}" for i in range(len(b_shape)))
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
+    n_out = product_expr(out_contract)
 
     return ShaderVariant(
         name="cat_f32",

@@ -1,4 +1,4 @@
-"""Generated shader: mul_left_broadcast_f32x_f32_20."""
+"""Generated shader: decode_layer_mul_broadcast_inner_27."""
 
 from __future__ import annotations
 
@@ -16,24 +16,24 @@ from torch2vk.runtime.shader import (
 )
 
 
-MUL_LEFT_BROADCAST_F32X_F32_20 = ShaderVariant(
-    name='mul_left_broadcast_f32x_f32_20',
+DECODE_LAYER_MUL_BROADCAST_INNER_27 = ShaderVariant(
+    name='decode_layer_mul_broadcast_inner_27',
     family='export',
     contract=ShaderContract(
-        class_name='ExportMulLeftBroadcastF32XProgram',
-        shader_name='mul_left_broadcast_f32x_f32_20',
+        class_name='ExportMulBroadcastInnerProgram',
+        shader_name='decode_layer_mul_broadcast_inner_27',
         fields=(
             TensorFieldSpec(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('D',)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H', 'D',)),
             ),
             TensorFieldSpec(
                 name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=(1, 'T', 'H', 'D',)),
+                contract=TensorContract(dtype='float32', shape=(1, 1, 1, 'D',)),
             ),
             TensorFieldSpec(
                 name='output',
@@ -43,10 +43,11 @@ MUL_LEFT_BROADCAST_F32X_F32_20 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=8,
+            size=12,
             fields=(
                 PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('T', 'H'), 'D'), dynamic=False),
-                PushConstantFieldSpec('H', PushConstantType.UINT32, 4, 'D', dynamic=False),
+                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, 128, dynamic=False),
+                PushConstantFieldSpec('REPEAT', PushConstantType.UINT32, 8, 8, dynamic=False),
             ),
         ),
         params_buffer=None,
@@ -59,11 +60,14 @@ layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
-layout(push_constant) uniform PushConstants { uint N; uint H; } pc;
+layout(push_constant) uniform PushConstants { uint N; uint STRIDE; uint REPEAT; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) { output_values[idx] = fma(y[idx], x[idx % pc.H], 0.0); }
+    if (idx < pc.N) {
+        uint y_idx = (idx / pc.STRIDE) / pc.REPEAT * pc.STRIDE + idx % pc.STRIDE;
+        output_values[idx] = x[idx] * y[y_idx];
+    }
 }
 """,
 )

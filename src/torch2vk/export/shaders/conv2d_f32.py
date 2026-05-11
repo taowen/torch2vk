@@ -20,6 +20,7 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
+    mul,
 )
 
 _SOURCE_TEMPLATE = """\
@@ -120,22 +121,22 @@ def make_conv2d_variant(node: Node) -> ShaderVariant | None:
             push_constants=PushConstantSpec(
                 size=52,
                 fields=(
-                    PushConstantFieldSpec("batch", PushConstantType.UINT32, 0, batch),
-                    PushConstantFieldSpec("in_c", PushConstantType.UINT32, 4, in_c),
-                    PushConstantFieldSpec("in_h", PushConstantType.UINT32, 8, in_h),
-                    PushConstantFieldSpec("in_w", PushConstantType.UINT32, 12, in_w),
-                    PushConstantFieldSpec("out_c", PushConstantType.UINT32, 16, out_c),
-                    PushConstantFieldSpec("out_h", PushConstantType.UINT32, 20, out_h),
-                    PushConstantFieldSpec("out_w", PushConstantType.UINT32, 24, out_w),
-                    PushConstantFieldSpec("kh", PushConstantType.UINT32, 28, kh),
-                    PushConstantFieldSpec("kw", PushConstantType.UINT32, 32, kw),
+                    PushConstantFieldSpec("batch", PushConstantType.UINT32, 0, "B"),
+                    PushConstantFieldSpec("in_c", PushConstantType.UINT32, 4, "Ci"),
+                    PushConstantFieldSpec("in_h", PushConstantType.UINT32, 8, "Hi"),
+                    PushConstantFieldSpec("in_w", PushConstantType.UINT32, 12, "Wi"),
+                    PushConstantFieldSpec("out_c", PushConstantType.UINT32, 16, "Co2"),
+                    PushConstantFieldSpec("out_h", PushConstantType.UINT32, 20, "Ho"),
+                    PushConstantFieldSpec("out_w", PushConstantType.UINT32, 24, "Wo"),
+                    PushConstantFieldSpec("kh", PushConstantType.UINT32, 28, "Kh"),
+                    PushConstantFieldSpec("kw", PushConstantType.UINT32, 32, "Kw"),
                     PushConstantFieldSpec("stride_h", PushConstantType.UINT32, 36, stride[0]),
                     PushConstantFieldSpec("stride_w", PushConstantType.UINT32, 40, stride[1]),
                     PushConstantFieldSpec("pad_h", PushConstantType.UINT32, 44, padding[0]),
                     PushConstantFieldSpec("pad_w", PushConstantType.UINT32, 48, padding[1]),
                 ),
             ),
-            dispatch=(ceil_div(out_h * out_w, 16), ceil_div(out_c, 16), batch),
+            dispatch=(ceil_div(mul("Ho", "Wo"), 16), ceil_div("Co2", 16), "B"),
         ),
         source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype),
     )

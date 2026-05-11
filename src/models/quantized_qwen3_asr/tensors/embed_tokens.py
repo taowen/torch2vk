@@ -34,6 +34,7 @@ EMBED_TOKENS_OUTPUT: str = 'embedding'
 def create_embed_tokens(
     prefix: str,
     *,
+    sequence_length: int,
     p_weight: LogicalTensor | None = None,
     input: LogicalTensor | None = None,
     embedding: LogicalTensor | None = None,
@@ -59,7 +60,7 @@ def create_embed_tokens(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='int64', shape=(1, 151)),
+                spec=TensorSpec(dtype='int64', shape=(1, sequence_length)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -72,7 +73,7 @@ def create_embed_tokens(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='embedding',
-                spec=TensorSpec(dtype='float32', shape=(1, 151, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,

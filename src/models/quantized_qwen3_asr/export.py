@@ -215,9 +215,6 @@ def main() -> int:
         f.unlink()
     for f in dispatch_dir.glob("*.py"):
         f.unlink()
-    legacy_dispatch = output_dir / "dispatch.py"
-    if legacy_dispatch.exists():
-        legacy_dispatch.unlink()
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
@@ -297,6 +294,7 @@ def main() -> int:
         reference_module=None,
         export_registry=DEFAULT_REGISTRY,
         weight_quantization: Q4KMWeightQuantization | None = None,
+        shape_exprs: dict[int, str] | None = None,
     ):
         module = module.float()
         export_dtype = module_floating_dtype(module)
@@ -346,6 +344,7 @@ def main() -> int:
                 hint=layer_loop,
                 registry=registry,
                 weight_quantization=weight_quantization,
+                shape_exprs=shape_exprs,
             )
             (tensors_dir / f"{tensor_file}.py").write_text(
                 render_tensor_module([layer_src, parent_src])
@@ -369,6 +368,7 @@ def main() -> int:
                 weight_prefix=weight_prefix,
                 registry=registry,
                 weight_quantization=weight_quantization,
+                shape_exprs=shape_exprs,
             )
             (tensors_dir / f"{tensor_file}.py").write_text(render_tensor_module([tensor_src]))
 
@@ -421,6 +421,11 @@ def main() -> int:
     # Audio encoder wrapper (conv + layers + proj as one module)
     nc = shapes["num_chunks"]
     enc_seq = shapes["enc_seq_len"]
+    audio_shape_exprs = {
+        nc: "audio_chunk_count",
+        nc * 13: "audio_chunk_count * 13",
+        enc_seq: "audio_sequence_length",
+    }
 
     # Audio encoder export (single export with layer loop hint)
     num_encoder_layers = len(at.layers)
@@ -452,13 +457,17 @@ def main() -> int:
                reference_name="spike.audio.encoder",
                reference_policy="q4_tensor",
                export_registry=Q8_0_REGISTRY,
-               weight_quantization=_QUANTIZED_WEIGHTS)
+               weight_quantization=_QUANTIZED_WEIGHTS,
+               shape_exprs=audio_shape_exprs)
 
     # Text pipeline exports
     pl = shapes["prompt_length"]
     max_seq = shapes["max_sequence_length"]
     hs = shapes["hidden_size"]
     hd = shapes["head_dim"]
+    text_shape_exprs = {pl: "sequence_length"}
+    text_layer_shape_exprs = {pl: "sequence_length", max_seq: "max_sequence_length"}
+    decode_layer_shape_exprs = {max_seq: "max_sequence_length"}
     export_one("run_embed_tokens", model.thinker.model.embed_tokens.float(),
                args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.",
@@ -467,7 +476,8 @@ def main() -> int:
                reference_name="spike.text.embed",
                reference_policy="q8_tensor",
                export_registry=Q8_0_REGISTRY,
-               weight_quantization=_QUANTIZED_WEIGHTS)
+               weight_quantization=_QUANTIZED_WEIGHTS,
+               shape_exprs=text_shape_exprs)
     export_one("run_audio_inject", AudioInjectModule(),
                args=(torch.zeros(1, pl, hs, device="meta"),
                      torch.zeros(enc_seq, dtype=torch.long, device="meta"),
@@ -479,7 +489,8 @@ def main() -> int:
                },
                reference_output_bindings={"embedding": "index_copy"},
                reference_tensors="model_tensors().audio_inject",
-               reference_name="spike.text.audio_inject")
+               reference_name="spike.text.audio_inject",
+               shape_exprs={pl: "sequence_length", enc_seq: "audio_sequence_length"})
     export_one("run_text_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, pl, hs, device="meta"),
                      (torch.zeros(1, pl, hd, device="meta"),
@@ -498,13 +509,15 @@ def main() -> int:
                reference_name="spike.text.layer.{layer_idx}",
                reference_policy="q4_tensor",
                export_registry=Q4_K_M_REGISTRY,
-               weight_quantization=_QUANTIZED_WEIGHTS)
+               weight_quantization=_QUANTIZED_WEIGHTS,
+               shape_exprs=text_layer_shape_exprs)
     export_one("run_text_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, pl, hs, device="meta"),),
                weight_prefix="thinker.model.norm.",
                reference_module="thinker.model.norm",
                reference_tensors="model_tensors().text_norm",
-               reference_name="spike.text.norm")
+               reference_name="spike.text.norm",
+               shape_exprs=text_shape_exprs)
     export_one("run_lm_head", model.thinker.lm_head.float(),
                args=(torch.zeros(1, pl, hs, device="meta"),),
                weight_prefix="thinker.lm_head.",
@@ -513,7 +526,8 @@ def main() -> int:
                reference_name="spike.text.lm_head",
                reference_policy="q4_tensor",
                export_registry=Q4_K_M_REGISTRY,
-               weight_quantization=_QUANTIZED_WEIGHTS)
+               weight_quantization=_QUANTIZED_WEIGHTS,
+               shape_exprs=text_shape_exprs)
 
     # Decode-step exports (seq_len=1)
     export_one("run_decode_embed", model.thinker.model.embed_tokens.float(),
@@ -543,7 +557,8 @@ def main() -> int:
                reference_name="spike.decode.{step:04d}.layer.{layer_idx}",
                reference_policy="q4_tensor",
                export_registry=Q4_K_M_REGISTRY,
-               weight_quantization=_QUANTIZED_WEIGHTS)
+               weight_quantization=_QUANTIZED_WEIGHTS,
+               shape_exprs=decode_layer_shape_exprs)
     export_one("run_decode_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, 1, hs, device="meta"),),
                weight_prefix="thinker.model.norm.",

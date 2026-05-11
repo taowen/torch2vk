@@ -4,7 +4,9 @@ from torch.fx import Node
 
 from torch2vk.export.shaders._factory import node_input_shape, node_output_shape
 from torch2vk.runtime.shader import (
+    ceil_div,
     IOKind,
+    mul,
     PushConstantFieldSpec,
     PushConstantSpec,
     PushConstantType,
@@ -359,15 +361,15 @@ def make_sdpa_variant(node: Node) -> ShaderVariant | None:
             push_constants=PushConstantSpec(
                 size=24,
                 fields=(
-                    PushConstantFieldSpec("B", PushConstantType.UINT32, 0, b),
-                    PushConstantFieldSpec("NH", PushConstantType.UINT32, 4, nh),
-                    PushConstantFieldSpec("NK", PushConstantType.UINT32, 8, nk),
-                    PushConstantFieldSpec("T", PushConstantType.UINT32, 12, t),
-                    PushConstantFieldSpec("S", PushConstantType.UINT32, 16, s),
-                    PushConstantFieldSpec("D", PushConstantType.UINT32, 20, d),
+                    PushConstantFieldSpec("B", PushConstantType.UINT32, 0, "Q0"),
+                    PushConstantFieldSpec("NH", PushConstantType.UINT32, 4, "Q1"),
+                    PushConstantFieldSpec("NK", PushConstantType.UINT32, 8, "K1"),
+                    PushConstantFieldSpec("T", PushConstantType.UINT32, 12, "Q2"),
+                    PushConstantFieldSpec("S", PushConstantType.UINT32, 16, "K2"),
+                    PushConstantFieldSpec("D", PushConstantType.UINT32, 20, "Q3"),
                 ),
             ),
-            dispatch=(b * nh, t, 1 if masked else (d + 63) // 64),
+            dispatch=(mul("Q0", "Q1"), "Q2", 1 if masked else ceil_div("Q3", 64)),
         ),
         execution_requirements=execution_requirements,
         source=source,
@@ -408,13 +410,13 @@ def _make_decode_cache_variant(
             push_constants=PushConstantSpec(
                 size=16,
                 fields=(
-                    PushConstantFieldSpec("NH", PushConstantType.UINT32, 0, nh),
-                    PushConstantFieldSpec("NK", PushConstantType.UINT32, 4, nk),
-                    PushConstantFieldSpec("S", PushConstantType.UINT32, 8, s),
-                    PushConstantFieldSpec("D", PushConstantType.UINT32, 12, d),
+                    PushConstantFieldSpec("NH", PushConstantType.UINT32, 0, "NH"),
+                    PushConstantFieldSpec("NK", PushConstantType.UINT32, 4, "NK"),
+                    PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S"),
+                    PushConstantFieldSpec("D", PushConstantType.UINT32, 12, "D"),
                 ),
             ),
-            dispatch=(nh, 1, 1),
+            dispatch=("NH", 1, 1),
         ),
         execution_requirements=ShaderExecutionRequirements(
             subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),

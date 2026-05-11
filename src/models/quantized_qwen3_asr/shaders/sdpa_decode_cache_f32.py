@@ -59,14 +59,14 @@ SDPA_DECODE_CACHE_F32 = ShaderVariant(
         push_constants=PushConstantSpec(
             size=16,
             fields=(
-                PushConstantFieldSpec('NH', PushConstantType.UINT32, 0, 16, dynamic=False),
-                PushConstantFieldSpec('NK', PushConstantType.UINT32, 4, 8, dynamic=False),
-                PushConstantFieldSpec('S', PushConstantType.UINT32, 8, 215, dynamic=False),
-                PushConstantFieldSpec('D', PushConstantType.UINT32, 12, 128, dynamic=False),
+                PushConstantFieldSpec('NH', PushConstantType.UINT32, 0, 'NH', dynamic=False),
+                PushConstantFieldSpec('NK', PushConstantType.UINT32, 4, 'NK', dynamic=False),
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 8, 'S', dynamic=False),
+                PushConstantFieldSpec('D', PushConstantType.UINT32, 12, 'D', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(16, 1, 1),
+        dispatch=('NH', 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_shader_int64=True),
     source="""\
