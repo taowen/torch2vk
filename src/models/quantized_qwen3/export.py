@@ -31,7 +31,9 @@ from torch2vk.export import (
     Q4_K_M_REGISTRY,
     bind_dispatch_function_to_tensors,
     cast_floating_tensors,
+    clear_python_modules,
     clear_shader_package,
+    count_python_modules,
     export_submodule,
     generate_dispatch_function_source,
     generate_tensor_class_source,
@@ -39,7 +41,6 @@ from torch2vk.export import (
     rename_shader_variant,
     render_model_dispatch_module,
     write_shader_file,
-    write_shader_init,
 )
 from torch2vk.export.graph import inject_kv_cache
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
@@ -178,9 +179,8 @@ def main() -> int:
     tensors_dir.mkdir(exist_ok=True)
     dispatch_dir.mkdir(exist_ok=True)
     clear_shader_package(shaders_dir)
-    for directory in (tensors_dir, dispatch_dir):
-        for source in directory.glob("*.py"):
-            source.unlink()
+    clear_python_modules(tensors_dir)
+    clear_python_modules(dispatch_dir)
 
     print("Loading Qwen3 model and computing shapes...")
     model, shapes = _load_model_and_shapes()
@@ -286,7 +286,7 @@ def main() -> int:
                 shader_imports=shader_imports,
                 function_source=bind_dispatch_function_to_tensors(func_src),
                 parameters_source=_dispatch_parameters_source(function_name),
-                uses_q4_q6_dispatch="_linear_q4_or_q6" in func_src,
+                uses_quantized_linear_dispatch="run_quantized_linear(" in func_src,
             )
         )
         print(f"  {name}: {len(used_variants)} shaders")
@@ -388,15 +388,11 @@ def main() -> int:
         export_registry=Q4_K_M_REGISTRY,
         weight_quantization=quantized_weights,
     )
-
-    write_shader_init(shaders_dir)
     print(f"\n  {shader_file_count} shader files written")
     (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))
     (tensors_dir / "model.py").write_text(
         _render_template("model.py.j2", model_package=MODEL_PACKAGE)
     )
-    (tensors_dir / "__init__.py").write_text('"""Generated tensor package."""\n')
-    (dispatch_dir / "__init__.py").write_text('"""Generated dispatch package."""\n')
     print("  tensors/ and dispatch/ written")
     print("\nDone!")
     return 0

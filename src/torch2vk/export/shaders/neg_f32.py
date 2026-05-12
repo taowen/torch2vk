@@ -37,8 +37,7 @@ def make_neg_variant(node: Node, activation_dtype: str = "float32") -> ShaderVar
 
 def _source(activation_dtype: str) -> str:
     return (
-        _SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SOURCE.replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{STORE_NEG}}", activation_store("-x[idx]", activation_dtype))
     )

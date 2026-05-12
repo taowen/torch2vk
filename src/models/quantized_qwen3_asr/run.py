@@ -41,13 +41,17 @@ from models.quantized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
 from models.quantized_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
+from torch2vk.runtime.replay_cache_key import source_tree_digest
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
 
-DECODE_REPLAY_CACHE = "quantized_qwen3_asr_decode_step:v3"
+DECODE_REPLAY_CACHE = "quantized_qwen3_asr_decode_step:v6"
 _STOP_CHECK_INTERVAL = 2
 get_shader = make_shader_loader("models.quantized_qwen3_asr.shaders")
+
+
+_REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
 
 
 def _require_gpu_output(tensor: LogicalTensor) -> None:
@@ -203,7 +207,7 @@ def _cached_decode_replay_plan(
 
 
 def _decode_replay_cache_namespace(model_dir: Path) -> str:
-    return f"{DECODE_REPLAY_CACHE}:{model_dir.resolve()}"
+    return f"{DECODE_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
 
 
 # ==============================================================

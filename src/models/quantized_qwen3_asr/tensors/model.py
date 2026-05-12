@@ -128,7 +128,7 @@ def create_model_tensors(
     )
     key_caches = tuple(
         _request_state_tensor(
-            "float16",
+            "float32",
             (1, num_key_value_heads, max_sequence_length, head_dim),
             semantic=TensorSemantic.KV_CACHE,
         )
@@ -136,7 +136,7 @@ def create_model_tensors(
     )
     value_caches = tuple(
         _request_state_tensor(
-            "float16",
+            "float32",
             (1, num_key_value_heads, max_sequence_length, head_dim),
             semantic=TensorSemantic.KV_CACHE,
         )

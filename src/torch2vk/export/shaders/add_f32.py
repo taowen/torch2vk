@@ -71,8 +71,9 @@ def make_add_variant(node: Node, activation_dtype: str = "float32") -> ShaderVar
 
 def _same_source(activation_dtype: str) -> str:
     return (
-        _SAME_SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SAME_SOURCE.replace(
+            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+        )
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{STORE_ADD}}", activation_store("x[idx] + y[idx]", activation_dtype))
     )
@@ -90,8 +91,18 @@ def _make_add_scalar(node: Node, out_shape: tuple[int, ...]) -> ShaderVariant:
             class_name="ExportAddScalarProgram",
             shader_name="add_scalar",
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=contract_shape)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=contract_shape)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype="float32", shape=contract_shape),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype="float32", shape=contract_shape),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=8,

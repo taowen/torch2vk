@@ -11,17 +11,21 @@ from torch.fx import Node
 
 INTEGER_DTYPES = frozenset(("int64", "int32", "uint32"))
 PARAMETER_DTYPES = frozenset(("bfloat16", "float32", "float16", "int64", "int32", "uint32"))
-FLOAT32_INTERMEDIATE_TARGETS = frozenset((
-    "aten.pow.Tensor_Scalar",
-    "aten.mean.dim",
-    "aten.rsqrt.default",
-))
+FLOAT32_INTERMEDIATE_TARGETS = frozenset(
+    (
+        "aten.pow.Tensor_Scalar",
+        "aten.mean.dim",
+        "aten.rsqrt.default",
+        "aten.reciprocal.default",
+    )
+)
 
 
 def logical_tensor_dtype(
     *,
     is_parameter: bool,
     dtype: str,
+    activation_dtype: str = "float16",
     force_float32: bool = False,
 ) -> str:
     if is_parameter:
@@ -30,11 +34,13 @@ def logical_tensor_dtype(
         raise ValueError(f"Unsupported checkpoint parameter dtype: {dtype}")
     if force_float32:
         return "float32"
-    return dtype if dtype in INTEGER_DTYPES else "float16"
+    return dtype if dtype in INTEGER_DTYPES else activation_dtype
 
 
 def requires_float32_intermediate(node: Node) -> bool:
     target = str(node.target)
     if target in FLOAT32_INTERMEDIATE_TARGETS:
         return True
-    return target == "aten.add.Tensor" and len(node.args) >= 2 and not isinstance(node.args[1], Node)
+    return (
+        target == "aten.add.Tensor" and len(node.args) >= 2 and not isinstance(node.args[1], Node)
+    )

@@ -57,10 +57,10 @@ def make_slice_variant(node: Node, activation_dtype: str = "float32") -> ShaderV
     out_dim_size = out_shape[dim]
 
     in_stride = 1
-    for d in in_shape[dim + 1:]:
+    for d in in_shape[dim + 1 :]:
         in_stride *= d
     out_stride = 1
-    for d in out_shape[dim + 1:]:
+    for d in out_shape[dim + 1 :]:
         out_stride *= d
 
     if dim == len(in_shape) - 1:
@@ -83,8 +83,18 @@ def make_slice_variant(node: Node, activation_dtype: str = "float32") -> ShaderV
             class_name="ExportSliceProgram",
             shader_name="slice_f32",
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=in_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=in_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=16,
@@ -103,8 +113,6 @@ def make_slice_variant(node: Node, activation_dtype: str = "float32") -> ShaderV
 
 
 def _source(activation_dtype: str) -> str:
-    return (
-        _SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
-        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
-    )
+    return _SOURCE.replace(
+        "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+    ).replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))

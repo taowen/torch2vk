@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from pathlib import Path
 from typing import Protocol, Sequence, cast
 
@@ -25,7 +26,9 @@ from models.optimized_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.optimized_omnivoice.export_gguf import export_omnivoice_q4_k_m_gguf
 from models.optimized_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
 from models.optimized_omnivoice.shaders.omnivoice_cfg_score_f32 import OMNIVOICE_CFG_SCORE_F32
-from models.optimized_omnivoice.shaders.omnivoice_input_embed_q8_0_f32 import OMNIVOICE_INPUT_EMBED_Q8_0_F32
+from models.optimized_omnivoice.shaders.omnivoice_input_embed_q8_0_f32 import (
+    OMNIVOICE_INPUT_EMBED_Q8_0_F32,
+)
 from models.optimized_omnivoice.shaders.omnivoice_token_update_topk_f32 import (
     OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
 )
@@ -34,17 +37,21 @@ from omnivoice.models.omnivoice import OmniVoiceConfig
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
+from torch2vk.runtime.replay_cache_key import source_tree_digest
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
 
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_optimized.wav")
-_GENERATION_REPLAY_CACHE = "optimized_omnivoice_generation_step:v2"
+_GENERATION_REPLAY_CACHE = "optimized_omnivoice_generation_step:v3"
 get_shader = make_shader_loader("models.optimized_omnivoice.shaders")
 
 
 class _AudioDecodeOutput(Protocol):
     audio_values: Sequence[torch.Tensor]
+
+
+_REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
 
 
 def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float) -> np.ndarray:
@@ -146,7 +153,7 @@ def _cached_generation_replay_plan(
 
 
 def _generation_replay_cache_namespace(model_dir: Path) -> str:
-    return f"{_GENERATION_REPLAY_CACHE}:{model_dir.resolve()}"
+    return f"{_GENERATION_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
 
 
 def main(
@@ -154,6 +161,7 @@ def main(
     text: str = DEFAULT_TEXT,
     output: str | Path = DEFAULT_OUTPUT_WAV,
     num_steps: int = 32,
+    profile_dir: str | Path | None = None,
 ) -> Path:
     output_path = Path(output)
     model_dir = resolve_cached_model(REPO_ID)
@@ -182,7 +190,9 @@ def main(
     batch_audio_mask = prepared.batch_audio_mask
     attn_mask_np = prepared.attention_mask
 
-    print(f"  seq_len={seq_len}, target_len={target_len}, cond_audio_start={prepared.cond_audio_start}")
+    print(
+        f"  seq_len={seq_len}, target_len={target_len}, cond_audio_start={prepared.cond_audio_start}"
+    )
 
     # Create runtime and tensors
     print("Initializing Vulkan runtime...")
@@ -198,6 +208,7 @@ def main(
     rt = RuntimeSession.open(
         device_index=0,
         model_dir=gguf_path.parent,
+        profile_dir=profile_dir,
         model_tensors=model_tensors(),
         get_shader=get_shader,
     )
@@ -235,14 +246,17 @@ def main(
     )
 
     # Compute RoPE once on GPU (positions are fixed for masked decoding)
-    rt.register_inputs({
-        model_tensors().rope.start_position: np.array([0], dtype=np.int64),
-        model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
-    })
+    rt.register_inputs(
+        {
+            model_tensors().rope.start_position: np.array([0], dtype=np.int64),
+            model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
+        }
+    )
     _run_rope_table(rt, frame_name="omnivoice.rope")
 
     unmasked = 0
     generation_replay_plan: ReplayPlan | None = None
+    generation_start = time.perf_counter()
     for step in range(num_steps):
         k = schedule[step]
         if k <= 0:
@@ -288,7 +302,12 @@ def main(
 
         if step % 8 == 0 or step == num_steps - 1:
             total = num_audio_codebook * target_len
-            print(f"  Step {step}: unmasked {unmasked}/{total} ({100*unmasked/total:.0f}%)")
+            print(f"  Step {step}: unmasked {unmasked}/{total} ({100 * unmasked / total:.0f}%)")
+    generation_elapsed = time.perf_counter() - generation_start
+    print(
+        f"  Generation: {num_steps} steps in {generation_elapsed:.3f}s "
+        f"({generation_elapsed / num_steps * 1000:.1f} ms/step)"
+    )
 
     # Decode audio tokens
     print("\nDecoding audio tokens...")

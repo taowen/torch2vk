@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from torch.fx import Node
 
+from torch2vk.export.dtype_policy import requires_float32_intermediate
 from torch2vk.export.shaders._factory import (
     activation_extension_source,
     activation_glsl_type,
@@ -12,6 +13,7 @@ from torch2vk.export.shaders._factory import (
     node_input_dtype,
     node_input_shape,
     node_output_shape,
+    product_expr,
     shape_to_contract,
     weight_dtype_suffix,
     weight_extension_source,
@@ -78,16 +80,17 @@ void main() {
 _BROADCAST_INNER_SOURCE = """\
 #version 450
 {{ACTIVATION_EXTENSION}}\
+{{WEIGHT_EXTENSION}}\
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly YBuffer { {{ACTIVATION_TYPE}} y[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{X_TYPE}} x[]; };
+layout(set = 0, binding = 1) buffer restrict readonly YBuffer { {{Y_TYPE}} y[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { {{OUT_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants { uint N; uint STRIDE; uint REPEAT; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
     if (idx < pc.N) {
-        uint y_idx = (idx / pc.STRIDE) / pc.REPEAT * pc.STRIDE + idx % pc.STRIDE;
+        uint broadcast_idx = (idx / pc.STRIDE) / pc.REPEAT * pc.STRIDE + idx % pc.STRIDE;
         output_values[idx] = {{STORE_MUL}};
     }
 }
@@ -130,8 +133,9 @@ def make_mul_variant(node: Node, activation_dtype: str = "float32") -> ShaderVar
 
 def _same_source(activation_dtype: str) -> str:
     return (
-        _SAME_SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SAME_SOURCE.replace(
+            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+        )
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{STORE_MUL}}", activation_store("x[idx] * y[idx]", activation_dtype))
     )
@@ -143,12 +147,9 @@ def _make_broadcast_last(
     out_shape: tuple[int, ...],
     node: Node,
     activation_dtype: str,
-) -> ShaderVariant:
+) -> ShaderVariant | None:
     out_contract = shape_to_contract(out_shape)
-    y_contract = tuple(
-        1 if d == 1 and i > 0 else out_contract[i]
-        for i, d in enumerate(y_shape)
-    )
+    y_contract = tuple(1 if d == 1 and i > 0 else out_contract[i] for i, d in enumerate(y_shape))
     n_expr = flat_numel_expr(out_contract)
     last_sym = out_contract[-1]
     y_dtype = "float32" if _is_rsqrt_rhs(node) else activation_dtype
@@ -159,9 +160,21 @@ def _make_broadcast_last(
             class_name="ExportMulBroadcastLastProgram",
             shader_name="mul_broadcast_last",
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=out_contract)),
-                TensorFieldSpec("y", IOKind.INPUT, "input", TensorContract(dtype=y_dtype, shape=y_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
+                TensorFieldSpec(
+                    "y", IOKind.INPUT, "input", TensorContract(dtype=y_dtype, shape=y_contract)
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=8,
@@ -188,7 +201,9 @@ def _make_left_broadcast(
     last_sym = out_contract[-1] if out_contract else "D"
     if not isinstance(last_sym, str):
         last_sym = "D"
-    x_contract = (last_sym,) if len(x_shape) == 1 else shape_to_contract(x_shape, symbols=(last_sym,))
+    x_contract = (
+        (last_sym,) if len(x_shape) == 1 else shape_to_contract(x_shape, symbols=(last_sym,))
+    )
     n_expr = flat_numel_expr(out_contract)
     h_sym = last_sym
     x_dtype = node_input_dtype(node, 0)
@@ -201,9 +216,21 @@ def _make_left_broadcast(
             class_name=f"ExportMulLeftBroadcast{x_suffix.title()}XProgram",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=x_dtype, shape=x_contract)),
-                TensorFieldSpec("y", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=out_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "x", IOKind.INPUT, "input", TensorContract(dtype=x_dtype, shape=x_contract)
+                ),
+                TensorFieldSpec(
+                    "y",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=8,
@@ -221,12 +248,18 @@ def _make_left_broadcast(
 
 def _left_broadcast_source(x_dtype: str, activation_dtype: str) -> str:
     return (
-        _LEFT_BROADCAST_SOURCE_TEMPLATE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _LEFT_BROADCAST_SOURCE_TEMPLATE.replace(
+            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+        )
         .replace("{{WEIGHT_EXTENSION}}", weight_extension_source(x_dtype))
         .replace("{{WEIGHT_TYPE}}", weight_glsl_type(x_dtype))
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
-        .replace("{{STORE_MUL}}", activation_store(_mul_expr("y[idx]", "x[idx % pc.H]", activation_dtype, x_dtype), activation_dtype))
+        .replace(
+            "{{STORE_MUL}}",
+            activation_store(
+                _mul_expr("y[idx]", "x[idx % pc.H]", activation_dtype, x_dtype), activation_dtype
+            ),
+        )
     )
 
 
@@ -236,24 +269,42 @@ def _make_broadcast_inner(
     out_shape: tuple[int, ...],
     node: Node,
     activation_dtype: str,
-) -> ShaderVariant:
-    broadcast_dim = -1
+) -> ShaderVariant | None:
+    x_broadcast_dim = -1
+    y_broadcast_dim = -1
     for i, (a, b) in enumerate(zip(x_shape, y_shape)):
+        if a != b and a == 1:
+            x_broadcast_dim = i
         if a != b and b == 1:
-            broadcast_dim = i
-            break
+            y_broadcast_dim = i
+
+    if x_broadcast_dim >= 0 and y_broadcast_dim >= 0:
+        return make_binary_same_shape(
+            _same_source(activation_dtype),
+            "mul_f32",
+            node,
+            input_dtype=activation_dtype,
+            output_dtype=activation_dtype,
+        )
+    broadcast_dim = x_broadcast_dim if x_broadcast_dim >= 0 else y_broadcast_dim
+    if broadcast_dim < 0:
+        return make_binary_same_shape(
+            _same_source(activation_dtype),
+            "mul_f32",
+            node,
+            input_dtype=activation_dtype,
+            output_dtype=activation_dtype,
+        )
 
     out_contract = shape_to_contract(out_shape)
-    y_contract = tuple(
-        1 if d == 1 and i > 0 else out_contract[i]
-        for i, d in enumerate(y_shape)
-    )
+    x_contract = tuple(1 if d == 1 and i > 0 else out_contract[i] for i, d in enumerate(x_shape))
+    y_contract = tuple(1 if d == 1 and i > 0 else out_contract[i] for i, d in enumerate(y_shape))
     n_expr = flat_numel_expr(out_contract)
 
-    stride = 1
-    for d in out_shape[broadcast_dim + 1:]:
-        stride *= d
-    repeat = out_shape[broadcast_dim]
+    stride = product_expr(tuple(out_contract[broadcast_dim + 1 :]))
+    repeat = out_contract[broadcast_dim]
+    x_dtype = _input_storage_dtype(node, 0, activation_dtype)
+    y_dtype = _input_storage_dtype(node, 1, activation_dtype)
 
     return ShaderVariant(
         name="mul_broadcast_inner",
@@ -262,9 +313,24 @@ def _make_broadcast_inner(
             class_name="ExportMulBroadcastInnerProgram",
             shader_name="mul_broadcast_inner",
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=out_contract)),
-                TensorFieldSpec("y", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=y_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=x_dtype, shape=x_contract),
+                ),
+                TensorFieldSpec(
+                    "y",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=y_dtype, shape=y_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=12,
@@ -276,31 +342,57 @@ def _make_broadcast_inner(
             ),
             dispatch=(ceil_div(n_expr, 256), 1, 1),
         ),
-        source=_broadcast_inner_source(activation_dtype),
+        source=_broadcast_inner_source(
+            activation_dtype=activation_dtype,
+            x_dtype=x_dtype,
+            y_dtype=y_dtype,
+            x_is_broadcast=x_broadcast_dim >= 0,
+        ),
         execution_requirements=activation_requirements(activation_dtype),
     )
 
 
 def _broadcast_last_source(*, activation_dtype: str, y_dtype: str) -> str:
     return (
-        _BROADCAST_LAST_SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _BROADCAST_LAST_SOURCE.replace(
+            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+        )
         .replace("{{X_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{Y_TYPE}}", activation_glsl_type(y_dtype))
         .replace("{{OUT_TYPE}}", activation_glsl_type(activation_dtype))
         .replace(
             "{{STORE_MUL}}",
-            activation_store(_mul_expr("x[idx]", "y[idx / pc.H]", activation_dtype, y_dtype), activation_dtype),
+            activation_store(
+                _mul_expr("x[idx]", "y[idx / pc.H]", activation_dtype, y_dtype), activation_dtype
+            ),
         )
     )
 
 
-def _broadcast_inner_source(activation_dtype: str) -> str:
+def _broadcast_inner_source(
+    *,
+    activation_dtype: str,
+    x_dtype: str,
+    y_dtype: str,
+    x_is_broadcast: bool,
+) -> str:
+    x_expr = "x[broadcast_idx]" if x_is_broadcast else "x[idx]"
+    y_expr = "y[idx]" if x_is_broadcast else "y[broadcast_idx]"
     return (
-        _BROADCAST_INNER_SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
-        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
-        .replace("{{STORE_MUL}}", activation_store("x[idx] * y[y_idx]", activation_dtype))
+        _BROADCAST_INNER_SOURCE.replace(
+            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+        )
+        .replace(
+            "{{WEIGHT_EXTENSION}}",
+            weight_extension_source("bfloat16") if "bfloat16" in {x_dtype, y_dtype} else "",
+        )
+        .replace("{{X_TYPE}}", _glsl_type(x_dtype))
+        .replace("{{Y_TYPE}}", _glsl_type(y_dtype))
+        .replace("{{OUT_TYPE}}", activation_glsl_type(activation_dtype))
+        .replace(
+            "{{STORE_MUL}}",
+            activation_store(_mul_expr(x_expr, y_expr, x_dtype, y_dtype), activation_dtype),
+        )
     )
 
 
@@ -308,6 +400,26 @@ def _mul_expr(lhs: str, rhs: str, lhs_dtype: str, rhs_dtype: str) -> str:
     if lhs_dtype == rhs_dtype and lhs_dtype in {"float16", "float32"}:
         return f"{lhs} * {rhs}"
     return f"float({lhs}) * float({rhs})"
+
+
+def _glsl_type(dtype: str) -> str:
+    if dtype in {"float16", "float32"}:
+        return activation_glsl_type(dtype)
+    return weight_glsl_type(dtype)
+
+
+def _input_storage_dtype(node: Node, index: int, activation_dtype: str) -> str:
+    if index >= len(node.args):
+        return activation_dtype
+    arg = node.args[index]
+    if not isinstance(arg, Node):
+        return activation_dtype
+    dtype = node_input_dtype(node, index) or activation_dtype
+    if dtype in {"int64", "int32", "uint32"}:
+        return dtype
+    if arg.op == "placeholder":
+        return dtype if arg.name.startswith("p_") else activation_dtype
+    return "float32" if requires_float32_intermediate(arg) else activation_dtype
 
 
 def _is_rsqrt_rhs(node: Node) -> bool:

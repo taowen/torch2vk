@@ -6,7 +6,6 @@ Run from project root:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import time
 from dataclasses import asdict, dataclass
@@ -38,6 +37,7 @@ from models.quantized_qwen3.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN
 from models.quantized_qwen3.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
+from torch2vk.runtime.replay_cache_key import source_tree_digest
 from torch2vk.runtime.rope_table import ROPE_TABLE_F32, run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader import ShaderVariant
@@ -56,21 +56,7 @@ def get_shader(name: str) -> ShaderVariant:
     return _load_model_shader(name)
 
 
-def _source_tree_digest() -> str:
-    root = Path(__file__).parent
-    hasher = hashlib.sha256()
-    for path in (
-        Path(__file__),
-        *sorted((root / "dispatch").glob("*.py")),
-        *sorted((root / "shaders").glob("*.py")),
-        *sorted((root / "tensors").glob("*.py")),
-    ):
-        hasher.update(str(path.relative_to(root)).encode("utf-8"))
-        hasher.update(path.read_bytes())
-    return hasher.hexdigest()[:16]
-
-
-_REPLAY_SOURCE_DIGEST = _source_tree_digest()
+_REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
 
 
 @dataclass(frozen=True, slots=True)

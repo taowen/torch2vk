@@ -63,8 +63,18 @@ def make_max_variant(node: Node, activation_dtype: str = "float32") -> ShaderVar
             class_name="ExportMaxProgram",
             shader_name="max_f32",
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=in_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=(1,))),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=in_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=(1,)),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=4,
@@ -79,8 +89,7 @@ def make_max_variant(node: Node, activation_dtype: str = "float32") -> ShaderVar
 
 def _source(activation_dtype: str) -> str:
     return (
-        _SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SOURCE.replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{STORE_MAX}}", activation_store("partial_max[0]", activation_dtype))
     )

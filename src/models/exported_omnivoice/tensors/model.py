@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from models.exported_omnivoice.tensors.audio_head import AudioHeadTensors, create_audio_head
+from models.exported_omnivoice.tensors.audio_decode import AudioDecodeTensors, create_audio_decode
 from models.exported_omnivoice.tensors.llm_forward import LlmForwardTensors, create_llm_forward
 from torch2vk.runtime.logical import (
     LogicalTensor,
@@ -34,6 +35,7 @@ class ExportedOmniVoiceTensors:
     rope: RopeTableTensors
     llm_forward: LlmForwardTensors
     audio_head: AudioHeadTensors
+    audio_decode: AudioDecodeTensors
 
 
 _MODEL_TENSORS: ExportedOmniVoiceTensors | None = None
@@ -81,6 +83,12 @@ def create_model_tensors(*, target_len: int) -> ExportedOmniVoiceTensors:
         "omnivoice.audio_head",
         input=llm_forward.mul_365,
     )
+    audio_decode = create_audio_decode(
+        "omnivoice.audio_decode",
+        target_len=target_len,
+        audio_codes=tokens,
+        request_state_outputs=frozenset(("conv1d_31",)),
+    )
 
     global _MODEL_TENSORS
     _MODEL_TENSORS = ExportedOmniVoiceTensors(
@@ -99,6 +107,7 @@ def create_model_tensors(*, target_len: int) -> ExportedOmniVoiceTensors:
         rope=rope,
         llm_forward=llm_forward,
         audio_head=audio_head,
+        audio_decode=audio_decode,
     )
     bind_logical_tensor_names(_MODEL_TENSORS)
     return _MODEL_TENSORS

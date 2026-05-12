@@ -25,10 +25,7 @@ _TORCH_DTYPES: dict[str, torch.dtype] = {
 def read_checkpoint_dtypes(model_dir: str | Path) -> dict[str, str]:
     checkpoint = _canonical_safetensors_path(Path(model_dir))
     with open_safetensors_mmap(checkpoint) as storage:
-        return {
-            name: entry.spec.dtype
-            for name, entry in storage.tensors.items()
-        }
+        return {name: entry.spec.dtype for name, entry in storage.tensors.items()}
 
 
 def set_module_checkpoint_dtypes(

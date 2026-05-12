@@ -6,6 +6,7 @@ from torch2vk.export.shaders._factory import (
     activation_extension_source_for_shader,
     activation_glsl_type,
     activation_store,
+    activation_variant_name,
     node_input_dtype,
     node_input_shape,
     node_output_shape,
@@ -37,7 +38,9 @@ from torch2vk.vulkan.shader_execution_requirements import (
 from torch2vk.vulkan.types import q8_0_halfwords_layout
 
 
-def make_linear_bias_q8_0_variant(node: Node, activation_dtype: str = "float16") -> ShaderVariant | None:
+def make_linear_bias_q8_0_variant(
+    node: Node, activation_dtype: str = "float16"
+) -> ShaderVariant | None:
     x_shape = node_input_shape(node, 0)
     w_shape = node_input_shape(node, 1)
     out_shape = node_output_shape(node)
@@ -56,8 +59,9 @@ def make_linear_bias_q8_0_variant(node: Node, activation_dtype: str = "float16")
     for dim in x_shape[:-1]:
         concrete_m *= int(dim)
     if concrete_m <= 8:
+        base_name = f"linear_bias_q8_0w_{bias_suffix}b_matvec_f32"
         return ShaderVariant(
-            name=f"linear_bias_q8_0w_{bias_suffix}b_matvec_f32",
+            name=activation_variant_name(base_name, activation_dtype),
             family="export",
             contract=_contract(
                 x_contract=x_contract,
@@ -65,15 +69,16 @@ def make_linear_bias_q8_0_variant(node: Node, activation_dtype: str = "float16")
                 out_contract=out_contract,
                 bias_dtype=bias_dtype,
                 activation_dtype=activation_dtype,
-                shader_name=f"linear_bias_q8_0w_{bias_suffix}b_matvec_f32",
+                shader_name=activation_variant_name(base_name, activation_dtype),
                 class_name=f"ExportLinearBiasQ8_0Weight{bias_suffix.title()}BiasMatvecProgram",
                 matvec=True,
             ),
             execution_requirements=_SUBGROUP64_16BIT_REQUIREMENTS,
             source=_matvec_source(bias_dtype, activation_dtype),
         )
+    base_name = f"linear_bias_q8_0w_{bias_suffix}b_f32"
     return ShaderVariant(
-        name=f"linear_bias_q8_0w_{bias_suffix}b_f32",
+        name=activation_variant_name(base_name, activation_dtype),
         family="export",
         contract=_contract(
             x_contract=x_contract,
@@ -81,7 +86,7 @@ def make_linear_bias_q8_0_variant(node: Node, activation_dtype: str = "float16")
             out_contract=out_contract,
             bias_dtype=bias_dtype,
             activation_dtype=activation_dtype,
-            shader_name=f"linear_bias_q8_0w_{bias_suffix}b_f32",
+            shader_name=activation_variant_name(base_name, activation_dtype),
             class_name=f"ExportLinearBiasQ8_0Weight{bias_suffix.title()}BiasProgram",
             matvec=False,
         ),
@@ -106,7 +111,9 @@ def _contract(
         class_name=class_name,
         shader_name=shader_name,
         fields=(
-            TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)),
+            TensorFieldSpec(
+                "x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)
+            ),
             TensorFieldSpec(
                 "weight",
                 IOKind.INPUT,
@@ -117,8 +124,15 @@ def _contract(
                     layout=q8_0_halfwords_layout(logical_k="K"),
                 ),
             ),
-            TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=b_contract)),
-            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+            TensorFieldSpec(
+                "bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=b_contract)
+            ),
+            TensorFieldSpec(
+                "output",
+                IOKind.OUTPUT,
+                "output",
+                TensorContract(dtype=activation_dtype, shape=out_contract),
+            ),
         ),
         push_constants=PushConstantSpec(
             size=12,
@@ -128,33 +142,41 @@ def _contract(
                 PushConstantFieldSpec("N", PushConstantType.UINT32, 8, "N"),
             ),
         ),
-        dispatch=(
-            (ceil_div("N", 2), m, 1)
-            if matvec
-            else (ceil_div(m, 32), ceil_div("N", 16), 1)
-        ),
+        dispatch=((ceil_div("N", 2), m, 1) if matvec else (ceil_div(m, 32), ceil_div("N", 16), 1)),
     )
 
 
 def _matvec_source(bias_dtype: str, activation_dtype: str) -> str:
-    return render_shader_template(_Q8_0_MATVEC_BIAS_SOURCE, {
-        "ACTIVATION_EXTENSION": activation_extension_source_for_shader(_Q8_0_MATVEC_BIAS_SOURCE, activation_dtype),
-        "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
-        "BIAS_EXTENSION": weight_extension_source("bfloat16") if bias_dtype == "bfloat16" else "",
-        "BIAS_TYPE": weight_glsl_type(bias_dtype),
-        "STORE_ACC0": activation_store("acc0 + float(bias[col0])", activation_dtype),
-        "STORE_ACC1": activation_store("acc1 + float(bias[col1])", activation_dtype),
-    })
+    return render_shader_template(
+        _Q8_0_MATVEC_BIAS_SOURCE,
+        {
+            "ACTIVATION_EXTENSION": activation_extension_source_for_shader(
+                _Q8_0_MATVEC_BIAS_SOURCE, activation_dtype
+            ),
+            "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+            "BIAS_EXTENSION": weight_extension_source("bfloat16")
+            if bias_dtype == "bfloat16"
+            else "",
+            "BIAS_TYPE": weight_glsl_type(bias_dtype),
+            "STORE_ACC0": activation_store("acc0 + float(bias[col0])", activation_dtype),
+            "STORE_ACC1": activation_store("acc1 + float(bias[col1])", activation_dtype),
+        },
+    )
 
 
 def _coopmat_source(bias_dtype: str, activation_dtype: str) -> str:
-    return render_shader_template(_Q8_0_COOPMAT_BIAS_SOURCE, {
-        "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
-        "BIAS_EXTENSION": weight_extension_source("bfloat16") if bias_dtype == "bfloat16" else "",
-        "BIAS_TYPE": weight_glsl_type(bias_dtype),
-        "STORE_OUT0": activation_store("shared_out0[i] + float(bias[n])", activation_dtype),
-        "STORE_OUT1": activation_store("shared_out1[i] + float(bias[n])", activation_dtype),
-    })
+    return render_shader_template(
+        _Q8_0_COOPMAT_BIAS_SOURCE,
+        {
+            "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+            "BIAS_EXTENSION": weight_extension_source("bfloat16")
+            if bias_dtype == "bfloat16"
+            else "",
+            "BIAS_TYPE": weight_glsl_type(bias_dtype),
+            "STORE_OUT0": activation_store("shared_out0[i] + float(bias[n])", activation_dtype),
+            "STORE_OUT1": activation_store("shared_out1[i] + float(bias[n])", activation_dtype),
+        },
+    )
 
 
 _SUBGROUP64_16BIT_REQUIREMENTS = ShaderExecutionRequirements(

@@ -65,8 +65,18 @@ def make_argmax_variant(node: Node, activation_dtype: str = "float32") -> Shader
             class_name="ExportArgmaxProgram",
             shader_name="argmax_f32",
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="int32", shape=out_contract)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=x_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype="int32", shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=8,
@@ -83,8 +93,6 @@ def make_argmax_variant(node: Node, activation_dtype: str = "float32") -> Shader
 
 
 def _source(activation_dtype: str) -> str:
-    return (
-        _SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
-        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
-    )
+    return _SOURCE.replace(
+        "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+    ).replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))

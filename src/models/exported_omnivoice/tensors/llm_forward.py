@@ -198,6 +198,7 @@ def create_llm_layer(
         p_layers_0_self_attn_q_proj_weight=_bind_tensor(
             p_layers_0_self_attn_q_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.q_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(2048, 1024)),
@@ -211,6 +212,7 @@ def create_llm_layer(
         p_layers_0_self_attn_k_proj_weight=_bind_tensor(
             p_layers_0_self_attn_k_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.k_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1024, 1024)),
@@ -224,6 +226,7 @@ def create_llm_layer(
         p_layers_0_self_attn_v_proj_weight=_bind_tensor(
             p_layers_0_self_attn_v_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.v_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1024, 1024)),
@@ -237,6 +240,7 @@ def create_llm_layer(
         p_layers_0_self_attn_o_proj_weight=_bind_tensor(
             p_layers_0_self_attn_o_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.o_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1024, 2048)),
@@ -250,6 +254,7 @@ def create_llm_layer(
         p_layers_0_self_attn_q_norm_weight=_bind_tensor(
             p_layers_0_self_attn_q_norm_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.q_norm.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(128,)),
@@ -263,6 +268,7 @@ def create_llm_layer(
         p_layers_0_self_attn_k_norm_weight=_bind_tensor(
             p_layers_0_self_attn_k_norm_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.self_attn.k_norm.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(128,)),
@@ -276,6 +282,7 @@ def create_llm_layer(
         p_layers_0_mlp_gate_proj_weight=_bind_tensor(
             p_layers_0_mlp_gate_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.mlp.gate_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(3072, 1024)),
@@ -289,6 +296,7 @@ def create_llm_layer(
         p_layers_0_mlp_up_proj_weight=_bind_tensor(
             p_layers_0_mlp_up_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.mlp.up_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(3072, 1024)),
@@ -302,6 +310,7 @@ def create_llm_layer(
         p_layers_0_mlp_down_proj_weight=_bind_tensor(
             p_layers_0_mlp_down_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.mlp.down_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1024, 3072)),
@@ -315,6 +324,7 @@ def create_llm_layer(
         p_layers_0_input_layernorm_weight=_bind_tensor(
             p_layers_0_input_layernorm_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.input_layernorm.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1024,)),
@@ -328,6 +338,7 @@ def create_llm_layer(
         p_layers_0_post_attention_layernorm_weight=_bind_tensor(
             p_layers_0_post_attention_layernorm_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"llm.layers.{layer_idx}.post_attention_layernorm.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1024,)),
@@ -341,6 +352,7 @@ def create_llm_layer(
         to=_bind_tensor(
             to,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -354,6 +366,7 @@ def create_llm_layer(
         pow_1=_bind_tensor(
             pow_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='pow_1',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
@@ -367,6 +380,7 @@ def create_llm_layer(
         mean=_bind_tensor(
             mean,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mean',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
@@ -380,6 +394,7 @@ def create_llm_layer(
         add=_bind_tensor(
             add,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
@@ -393,6 +408,7 @@ def create_llm_layer(
         rsqrt=_bind_tensor(
             rsqrt,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='rsqrt',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
@@ -406,6 +422,7 @@ def create_llm_layer(
         mul=_bind_tensor(
             mul,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -419,6 +436,7 @@ def create_llm_layer(
         to_1=_bind_tensor(
             to_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to_1',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -432,6 +450,7 @@ def create_llm_layer(
         mul_1=_bind_tensor(
             mul_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_1',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -445,6 +464,7 @@ def create_llm_layer(
         linear=_bind_tensor(
             linear,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 2048)),
@@ -458,6 +478,7 @@ def create_llm_layer(
         view=_bind_tensor(
             view,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='view',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 16, 128)),
@@ -471,6 +492,7 @@ def create_llm_layer(
         to_2=_bind_tensor(
             to_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to_2',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 16, 128)),
@@ -484,6 +506,7 @@ def create_llm_layer(
         pow_2=_bind_tensor(
             pow_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='pow_2',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 128)),
@@ -497,6 +520,7 @@ def create_llm_layer(
         mean_1=_bind_tensor(
             mean_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mean_1',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 1)),
@@ -510,6 +534,7 @@ def create_llm_layer(
         add_1=_bind_tensor(
             add_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add_1',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 1)),
@@ -523,6 +548,7 @@ def create_llm_layer(
         rsqrt_1=_bind_tensor(
             rsqrt_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='rsqrt_1',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 16, 1)),
@@ -536,6 +562,7 @@ def create_llm_layer(
         mul_2=_bind_tensor(
             mul_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_2',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 16, 128)),
@@ -549,6 +576,7 @@ def create_llm_layer(
         to_3=_bind_tensor(
             to_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to_3',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 16, 128)),
@@ -562,6 +590,7 @@ def create_llm_layer(
         mul_3=_bind_tensor(
             mul_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_3',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 16, 128)),
@@ -575,6 +604,7 @@ def create_llm_layer(
         transpose=_bind_tensor(
             transpose,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='transpose',
                 spec=TensorSpec(dtype='float16', shape=(2, 16, 85, 128)),
@@ -588,6 +618,7 @@ def create_llm_layer(
         linear_1=_bind_tensor(
             linear_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_1',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -601,6 +632,7 @@ def create_llm_layer(
         view_1=_bind_tensor(
             view_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='view_1',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 8, 128)),
@@ -614,6 +646,7 @@ def create_llm_layer(
         to_4=_bind_tensor(
             to_4,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to_4',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 8, 128)),
@@ -627,6 +660,7 @@ def create_llm_layer(
         pow_3=_bind_tensor(
             pow_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='pow_3',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 128)),
@@ -640,6 +674,7 @@ def create_llm_layer(
         mean_2=_bind_tensor(
             mean_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mean_2',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 1)),
@@ -653,6 +688,7 @@ def create_llm_layer(
         add_2=_bind_tensor(
             add_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add_2',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 1)),
@@ -666,6 +702,7 @@ def create_llm_layer(
         rsqrt_2=_bind_tensor(
             rsqrt_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='rsqrt_2',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 8, 1)),
@@ -679,6 +716,7 @@ def create_llm_layer(
         mul_4=_bind_tensor(
             mul_4,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_4',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 8, 128)),
@@ -692,6 +730,7 @@ def create_llm_layer(
         to_5=_bind_tensor(
             to_5,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to_5',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 8, 128)),
@@ -705,6 +744,7 @@ def create_llm_layer(
         mul_5=_bind_tensor(
             mul_5,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_5',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 8, 128)),
@@ -718,6 +758,7 @@ def create_llm_layer(
         transpose_1=_bind_tensor(
             transpose_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='transpose_1',
                 spec=TensorSpec(dtype='float16', shape=(2, 8, 85, 128)),
@@ -731,6 +772,7 @@ def create_llm_layer(
         linear_2=_bind_tensor(
             linear_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_2',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -744,6 +786,7 @@ def create_llm_layer(
         view_2=_bind_tensor(
             view_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='view_2',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 8, 128)),
@@ -757,6 +800,7 @@ def create_llm_layer(
         transpose_2=_bind_tensor(
             transpose_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='transpose_2',
                 spec=TensorSpec(dtype='float16', shape=(2, 8, 85, 128)),
@@ -770,6 +814,7 @@ def create_llm_layer(
         unsqueeze=_bind_tensor(
             unsqueeze,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='unsqueeze',
                 spec=TensorSpec(dtype='float16', shape=(2, 1, 85, 128)),
@@ -783,6 +828,7 @@ def create_llm_layer(
         unsqueeze_1=_bind_tensor(
             unsqueeze_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='unsqueeze_1',
                 spec=TensorSpec(dtype='float16', shape=(2, 1, 85, 128)),
@@ -796,6 +842,7 @@ def create_llm_layer(
         mul_6=_bind_tensor(
             mul_6,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_6',
                 spec=TensorSpec(dtype='float16', shape=(2, 16, 85, 128)),
@@ -809,6 +856,7 @@ def create_llm_layer(
         slice_1=_bind_tensor(
             slice_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='slice_1',
                 spec=TensorSpec(dtype='float16', shape=(2, 16, 85, 64)),
@@ -822,6 +870,7 @@ def create_llm_layer(
         slice_2=_bind_tensor(
             slice_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='slice_2',
                 spec=TensorSpec(dtype='float16', shape=(2, 16, 85, 64)),
@@ -835,6 +884,7 @@ def create_llm_layer(
         neg=_bind_tensor(
             neg,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='neg',
                 spec=TensorSpec(dtype='float16', shape=(2, 16, 85, 64)),
@@ -848,6 +898,7 @@ def create_llm_layer(
         cat=_bind_tensor(
             cat,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='cat',
                 spec=TensorSpec(dtype='float16', shape=(2, 16, 85, 128)),
@@ -861,6 +912,7 @@ def create_llm_layer(
         mul_7=_bind_tensor(
             mul_7,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_7',
                 spec=TensorSpec(dtype='float16', shape=(2, 16, 85, 128)),
@@ -874,6 +926,7 @@ def create_llm_layer(
         add_3=_bind_tensor(
             add_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add_3',
                 spec=TensorSpec(dtype='float16', shape=(2, 16, 85, 128)),
@@ -887,6 +940,7 @@ def create_llm_layer(
         mul_8=_bind_tensor(
             mul_8,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_8',
                 spec=TensorSpec(dtype='float16', shape=(2, 8, 85, 128)),
@@ -900,6 +954,7 @@ def create_llm_layer(
         slice_3=_bind_tensor(
             slice_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='slice_3',
                 spec=TensorSpec(dtype='float16', shape=(2, 8, 85, 64)),
@@ -913,6 +968,7 @@ def create_llm_layer(
         slice_4=_bind_tensor(
             slice_4,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='slice_4',
                 spec=TensorSpec(dtype='float16', shape=(2, 8, 85, 64)),
@@ -926,6 +982,7 @@ def create_llm_layer(
         neg_1=_bind_tensor(
             neg_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='neg_1',
                 spec=TensorSpec(dtype='float16', shape=(2, 8, 85, 64)),
@@ -939,6 +996,7 @@ def create_llm_layer(
         cat_1=_bind_tensor(
             cat_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='cat_1',
                 spec=TensorSpec(dtype='float16', shape=(2, 8, 85, 128)),
@@ -952,6 +1010,7 @@ def create_llm_layer(
         mul_9=_bind_tensor(
             mul_9,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_9',
                 spec=TensorSpec(dtype='float16', shape=(2, 8, 85, 128)),
@@ -965,6 +1024,7 @@ def create_llm_layer(
         add_4=_bind_tensor(
             add_4,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add_4',
                 spec=TensorSpec(dtype='float16', shape=(2, 8, 85, 128)),
@@ -978,6 +1038,7 @@ def create_llm_layer(
         scaled_dot_product_attention=_bind_tensor(
             scaled_dot_product_attention,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='scaled_dot_product_attention',
                 spec=TensorSpec(dtype='float16', shape=(2, 16, 85, 128)),
@@ -991,6 +1052,7 @@ def create_llm_layer(
         transpose_3=_bind_tensor(
             transpose_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='transpose_3',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 16, 128)),
@@ -1004,6 +1066,7 @@ def create_llm_layer(
         contiguous=_bind_tensor(
             contiguous,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='contiguous',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 16, 128)),
@@ -1017,6 +1080,7 @@ def create_llm_layer(
         reshape=_bind_tensor(
             reshape,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='reshape',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 2048)),
@@ -1030,6 +1094,7 @@ def create_llm_layer(
         linear_3=_bind_tensor(
             linear_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_3',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1043,6 +1108,7 @@ def create_llm_layer(
         add_5=_bind_tensor(
             add_5,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add_5',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1056,6 +1122,7 @@ def create_llm_layer(
         to_6=_bind_tensor(
             to_6,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to_6',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1069,6 +1136,7 @@ def create_llm_layer(
         pow_4=_bind_tensor(
             pow_4,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='pow_4',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
@@ -1082,6 +1150,7 @@ def create_llm_layer(
         mean_3=_bind_tensor(
             mean_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mean_3',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
@@ -1095,6 +1164,7 @@ def create_llm_layer(
         add_6=_bind_tensor(
             add_6,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add_6',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
@@ -1108,6 +1178,7 @@ def create_llm_layer(
         rsqrt_3=_bind_tensor(
             rsqrt_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='rsqrt_3',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
@@ -1121,6 +1192,7 @@ def create_llm_layer(
         mul_10=_bind_tensor(
             mul_10,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_10',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1134,6 +1206,7 @@ def create_llm_layer(
         to_7=_bind_tensor(
             to_7,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to_7',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1147,6 +1220,7 @@ def create_llm_layer(
         mul_11=_bind_tensor(
             mul_11,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_11',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1160,6 +1234,7 @@ def create_llm_layer(
         linear_4=_bind_tensor(
             linear_4,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_4',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 3072)),
@@ -1173,6 +1248,7 @@ def create_llm_layer(
         silu=_bind_tensor(
             silu,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='silu',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 3072)),
@@ -1186,6 +1262,7 @@ def create_llm_layer(
         linear_5=_bind_tensor(
             linear_5,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_5',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 3072)),
@@ -1199,6 +1276,7 @@ def create_llm_layer(
         mul_12=_bind_tensor(
             mul_12,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_12',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 3072)),
@@ -1212,6 +1290,7 @@ def create_llm_layer(
         linear_6=_bind_tensor(
             linear_6,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_6',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1225,6 +1304,7 @@ def create_llm_layer(
         add_7=_bind_tensor(
             add_7,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add_7',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1284,6 +1364,7 @@ def create_llm_forward(
         p_norm_weight=_bind_tensor(
             p_norm_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="llm.norm.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1024,)),
@@ -1297,6 +1378,7 @@ def create_llm_forward(
         hidden_states=_bind_tensor(
             hidden_states,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1310,6 +1392,7 @@ def create_llm_forward(
         cos=_bind_tensor(
             cos,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 128)),
@@ -1323,6 +1406,7 @@ def create_llm_forward(
         sin=_bind_tensor(
             sin,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 128)),
@@ -1336,6 +1420,7 @@ def create_llm_forward(
         attention_mask=_bind_tensor(
             attention_mask,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float16', shape=(2, 1, 85, 85)),
@@ -1349,6 +1434,7 @@ def create_llm_forward(
         to_224=_bind_tensor(
             to_224,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to_224',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1362,6 +1448,7 @@ def create_llm_forward(
         pow_113=_bind_tensor(
             pow_113,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='pow_113',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1024)),
@@ -1375,6 +1462,7 @@ def create_llm_forward(
         mean_112=_bind_tensor(
             mean_112,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mean_112',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
@@ -1388,6 +1476,7 @@ def create_llm_forward(
         add_224=_bind_tensor(
             add_224,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add_224',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
@@ -1401,6 +1490,7 @@ def create_llm_forward(
         rsqrt_112=_bind_tensor(
             rsqrt_112,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='rsqrt_112',
                 spec=TensorSpec(dtype='float32', shape=(2, 85, 1)),
@@ -1414,6 +1504,7 @@ def create_llm_forward(
         mul_364=_bind_tensor(
             mul_364,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_364',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1427,6 +1518,7 @@ def create_llm_forward(
         to_225=_bind_tensor(
             to_225,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to_225',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1440,6 +1532,7 @@ def create_llm_forward(
         mul_365=_bind_tensor(
             mul_365,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_365',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -1483,6 +1576,7 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     layout: TensorLayout = CONTIGUOUS_LAYOUT,
+    checkpoint: str | None = None,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -1496,6 +1590,7 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
+        checkpoint=checkpoint,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
         layout=layout,

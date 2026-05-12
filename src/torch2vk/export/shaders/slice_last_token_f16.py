@@ -23,8 +23,15 @@ SLICE_LAST_TOKEN_F16 = ShaderVariant(
         class_name="SliceLastTokenF16Program",
         shader_name="slice_last_token_f16",
         fields=(
-            TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float16", shape=("B", "S", "H"))),
-            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float16", shape=("B", 1, "H"))),
+            TensorFieldSpec(
+                "x", IOKind.INPUT, "input", TensorContract(dtype="float16", shape=("B", "S", "H"))
+            ),
+            TensorFieldSpec(
+                "output",
+                IOKind.OUTPUT,
+                "output",
+                TensorContract(dtype="float16", shape=("B", 1, "H")),
+            ),
         ),
         push_constants=PushConstantSpec(
             size=12,

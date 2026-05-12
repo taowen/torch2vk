@@ -30,7 +30,7 @@ INDEX_SELECT_F32_C6680F8D95 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float16', shape=('N', 'H',)),
+                contract=TensorContract(dtype='float32', shape=('N', 'H',)),
             ),
             TensorFieldSpec(
                 name='index',
@@ -42,7 +42,7 @@ INDEX_SELECT_F32_C6680F8D95 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float16', shape=('O', 'H',)),
+                contract=TensorContract(dtype='float32', shape=('O', 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -55,16 +55,14 @@ INDEX_SELECT_F32_C6680F8D95 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul('O', 'H'), 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True, require_storage_buffer_16bit_access=True),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
     source="""\
 #version 450
-#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
-#extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly IndexBuffer { int64_t index_values[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint O; uint H; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {

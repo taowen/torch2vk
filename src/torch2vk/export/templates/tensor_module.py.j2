@@ -50,6 +50,7 @@ class {{ cls.class_name }}:
         {{ tensor.name }}=_bind_tensor(
             {{ tensor.name }},
             _declare_tensor(
+                checkpoint={{ tensor.checkpoint_expr }},
                 checkpoint_key={{ tensor.checkpoint_key_expr }},
                 reference_key={{ tensor.reference_key_expr }},
                 spec={{ tensor.spec_source }},
@@ -147,6 +148,7 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     layout: TensorLayout = CONTIGUOUS_LAYOUT,
+    checkpoint: str | None = None,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -160,6 +162,7 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
+        checkpoint=checkpoint,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
         layout=layout,

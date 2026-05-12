@@ -45,17 +45,25 @@ class _TensorMeta:
 
 def render_tensor_module(classes: list[TensorClassContext]) -> str:
     q4_k_m_config = _q4_k_m_config(classes)
-    return render_template(
-        "tensor_module.py.j2",
-        classes=classes,
-        q4_k_m_config=q4_k_m_config,
-        uses_q4_k_words_layout=q4_k_m_config is not None or _uses_layout_source(classes, "q4_k_words_layout"),
-        uses_q6_k_halfwords_layout=(
-            (q4_k_m_config is not None and bool(q4_k_m_config["q6_names"] or q4_k_m_config["q6_prefixes"]))
-            or _uses_layout_source(classes, "q6_k_halfwords_layout")
-        ),
-        uses_q8_0_halfwords_layout=q4_k_m_config is not None or _uses_layout_source(classes, "q8_0_halfwords_layout"),
-    ).rstrip() + "\n"
+    return (
+        render_template(
+            "tensor_module.py.j2",
+            classes=classes,
+            q4_k_m_config=q4_k_m_config,
+            uses_q4_k_words_layout=q4_k_m_config is not None
+            or _uses_layout_source(classes, "q4_k_words_layout"),
+            uses_q6_k_halfwords_layout=(
+                (
+                    q4_k_m_config is not None
+                    and bool(q4_k_m_config["q6_names"] or q4_k_m_config["q6_prefixes"])
+                )
+                or _uses_layout_source(classes, "q6_k_halfwords_layout")
+            ),
+            uses_q8_0_halfwords_layout=q4_k_m_config is not None
+            or _uses_layout_source(classes, "q8_0_halfwords_layout"),
+        ).rstrip()
+        + "\n"
+    )
 
 
 def _q4_k_m_config(classes: list[TensorClassContext]) -> dict[str, tuple[str, ...]] | None:
@@ -131,6 +139,7 @@ def generate_tensor_class_source(
     class_name: str = "ExportedTensors",
     function_name: str = "create_exported",
     weight_prefix: str = "",
+    checkpoint: str | None = None,
     is_layered: bool | None = None,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
     weight_quantization: Q4KMWeightQuantization | None = None,
@@ -153,7 +162,8 @@ def generate_tensor_class_source(
                     dtype = _node_dtype(node)
                     is_param = spec.kind in (InputKind.PARAMETER, InputKind.BUFFER)
                     tensors[spec.arg.name] = _TensorMeta(
-                        shape=shape, dtype=dtype,
+                        shape=shape,
+                        dtype=dtype,
                         kind=_TensorKind.PARAMETER if is_param else _TensorKind.USER_INPUT,
                     )
                     if is_param:
@@ -204,20 +214,24 @@ def generate_tensor_class_source(
 
     tensor_entries = []
     for name, meta in tensors.items():
-        tensor_entries.append(_tensor_entry(
-            name=name,
-            meta=meta,
-            checkpoint_key=_checkpoint_key_expr(
+        tensor_entries.append(
+            _tensor_entry(
                 name=name,
                 meta=meta,
-                param_map=param_map,
-                is_layered=is_layered,
-            ),
-            concrete_checkpoint_key=param_map.get(name),
-            reference_key="None" if meta.kind != _TensorKind.INTERMEDIATE else repr(name),
-            weight_quantization=weight_quantization,
-            shape_exprs=shape_exprs,
-        ))
+                checkpoint_key=_checkpoint_key_expr(
+                    name=name,
+                    meta=meta,
+                    param_map=param_map,
+                    is_layered=is_layered,
+                ),
+                checkpoint=repr(checkpoint) if meta.kind == _TensorKind.PARAMETER else "None",
+                concrete_checkpoint_key=param_map.get(name),
+                reference_key="None" if meta.kind != _TensorKind.INTERMEDIATE else repr(name),
+                weight_quantization=weight_quantization,
+                shape_exprs=shape_exprs,
+                activation_dtype=registry.activation_dtype,
+            )
+        )
 
     output_const = function_name.removeprefix("create_").upper() + "_OUTPUT"
     fields = tuple(tensors.keys())
@@ -258,15 +272,18 @@ def _tensor_entry(
     name: str,
     meta: _TensorMeta,
     checkpoint_key: str,
+    checkpoint: str,
     concrete_checkpoint_key: str | None,
     reference_key: str,
     weight_quantization: Q4KMWeightQuantization | None = None,
     shape_exprs: Mapping[int, str] | None = None,
+    activation_dtype: str = "float16",
 ) -> dict[str, object]:
     kind = meta.kind
     dtype = logical_tensor_dtype(
         is_parameter=kind == _TensorKind.PARAMETER,
         dtype=meta.dtype,
+        activation_dtype=activation_dtype,
         force_float32=meta.force_float32,
     )
     shape = meta.shape
@@ -285,12 +302,12 @@ def _tensor_entry(
         layout_source = quantized.layout_source
         spec_source = (
             f"_quantized_weight_spec({checkpoint_key}, "
-            f"dtype={logical_tensor_dtype(is_parameter=True, dtype=meta.dtype, force_float32=meta.force_float32)!r}, "
+            f"dtype={logical_tensor_dtype(is_parameter=True, dtype=meta.dtype, activation_dtype=activation_dtype, force_float32=meta.force_float32)!r}, "
             f"shape={_shape_source(meta.shape, shape_exprs or {})})"
         )
         layout_source = (
             f"_quantized_weight_layout({checkpoint_key}, "
-            f"dtype={logical_tensor_dtype(is_parameter=True, dtype=meta.dtype, force_float32=meta.force_float32)!r}, "
+            f"dtype={logical_tensor_dtype(is_parameter=True, dtype=meta.dtype, activation_dtype=activation_dtype, force_float32=meta.force_float32)!r}, "
             f"shape={_shape_source(meta.shape, shape_exprs or {})})"
         )
     if kind == _TensorKind.PARAMETER:
@@ -309,6 +326,7 @@ def _tensor_entry(
         "name": name,
         "name_source": repr(name),
         "checkpoint_key_expr": checkpoint_key,
+        "checkpoint_expr": checkpoint,
         "reference_key_expr": reference_key,
         "dtype_source": repr(dtype),
         "shape_source": _shape_source(shape, shape_exprs or {}),

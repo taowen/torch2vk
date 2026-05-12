@@ -97,10 +97,30 @@ def make_linear_bias_variant(node: Node, activation_dtype: str = "float32") -> S
             class_name=f"ExportLinearBias{weight_suffix.title()}Weight{bias_suffix.title()}BiasProgram",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)),
-                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=w_contract)),
-                TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=b_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=x_contract),
+                ),
+                TensorFieldSpec(
+                    "weight",
+                    IOKind.INPUT,
+                    "weight",
+                    TensorContract(dtype=weight_dtype, shape=w_contract),
+                ),
+                TensorFieldSpec(
+                    "bias",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=bias_dtype, shape=b_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=12,
@@ -112,25 +132,31 @@ def make_linear_bias_variant(node: Node, activation_dtype: str = "float32") -> S
             ),
             dispatch=(ceil_div(m, 16), ceil_div(w_contract[0], 16), 1),
         ),
-        source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype, activation_dtype=activation_dtype),
+        source=_source(
+            weight_dtype=weight_dtype, bias_dtype=bias_dtype, activation_dtype=activation_dtype
+        ),
         execution_requirements=activation_requirements(activation_dtype),
     )
 
 
 def _source(*, weight_dtype: str, bias_dtype: str, activation_dtype: str) -> str:
     extension = (
-        weight_extension_source("bfloat16")
-        if "bfloat16" in {weight_dtype, bias_dtype}
-        else ""
+        weight_extension_source("bfloat16") if "bfloat16" in {weight_dtype, bias_dtype} else ""
     )
     return (
-        _SOURCE_TEMPLATE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SOURCE_TEMPLATE.replace(
+            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+        )
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{WEIGHT_EXTENSION}}", extension)
         .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))
         .replace("{{BIAS_TYPE}}", weight_glsl_type(bias_dtype))
         .replace("{{WEIGHT_ZERO}}", weight_zero_literal(weight_dtype))
-        .replace("{{TILE_X_STORE}}", activation_store("(gr < pc.M && gk < pc.K) ? x[gr * pc.K + gk] : 0.0", activation_dtype))
+        .replace(
+            "{{TILE_X_STORE}}",
+            activation_store(
+                "(gr < pc.M && gk < pc.K) ? x[gr * pc.K + gk] : 0.0", activation_dtype
+            ),
+        )
         .replace("{{STORE_ACC}}", activation_store("acc + float(bias[col])", activation_dtype))
     )

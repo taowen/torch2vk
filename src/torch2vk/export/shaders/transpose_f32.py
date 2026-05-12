@@ -84,8 +84,18 @@ def make_transpose_variant(node: Node, activation_dtype: str = "float32") -> Sha
             class_name="ExportTransposeProgram",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=in_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=in_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=offset,
@@ -133,8 +143,9 @@ def _transpose_source(
         encode_lines.append(f"        in_idx = in_idx * pc.I{index} + {coord};")
 
     return (
-        _SOURCE_TEMPLATE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SOURCE_TEMPLATE.replace(
+            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+        )
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("__PUSH_CONSTANT_DECLS__", "\n".join(push_lines))
         .replace("__DECODE_OUTPUT_COORDS__", "\n".join(decode_lines))

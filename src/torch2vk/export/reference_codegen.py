@@ -26,15 +26,18 @@ def render_reference_module(
     loader_fields: list[str],
     loader_sources: list[str],
 ) -> str:
-    return render_template(
-        "reference_module.py.j2",
-        model_package=model_package,
-        model_imports_source="\n".join(model_imports),
-        model_type=model_type,
-        loaders=tuple({"field": field} for field in loader_fields),
-        loaders_source="\n\n".join(loader_sources).rstrip(),
-        reference_functions_source="\n\n".join(reference_functions).rstrip(),
-    ).rstrip() + "\n"
+    return (
+        render_template(
+            "reference_module.py.j2",
+            model_package=model_package,
+            model_imports_source="\n".join(model_imports),
+            model_type=model_type,
+            loaders=tuple({"field": field} for field in loader_fields),
+            loaders_source="\n\n".join(loader_sources).rstrip(),
+            reference_functions_source="\n\n".join(reference_functions).rstrip(),
+        ).rstrip()
+        + "\n"
+    )
 
 
 def render_reference_loader(
@@ -129,7 +132,9 @@ def _reference_function_item(
     input_names = tuple(input_bindings.keys())
     duplicate = names_seen.intersection(input_names)
     if duplicate:
-        raise ValueError(f"{name} reference inputs conflict with generated params: {sorted(duplicate)}")
+        raise ValueError(
+            f"{name} reference inputs conflict with generated params: {sorted(duplicate)}"
+        )
     return {
         "function_name": f"run_{name}",
         "extra_params": tuple(extra_params),

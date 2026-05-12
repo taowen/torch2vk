@@ -33,7 +33,7 @@ from models.optimized_qwen3_asr.dispatch.decode_lm_head import run_decode_lm_hea
 from models.optimized_qwen3_asr.dispatch.decode_norm import run_decode_norm
 from models.optimized_qwen3_asr.dispatch.embed_tokens import run_embed_tokens
 from models.optimized_qwen3_asr.dispatch.lm_head import run_lm_head
-from models.optimized_qwen3_asr.dispatch.text_layer import run_text_layer
+from models.optimized_qwen3_asr.dispatch.text_layer import run_text_last_layer_tail, run_text_layer
 from models.optimized_qwen3_asr.dispatch.text_norm import run_text_norm
 from models.optimized_qwen3_asr.pytorch_modules import (
     AudioEncoderReference,
@@ -340,6 +340,7 @@ def _run_decode_step_with_compare(
 # Main pipeline
 # ==============================================================
 
+
 def compare_decode_steps(
     *,
     max_new_tokens: int = 1,
@@ -347,10 +348,10 @@ def compare_decode_steps(
 ) -> str:
     if max_new_tokens <= 0 or max_new_tokens > 64:
         raise ValueError(f"max_new_tokens must be in [1, 64], got {max_new_tokens}")
-    if max_new_tokens != 1:
-        raise ValueError("optimized_qwen3_asr compare covers prefill only; use run.py for decode replay")
     if compare_prefill_layers < 0:
-        raise ValueError(f"compare_prefill_layers must be non-negative, got {compare_prefill_layers}")
+        raise ValueError(
+            f"compare_prefill_layers must be non-negative, got {compare_prefill_layers}"
+        )
     wav_path = Path("tests/fixtures/qwen3_asr_asknot.wav")
     if not wav_path.exists():
         raise FileNotFoundError(f"Test wav not found at {wav_path}")
@@ -415,6 +416,7 @@ def compare_decode_steps(
         head_dim=tc.head_dim,
         max_new_tokens=max_new_tokens,
         eos_token_count=len(eos_token_ids),
+        vocab_size=int(tc.vocab_size),
     )
     rt = RuntimeSession.open(
         device_index=0,
@@ -532,7 +534,7 @@ def compare_decode_steps(
         ref_hidden = _vulkan_input(rt, model_tensors().audio_inject.index_copy)
         ref_cos = _vulkan_input(rt, model_tensors().prefill_rope.cos)
         ref_sin = _vulkan_input(rt, model_tensors().prefill_rope.sin)
-        for layer_idx in range(len(model_tensors().text_layers)):
+        for layer_idx in range(len(model_tensors().text_layers) - 1):
             run_text_layer(rt, layer_idx)
             if layer_idx < compare_prefill_layers:
                 reference.run_text_layer(
@@ -547,6 +549,8 @@ def compare_decode_steps(
             ref_hidden = _vulkan_input(rt, model_tensors().text_layers[layer_idx].add_7)
             if layer_idx % 7 == 6:
                 print(f"    layer {layer_idx} done")
+        run_text_last_layer_tail(rt)
+        ref_hidden = _vulkan_input(rt, model_tensors().prefill_last_output)
         run_text_norm(rt)
         reference.run_text_norm(
             rt,

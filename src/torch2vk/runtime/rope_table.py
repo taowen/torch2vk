@@ -136,6 +136,50 @@ void main() {
 )
 
 
+ROPE_TABLE_OUTPUT_F32 = ShaderVariant(
+    name="rope_table_output_f32",
+    family=ROPE_TABLE_F32.family,
+    contract=ShaderContract(
+        class_name="RopeTableOutputF32Program",
+        shader_name="rope_table_output_f32",
+        fields=(
+            ROPE_TABLE_F32.contract.fields[0],
+            ROPE_TABLE_F32.contract.fields[1],
+            TensorFieldSpec(
+                name="cos",
+                io_kind=IOKind.OUTPUT,
+                role="output",
+                contract=TensorContract(dtype="float32", shape=("B", "T", "D")),
+            ),
+            TensorFieldSpec(
+                name="sin",
+                io_kind=IOKind.OUTPUT,
+                role="output",
+                contract=TensorContract(dtype="float32", shape=("B", "T", "D")),
+            ),
+        ),
+        push_constants=ROPE_TABLE_F32.contract.push_constants,
+        dispatch=ROPE_TABLE_F32.contract.dispatch,
+    ),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+    source=ROPE_TABLE_F32.source.replace(
+        "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
+        "#extension GL_EXT_shader_16bit_storage : require\n",
+        "",
+    )
+    .replace("float16_t cos_values[];", "float cos_values[];")
+    .replace("float16_t sin_values[];", "float sin_values[];")
+    .replace(
+        "float16_t(cos(angle) * pc.attention_scaling)",
+        "cos(angle) * pc.attention_scaling",
+    )
+    .replace(
+        "float16_t(sin(angle) * pc.attention_scaling)",
+        "sin(angle) * pc.attention_scaling",
+    ),
+)
+
+
 def declare_rope_start_position_tensor(name: str) -> LogicalTensor:
     return LogicalTensor(
         name=name,
@@ -162,12 +206,13 @@ def declare_rope_table_tensors(
     batch: int,
     sequence_length: int,
     head_dim: int,
+    dtype: str = "float16",
 ) -> RopeTableTensors:
     return RopeTableTensors(
         start_position=declare_rope_start_position_tensor(f"{prefix}.start_position"),
         theta=declare_rope_theta_tensor(f"{prefix}.theta"),
-        cos=_declare_rope_output(f"{prefix}.cos", batch=batch, sequence_length=sequence_length, head_dim=head_dim),
-        sin=_declare_rope_output(f"{prefix}.sin", batch=batch, sequence_length=sequence_length, head_dim=head_dim),
+        cos=_declare_rope_output(f"{prefix}.cos", batch=batch, sequence_length=sequence_length, head_dim=head_dim, dtype=dtype),
+        sin=_declare_rope_output(f"{prefix}.sin", batch=batch, sequence_length=sequence_length, head_dim=head_dim, dtype=dtype),
     )
 
 
@@ -180,8 +225,14 @@ def run_rope_table_f32(
     sin: LogicalTensor,
     frame_name: str,
 ) -> None:
+    if cos.spec.dtype == "float32":
+        variant = ROPE_TABLE_OUTPUT_F32
+    elif cos.spec.dtype == "float16":
+        variant = ROPE_TABLE_F32
+    else:
+        raise ValueError(f"unsupported RoPE table dtype: {cos.spec.dtype}")
     with rt.frame(frame_name):
-        ROPE_TABLE_F32(
+        variant(
             rt,
             start_position=start_position,
             theta=theta,
@@ -196,10 +247,11 @@ def _declare_rope_output(
     batch: int,
     sequence_length: int,
     head_dim: int,
+    dtype: str,
 ) -> LogicalTensor:
     return LogicalTensor(
         name=name,
-        spec=TensorSpec(dtype="float16", shape=(batch, sequence_length, head_dim)),
+        spec=TensorSpec(dtype=dtype, shape=(batch, sequence_length, head_dim)),
         role=TensorRole.STATE,
         memory=MemoryClass.REQUEST_STATE,
         lifetime=TensorLifetime.REQUEST,

@@ -83,7 +83,9 @@ void main() {
 """
 
 
-def make_linear_nobias_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
+def make_linear_nobias_variant(
+    node: Node, activation_dtype: str = "float32"
+) -> ShaderVariant | None:
     x_shape = node_input_shape(node, 0)
     w_shape = node_input_shape(node, 1)
     out_shape = node_output_shape(node)
@@ -106,9 +108,24 @@ def make_linear_nobias_variant(node: Node, activation_dtype: str = "float32") ->
             class_name=f"ExportLinearNobias{weight_suffix.title()}WeightProgram",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)),
-                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=w_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=x_contract),
+                ),
+                TensorFieldSpec(
+                    "weight",
+                    IOKind.INPUT,
+                    "weight",
+                    TensorContract(dtype=weight_dtype, shape=w_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=12,
@@ -127,13 +144,19 @@ def make_linear_nobias_variant(node: Node, activation_dtype: str = "float32") ->
 
 def _source(weight_dtype: str, activation_dtype: str) -> str:
     return (
-        _SOURCE_TEMPLATE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SOURCE_TEMPLATE.replace(
+            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+        )
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{WEIGHT_EXTENSION}}", weight_extension_source(weight_dtype))
         .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))
         .replace("{{WEIGHT_ZERO}}", weight_zero_literal(weight_dtype))
-        .replace("{{TILE_X_STORE}}", activation_store("(gr < pc.M && gk < pc.K) ? x[gr * pc.K + gk] : 0.0", activation_dtype))
+        .replace(
+            "{{TILE_X_STORE}}",
+            activation_store(
+                "(gr < pc.M && gk < pc.K) ? x[gr * pc.K + gk] : 0.0", activation_dtype
+            ),
+        )
         .replace("{{STORE_ACC0}}", activation_store("acc0", activation_dtype))
         .replace("{{STORE_ACC1}}", activation_store("acc1", activation_dtype))
         .replace("{{STORE_ACC2}}", activation_store("acc2", activation_dtype))

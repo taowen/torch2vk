@@ -12,14 +12,13 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Protocol, Sequence, cast
 
 import numpy as np
 import torch
 from transformers import AutoTokenizer
-from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.hf_cache import resolve_cached_model
+from models.exported_omnivoice.dispatch.audio_decode import run_audio_decode
 from models.exported_omnivoice.dispatch.audio_head import run_audio_head
 from models.exported_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.exported_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
@@ -40,10 +39,6 @@ from torch2vk.runtime.shader_loader import make_shader_loader
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_exported.wav")
 _GENERATION_REPLAY_CACHE = "exported_omnivoice_generation_step:v1"
 get_shader = make_shader_loader("models.exported_omnivoice.shaders")
-
-
-class _AudioDecodeOutput(Protocol):
-    audio_values: Sequence[torch.Tensor]
 
 
 def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float) -> np.ndarray:
@@ -180,7 +175,9 @@ def main(
     batch_audio_mask = prepared.batch_audio_mask
     attn_mask_np = prepared.attention_mask
 
-    print(f"  seq_len={seq_len}, target_len={target_len}, cond_audio_start={prepared.cond_audio_start}")
+    print(
+        f"  seq_len={seq_len}, target_len={target_len}, cond_audio_start={prepared.cond_audio_start}"
+    )
 
     # Create runtime and tensors
     print("Initializing Vulkan runtime...")
@@ -233,10 +230,12 @@ def main(
     )
 
     # Compute RoPE once on GPU (positions are fixed for masked decoding)
-    rt.register_inputs({
-        model_tensors().rope.start_position: np.array([0], dtype=np.int64),
-        model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
-    })
+    rt.register_inputs(
+        {
+            model_tensors().rope.start_position: np.array([0], dtype=np.int64),
+            model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
+        }
+    )
     _run_rope_table(rt, frame_name="omnivoice.rope")
 
     unmasked = 0
@@ -286,21 +285,16 @@ def main(
 
         if step % 8 == 0 or step == num_steps - 1:
             total = num_audio_codebook * target_len
-            print(f"  Step {step}: unmasked {unmasked}/{total} ({100*unmasked/total:.0f}%)")
+            print(f"  Step {step}: unmasked {unmasked}/{total} ({100 * unmasked / total:.0f}%)")
 
     # Decode audio tokens
     print("\nDecoding audio tokens...")
-    generated_tokens = rt.read_request_state(model_tensors().tokens)
+    with rt.frame("omnivoice.audio_decode"):
+        run_audio_decode(rt)
+    waveform = torch.from_numpy(
+        np.ascontiguousarray(rt.read_request_state(model_tensors().audio_decode.conv1d_31)[0])
+    )
     rt.close()
-    audio_tokenizer_path = model_dir / "audio_tokenizer"
-    audio_tokenizer = HiggsAudioV2TokenizerModel.from_pretrained(
-        str(audio_tokenizer_path), device_map="cuda"
-    )
-    audio_output = cast(
-        _AudioDecodeOutput,
-        audio_tokenizer.decode(torch.from_numpy(generated_tokens).cuda()),
-    )
-    waveform = audio_output.audio_values[0].cpu()
 
     # Save wav
     output_path = save_audio_wav(waveform, output_path)

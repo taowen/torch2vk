@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from torch.fx import Node
 
-from torch2vk.export.shaders._factory import activation_extension_source, activation_glsl_type, make_unary_elementwise
+from torch2vk.export.shaders._factory import (
+    activation_extension_source,
+    activation_glsl_type,
+    make_unary_elementwise,
+)
 from torch2vk.runtime.shader import ShaderVariant
 
 _SOURCE = """\
@@ -31,8 +35,6 @@ def make_pow_scalar_variant(node: Node, activation_dtype: str = "float32") -> Sh
 
 
 def _source(activation_dtype: str) -> str:
-    return (
-        _SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
-        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
-    )
+    return _SOURCE.replace(
+        "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+    ).replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))

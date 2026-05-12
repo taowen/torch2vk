@@ -150,7 +150,11 @@ def _make_kv_cache_write_variant(node: Node, activation_dtype: str) -> ShaderVar
         return None
     if len(cache_shape) != 4 or len(src_shape) != 4 or len(index_shape) != 1:
         return None
-    if cache_shape[0] != src_shape[0] or cache_shape[1] != src_shape[1] or cache_shape[3] != src_shape[3]:
+    if (
+        cache_shape[0] != src_shape[0]
+        or cache_shape[1] != src_shape[1]
+        or cache_shape[3] != src_shape[3]
+    ):
         return None
     if index_shape[0] != src_shape[2]:
         return None
@@ -163,9 +167,24 @@ def _make_kv_cache_write_variant(node: Node, activation_dtype: str) -> ShaderVar
             class_name="ExportKvCacheWriteF32Program",
             shader_name="kv_cache_write_f32",
             fields=(
-                TensorFieldSpec("cache", IOKind.INOUT, "state", TensorContract(dtype=activation_dtype, shape=("B", "H", "S", "D"))),
-                TensorFieldSpec("cache_position", IOKind.INPUT, "cache_position", TensorContract(dtype=index_dtype, shape=("T",))),
-                TensorFieldSpec("src", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=("B", "H", "T", "D"))),
+                TensorFieldSpec(
+                    "cache",
+                    IOKind.INOUT,
+                    "state",
+                    TensorContract(dtype=activation_dtype, shape=("B", "H", "S", "D")),
+                ),
+                TensorFieldSpec(
+                    "cache_position",
+                    IOKind.INPUT,
+                    "cache_position",
+                    TensorContract(dtype=index_dtype, shape=("T",)),
+                ),
+                TensorFieldSpec(
+                    "src",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=("B", "H", "T", "D")),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=20,
@@ -179,7 +198,9 @@ def _make_kv_cache_write_variant(node: Node, activation_dtype: str) -> ShaderVar
             ),
             dispatch=(ceil_div(total, 256), 1, 1),
         ),
-        execution_requirements=activation_requirements(activation_dtype, _index_execution_requirements(index_dtype)),
+        execution_requirements=activation_requirements(
+            activation_dtype, _index_execution_requirements(index_dtype)
+        ),
         source=_index_source(_SOURCE_KV_CACHE_WRITE, index_dtype, activation_dtype),
     )
 
@@ -194,7 +215,11 @@ def _make_index_copy_dim2_4d(node: Node, activation_dtype: str) -> ShaderVariant
         return None
     if len(cache_shape) != 4 or len(src_shape) != 4 or len(index_shape) != 1:
         return None
-    if cache_shape[0] != src_shape[0] or cache_shape[1] != src_shape[1] or cache_shape[3] != src_shape[3]:
+    if (
+        cache_shape[0] != src_shape[0]
+        or cache_shape[1] != src_shape[1]
+        or cache_shape[3] != src_shape[3]
+    ):
         return None
     if index_shape[0] != src_shape[2]:
         return None
@@ -211,9 +236,21 @@ def _make_index_copy_dim2_4d(node: Node, activation_dtype: str) -> ShaderVariant
             class_name="ExportIndexCopyF32Program",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("cache", IOKind.INOUT, "state", TensorContract(dtype=activation_dtype, shape=("B", "H", "S", "D"))),
-                TensorFieldSpec("index", IOKind.INPUT, "index", TensorContract(dtype=index_dtype, shape=("T",))),
-                TensorFieldSpec("src", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=("B", "H", "T", "D"))),
+                TensorFieldSpec(
+                    "cache",
+                    IOKind.INOUT,
+                    "state",
+                    TensorContract(dtype=activation_dtype, shape=("B", "H", "S", "D")),
+                ),
+                TensorFieldSpec(
+                    "index", IOKind.INPUT, "index", TensorContract(dtype=index_dtype, shape=("T",))
+                ),
+                TensorFieldSpec(
+                    "src",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=("B", "H", "T", "D")),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=20,
@@ -227,7 +264,9 @@ def _make_index_copy_dim2_4d(node: Node, activation_dtype: str) -> ShaderVariant
             ),
             dispatch=(ceil_div(total, 256), 1, 1),
         ),
-        execution_requirements=activation_requirements(activation_dtype, _index_execution_requirements(index_dtype)),
+        execution_requirements=activation_requirements(
+            activation_dtype, _index_execution_requirements(index_dtype)
+        ),
         source=_index_source(_SOURCE_DIM2_4D, index_dtype, activation_dtype),
     )
 
@@ -259,9 +298,21 @@ def _make_index_copy_dim1_3d(node: Node, activation_dtype: str) -> ShaderVariant
             class_name="ExportIndexCopyF32Program",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("cache", IOKind.INOUT, "state", TensorContract(dtype=activation_dtype, shape=("B", "T", "H"))),
-                TensorFieldSpec("index", IOKind.INPUT, "index", TensorContract(dtype=index_dtype, shape=("S",))),
-                TensorFieldSpec("src", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=("B", "S", "H"))),
+                TensorFieldSpec(
+                    "cache",
+                    IOKind.INOUT,
+                    "state",
+                    TensorContract(dtype=activation_dtype, shape=("B", "T", "H")),
+                ),
+                TensorFieldSpec(
+                    "index", IOKind.INPUT, "index", TensorContract(dtype=index_dtype, shape=("S",))
+                ),
+                TensorFieldSpec(
+                    "src",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=("B", "S", "H")),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=16,
@@ -274,17 +325,22 @@ def _make_index_copy_dim1_3d(node: Node, activation_dtype: str) -> ShaderVariant
             ),
             dispatch=(ceil_div(total, 256), 1, 1),
         ),
-        execution_requirements=activation_requirements(activation_dtype, _index_execution_requirements(index_dtype)),
+        execution_requirements=activation_requirements(
+            activation_dtype, _index_execution_requirements(index_dtype)
+        ),
         source=_index_source(_SOURCE_DIM1_3D, index_dtype, activation_dtype),
     )
 
 
 def _index_source(source: str, dtype: str, activation_dtype: str) -> str:
     index_type = "int64_t" if dtype == "int64" else "int"
-    extension = "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require" if dtype == "int64" else ""
+    extension = (
+        "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require"
+        if dtype == "int64"
+        else ""
+    )
     return (
-        source
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        source.replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
         .replace("{{INDEX_EXTENSION}}", extension)
         .replace("{{INDEX_TYPE}}", index_type)
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))

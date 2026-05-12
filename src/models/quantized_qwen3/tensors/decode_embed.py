@@ -46,6 +46,7 @@ def create_decode_embed(
         p_weight=_bind_tensor(
             p_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="model.embed_tokens.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("model.embed_tokens.weight", dtype='float32', shape=(151936, 1024)),
@@ -59,6 +60,7 @@ def create_decode_embed(
         input=_bind_tensor(
             input,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='int64', shape=(1, 1)),
@@ -72,6 +74,7 @@ def create_decode_embed(
         embedding=_bind_tensor(
             embedding,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='embedding',
                 spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
@@ -94,14 +97,23 @@ _Q8_TENSOR_PREFIXES = ()
 
 
 def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorSpec:
-    if dtype not in ("float32", "float16", "bfloat16") or len(shape) != 2:
+    if dtype not in ("float32", "float16", "bfloat16"):
         return TensorSpec(dtype=dtype, shape=shape)
-    n, k = shape
-    if checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES):
+    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
+    force_q8 = checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES)
+    if force_q6 and len(shape) >= 2:
+        n, k = _quantized_matrix_shape(shape)
         if k % 256 != 0:
             raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
         return TensorSpec(dtype="uint16", shape=(n, k // 256 * 105))
-    if checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES) or k % 256 != 0:
+    if force_q8 and len(shape) >= 2:
+        n, k = _quantized_matrix_shape(shape)
+        padded_k = _round_up(k, 32)
+        return TensorSpec(dtype="uint16", shape=(n, padded_k // 32 * 17))
+    if len(shape) != 2:
+        return TensorSpec(dtype=dtype, shape=shape)
+    n, k = shape
+    if k % 256 != 0:
         if k % 32 != 0:
             return TensorSpec(dtype="float32", shape=shape)
         return TensorSpec(dtype="uint16", shape=(n, k // 32 * 17))
@@ -109,18 +121,38 @@ def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int,
 
 
 def _quantized_weight_layout(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorLayout:
-    if dtype not in ("float32", "float16", "bfloat16") or len(shape) != 2:
+    if dtype not in ("float32", "float16", "bfloat16"):
         return CONTIGUOUS_LAYOUT
-    _, k = shape
-    if checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES):
+    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
+    force_q8 = checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES)
+    if force_q6 and len(shape) >= 2:
+        _, k = _quantized_matrix_shape(shape)
         if k % 256 != 0:
             raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
         return q6_k_halfwords_layout(logical_k=k)
-    if checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES) or k % 256 != 0:
+    if force_q8 and len(shape) >= 2:
+        _, k = _quantized_matrix_shape(shape)
+        return q8_0_halfwords_layout(logical_k=k)
+    if len(shape) != 2:
+        return CONTIGUOUS_LAYOUT
+    _, k = shape
+    if k % 256 != 0:
         if k % 32 != 0:
             return CONTIGUOUS_LAYOUT
         return q8_0_halfwords_layout(logical_k=k)
     return q4_k_words_layout(logical_k=k)
+
+
+def _quantized_matrix_shape(shape: tuple[int, ...]) -> tuple[int, int]:
+    rows = shape[0]
+    cols = 1
+    for dim in shape[1:]:
+        cols *= dim
+    return rows, cols
+
+
+def _round_up(value: int, multiple: int) -> int:
+    return ((value + multiple - 1) // multiple) * multiple
 
 
 def _declare_tensor(
@@ -130,6 +162,7 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     layout: TensorLayout = CONTIGUOUS_LAYOUT,
+    checkpoint: str | None = None,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -143,6 +176,7 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
+        checkpoint=checkpoint,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
         layout=layout,

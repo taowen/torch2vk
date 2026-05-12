@@ -40,12 +40,18 @@ class Q4KMWeightQuantization:
                 layout_source="CONTIGUOUS_LAYOUT",
             )
 
-        force_q6 = checkpoint_key in self.q6_tensor_names or checkpoint_key.startswith(self.q6_tensor_prefixes)
-        force_q8 = checkpoint_key in self.q8_tensor_names or checkpoint_key.startswith(self.q8_tensor_prefixes)
+        force_q6 = checkpoint_key in self.q6_tensor_names or checkpoint_key.startswith(
+            self.q6_tensor_prefixes
+        )
+        force_q8 = checkpoint_key in self.q8_tensor_names or checkpoint_key.startswith(
+            self.q8_tensor_prefixes
+        )
         if force_q6 and len(shape) >= 2:
             n, k = _matrix_shape(shape)
             if k % 256 != 0:
-                raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
+                raise ValueError(
+                    f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}"
+                )
             return QuantizedWeightDeclaration(
                 dtype="uint16",
                 shape=(n, k // 256 * 105),

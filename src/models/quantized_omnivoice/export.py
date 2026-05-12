@@ -45,7 +45,9 @@ from torch2vk.export import (
     ReferencePolicy,
     bind_dispatch_function_to_tensors,
     cast_floating_tensors,
+    clear_python_modules,
     clear_shader_package,
+    count_python_modules,
     export_submodule,
     generate_dispatch_function_source,
     generate_looped_dispatch_function_source,
@@ -59,7 +61,6 @@ from torch2vk.export import (
     render_reference_loader,
     render_reference_module,
     write_shader_file,
-    write_shader_init,
 )
 from torch2vk.export.registry import ShaderRegistry
 from torch2vk.export.tensor_codegen import render_tensor_module
@@ -134,9 +135,8 @@ def main() -> int:
     clear_shader_package(shaders_dir)
     tensors_dir.mkdir(exist_ok=True)
     dispatch_dir.mkdir(exist_ok=True)
-    for directory in (tensors_dir, dispatch_dir):
-        for source in directory.glob("*.py"):
-            source.unlink()
+    clear_python_modules(tensors_dir)
+    clear_python_modules(dispatch_dir)
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
@@ -350,7 +350,7 @@ def main() -> int:
                 tensor_expr=f"model_tensors().{function_name}",
                 shader_imports=shader_imports,
                 function_source=bind_dispatch_function_to_tensors(function_source),
-                uses_q4_q6_dispatch="_linear_q4_or_q6" in function_source,
+                uses_quantized_linear_dispatch="run_quantized_linear(" in function_source,
             )
         )
         print(f"  {name}: {len(used_variants)} shaders")
@@ -397,8 +397,6 @@ def main() -> int:
         reference_policy="q4_tensor",
         export_registry=Q4_K_M_REGISTRY,
     )
-
-    write_shader_init(shaders_dir)
     print(f"\n  {shader_file_count} shader files written")
 
     (tensors_dir / "model.py").write_text(
@@ -414,11 +412,8 @@ def main() -> int:
             audio_vocab_size=shapes["audio_vocab_size"],
         )
     )
-    (tensors_dir / "__init__.py").write_text('"""Generated tensor package."""\n')
-    print(f"  tensors/ written ({len([path for path in tensors_dir.glob('*.py') if path.name != '__init__.py'])} files)")
-
-    (dispatch_dir / "__init__.py").write_text('"""Generated dispatch package."""\n')
-    print(f"  dispatch/ written ({len([path for path in dispatch_dir.glob('*.py') if path.name != '__init__.py'])} files)")
+    print(f"  tensors/ written ({count_python_modules(tensors_dir)} files)")
+    print(f"  dispatch/ written ({count_python_modules(dispatch_dir)} files)")
 
     (output_dir / "reference.py").write_text(
         render_reference_module(

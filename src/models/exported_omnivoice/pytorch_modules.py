@@ -7,13 +7,18 @@ is a pure tensor transform.
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Protocol, cast
 
 import numpy as np
 import torch
 from torch import nn
+from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from omnivoice.models.omnivoice import OmniVoice
+
+
+class _AudioVectorQuantizer(Protocol):
+    def decode(self, embed_ind: torch.Tensor) -> torch.Tensor: ...
 
 
 def torch_tensor(inputs: dict[str, np.ndarray], name: str) -> torch.Tensor:
@@ -25,10 +30,14 @@ class InputEmbedModule(nn.Module):
         super().__init__()
         self.text_embedding = cast(nn.Module, model.get_input_embeddings())
         self.audio_embedding = cast(nn.Module, model.audio_embeddings)
-        self._codebook_layer_offsets = cast(
-            torch.Tensor,
-            model.codebook_layer_offsets,
-        ).detach().clone()
+        self._codebook_layer_offsets = (
+            cast(
+                torch.Tensor,
+                model.codebook_layer_offsets,
+            )
+            .detach()
+            .clone()
+        )
 
     def forward(self, input_ids: torch.Tensor, audio_mask: torch.Tensor) -> torch.Tensor:
         audio_mask_bool = audio_mask.to(torch.bool)
@@ -72,6 +81,31 @@ class AudioHeadModule(nn.Module):
         return self.audio_heads(hidden_states)
 
 
+class AudioDecodeModule(nn.Module):
+    def __init__(self, audio_tokenizer: HiggsAudioV2TokenizerModel) -> None:
+        super().__init__()
+        self.quantizer = audio_tokenizer.quantizer
+        self.fc2 = audio_tokenizer.fc2
+        self.acoustic_decoder = audio_tokenizer.acoustic_decoder
+
+    def forward(self, audio_codes: torch.Tensor) -> torch.Tensor:
+        q0 = self._decode_quantizer(0, audio_codes[:, 0, :])
+        q1 = self._decode_quantizer(1, audio_codes[:, 1, :])
+        q2 = self._decode_quantizer(2, audio_codes[:, 2, :])
+        q3 = self._decode_quantizer(3, audio_codes[:, 3, :])
+        q4 = self._decode_quantizer(4, audio_codes[:, 4, :])
+        q5 = self._decode_quantizer(5, audio_codes[:, 5, :])
+        q6 = self._decode_quantizer(6, audio_codes[:, 6, :])
+        q7 = self._decode_quantizer(7, audio_codes[:, 7, :])
+        quantized = q0 + q1 + q2 + q3 + q4 + q5 + q6 + q7
+        quantized_acoustic = self.fc2(quantized.transpose(1, 2)).transpose(1, 2)
+        return self.acoustic_decoder(quantized_acoustic)
+
+    def _decode_quantizer(self, index: int, codes: torch.Tensor) -> torch.Tensor:
+        quantizer = cast(_AudioVectorQuantizer, self.quantizer.quantizers[index])
+        return quantizer.decode(codes)
+
+
 class TokenScoreModule(nn.Module):
     def __init__(
         self,
@@ -105,9 +139,7 @@ class TokenScoreModule(nn.Module):
 
         cond_log_probs = torch.log_softmax(cond_logits, dim=-1)
         uncond_log_probs = torch.log_softmax(uncond_logits, dim=-1)
-        guided_logits = cond_log_probs + self.guidance_scale * (
-            cond_log_probs - uncond_log_probs
-        )
+        guided_logits = cond_log_probs + self.guidance_scale * (cond_log_probs - uncond_log_probs)
         log_probs = torch.log_softmax(guided_logits, dim=-1)
 
         vocab = torch.arange(self.audio_vocab_size, device=logits.device).view(1, 1, 1, -1)
@@ -158,9 +190,7 @@ class TokenScoreModule(nn.Module):
         )
         x = torch.bitwise_xor(x, self._u32(flat_pos.to(torch.int64) * 0x85EBCA6B))
         hashed = self._hash_u32(x)
-        u = (torch.bitwise_and(hashed, 0x00FFFFFF).to(torch.float32) + 0.5) * (
-            1.0 / 16777216.0
-        )
+        u = (torch.bitwise_and(hashed, 0x00FFFFFF).to(torch.float32) + 0.5) * (1.0 / 16777216.0)
         u = torch.clamp(u, 1.0e-7, 1.0 - 1.0e-7)
         return -torch.log(-torch.log(u))
 
@@ -192,8 +222,7 @@ class TokenUpdateModule(nn.Module):
         indices = torch.arange(total, device=flat_scores.device)
 
         better = (flat_scores[None, :] > flat_scores[:, None]) | (
-            (flat_scores[None, :] == flat_scores[:, None])
-            & (indices[None, :] < indices[:, None])
+            (flat_scores[None, :] == flat_scores[:, None]) & (indices[None, :] < indices[:, None])
         )
         rank = better.to(torch.int64).sum(dim=1)
         selected = rank < unmask_count.to(torch.int64).reshape(())
@@ -246,12 +275,26 @@ class AudioHeadReference:
         return {"linear": output}
 
 
+class AudioDecodeReference:
+    def __init__(self, audio_tokenizer: HiggsAudioV2TokenizerModel) -> None:
+        self.module = AudioDecodeModule(audio_tokenizer).float().cuda().eval()
+
+    def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        with torch.no_grad():
+            output = self.module(torch_tensor(inputs, "audio_codes").long()).float()
+        return {"conv1d_31": output}
+
+
 class TokenScoreReference:
     def __init__(self, model: OmniVoice) -> None:
-        self.module = TokenScoreModule(
-            num_audio_codebook=model.config.num_audio_codebook,
-            audio_vocab_size=model.config.audio_vocab_size,
-        ).cuda().eval()
+        self.module = (
+            TokenScoreModule(
+                num_audio_codebook=model.config.num_audio_codebook,
+                audio_vocab_size=model.config.audio_vocab_size,
+            )
+            .cuda()
+            .eval()
+        )
 
     def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
         with torch.no_grad():

@@ -22,15 +22,23 @@ from models.optimized_qwen3_asr.dispatch.audio_encoder import run_audio_encoder
 from models.optimized_qwen3_asr.dispatch.audio_inject import run_audio_inject
 from models.optimized_qwen3_asr.dispatch.decode_embed import run_decode_embed
 from models.optimized_qwen3_asr.dispatch.decode_layer import run_decode_layer
-from models.optimized_qwen3_asr.dispatch.decode_lm_head import run_decode_lm_head
 from models.optimized_qwen3_asr.dispatch.decode_norm import run_decode_norm
 from models.optimized_qwen3_asr.dispatch.embed_tokens import run_embed_tokens
 from models.optimized_qwen3_asr.dispatch.lm_head import run_lm_head
-from models.optimized_qwen3_asr.dispatch.text_layer import run_text_layer
+from models.optimized_qwen3_asr.dispatch.text_layer import run_text_last_layer_tail, run_text_layer
 from models.optimized_qwen3_asr.dispatch.text_norm import run_text_norm
 from models.optimized_qwen3_asr.pytorch_modules import (
     audio_position_embedding_shape,
     preprocess_audio_inputs,
+)
+from models.optimized_qwen3_asr.shaders.lm_head_q6_k_argmax_partial_f16 import (
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
+)
+from models.optimized_qwen3_asr.shaders.qwen3_token_select_reduce_chunks_f32 import (
+    QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
+)
+from models.optimized_qwen3_asr.shaders.qwen3_token_select_reduce_f32 import (
+    QWEN3_TOKEN_SELECT_REDUCE_F32,
 )
 from models.optimized_qwen3_asr.shaders.qwen3_asr_token_select_greedy_f32 import (
     QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
@@ -46,7 +54,7 @@ from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.shader_loader import make_shader_loader
 
-_DECODE_REPLAY_CACHE = "optimized_qwen3_asr_decode_step:v3"
+_DECODE_REPLAY_CACHE = "optimized_qwen3_asr_decode_step:v4"
 _PROMPT_LENGTH = 151
 _MAX_NEW_TOKENS = 64
 _STOP_CHECK_INTERVAL = 2
@@ -64,47 +72,30 @@ def _require_gpu_output(tensor: LogicalTensor) -> None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
 
 
-def _run_token_select(
-    rt: RuntimeSession,
-    *,
-    logits: LogicalTensor,
-    eos_token_ids: LogicalTensor,
-    next_token: LogicalTensor,
-    done: LogicalTensor,
-    frame_name: str,
-) -> LogicalTensor:
-    with rt.frame(frame_name):
-        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
-            rt,
-            logits=logits,
-            eos_token_ids=eos_token_ids,
-            next_token=next_token,
-            done=done,
-        )
-    return next_token
-
-
-def _run_token_store(
-    rt: RuntimeSession,
-    *,
-    next_token: LogicalTensor,
-    token_index: LogicalTensor,
-    done: LogicalTensor,
-    generated_tokens: LogicalTensor,
-    generated_length: LogicalTensor,
-    stopped: LogicalTensor,
-    frame_name: str,
-) -> None:
-    with rt.frame(frame_name):
-        QWEN3_ASR_TOKEN_STORE_EOS_F32(
-            rt,
-            next_token=next_token,
-            token_index=token_index,
-            done=done,
-            generated_tokens=generated_tokens,
-            generated_length=generated_length,
-            stopped=stopped,
-        )
+def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
+    tensors = model_tensors()
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16(
+        rt,
+        x=x,
+        weight=tensors.lm_head.p_weight,
+        partial_scores=tensors.lm_head_partial_scores,
+        partial_tokens=tensors.lm_head_partial_tokens,
+    )
+    QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32(
+        rt,
+        scores=tensors.lm_head_partial_scores,
+        tokens=tensors.lm_head_partial_tokens,
+        chunk_scores=tensors.lm_head_chunk_scores,
+        chunk_tokens=tensors.lm_head_chunk_tokens,
+    )
+    QWEN3_TOKEN_SELECT_REDUCE_F32(
+        rt,
+        partial_scores=tensors.lm_head_chunk_scores,
+        partial_tokens=tensors.lm_head_chunk_tokens,
+        eos_token_ids=tensors.eos_token_ids,
+        next_token=tensors.next_token,
+        done=tensors.done,
+    )
 
 
 def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
@@ -123,14 +114,7 @@ def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
         for layer_idx in range(len(tensors.decode_layers)):
             run_decode_layer(rt, layer_idx)
         run_decode_norm(rt)
-        run_decode_lm_head(rt)
-        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
-            rt,
-            logits=tensors.decode_lm_head.linear,
-            eos_token_ids=tensors.eos_token_ids,
-            next_token=tensors.next_token,
-            done=tensors.done,
-        )
+        _run_lm_head_select(rt, x=tensors.decode_norm.mul_1)
         QWEN3_ASR_TOKEN_STORE_EOS_F32(
             rt,
             next_token=tensors.next_token,
@@ -229,6 +213,7 @@ def _decode_replay_cache_namespace(model_dir: Path) -> str:
 # Main pipeline
 # ==============================================================
 
+
 def main(
     *,
     max_new_tokens: int = 64,
@@ -308,6 +293,7 @@ def main(
         head_dim=tc.head_dim,
         max_new_tokens=max_new_tokens,
         eos_token_count=len(eos_token_ids),
+        vocab_size=int(tc.vocab_size),
     )
     rt = RuntimeSession.open(
         device_index=0,
@@ -318,7 +304,7 @@ def main(
 
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
-        dtype=np.float16,
+        dtype=np.float32,
     )
     rt.initialize_request_state(
         {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
@@ -370,6 +356,14 @@ def main(
         (3, 1, prompt_length),
     ).copy()
     prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
+    eos_token_array = np.array(eos_token_ids, dtype=np.int64)
+    rt.initialize_request_state(
+        {
+            model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
+            model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
+            model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
+        }
+    )
     with rt.frame("spike.text.prefill"):
         rt.register_inputs(
             {
@@ -392,48 +386,36 @@ def main(
                 model_tensors().position_ids: prefill_position_ids,
                 model_tensors().audio_inject.audio_positions: preprocessed["audio_positions"],
                 model_tensors().text_layers[0].cache_position: prefill_cache_position,
+                model_tensors().eos_token_ids: eos_token_array,
+                model_tensors().token_index: np.array([0], dtype=np.int64),
             }
         )
         run_embed_tokens(rt)
         run_audio_inject(rt)
-        for layer_idx in range(len(model_tensors().text_layers)):
+        for layer_idx in range(len(model_tensors().text_layers) - 1):
             run_text_layer(rt, layer_idx)
             if layer_idx % 7 == 6:
                 print(f"    layer {layer_idx} done")
+        run_text_last_layer_tail(rt)
         run_text_norm(rt)
         run_lm_head(rt)
+        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
+            rt,
+            logits=model_tensors().lm_head.linear,
+            eos_token_ids=model_tensors().eos_token_ids,
+            next_token=model_tensors().next_token,
+            done=model_tensors().done,
+        )
+        QWEN3_ASR_TOKEN_STORE_EOS_F32(
+            rt,
+            next_token=model_tensors().next_token,
+            token_index=model_tensors().token_index,
+            done=model_tensors().done,
+            generated_tokens=model_tensors().generated_tokens,
+            generated_length=model_tensors().generated_length,
+            stopped=model_tensors().stopped,
+        )
 
-    print("  lm_head + token_select...")
-    _require_gpu_output(model_tensors().lm_head.linear)
-
-    eos_token_array = np.array(eos_token_ids, dtype=np.int64)
-    rt.initialize_request_state(
-        {
-            model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
-            model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
-            model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
-        }
-    )
-    rt.register_inputs({model_tensors().eos_token_ids: eos_token_array})
-    _run_token_select(
-        rt,
-        logits=model_tensors().lm_head.linear,
-        eos_token_ids=model_tensors().eos_token_ids,
-        next_token=model_tensors().next_token,
-        done=model_tensors().done,
-        frame_name="spike.text.token_select",
-    )
-    rt.register_inputs({model_tensors().token_index: np.array([0], dtype=np.int64)})
-    _run_token_store(
-        rt,
-        next_token=model_tensors().next_token,
-        token_index=model_tensors().token_index,
-        done=model_tensors().done,
-        generated_tokens=model_tensors().generated_tokens,
-        generated_length=model_tensors().generated_length,
-        stopped=model_tensors().stopped,
-        frame_name="spike.text.token_store",
-    )
     first_token = _read_selected_token(rt, model_tensors().next_token)
     print(f"  First token: {first_token}")
 
@@ -442,8 +424,10 @@ def main(
     decode_replay_plan: ReplayPlan | None = None
 
     baseline_stats = rt.device.allocation_stats()
-    print(f"  Baseline GPU memory: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
-          f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB")
+    print(
+        f"  Baseline GPU memory: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
+        f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB"
+    )
 
     decode_start = time.perf_counter()
     decode_steps = 0
@@ -512,13 +496,19 @@ def main(
                 break
 
     decode_elapsed = time.perf_counter() - decode_start
-    print(f"\n  Decode: {decode_steps} steps in {decode_elapsed:.3f}s "
-          f"({decode_elapsed / decode_steps * 1000:.1f} ms/token)" if decode_steps > 0 else "")
+    print(
+        f"\n  Decode: {decode_steps} steps in {decode_elapsed:.3f}s "
+        f"({decode_elapsed / decode_steps * 1000:.1f} ms/token)"
+        if decode_steps > 0
+        else ""
+    )
 
     final_stats = rt.device.allocation_stats()
     print("\n=== GPU Memory ===")
     print(f"  Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB")
-    print(f"  Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB")
+    print(
+        f"  Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB"
+    )
     print(f"  Final device_local live: {final_stats.device_local_live_bytes / 1024**2:.1f} MB")
 
     # Decode text

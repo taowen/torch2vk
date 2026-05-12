@@ -177,10 +177,10 @@ void load_x_tile(uint local_id, uint m_base, uint k_base) {
             const uint input_base = m * pc.K + k;
             const f16vec4 values0 = x4[input_base >> 2u];
             const f16vec4 values1 = x4[(input_base >> 2u) + 1u];
-            shared_x[base] = f16vec2(values0.x, values0.y);
-            shared_x[base + 1u] = f16vec2(values0.z, values0.w);
-            shared_x[base + 2u] = f16vec2(values1.x, values1.y);
-            shared_x[base + 3u] = f16vec2(values1.z, values1.w);
+            shared_x[base] = f16vec2(float16_t(float(values0.x)), float16_t(float(values0.y)));
+            shared_x[base + 1u] = f16vec2(float16_t(float(values0.z)), float16_t(float(values0.w)));
+            shared_x[base + 2u] = f16vec2(float16_t(float(values1.x)), float16_t(float(values1.y)));
+            shared_x[base + 3u] = f16vec2(float16_t(float(values1.z)), float16_t(float(values1.w)));
         } else {
             shared_x[base] = f16vec2(
                 float16_t((m < pc.M && k < pc.K) ? float(x[m * pc.K + k]) : 0.0),
@@ -257,7 +257,7 @@ void main() {
                     const uint m = m_tile + col + store_c;
                     if (n < pc.N && m < pc.M) {
                         const uint stage_index = warp * STAGE_SIZE + (col + store_c) * TM + store_r;
-                        output_values[m * pc.N + n] = shared_stage[stage_index];
+                        output_values[m * pc.N + n] = float16_t(shared_stage[stage_index]);
                     }
                 }
                 controlBarrier(gl_ScopeSubgroup, gl_ScopeSubgroup, gl_StorageSemanticsShared, gl_SemanticsAcquireRelease);

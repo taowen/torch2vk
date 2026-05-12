@@ -82,15 +82,32 @@ def make_embedding_variant(node: Node, activation_dtype: str = "float32") -> Sha
             class_name=f"ExportEmbedding{weight_suffix.title()}WeightProgram",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=w_contract)),
-                TensorFieldSpec("indices", IOKind.INPUT, "input", TensorContract(dtype=indices_dtype, shape=idx_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "weight",
+                    IOKind.INPUT,
+                    "weight",
+                    TensorContract(dtype=weight_dtype, shape=w_contract),
+                ),
+                TensorFieldSpec(
+                    "indices",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=indices_dtype, shape=idx_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=8,
                 fields=(
                     PushConstantFieldSpec("num_indices", PushConstantType.UINT32, 0, num_indices),
-                    PushConstantFieldSpec("embedding_dim", PushConstantType.UINT32, 4, embedding_dim),
+                    PushConstantFieldSpec(
+                        "embedding_dim", PushConstantType.UINT32, 4, embedding_dim
+                    ),
                 ),
             ),
             dispatch=(ceil_div(total, 256), 1, 1),
@@ -99,17 +116,22 @@ def make_embedding_variant(node: Node, activation_dtype: str = "float32") -> Sha
             activation_dtype,
             _index_execution_requirements(indices_dtype),
         ),
-        source=_index_source(indices_dtype, weight_dtype=weight_dtype, activation_dtype=activation_dtype),
+        source=_index_source(
+            indices_dtype, weight_dtype=weight_dtype, activation_dtype=activation_dtype
+        ),
     )
 
 
 def _index_source(dtype: str, *, weight_dtype: str, activation_dtype: str) -> str:
     index_type = "int64_t" if dtype == "int64" else "int"
-    extension = "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require" if dtype == "int64" else ""
+    extension = (
+        "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require"
+        if dtype == "int64"
+        else ""
+    )
     weight_value = "float(weight[uint(token_id) * pc.embedding_dim + dim_idx])"
     return (
-        _SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SOURCE.replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
         .replace("{{WEIGHT_EXTENSION}}", weight_extension_source(weight_dtype))
         .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))
         .replace("{{INDEX_EXTENSION}}", extension)

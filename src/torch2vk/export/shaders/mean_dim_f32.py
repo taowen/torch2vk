@@ -13,7 +13,10 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
 )
-from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements, SubgroupRequirements
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+    SubgroupRequirements,
+)
 
 _SOURCE = """\
 #version 450
@@ -59,8 +62,15 @@ def make_mean_dim_variant(node: Node, activation_dtype: str = "float32") -> Shad
             class_name="ExportMeanDimProgram",
             shader_name="mean_dim_f32",
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float32", shape=out_contract)),
+                TensorFieldSpec(
+                    "x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=in_contract)
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype="float32", shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=8,

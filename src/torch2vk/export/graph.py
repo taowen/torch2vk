@@ -45,17 +45,22 @@ class LayerLoopHint:
     layer_prefix: str
     num_layers: int
 
-ALIAS_OPS = frozenset({
-    "aten.view.default",
-    "aten.unsqueeze.default",
-    "aten.reshape.default",
-    "aten.contiguous.default",
-    "aten._assert_tensor_metadata.default",
-})
 
-SKIP_OPS = frozenset({
-    "aten._assert_tensor_metadata.default",
-})
+ALIAS_OPS = frozenset(
+    {
+        "aten.view.default",
+        "aten.unsqueeze.default",
+        "aten.reshape.default",
+        "aten.contiguous.default",
+        "aten._assert_tensor_metadata.default",
+    }
+)
+
+SKIP_OPS = frozenset(
+    {
+        "aten._assert_tensor_metadata.default",
+    }
+)
 
 
 def export_submodule(
@@ -78,6 +83,8 @@ def is_alias_op(node: Node) -> bool:
         return True
     if target == "aten.to.dtype":
         return _is_float_dtype(_node_input_dtype(node)) and _is_float_dtype(_node_dtype(node))
+    if target == "aten.to.dtype_layout":
+        return _node_input_dtype(node) == _node_dtype(node)
     return False
 
 
@@ -173,8 +180,7 @@ def _find_kv_cache_write(
         node.meta["torch2vk_kv_cache"] = f"{phase}_{cache_kind}_write"
         return node
     raise ValueError(
-        "KV cache hint did not match an index_copy write for "
-        f"{cache_kind}_cache={cache_name!r}"
+        f"KV cache hint did not match an index_copy write for {cache_kind}_cache={cache_name!r}"
     )
 
 
@@ -186,7 +192,10 @@ def _annotate_decode_cache_attention(
     cache_position_name: str,
 ) -> None:
     for node in graph.nodes:
-        if node.op != "call_function" or str(node.target) != "aten.scaled_dot_product_attention.default":
+        if (
+            node.op != "call_function"
+            or str(node.target) != "aten.scaled_dot_product_attention.default"
+        ):
             continue
         if _node_arg_name(node, 1) != key_write.name:
             continue
@@ -259,10 +268,15 @@ def inject_kv_cache(prog: torch.export.ExportedProgram, hint: KVCacheInjectHint)
 
     def _make_tensor_meta(shape, dtype):
         from torch.fx.passes.shape_prop import TensorMetadata
+
         return TensorMetadata(
-            shape=torch.Size(shape), dtype=dtype,
-            requires_grad=False, stride=tuple(range(len(shape), 0, -1)),
-            memory_format=None, is_quantized=False, qparams={},
+            shape=torch.Size(shape),
+            dtype=dtype,
+            requires_grad=False,
+            stride=tuple(range(len(shape), 0, -1)),
+            memory_format=None,
+            is_quantized=False,
+            qparams={},
         )
 
     with graph.inserting_after(last_placeholder):
@@ -278,7 +292,9 @@ def inject_kv_cache(prog: torch.export.ExportedProgram, hint: KVCacheInjectHint)
     with graph.inserting_after(value_cache_node):
         cache_position_node = graph.placeholder("cache_position")
     cache_position_node.meta["tensor_meta"] = _make_tensor_meta(cache_position_shape, torch.int64)
-    cache_position_node.meta["val"] = torch.empty(cache_position_shape, dtype=torch.int64, device="meta")
+    cache_position_node.meta["val"] = torch.empty(
+        cache_position_shape, dtype=torch.int64, device="meta"
+    )
 
     with graph.inserting_before(sdpa_node):
         index_copy_key = graph.call_function(
@@ -312,36 +328,48 @@ def inject_kv_cache(prog: torch.export.ExportedProgram, hint: KVCacheInjectHint)
     output_node.args = (new_outputs,)
 
     sig = prog.graph_signature
-    sig.input_specs.append(InputSpec(
-        kind=InputKind.USER_INPUT,
-        arg=TensorArgument(name="key_cache"),
-        target=None,
-        persistent=None,
-    ))
-    sig.input_specs.append(InputSpec(
-        kind=InputKind.USER_INPUT,
-        arg=TensorArgument(name="value_cache"),
-        target=None,
-        persistent=None,
-    ))
-    sig.input_specs.append(InputSpec(
-        kind=InputKind.USER_INPUT,
-        arg=TensorArgument(name="cache_position"),
-        target=None,
-        persistent=None,
-    ))
+    sig.input_specs.append(
+        InputSpec(
+            kind=InputKind.USER_INPUT,
+            arg=TensorArgument(name="key_cache"),
+            target=None,
+            persistent=None,
+        )
+    )
+    sig.input_specs.append(
+        InputSpec(
+            kind=InputKind.USER_INPUT,
+            arg=TensorArgument(name="value_cache"),
+            target=None,
+            persistent=None,
+        )
+    )
+    sig.input_specs.append(
+        InputSpec(
+            kind=InputKind.USER_INPUT,
+            arg=TensorArgument(name="cache_position"),
+            target=None,
+            persistent=None,
+        )
+    )
 
-    _annotate_kv_cache(prog, KVCacheExportHint(
-        phase=hint.phase,
-        key_cache="key_cache",
-        value_cache="value_cache",
-        cache_position="cache_position",
-    ))
+    _annotate_kv_cache(
+        prog,
+        KVCacheExportHint(
+            phase=hint.phase,
+            key_cache="key_cache",
+            value_cache="value_cache",
+            cache_position="cache_position",
+        ),
+    )
 
 
 def _find_sdpa_node(graph: Graph) -> Node:
     for node in graph.nodes:
-        if node.op == "call_function" and str(node.target) == "aten.scaled_dot_product_attention.default":
+        if (
+            node.op == "call_function"
+            and str(node.target) == "aten.scaled_dot_product_attention.default"
+        ):
             return node
     raise ValueError("Graph does not contain scaled_dot_product_attention")
 

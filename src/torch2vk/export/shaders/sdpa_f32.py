@@ -23,7 +23,10 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
 )
-from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements, SubgroupRequirements
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+    SubgroupRequirements,
+)
 
 _SOURCE_CAUSAL = """\
 #version 450
@@ -375,18 +378,45 @@ def make_sdpa_variant(node: Node, activation_dtype: str = "float32") -> ShaderVa
         mask_shape = node_input_shape(node, 3)
         mask_contract = tuple(f"M{i}" for i in range(len(mask_shape)))
         fields = (
-            TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=q_contract)),
-            TensorFieldSpec("k", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=k_contract)),
-            TensorFieldSpec("v", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=v_contract)),
-            TensorFieldSpec("mask", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=mask_contract)),
-            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+            TensorFieldSpec(
+                "q", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=q_contract)
+            ),
+            TensorFieldSpec(
+                "k", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=k_contract)
+            ),
+            TensorFieldSpec(
+                "v", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=v_contract)
+            ),
+            TensorFieldSpec(
+                "mask",
+                IOKind.INPUT,
+                "input",
+                TensorContract(dtype=activation_dtype, shape=mask_contract),
+            ),
+            TensorFieldSpec(
+                "output",
+                IOKind.OUTPUT,
+                "output",
+                TensorContract(dtype=activation_dtype, shape=out_contract),
+            ),
         )
     else:
         fields = (
-            TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=q_contract)),
-            TensorFieldSpec("k", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=k_contract)),
-            TensorFieldSpec("v", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=v_contract)),
-            TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+            TensorFieldSpec(
+                "q", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=q_contract)
+            ),
+            TensorFieldSpec(
+                "k", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=k_contract)
+            ),
+            TensorFieldSpec(
+                "v", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=v_contract)
+            ),
+            TensorFieldSpec(
+                "output",
+                IOKind.OUTPUT,
+                "output",
+                TensorContract(dtype=activation_dtype, shape=out_contract),
+            ),
         )
 
     return ShaderVariant(
@@ -440,11 +470,36 @@ def _make_decode_cache_variant(
             class_name="ExportSdpaDecodeCacheF32Program",
             shader_name="sdpa_decode_cache_f32",
             fields=(
-                TensorFieldSpec("q", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=("B", "NH", "T", "D"))),
-                TensorFieldSpec("k", IOKind.INPUT, "state", TensorContract(dtype=activation_dtype, shape=("B", "NK", "S", "D"))),
-                TensorFieldSpec("v", IOKind.INPUT, "state", TensorContract(dtype=activation_dtype, shape=("B", "NK", "S", "D"))),
-                TensorFieldSpec("cache_position", IOKind.INPUT, "cache_position", TensorContract(dtype=cache_position_dtype, shape=("T",))),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=("B", "NH", "T", "D"))),
+                TensorFieldSpec(
+                    "q",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=("B", "NH", "T", "D")),
+                ),
+                TensorFieldSpec(
+                    "k",
+                    IOKind.INPUT,
+                    "state",
+                    TensorContract(dtype=activation_dtype, shape=("B", "NK", "S", "D")),
+                ),
+                TensorFieldSpec(
+                    "v",
+                    IOKind.INPUT,
+                    "state",
+                    TensorContract(dtype=activation_dtype, shape=("B", "NK", "S", "D")),
+                ),
+                TensorFieldSpec(
+                    "cache_position",
+                    IOKind.INPUT,
+                    "cache_position",
+                    TensorContract(dtype=cache_position_dtype, shape=("T",)),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=("B", "NH", "T", "D")),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=16,
@@ -475,20 +530,26 @@ def _decode_cache_source(cache_position_dtype: str, activation_dtype: str) -> st
         if cache_position_dtype == "int64"
         else ""
     )
-    return render_shader_template(_SOURCE_DECODE_CACHE, {
-        "ACTIVATION_EXTENSION": activation_extension_source(activation_dtype),
-        "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
-        "CACHE_POSITION_EXTENSION": extension,
-        "CACHE_POSITION_TYPE": cache_position_type,
-        "STORE_ACC": activation_store("acc / running_sum", activation_dtype),
-    })
+    return render_shader_template(
+        _SOURCE_DECODE_CACHE,
+        {
+            "ACTIVATION_EXTENSION": activation_extension_source(activation_dtype),
+            "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+            "CACHE_POSITION_EXTENSION": extension,
+            "CACHE_POSITION_TYPE": cache_position_type,
+            "STORE_ACC": activation_store("acc / running_sum", activation_dtype),
+        },
+    )
 
 
 def _source(source: str, activation_dtype: str) -> str:
-    return render_shader_template(source, {
-        "ACTIVATION_EXTENSION": activation_extension_source(activation_dtype),
-        "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
-        "STORE_ACC": activation_store("acc", activation_dtype),
-        "STORE_ACC0": activation_store("acc0 / running_sum", activation_dtype),
-        "STORE_ACC1": activation_store("acc1 / running_sum", activation_dtype),
-    })
+    return render_shader_template(
+        source,
+        {
+            "ACTIVATION_EXTENSION": activation_extension_source(activation_dtype),
+            "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+            "STORE_ACC": activation_store("acc", activation_dtype),
+            "STORE_ACC0": activation_store("acc0 / running_sum", activation_dtype),
+            "STORE_ACC1": activation_store("acc1 / running_sum", activation_dtype),
+        },
+    )

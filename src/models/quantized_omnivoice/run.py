@@ -34,6 +34,7 @@ from omnivoice.models.omnivoice import OmniVoiceConfig
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
+from torch2vk.runtime.replay_cache_key import source_tree_digest
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
@@ -41,6 +42,9 @@ from torch2vk.runtime.shader_loader import make_shader_loader
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_quantized.wav")
 _GENERATION_REPLAY_CACHE = "quantized_omnivoice_generation_step:v2"
 get_shader = make_shader_loader("models.quantized_omnivoice.shaders")
+
+
+_REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
 
 
 class _AudioDecodeOutput(Protocol):
@@ -146,7 +150,7 @@ def _cached_generation_replay_plan(
 
 
 def _generation_replay_cache_namespace(model_dir: Path) -> str:
-    return f"{_GENERATION_REPLAY_CACHE}:{model_dir.resolve()}"
+    return f"{_GENERATION_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
 
 
 def main(

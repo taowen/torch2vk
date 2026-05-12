@@ -46,6 +46,7 @@ def create_audio_head(
         p_weight=_bind_tensor(
             p_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="audio_heads.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("audio_heads.weight", dtype='float32', shape=(8200, 1024)),
@@ -59,6 +60,7 @@ def create_audio_head(
         input=_bind_tensor(
             input,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
@@ -72,6 +74,7 @@ def create_audio_head(
         linear=_bind_tensor(
             linear,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear',
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 8200)),
@@ -159,6 +162,7 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     layout: TensorLayout = CONTIGUOUS_LAYOUT,
+    checkpoint: str | None = None,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -172,6 +176,7 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
+        checkpoint=checkpoint,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
         layout=layout,

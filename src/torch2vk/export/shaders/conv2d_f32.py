@@ -102,18 +102,35 @@ def make_conv2d_variant(node: Node, activation_dtype: str = "float32") -> Shader
     out_contract = ("B", "Co2", "Ho", "Wo")
 
     fields = [
-        TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)),
+        TensorFieldSpec(
+            "x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)
+        ),
     ]
     weight_dtype = node_input_dtype(node, 1)
     weight_suffix = weight_dtype_suffix(weight_dtype)
-    fields.append(TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=w_contract)))
+    fields.append(
+        TensorFieldSpec(
+            "weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=w_contract)
+        )
+    )
     bias_dtype = weight_dtype
     bias_suffix = weight_suffix
     if has_bias:
         bias_dtype = node_input_dtype(node, 2)
         bias_suffix = weight_dtype_suffix(bias_dtype)
-        fields.append(TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("Co3",))))
-    fields.append(TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)))
+        fields.append(
+            TensorFieldSpec(
+                "bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("Co3",))
+            )
+        )
+    fields.append(
+        TensorFieldSpec(
+            "output",
+            IOKind.OUTPUT,
+            "output",
+            TensorContract(dtype=activation_dtype, shape=out_contract),
+        )
+    )
     shader_name = f"conv2d_{weight_suffix}w_{bias_suffix}b_f32"
 
     return ShaderVariant(
@@ -143,20 +160,21 @@ def make_conv2d_variant(node: Node, activation_dtype: str = "float32") -> Shader
             ),
             dispatch=(ceil_div(mul("Ho", "Wo"), 16), ceil_div("Co2", 16), "B"),
         ),
-        source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype, activation_dtype=activation_dtype),
+        source=_source(
+            weight_dtype=weight_dtype, bias_dtype=bias_dtype, activation_dtype=activation_dtype
+        ),
         execution_requirements=activation_requirements(activation_dtype),
     )
 
 
 def _source(*, weight_dtype: str, bias_dtype: str, activation_dtype: str) -> str:
     extension = (
-        weight_extension_source("bfloat16")
-        if "bfloat16" in {weight_dtype, bias_dtype}
-        else ""
+        weight_extension_source("bfloat16") if "bfloat16" in {weight_dtype, bias_dtype} else ""
     )
     return (
-        _SOURCE_TEMPLATE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SOURCE_TEMPLATE.replace(
+            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+        )
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{WEIGHT_EXTENSION}}", extension)
         .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))

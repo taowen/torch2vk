@@ -49,7 +49,9 @@ void main() {
 """
 
 
-def make_index_select_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
+def make_index_select_variant(
+    node: Node, activation_dtype: str = "float32"
+) -> ShaderVariant | None:
     if len(node.args) != 3:
         return None
     dim = node.args[1]
@@ -75,9 +77,21 @@ def make_index_select_variant(node: Node, activation_dtype: str = "float32") -> 
             class_name="ExportIndexSelectF32Program",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=("N", "H"))),
-                TensorFieldSpec("index", IOKind.INPUT, "index", TensorContract(dtype=index_dtype, shape=("O",))),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=("O", "H"))),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=("N", "H")),
+                ),
+                TensorFieldSpec(
+                    "index", IOKind.INPUT, "index", TensorContract(dtype=index_dtype, shape=("O",))
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=("O", "H")),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=8,
@@ -88,7 +102,9 @@ def make_index_select_variant(node: Node, activation_dtype: str = "float32") -> 
             ),
             dispatch=(ceil_div(total, 256), 1, 1),
         ),
-        execution_requirements=activation_requirements(activation_dtype, _index_execution_requirements(index_dtype)),
+        execution_requirements=activation_requirements(
+            activation_dtype, _index_execution_requirements(index_dtype)
+        ),
         source=_index_source(index_dtype, activation_dtype),
     )
 
@@ -108,10 +124,13 @@ def _shader_name(
 
 def _index_source(dtype: str, activation_dtype: str) -> str:
     index_type = "int64_t" if dtype == "int64" else "int"
-    extension = "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require" if dtype == "int64" else ""
+    extension = (
+        "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require"
+        if dtype == "int64"
+        else ""
+    )
     return (
-        _SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SOURCE.replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
         .replace("{{INDEX_EXTENSION}}", extension)
         .replace("{{INDEX_TYPE}}", index_type)
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))

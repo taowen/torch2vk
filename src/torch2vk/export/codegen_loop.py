@@ -134,10 +134,14 @@ def _analyze_loop(
         if isinstance(op, _DispatchOp):
             for v in op.bindings.values():
                 t = v.removeprefix("tensors.")
-                if _is_initial_carry_candidate(t, classification, parameter_names, layer0_external_inputs):
+                if _is_initial_carry_candidate(
+                    t, classification, parameter_names, layer0_external_inputs
+                ):
                     layer0_external_inputs.append(t)
         elif isinstance(op, _AliasOp):
-            if _is_initial_carry_candidate(op.src, classification, parameter_names, layer0_external_inputs):
+            if _is_initial_carry_candidate(
+                op.src, classification, parameter_names, layer0_external_inputs
+            ):
                 layer0_external_inputs.append(op.src)
 
     layer1_inputs_from_layer0: list[str] = []
@@ -152,7 +156,10 @@ def _analyze_loop(
                     if classification.get(t) == "layer.0" and t not in layer1_inputs_from_layer0:
                         layer1_inputs_from_layer0.append(t)
             elif isinstance(op, _AliasOp):
-                if classification.get(op.src) == "layer.0" and op.src not in layer1_inputs_from_layer0:
+                if (
+                    classification.get(op.src) == "layer.0"
+                    and op.src not in layer1_inputs_from_layer0
+                ):
                     layer1_inputs_from_layer0.append(op.src)
 
     carry_output = _select_carry_output(
@@ -320,7 +327,7 @@ def generate_looped_dispatch_function_source(
         carry_set=carry_set,
         post_carry_targets=post_carry_targets,
     )
-    uses_q4_q6_dispatch = any(
+    uses_quantized_linear_dispatch = any(
         isinstance(op, _DispatchOp) and op.q6_variant is not None
         for op in analysis.pre_ops + analysis.layer_ops + analysis.post_ops
     )
@@ -339,41 +346,28 @@ def generate_looped_dispatch_function_source(
             const_name = op.variant.name.upper()
             shader_imports[op.variant.name] = const_name
             q6_const_name: str | None = None
+            q8_const_name: str | None = None
             if op.q6_variant is not None:
                 q6_const_name = op.q6_variant.name.upper()
                 shader_imports[op.q6_variant.name] = q6_const_name
+                if op.q8_variant is None:
+                    raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
+                q8_const_name = op.q8_variant.name.upper()
+                shader_imports[op.q8_variant.name] = q8_const_name
             bindings: list[str] = []
             for k, v in op.bindings.items():
                 t = v.removeprefix("tensors.")
                 bindings.append(f"{k}={_tensor_ref(t, in_loop)}")
             if q6_const_name is not None:
-                return f"{indent}_linear_q4_or_q6(rt, q4={const_name}, q6={q6_const_name}, {', '.join(bindings)})"
+                if q8_const_name is None:
+                    raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
+                return f"{indent}run_quantized_linear(rt, q4={const_name}, q6={q6_const_name}, q8={q8_const_name}, {', '.join(bindings)})"
             return f"{indent}{const_name}(rt, {', '.join(bindings)})"
         elif isinstance(op, _UnsupportedOp):
             return f"{indent}raise RuntimeError({op.message!r})"
         return ""
 
     lines: list[str] = []
-    if uses_q4_q6_dispatch:
-        lines.extend((
-            "def _linear_q4_or_q6(",
-            "    rt: RuntimeSession,",
-            "    *,",
-            "    q4: ShaderVariant,",
-            "    q6: ShaderVariant,",
-            "    x: LogicalTensor,",
-            "    weight: LogicalTensor,",
-            "    output: LogicalTensor,",
-            ") -> None:",
-            "    if isinstance(weight.layout, Q6KHalfwordsLayout):",
-            "        q6(rt, x=x, weight=weight, output=output)",
-            "        return",
-            "    if not isinstance(weight.layout, Q4KWordsLayout):",
-            "        raise ValueError(f\"{weight.name} expected Q4_K or Q6_K layout, got {weight.layout}\")",
-            "    q4(rt, x=x, weight=weight, output=output)",
-            "",
-            "",
-        ))
     lines.append(f"def {function_name}(rt: RuntimeSession, tensors: {parent_class_name}) -> None:")
 
     # Pre-loop
@@ -408,9 +402,14 @@ def generate_looped_dispatch_function_source(
             const_name = op.variant.name.upper()
             shader_imports[op.variant.name] = const_name
             q6_const_name: str | None = None
+            q8_const_name: str | None = None
             if op.q6_variant is not None:
                 q6_const_name = op.q6_variant.name.upper()
                 shader_imports[op.q6_variant.name] = q6_const_name
+                if op.q8_variant is None:
+                    raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
+                q8_const_name = op.q8_variant.name.upper()
+                shader_imports[op.q8_variant.name] = q8_const_name
             bindings: list[str] = []
             for k, v in op.bindings.items():
                 t = v.removeprefix("tensors.")
@@ -419,7 +418,11 @@ def generate_looped_dispatch_function_source(
                 else:
                     bindings.append(f"{k}=tensors.{t}")
             if q6_const_name is not None:
-                lines.append(f"    _linear_q4_or_q6(rt, q4={const_name}, q6={q6_const_name}, {', '.join(bindings)})")
+                if q8_const_name is None:
+                    raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
+                lines.append(
+                    f"    run_quantized_linear(rt, q4={const_name}, q6={q6_const_name}, q8={q8_const_name}, {', '.join(bindings)})"
+                )
             else:
                 lines.append(f"    {const_name}(rt, {', '.join(bindings)})")
         elif isinstance(op, _UnsupportedOp):
@@ -430,6 +433,8 @@ def generate_looped_dispatch_function_source(
             used_variants.setdefault(op.variant.name, op.variant)
             if op.q6_variant is not None:
                 used_variants.setdefault(op.q6_variant.name, op.q6_variant)
+            if op.q8_variant is not None:
+                used_variants.setdefault(op.q8_variant.name, op.q8_variant)
 
     return "\n".join(lines), shader_imports, used_variants
 
@@ -505,7 +510,8 @@ def generate_looped_tensor_class_sources(
                     dtype = _node_dtype(node)
                     is_param = spec.kind in (InputKind.PARAMETER, InputKind.BUFFER)
                     tensors[spec.arg.name] = _TensorMeta(
-                        shape=shape, dtype=dtype,
+                        shape=shape,
+                        dtype=dtype,
                         kind=_TensorKind.PARAMETER if is_param else _TensorKind.USER_INPUT,
                     )
                     if is_param:
@@ -611,6 +617,7 @@ def generate_looped_tensor_class_sources(
         weight_prefix=weight_prefix,
         weight_quantization=weight_quantization,
         shape_exprs=shape_exprs,
+        activation_dtype=registry.activation_dtype,
     )
 
     # Generate parent tensor class
@@ -629,6 +636,7 @@ def generate_looped_tensor_class_sources(
         classification=classification,
         weight_quantization=weight_quantization,
         shape_exprs=shape_exprs,
+        activation_dtype=registry.activation_dtype,
     )
 
     return parent_src, layer_src
@@ -653,6 +661,7 @@ def _render_layer_class(
     weight_prefix: str,
     weight_quantization: Q4KMWeightQuantization | None = None,
     shape_exprs: Mapping[int, str] | None = None,
+    activation_dtype: str = "float16",
 ) -> TensorClassContext:
     shape_exprs = shape_exprs or {}
     tensor_entries = []
@@ -660,24 +669,32 @@ def _render_layer_class(
         if meta.kind == _TensorKind.PARAMETER:
             safetensors_key = param_map[name]
             name_template = re.sub(r"\.layers\.0\.", ".layers.{layer_idx}.", safetensors_key)
-            tensor_entries.append(_tensor_entry(
-                name=name,
-                meta=meta,
-                checkpoint_key=f'f"{name_template}"',
-                concrete_checkpoint_key=safetensors_key,
-                reference_key="None",
-                weight_quantization=weight_quantization,
-                shape_exprs=shape_exprs,
-            ))
+            tensor_entries.append(
+                _tensor_entry(
+                    name=name,
+                    meta=meta,
+                    checkpoint_key=f'f"{name_template}"',
+                    checkpoint="None",
+                    concrete_checkpoint_key=safetensors_key,
+                    reference_key="None",
+                    weight_quantization=weight_quantization,
+                    shape_exprs=shape_exprs,
+                    activation_dtype=activation_dtype,
+                )
+            )
         else:
-            tensor_entries.append(_tensor_entry(
-                name=name,
-                meta=meta,
-                checkpoint_key="None",
-                concrete_checkpoint_key=None,
-                reference_key=repr(name),
-                shape_exprs=shape_exprs,
-            ))
+            tensor_entries.append(
+                _tensor_entry(
+                    name=name,
+                    meta=meta,
+                    checkpoint_key="None",
+                    checkpoint="None",
+                    concrete_checkpoint_key=None,
+                    reference_key=repr(name),
+                    shape_exprs=shape_exprs,
+                    activation_dtype=activation_dtype,
+                )
+            )
 
     output_name = next(
         (n for n in reversed(tensors) if tensors[n].kind == _TensorKind.INTERMEDIATE),
@@ -720,39 +737,52 @@ def _render_parent_class(
     classification: dict[str, str],
     weight_quantization: Q4KMWeightQuantization | None = None,
     shape_exprs: Mapping[int, str] | None = None,
+    activation_dtype: str = "float16",
 ) -> TensorClassContext:
     shape_exprs = shape_exprs or {}
     tensor_entries = []
     for name, meta in tensors.items():
         if meta.kind == _TensorKind.PARAMETER:
             safetensors_key = param_map[name]
-            tensor_entries.append(_tensor_entry(
-                name=name,
-                meta=meta,
-                checkpoint_key=f'"{safetensors_key}"',
-                concrete_checkpoint_key=safetensors_key,
-                reference_key="None",
-                weight_quantization=weight_quantization,
-                shape_exprs=shape_exprs,
-            ))
+            tensor_entries.append(
+                _tensor_entry(
+                    name=name,
+                    meta=meta,
+                    checkpoint_key=f'"{safetensors_key}"',
+                    checkpoint="None",
+                    concrete_checkpoint_key=safetensors_key,
+                    reference_key="None",
+                    weight_quantization=weight_quantization,
+                    shape_exprs=shape_exprs,
+                    activation_dtype=activation_dtype,
+                )
+            )
         elif meta.kind == _TensorKind.USER_INPUT:
-            tensor_entries.append(_tensor_entry(
-                name=name,
-                meta=meta,
-                checkpoint_key="None",
-                concrete_checkpoint_key=None,
-                reference_key="None",
-                shape_exprs=shape_exprs,
-            ))
+            tensor_entries.append(
+                _tensor_entry(
+                    name=name,
+                    meta=meta,
+                    checkpoint_key="None",
+                    checkpoint="None",
+                    concrete_checkpoint_key=None,
+                    reference_key="None",
+                    shape_exprs=shape_exprs,
+                    activation_dtype=activation_dtype,
+                )
+            )
         else:
-            tensor_entries.append(_tensor_entry(
-                name=name,
-                meta=meta,
-                checkpoint_key="None",
-                concrete_checkpoint_key=None,
-                reference_key=repr(name),
-                shape_exprs=shape_exprs,
-            ))
+            tensor_entries.append(
+                _tensor_entry(
+                    name=name,
+                    meta=meta,
+                    checkpoint_key="None",
+                    checkpoint="None",
+                    concrete_checkpoint_key=None,
+                    reference_key=repr(name),
+                    shape_exprs=shape_exprs,
+                    activation_dtype=activation_dtype,
+                )
+            )
 
     if output_name is None:
         output_name = next(
@@ -833,9 +863,7 @@ def _loop_alias_binding_lines(
 
     for op in analysis.pre_ops:
         if isinstance(op, _AliasOp):
-            lines.append(
-                f"    _bind_alias_source(tensors.{op.src}, tensors.{op.dst})"
-            )
+            lines.append(f"    _bind_alias_source(tensors.{op.src}, tensors.{op.dst})")
 
     layer_aliases = [op for op in analysis.layer_ops if isinstance(op, _AliasOp)]
     post_aliases = [op for op in analysis.post_ops if isinstance(op, _AliasOp)]

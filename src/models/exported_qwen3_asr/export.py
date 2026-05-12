@@ -49,10 +49,11 @@ from torch2vk.export.reference_codegen import (
     render_reference_module,
 )
 from torch2vk.export.shader_codegen import (
+    clear_python_modules,
     clear_shader_package,
+    count_python_modules,
     rename_shader_variant,
     write_shader_file,
-    write_shader_init,
 )
 from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
@@ -204,10 +205,8 @@ def main() -> int:
     tensors_dir.mkdir(exist_ok=True)
     dispatch_dir = output_dir / "dispatch"
     dispatch_dir.mkdir(exist_ok=True)
-    for f in tensors_dir.glob("*.py"):
-        f.unlink()
-    for f in dispatch_dir.glob("*.py"):
-        f.unlink()
+    clear_python_modules(tensors_dir)
+    clear_python_modules(dispatch_dir)
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
@@ -524,19 +523,14 @@ def main() -> int:
                reference_module="thinker.lm_head",
                reference_tensors="model_tensors().decode_lm_head",
                reference_name="spike.decode.{step:04d}.lm_head")
-
-    write_shader_init(shaders_dir)
     print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.
     (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))
     (tensors_dir / "model.py").write_text(_render_template("model.py.j2"))
-    (tensors_dir / "__init__.py").write_text('"""Generated tensor package."""\n')
-    tensor_file_count = len([path for path in tensors_dir.glob("*.py") if path.name != "__init__.py"])
+    tensor_file_count = count_python_modules(tensors_dir)
     print(f"  tensors/ written ({tensor_file_count} files)")
-
-    (dispatch_dir / "__init__.py").write_text('"""Generated dispatch package."""\n')
-    dispatch_file_count = len([path for path in dispatch_dir.glob("*.py") if path.name != "__init__.py"])
+    dispatch_file_count = count_python_modules(dispatch_dir)
     print(f"  dispatch/ written ({dispatch_file_count} files)")
 
     (output_dir / "reference.py").write_text(

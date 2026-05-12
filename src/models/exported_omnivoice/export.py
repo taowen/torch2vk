@@ -18,6 +18,7 @@ import torch
 import transformers.integrations.sdpa_attention as _sdpa_attn_mod
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from transformers import AutoTokenizer
+from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.exported_omnivoice.custom_shaders import (
     OMNIVOICE_CFG_SCORE_F32,
@@ -25,7 +26,7 @@ from models.exported_omnivoice.custom_shaders import (
     OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
 )
 from models.exported_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
-from models.exported_omnivoice.pytorch_modules import LlmForwardModule
+from models.exported_omnivoice.pytorch_modules import AudioDecodeModule, LlmForwardModule
 from models.hf_cache import resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
@@ -50,10 +51,11 @@ from torch2vk.export.reference_codegen import (
     render_reference_module,
 )
 from torch2vk.export.shader_codegen import (
+    clear_python_modules,
     clear_shader_package,
+    count_python_modules,
     rename_shader_variant,
     write_shader_file,
-    write_shader_init,
 )
 from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
@@ -98,6 +100,7 @@ def _render_template(name: str, **context: object) -> str:
 # Model loading + shape computation
 # ==============================================================
 
+
 def _load_model_and_shapes():
     model_dir = resolve_cached_model(REPO_ID)
     config_data = json.loads((model_dir / "config.json").read_text())
@@ -135,6 +138,7 @@ def _load_model_and_shapes():
 # Main
 # ==============================================================
 
+
 def main() -> int:
     output_dir = Path(__file__).parent
     shaders_dir = output_dir / "shaders"
@@ -144,14 +148,21 @@ def main() -> int:
     tensors_dir.mkdir(exist_ok=True)
     dispatch_dir = output_dir / "dispatch"
     dispatch_dir.mkdir(exist_ok=True)
-    for f in tensors_dir.glob("*.py"):
-        f.unlink()
-    for f in dispatch_dir.glob("*.py"):
-        f.unlink()
+    clear_python_modules(tensors_dir)
+    clear_python_modules(dispatch_dir)
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
     checkpoint_dtypes = read_checkpoint_dtypes(resolve_cached_model(REPO_ID))
+    audio_tokenizer_dir = resolve_cached_model(REPO_ID) / "audio_tokenizer"
+    audio_tokenizer_checkpoint_dtypes = read_checkpoint_dtypes(audio_tokenizer_dir)
+    audio_tokenizer = cast(
+        HiggsAudioV2TokenizerModel,
+        HiggsAudioV2TokenizerModel.from_pretrained(
+            str(audio_tokenizer_dir),
+            device_map="cuda",
+        ).eval(),
+    )
 
     B = shapes["batch_size"]
     S = shapes["seq_len"]
@@ -184,56 +195,62 @@ def main() -> int:
     reference_functions: list[str] = []
     loader_fields: list[str] = []
     loader_sources: list[str] = []
-    reference_functions.append(render_reference_function(
-        name="input_embed",
-        reference_source="reference",
-        tensors="model_tensors()",
-        frame_name="omnivoice.step.{step:04d}.input_embed",
-        policy="tensor",
-        input_bindings={
-            "input_ids": "batch_input_ids",
-            "audio_mask": "batch_audio_mask",
-        },
-        output_bindings={"hidden_states": "llm_forward.hidden_states"},
-        needs_reference=True,
-    ))
-    reference_functions.append(render_reference_function(
-        name="token_score",
-        reference_source="reference",
-        tensors="model_tensors()",
-        frame_name="omnivoice.step.{step:04d}.token_score",
-        policy={"candidate_tokens": "token", "candidate_scores": "tensor"},
-        input_bindings={
-            "logits": "audio_head.linear",
-            "tokens": "tokens",
-            "audio_mask_id": "audio_mask_id",
-            "rng_seed": "rng_seed",
-            "step_index": "step_index",
-        },
-        output_bindings={
-            "candidate_scores": "candidate_scores",
-        },
-        needs_reference=True,
-    ))
-    reference_functions.append(render_reference_function(
-        name="token_update",
-        reference_source="reference",
-        tensors="model_tensors()",
-        frame_name="omnivoice.step.{step:04d}.token_update",
-        policy="token",
-        input_bindings={
-            "tokens": "tokens",
-            "batch_input_ids": "batch_input_ids",
-            "candidate_tokens": "candidate_tokens",
-            "candidate_scores": "candidate_scores",
-            "unmask_count": "unmask_count",
-        },
-        output_bindings={
-            "tokens": "tokens",
-            "batch_input_ids": "batch_input_ids",
-        },
-        needs_reference=True,
-    ))
+    reference_functions.append(
+        render_reference_function(
+            name="input_embed",
+            reference_source="reference",
+            tensors="model_tensors()",
+            frame_name="omnivoice.step.{step:04d}.input_embed",
+            policy="tensor",
+            input_bindings={
+                "input_ids": "batch_input_ids",
+                "audio_mask": "batch_audio_mask",
+            },
+            output_bindings={"hidden_states": "llm_forward.hidden_states"},
+            needs_reference=True,
+        )
+    )
+    reference_functions.append(
+        render_reference_function(
+            name="token_score",
+            reference_source="reference",
+            tensors="model_tensors()",
+            frame_name="omnivoice.step.{step:04d}.token_score",
+            policy={"candidate_tokens": "token", "candidate_scores": "tensor"},
+            input_bindings={
+                "logits": "audio_head.linear",
+                "tokens": "tokens",
+                "audio_mask_id": "audio_mask_id",
+                "rng_seed": "rng_seed",
+                "step_index": "step_index",
+            },
+            output_bindings={
+                "candidate_scores": "candidate_scores",
+            },
+            needs_reference=True,
+        )
+    )
+    reference_functions.append(
+        render_reference_function(
+            name="token_update",
+            reference_source="reference",
+            tensors="model_tensors()",
+            frame_name="omnivoice.step.{step:04d}.token_update",
+            policy="token",
+            input_bindings={
+                "tokens": "tokens",
+                "batch_input_ids": "batch_input_ids",
+                "candidate_tokens": "candidate_tokens",
+                "candidate_scores": "candidate_scores",
+                "unmask_count": "unmask_count",
+            },
+            output_bindings={
+                "tokens": "tokens",
+                "batch_input_ids": "batch_input_ids",
+            },
+            needs_reference=True,
+        )
+    )
 
     def export_one(
         name,
@@ -241,7 +258,10 @@ def main() -> int:
         args,
         kwargs=None,
         weight_prefix="",
+        checkpoint: str | None = None,
+        checkpoint_dtypes_map=None,
         layer_loop=None,
+        shape_exprs=None,
         reference_input_bindings=None,
         reference_output_bindings=None,
         reference_tensors=None,
@@ -252,7 +272,9 @@ def main() -> int:
         set_module_checkpoint_dtypes(
             module,
             weight_prefix=weight_prefix,
-            checkpoint_dtypes=checkpoint_dtypes,
+            checkpoint_dtypes=checkpoint_dtypes_map
+            if checkpoint_dtypes_map is not None
+            else checkpoint_dtypes,
         )
         export_dtype = module_floating_dtype(module)
         if export_dtype is not None:
@@ -272,16 +294,18 @@ def main() -> int:
                 )
             )
             reference_source = f"_load_{func_name}()"
-        reference_functions.append(render_exported_reference_function(
-            prog,
-            name=func_name,
-            reference_source=reference_source,
-            tensors=reference_tensors if reference_tensors is not None else "model_tensors()",
-            frame_name=reference_name if reference_name is not None else func_name,
-            policy=reference_policy,
-            input_bindings=reference_input_bindings,
-            output_bindings=reference_output_bindings,
-        ))
+        reference_functions.append(
+            render_exported_reference_function(
+                prog,
+                name=func_name,
+                reference_source=reference_source,
+                tensors=reference_tensors if reference_tensors is not None else "model_tensors()",
+                frame_name=reference_name if reference_name is not None else func_name,
+                policy=reference_policy,
+                input_bindings=reference_input_bindings,
+                output_bindings=reference_output_bindings,
+            )
+        )
 
         if layer_loop is not None:
             layer_cls_name = "LlmLayerTensors"
@@ -314,6 +338,8 @@ def main() -> int:
                 class_name=cls_name,
                 function_name=f"create_{func_name}",
                 weight_prefix=weight_prefix,
+                checkpoint=checkpoint,
+                shape_exprs=shape_exprs,
             )
             (tensors_dir / f"{tensor_file}.py").write_text(render_tensor_module([tensor_src]))
 
@@ -402,7 +428,30 @@ def main() -> int:
         reference_name="omnivoice.step.{step:04d}.audio_head",
     )
 
-    write_shader_init(shaders_dir)
+    target_len = shapes["target_len"]
+    export_one(
+        "run_audio_decode",
+        AudioDecodeModule(audio_tokenizer).float(),
+        args=(
+            torch.zeros(
+                1, shapes["num_audio_codebook"], target_len, dtype=torch.int64, device="cuda"
+            ),
+        ),
+        checkpoint="audio_tokenizer/model.safetensors",
+        checkpoint_dtypes_map=audio_tokenizer_checkpoint_dtypes,
+        shape_exprs={
+            target_len: "target_len",
+            target_len * 8: "target_len * 8",
+            target_len * 40: "target_len * 40",
+            target_len * 160: "target_len * 160",
+            target_len * 320: "target_len * 320",
+            target_len * 960: "target_len * 960",
+        },
+        reference_input_bindings={"audio_codes": "tokens"},
+        reference_output_bindings={"conv1d_31": "audio_decode.conv1d_31"},
+        reference_tensors="model_tensors()",
+        reference_name="omnivoice.audio_decode",
+    )
     print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.
@@ -419,12 +468,9 @@ def main() -> int:
         audio_embedding_dtype=checkpoint_dtypes["audio_embeddings.weight"],
     )
     (tensors_dir / "model.py").write_text(model_source)
-    (tensors_dir / "__init__.py").write_text('"""Generated tensor package."""\n')
-    tensor_file_count = len([path for path in tensors_dir.glob("*.py") if path.name != "__init__.py"])
+    tensor_file_count = count_python_modules(tensors_dir)
     print(f"  tensors/ written ({tensor_file_count} files)")
-
-    (dispatch_dir / "__init__.py").write_text('"""Generated dispatch package."""\n')
-    dispatch_file_count = len([path for path in dispatch_dir.glob("*.py") if path.name != "__init__.py"])
+    dispatch_file_count = count_python_modules(dispatch_dir)
     print(f"  dispatch/ written ({dispatch_file_count} files)")
 
     (output_dir / "reference.py").write_text(

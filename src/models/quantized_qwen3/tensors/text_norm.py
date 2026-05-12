@@ -58,6 +58,7 @@ def create_text_norm(
         p_weight=_bind_tensor(
             p_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="model.norm.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='float32', shape=(1024,)),
@@ -71,6 +72,7 @@ def create_text_norm(
         hidden_states=_bind_tensor(
             hidden_states,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
@@ -84,6 +86,7 @@ def create_text_norm(
         to=_bind_tensor(
             to,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to',
                 spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
@@ -97,6 +100,7 @@ def create_text_norm(
         pow_1=_bind_tensor(
             pow_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='pow_1',
                 spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
@@ -110,6 +114,7 @@ def create_text_norm(
         mean=_bind_tensor(
             mean,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mean',
                 spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1)),
@@ -123,6 +128,7 @@ def create_text_norm(
         add=_bind_tensor(
             add,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add',
                 spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1)),
@@ -136,6 +142,7 @@ def create_text_norm(
         rsqrt=_bind_tensor(
             rsqrt,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='rsqrt',
                 spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1)),
@@ -149,6 +156,7 @@ def create_text_norm(
         mul=_bind_tensor(
             mul,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul',
                 spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
@@ -162,6 +170,7 @@ def create_text_norm(
         to_1=_bind_tensor(
             to_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='to_1',
                 spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
@@ -175,6 +184,7 @@ def create_text_norm(
         mul_1=_bind_tensor(
             mul_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='mul_1',
                 spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
@@ -199,6 +209,7 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     layout: TensorLayout = CONTIGUOUS_LAYOUT,
+    checkpoint: str | None = None,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -212,6 +223,7 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
+        checkpoint=checkpoint,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
         layout=layout,

@@ -46,6 +46,7 @@ def create_decode_embed(
         p_weight=_bind_tensor(
             p_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.model.embed_tokens.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("thinker.model.embed_tokens.weight", dtype='float32', shape=(151936, 1024)),
@@ -59,6 +60,7 @@ def create_decode_embed(
         input=_bind_tensor(
             input,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='int64', shape=(1, 1)),
@@ -72,9 +74,10 @@ def create_decode_embed(
         embedding=_bind_tensor(
             embedding,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='embedding',
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -159,6 +162,7 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     layout: TensorLayout = CONTIGUOUS_LAYOUT,
+    checkpoint: str | None = None,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -172,6 +176,7 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
+        checkpoint=checkpoint,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
         layout=layout,

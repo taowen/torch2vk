@@ -11,13 +11,16 @@ from typing import cast
 import numpy as np
 import torch
 from transformers import AutoTokenizer
+from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.exported_omnivoice import reference
+from models.exported_omnivoice.dispatch.audio_decode import run_audio_decode
 from models.exported_omnivoice.dispatch.audio_head import run_audio_head
 from models.exported_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.exported_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
 from models.exported_omnivoice.pytorch_modules import (
     InputEmbedReference,
+    AudioDecodeReference,
     LlmForwardReference,
     TokenScoreReference,
     TokenUpdateReference,
@@ -47,6 +50,7 @@ class _OmniVoiceCompareState:
     llm_forward: LlmForwardReference
     token_score: TokenScoreReference
     token_update: TokenUpdateReference
+    audio_decode: AudioDecodeReference
     batch_input_ids: torch.Tensor
     batch_audio_mask: torch.Tensor
     attention_mask: torch.Tensor
@@ -88,6 +92,7 @@ def _build_compare_references(
     audio_mask_id: int,
     rng_seed: int,
     head_dim: int,
+    audio_tokenizer: HiggsAudioV2TokenizerModel,
 ) -> _OmniVoiceCompareState:
     reference.set_model(model)
     rope_cos, rope_sin = _make_rope_table(
@@ -101,6 +106,7 @@ def _build_compare_references(
         llm_forward=LlmForwardReference(model),
         token_score=TokenScoreReference(model),
         token_update=TokenUpdateReference(),
+        audio_decode=AudioDecodeReference(audio_tokenizer),
         batch_input_ids=torch.from_numpy(np.ascontiguousarray(batch_input_ids)).cuda(),
         batch_audio_mask=torch.from_numpy(
             np.ascontiguousarray(batch_audio_mask.astype(np.bool_))
@@ -221,6 +227,13 @@ def compare_generation_steps(
             train=True,
         ).eval(),
     )
+    audio_tokenizer = cast(
+        HiggsAudioV2TokenizerModel,
+        HiggsAudioV2TokenizerModel.from_pretrained(
+            str(model_dir / "audio_tokenizer"),
+            device_map="cuda",
+        ).eval(),
+    )
     tokens = np.full(
         (1, config.num_audio_codebook, prepared.target_len),
         config.audio_mask_id,
@@ -236,6 +249,7 @@ def compare_generation_steps(
         audio_mask_id=config.audio_mask_id,
         rng_seed=rng_seed,
         head_dim=llm_config.head_dim,
+        audio_tokenizer=audio_tokenizer,
     )
 
     rt = RuntimeSession.open(
@@ -255,10 +269,12 @@ def compare_generation_steps(
                 model_tensors().tokens: tokens,
             }
         )
-        rt.register_inputs({
-            model_tensors().rope.start_position: np.array([0], dtype=np.int64),
-            model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
-        })
+        rt.register_inputs(
+            {
+                model_tensors().rope.start_position: np.array([0], dtype=np.int64),
+                model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
+            }
+        )
         _run_rope_table(rt, frame_name="omnivoice.rope")
 
         timesteps = _get_time_steps(0.0, 1.0, num_steps, t_shift=0.1)
@@ -281,6 +297,13 @@ def compare_generation_steps(
                 step=step,
                 unmask_count=int(unmask_count),
                 refs=refs,
+            )
+        with rt.frame("omnivoice.audio_decode"):
+            run_audio_decode(rt)
+            reference.run_audio_decode(
+                rt,
+                refs.audio_decode,
+                audio_codes=refs.tokens,
             )
     finally:
         rt.close()

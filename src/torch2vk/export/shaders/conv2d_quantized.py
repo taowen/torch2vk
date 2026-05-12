@@ -3,6 +3,9 @@ from __future__ import annotations
 from torch.fx import Node
 
 from torch2vk.export.shaders._factory import (
+    activation_extension_source,
+    activation_glsl_type,
+    activation_store,
     node_input_dtype,
     node_input_shape,
     node_output_shape,
@@ -28,15 +31,15 @@ from torch2vk.vulkan.types import q8_0_halfwords_layout
 _SOURCE_TEMPLATE = """\
 #version 450
 
-#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_16bit_storage : require
+{{ACTIVATION_EXTENSION}}\
 {{BIAS_EXTENSION}}\
 
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
-{{BIAS_BUFFER}}layout(set = 0, binding = {{OUTPUT_BINDING}}) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+{{BIAS_BUFFER}}layout(set = 0, binding = {{OUTPUT_BINDING}}) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint batch; uint in_c; uint in_h; uint in_w;
     uint out_c; uint out_h; uint out_w;
@@ -80,14 +83,12 @@ void main() {
             }
         }
     }
-    output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = float16_t(acc);
+    output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = {{STORE_ACC}};
 }
 """
 
 
 def make_conv2d_q8_0_variant(node: Node, activation_dtype: str = "float16") -> ShaderVariant | None:
-    if activation_dtype != "float16":
-        return None
     x_shape = node_input_shape(node, 0)
     w_shape = node_input_shape(node, 1)
     out_shape = node_output_shape(node)
@@ -116,7 +117,12 @@ def make_conv2d_q8_0_variant(node: Node, activation_dtype: str = "float16") -> S
 
     has_bias = len(node.args) >= 3 and isinstance(node.args[2], Node)
     fields: list[TensorFieldSpec] = [
-        TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float16", shape=("B", "Ci", "Hi", "Wi"))),
+        TensorFieldSpec(
+            "x",
+            IOKind.INPUT,
+            "input",
+            TensorContract(dtype=activation_dtype, shape=("B", "Ci", "Hi", "Wi")),
+        ),
         TensorFieldSpec(
             "weight",
             IOKind.INPUT,
@@ -133,10 +139,21 @@ def make_conv2d_q8_0_variant(node: Node, activation_dtype: str = "float16") -> S
     if has_bias:
         bias_dtype = node_input_dtype(node, 2)
         bias_suffix = weight_dtype_suffix(bias_dtype)
-        fields.append(TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("Co",))))
-    fields.append(TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype="float16", shape=("B", "Co", "Ho", "Wo"))))
+        fields.append(
+            TensorFieldSpec(
+                "bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("Co",))
+            )
+        )
+    fields.append(
+        TensorFieldSpec(
+            "output",
+            IOKind.OUTPUT,
+            "output",
+            TensorContract(dtype=activation_dtype, shape=("B", "Co", "Ho", "Wo")),
+        )
+    )
 
-    shader_name = f"conv2d_q8_0w_{bias_suffix}b_f16"
+    shader_name = f"conv2d_q8_0w_{bias_suffix}b_{'f16' if activation_dtype == 'float16' else 'f32'}"
     return ShaderVariant(
         name=shader_name,
         family="export",
@@ -164,12 +181,14 @@ def make_conv2d_q8_0_variant(node: Node, activation_dtype: str = "float16") -> S
             ),
             dispatch=(ceil_div(mul("Ho", "Wo"), 16), ceil_div("Co", 16), "B"),
         ),
-        execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
-        source=_source(has_bias=has_bias, bias_dtype=bias_dtype),
+        execution_requirements=ShaderExecutionRequirements(
+            require_storage_buffer_16bit_access=True
+        ),
+        source=_source(has_bias=has_bias, bias_dtype=bias_dtype, activation_dtype=activation_dtype),
     )
 
 
-def _source(*, has_bias: bool, bias_dtype: str) -> str:
+def _source(*, has_bias: bool, bias_dtype: str, activation_dtype: str) -> str:
     if has_bias:
         bias_buffer = f"layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer {{ {weight_glsl_type(bias_dtype)} bias[]; }};\n"
         output_binding = "3"
@@ -179,8 +198,16 @@ def _source(*, has_bias: bool, bias_dtype: str) -> str:
         output_binding = "2"
         acc_init = "0.0"
     return (
-        _SOURCE_TEMPLATE
-        .replace("{{BIAS_EXTENSION}}", weight_extension_source("bfloat16") if bias_dtype == "bfloat16" else "")
+        _SOURCE_TEMPLATE.replace(
+            "{{ACTIVATION_EXTENSION}}",
+            activation_extension_source(activation_dtype),
+        )
+        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
+        .replace("{{STORE_ACC}}", activation_store("acc", activation_dtype))
+        .replace(
+            "{{BIAS_EXTENSION}}",
+            weight_extension_source("bfloat16") if bias_dtype == "bfloat16" else "",
+        )
         .replace("{{BIAS_BUFFER}}", bias_buffer)
         .replace("{{OUTPUT_BINDING}}", output_binding)
         .replace("{{ACC_INIT}}", acc_init)

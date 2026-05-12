@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from models.exported_omnivoice.tensors.model import model_tensors
 from models.exported_omnivoice.shaders.add_f32 import ADD_F32
-from models.exported_omnivoice.shaders.add_f32_32 import ADD_F32_32
-from models.exported_omnivoice.shaders.add_f32_35 import ADD_F32_35
+from models.exported_omnivoice.shaders.add_f32_30 import ADD_F32_30
+from models.exported_omnivoice.shaders.add_f32_33 import ADD_F32_33
 from models.exported_omnivoice.shaders.add_scalar import ADD_SCALAR
 from models.exported_omnivoice.shaders.add_scalar_16 import ADD_SCALAR_16
 from models.exported_omnivoice.shaders.add_scalar_9 import ADD_SCALAR_9
@@ -15,8 +15,6 @@ from models.exported_omnivoice.shaders.mean_dim_f32 import MEAN_DIM_F32
 from models.exported_omnivoice.shaders.mean_dim_f32_15 import MEAN_DIM_F32_15
 from models.exported_omnivoice.shaders.mean_dim_f32_8 import MEAN_DIM_F32_8
 from models.exported_omnivoice.shaders.mul_broadcast_inner import MUL_BROADCAST_INNER
-from models.exported_omnivoice.shaders.mul_broadcast_inner_27 import MUL_BROADCAST_INNER_27
-from models.exported_omnivoice.shaders.mul_broadcast_inner_29 import MUL_BROADCAST_INNER_29
 from models.exported_omnivoice.shaders.mul_broadcast_last import MUL_BROADCAST_LAST
 from models.exported_omnivoice.shaders.mul_broadcast_last_11 import MUL_BROADCAST_LAST_11
 from models.exported_omnivoice.shaders.mul_broadcast_last_18 import MUL_BROADCAST_LAST_18
@@ -35,7 +33,7 @@ from models.exported_omnivoice.shaders.sdpa_masked_f32 import SDPA_MASKED_F32
 from models.exported_omnivoice.shaders.silu_f32 import SILU_F32
 from models.exported_omnivoice.shaders.slice_f32 import SLICE_F32
 from models.exported_omnivoice.shaders.slice_f32_23 import SLICE_F32_23
-from models.exported_omnivoice.shaders.slice_f32_28 import SLICE_F32_28
+from models.exported_omnivoice.shaders.slice_f32_27 import SLICE_F32_27
 from models.exported_omnivoice.shaders.transpose_f32_322f87bdab import TRANSPOSE_F32_322F87BDAB
 from models.exported_omnivoice.shaders.transpose_f32_b4bb3205fc import TRANSPOSE_F32_B4BB3205FC
 from models.exported_omnivoice.shaders.transpose_f32_e6f353739d import TRANSPOSE_F32_E6F353739D
@@ -76,17 +74,17 @@ def _run_llm_forward_with_tensors(rt: RuntimeSession, tensors: LlmForwardTensors
         CAT_F32(rt, a=layer_t.neg, b=layer_t.slice_1, output=layer_t.cat)
         MUL_BROADCAST_INNER(rt, x=layer_t.cat, y=layer_t.unsqueeze_1, output=layer_t.mul_7)
         ADD_F32(rt, x=layer_t.mul_6, y=layer_t.mul_7, output=layer_t.add_3)
-        MUL_BROADCAST_INNER_27(rt, x=layer_t.transpose_1, y=layer_t.unsqueeze, output=layer_t.mul_8)
+        MUL_BROADCAST_INNER(rt, x=layer_t.transpose_1, y=layer_t.unsqueeze, output=layer_t.mul_8)
         SLICE_F32(rt, x=layer_t.transpose_1, output=layer_t.slice_3)
-        SLICE_F32_28(rt, x=layer_t.transpose_1, output=layer_t.slice_4)
+        SLICE_F32_27(rt, x=layer_t.transpose_1, output=layer_t.slice_4)
         NEG_F32(rt, x=layer_t.slice_4, output=layer_t.neg_1)
         CAT_F32(rt, a=layer_t.neg_1, b=layer_t.slice_3, output=layer_t.cat_1)
-        MUL_BROADCAST_INNER_29(rt, x=layer_t.cat_1, y=layer_t.unsqueeze_1, output=layer_t.mul_9)
+        MUL_BROADCAST_INNER(rt, x=layer_t.cat_1, y=layer_t.unsqueeze_1, output=layer_t.mul_9)
         ADD_F32(rt, x=layer_t.mul_8, y=layer_t.mul_9, output=layer_t.add_4)
         SDPA_MASKED_F32(rt, q=layer_t.add_3, k=layer_t.add_4, v=layer_t.transpose_2, mask=tensors.attention_mask, output=layer_t.scaled_dot_product_attention)
         TRANSPOSE_F32_E6F353739D(rt, x=layer_t.scaled_dot_product_attention, output=layer_t.transpose_3)
         LINEAR_NOBIAS_F32W_F32(rt, x=layer_t.reshape, weight=layer_t.p_layers_0_self_attn_o_proj_weight, output=layer_t.linear_3)
-        ADD_F32_32(rt, x=layer_t.to, y=layer_t.linear_3, output=layer_t.add_5)
+        ADD_F32_30(rt, x=layer_t.to, y=layer_t.linear_3, output=layer_t.add_5)
         POW_SCALAR_F32(rt, x=layer_t.to_6, output=layer_t.pow_4)
         MEAN_DIM_F32(rt, x=layer_t.pow_4, output=layer_t.mean_3)
         ADD_SCALAR(rt, x=layer_t.mean_3, output=layer_t.add_6)
@@ -98,7 +96,7 @@ def _run_llm_forward_with_tensors(rt: RuntimeSession, tensors: LlmForwardTensors
         LINEAR_NOBIAS_F32W_F32(rt, x=layer_t.mul_11, weight=layer_t.p_layers_0_mlp_up_proj_weight, output=layer_t.linear_5)
         MUL_F32(rt, x=layer_t.silu, y=layer_t.linear_5, output=layer_t.mul_12)
         LINEAR_NOBIAS_F32W_F32(rt, x=layer_t.mul_12, weight=layer_t.p_layers_0_mlp_down_proj_weight, output=layer_t.linear_6)
-        ADD_F32_35(rt, x=layer_t.to_6, y=layer_t.linear_6, output=layer_t.add_7)
+        ADD_F32_33(rt, x=layer_t.to_6, y=layer_t.linear_6, output=layer_t.add_7)
     POW_SCALAR_F32(rt, x=tensors.to_224, output=tensors.pow_113)
     MEAN_DIM_F32(rt, x=tensors.pow_113, output=tensors.mean_112)
     ADD_SCALAR(rt, x=tensors.mean_112, output=tensors.add_224)

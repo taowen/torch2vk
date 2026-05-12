@@ -120,10 +120,27 @@ def make_layer_norm_variant(node: Node, activation_dtype: str = "float32") -> Sh
             class_name=f"ExportLayerNorm{weight_suffix.title()}Weight{bias_suffix.title()}BiasProgram",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=in_contract)),
-                TensorFieldSpec("weight", IOKind.INPUT, "weight", TensorContract(dtype=weight_dtype, shape=("W0",))),
-                TensorFieldSpec("bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("W0",))),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=in_contract),
+                ),
+                TensorFieldSpec(
+                    "weight",
+                    IOKind.INPUT,
+                    "weight",
+                    TensorContract(dtype=weight_dtype, shape=("W0",)),
+                ),
+                TensorFieldSpec(
+                    "bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("W0",))
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=12,
@@ -135,26 +152,30 @@ def make_layer_norm_variant(node: Node, activation_dtype: str = "float32") -> Sh
             ),
             dispatch=(rows, 1, 1),
         ),
-        source=_source(weight_dtype=weight_dtype, bias_dtype=bias_dtype, activation_dtype=activation_dtype),
+        source=_source(
+            weight_dtype=weight_dtype, bias_dtype=bias_dtype, activation_dtype=activation_dtype
+        ),
         execution_requirements=activation_requirements(activation_dtype),
     )
 
 
 def _source(*, weight_dtype: str, bias_dtype: str, activation_dtype: str) -> str:
     extension = (
-        weight_extension_source("bfloat16")
-        if "bfloat16" in {weight_dtype, bias_dtype}
-        else ""
+        weight_extension_source("bfloat16") if "bfloat16" in {weight_dtype, bias_dtype} else ""
     )
     return (
-        _SOURCE_TEMPLATE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SOURCE_TEMPLATE.replace(
+            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+        )
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{WEIGHT_EXTENSION}}", extension)
         .replace("{{WEIGHT_TYPE}}", weight_glsl_type(weight_dtype))
         .replace("{{BIAS_TYPE}}", weight_glsl_type(bias_dtype))
         .replace(
             "{{STORE_NORM}}",
-            activation_store("(float(x[idx]) - mean) * inv_std * float(weight[c]) + float(bias[c])", activation_dtype),
+            activation_store(
+                "(float(x[idx]) - mean) * inv_std * float(weight[c]) + float(bias[c])",
+                activation_dtype,
+            ),
         )
     )

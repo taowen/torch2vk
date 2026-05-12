@@ -7,6 +7,7 @@ from torch2vk.export.shaders._factory import (
     activation_glsl_type,
     activation_requirements,
     activation_store,
+    activation_variant_name,
     node_input_shape,
     node_output_shape,
     product_expr,
@@ -33,7 +34,9 @@ from torch2vk.vulkan.shader_execution_requirements import (
 from torch2vk.vulkan.types import q4_k_words_layout, q6_k_halfwords_layout, q8_0_halfwords_layout
 
 
-def make_linear_nobias_q4_k_m_variant(node: Node, activation_dtype: str = "float16") -> ShaderVariant | None:
+def make_linear_nobias_q4_k_m_variant(
+    node: Node, activation_dtype: str = "float16"
+) -> ShaderVariant | None:
     x_shape = node_input_shape(node, 0)
     w_shape = node_input_shape(node, 1)
     out_shape = node_output_shape(node)
@@ -42,7 +45,7 @@ def make_linear_nobias_q4_k_m_variant(node: Node, activation_dtype: str = "float
     k = int(x_shape[-1])
     m = _flattened_rows(x_shape)
     if k % 256 == 0:
-        if m <= 8:
+        if activation_dtype == "float32" or m <= 8:
             return _make_quantized_variant(
                 name="linear_nobias_q4_k_matvec_f32",
                 class_name="ExportLinearNobiasQ4KMatvecProgram",
@@ -70,11 +73,11 @@ def make_linear_nobias_q4_k_m_variant(node: Node, activation_dtype: str = "float
                 layout=q4_k_words_layout(logical_k="K"),
             ),
             source=_Q4_K_COOPMAT_SOURCE,
-            execution_requirements=_COOPMAT_F16ACC_REQUIREMENTS,
+            execution_requirements=_coopmat_requirements(activation_dtype),
             activation_dtype=activation_dtype,
         )
     if k % 32 == 0:
-        if m <= 8:
+        if activation_dtype == "float32" or m <= 8:
             return _make_q8_0_matvec_variant(
                 x_shape=x_shape,
                 w_shape=w_shape,
@@ -114,7 +117,7 @@ def make_linear_nobias_q6_k_variant(
     if k % 256 != 0:
         return None
     m = _flattened_rows(x_shape)
-    use_matvec = m <= 8 if matvec is None else matvec
+    use_matvec = (activation_dtype == "float32" or m <= 8) if matvec is None else matvec
     if use_matvec:
         return _make_quantized_variant(
             name="linear_nobias_q6_k_matvec_f32",
@@ -143,12 +146,14 @@ def make_linear_nobias_q6_k_variant(
             layout=q6_k_halfwords_layout(logical_k="K"),
         ),
         source=_Q6_K_COOPMAT_SOURCE,
-        execution_requirements=_COOPMAT_F16ACC_REQUIREMENTS,
+        execution_requirements=_coopmat_requirements(activation_dtype),
         activation_dtype=activation_dtype,
     )
 
 
-def make_linear_nobias_q8_0_variant(node: Node, activation_dtype: str = "float16") -> ShaderVariant | None:
+def make_linear_nobias_q8_0_variant(
+    node: Node, activation_dtype: str = "float16"
+) -> ShaderVariant | None:
     x_shape = node_input_shape(node, 0)
     w_shape = node_input_shape(node, 1)
     out_shape = node_output_shape(node)
@@ -158,7 +163,7 @@ def make_linear_nobias_q8_0_variant(node: Node, activation_dtype: str = "float16
     if k % 32 != 0:
         return make_linear_nobias_variant(node, activation_dtype)
     m = _flattened_rows(x_shape)
-    if m <= 8:
+    if activation_dtype == "float32" or m <= 8:
         return _make_q8_0_matvec_variant(
             x_shape=x_shape,
             w_shape=w_shape,
@@ -205,15 +210,25 @@ def _make_quantized_variant(
         else (ceil_div(m, 32), ceil_div("N", 16), 1)
     )
     return ShaderVariant(
-        name=name,
+        name=activation_variant_name(name, activation_dtype),
         family="export",
         contract=ShaderContract(
             class_name=class_name,
-            shader_name=name,
+            shader_name=activation_variant_name(name, activation_dtype),
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=x_contract)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=x_contract),
+                ),
                 TensorFieldSpec("weight", IOKind.INPUT, "weight", weight_contract),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=12,
@@ -262,20 +277,27 @@ def _flattened_rows(x_shape: tuple[int, ...]) -> int:
 
 
 def _source(source: str, activation_dtype: str) -> str:
-    return render_shader_template(source, {
-        "ACTIVATION_EXTENSION": activation_extension_source_for_shader(source, activation_dtype),
-        "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
-        "ACTIVATION_VEC4_TYPE": _activation_vec4_glsl_type(activation_dtype),
-        "MATVEC_PAIR_X_VALUE": "float(x[row * pc.K + k_base + pair * 64u])",
-        "MATVEC_X_VALUE": "float(x[row * pc.K + k])",
-        "LOAD_A0": "float(x[m0 * pc.K + k])",
-        "LOAD_A1": "float(x[m1 * pc.K + k])",
-        "STORE_ACC0": activation_store("acc0", activation_dtype),
-        "STORE_ACC1": activation_store("acc1", activation_dtype),
-        "STORE_OUT0": activation_store("shared_out0[i]", activation_dtype),
-        "STORE_OUT1": activation_store("shared_out1[i]", activation_dtype),
-        "STORE_STAGE": activation_store("shared_stage[stage_index]", activation_dtype),
-    })
+    return render_shader_template(
+        source,
+        {
+            "ACTIVATION_EXTENSION": activation_extension_source_for_shader(
+                source, activation_dtype
+            ),
+            "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+            "ACTIVATION_VEC4_TYPE": _activation_vec4_glsl_type(activation_dtype),
+            "ACCUM_TYPE": _accumulator_glsl_type(activation_dtype),
+            "ACCUM_ZERO": _accumulator_zero(activation_dtype),
+            "MATVEC_PAIR_X_VALUE": "float(x[row * pc.K + k_base + pair * 64u])",
+            "MATVEC_X_VALUE": "float(x[row * pc.K + k])",
+            "LOAD_A0": "float(x[m0 * pc.K + k])",
+            "LOAD_A1": "float(x[m1 * pc.K + k])",
+            "STORE_ACC0": activation_store("acc0", activation_dtype),
+            "STORE_ACC1": activation_store("acc1", activation_dtype),
+            "STORE_OUT0": activation_store("shared_out0[i]", activation_dtype),
+            "STORE_OUT1": activation_store("shared_out1[i]", activation_dtype),
+            "STORE_STAGE": activation_store("shared_stage[stage_index]", activation_dtype),
+        },
+    )
 
 
 def _activation_vec4_glsl_type(dtype: str) -> str:
@@ -284,6 +306,30 @@ def _activation_vec4_glsl_type(dtype: str) -> str:
     if dtype == "float32":
         return "vec4"
     raise ValueError(f"Unsupported activation dtype for shader generation: {dtype}")
+
+
+def _accumulator_glsl_type(dtype: str) -> str:
+    if dtype == "float16":
+        return "float16_t"
+    if dtype == "float32":
+        return "float"
+    raise ValueError(f"Unsupported activation dtype for shader generation: {dtype}")
+
+
+def _accumulator_zero(dtype: str) -> str:
+    if dtype == "float16":
+        return "float16_t(0.0)"
+    if dtype == "float32":
+        return "0.0"
+    raise ValueError(f"Unsupported activation dtype for shader generation: {dtype}")
+
+
+def _coopmat_requirements(activation_dtype: str) -> ShaderExecutionRequirements:
+    if activation_dtype == "float32":
+        return _COOPMAT_REQUIREMENTS
+    if activation_dtype == "float16":
+        return _COOPMAT_F16ACC_REQUIREMENTS
+    raise ValueError(f"Unsupported activation dtype for shader generation: {activation_dtype}")
 
 
 _SUBGROUP64_REQUIREMENTS = ShaderExecutionRequirements(
@@ -466,13 +512,14 @@ _Q6_K_MATVEC_SOURCE = """\
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_16bit_storage : require
+{{ACTIVATION_EXTENSION}}\
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
-layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { f16vec4 x4[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { {{ACTIVATION_VEC4_TYPE}} x4[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -578,10 +625,10 @@ void main() {
     acc1 = subgroupAdd(acc1);
     if (lane == 0u) {
         if (col0 < pc.N) {
-            output_values[row * pc.N + col0] = float16_t(acc0);
+            output_values[row * pc.N + col0] = {{STORE_ACC0}};
         }
         if (col1 < pc.N) {
-            output_values[row * pc.N + col1] = float16_t(acc1);
+            output_values[row * pc.N + col1] = {{STORE_ACC1}};
         }
     }
 }
@@ -801,7 +848,7 @@ const uint SHMEM_STRIDE = TILE_K / 2u + 4u;
 
 shared f16vec2 shared_w[TILE_N * SHMEM_STRIDE];
 shared f16vec2 shared_x[TILE_M * SHMEM_STRIDE];
-shared {{ACTIVATION_TYPE}} shared_stage[WARPS * STAGE_SIZE];
+shared {{ACCUM_TYPE}} shared_stage[WARPS * STAGE_SIZE];
 shared float shared_q4_d[TILE_N];
 shared float shared_q4_m[TILE_N];
 
@@ -932,10 +979,10 @@ void main() {
 
     coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseA> mat_w;
     coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseB> mat_x;
-    coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> sums[CMS_PER_ROW * CMS_PER_COL];
+    coopmat<{{ACCUM_TYPE}}, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> sums[CMS_PER_ROW * CMS_PER_COL];
 
     [[unroll]] for (uint i = 0u; i < CMS_PER_ROW * CMS_PER_COL; ++i) {
-        sums[i] = coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(float16_t(0.0));
+        sums[i] = coopmat<{{ACCUM_TYPE}}, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>({{ACCUM_ZERO}});
     }
 
     for (uint k_base = 0u; k_base < pc.K; k_base += 32u) {
@@ -963,8 +1010,8 @@ void main() {
             const uint sum_index = cm_col * CMS_PER_ROW + cm_row;
             const uint n_tile = n_base + cm_row * TM;
             const uint m_tile = m_base + warp * WN + cm_col * TN;
-            coopmat<{{ACTIVATION_TYPE}}, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> output_tile =
-                coopmat<{{ACTIVATION_TYPE}}, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(sums[sum_index]);
+            coopmat<{{ACCUM_TYPE}}, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> output_tile =
+                coopmat<{{ACCUM_TYPE}}, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(sums[sum_index]);
             if (n_tile + TM <= pc.N && m_tile + TN <= pc.M) {
                 coopMatStore(output_tile, output_values, int(m_tile * pc.N + n_tile), int(pc.N), gl_CooperativeMatrixLayoutColumnMajor);
             } else {
@@ -999,13 +1046,14 @@ _Q6_K_COOPMAT_SOURCE = """\
 #extension GL_KHR_memory_scope_semantics : require
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_cooperative_matrix : require
+{{ACTIVATION_EXTENSION}}\
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
-layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { f16vec4 x4[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { {{ACTIVATION_VEC4_TYPE}} x4[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -1035,7 +1083,7 @@ const uint SHMEM_STRIDE = TILE_K / 2u + 4u;
 
 shared f16vec2 shared_w[TILE_N * SHMEM_STRIDE];
 shared f16vec2 shared_x[TILE_M * SHMEM_STRIDE];
-shared float16_t shared_stage[WARPS * STAGE_SIZE];
+shared {{ACCUM_TYPE}} shared_stage[WARPS * STAGE_SIZE];
 
 uint q6k_byte(uint block_half, uint byte_offset) {
     const uint packed = uint(weight[block_half + (byte_offset >> 1u)]);
@@ -1100,12 +1148,12 @@ void load_x_tile(uint local_id, uint m_base, uint k_base) {
         const uint base = row * SHMEM_STRIDE + k_offset / 2u;
         if (m < pc.M && k + 7u < pc.K) {
             const uint input_base = m * pc.K + k;
-            const f16vec4 values0 = x4[input_base >> 2u];
-            const f16vec4 values1 = x4[(input_base >> 2u) + 1u];
-            shared_x[base] = f16vec2(values0.x, values0.y);
-            shared_x[base + 1u] = f16vec2(values0.z, values0.w);
-            shared_x[base + 2u] = f16vec2(values1.x, values1.y);
-            shared_x[base + 3u] = f16vec2(values1.z, values1.w);
+            const {{ACTIVATION_VEC4_TYPE}} values0 = x4[input_base >> 2u];
+            const {{ACTIVATION_VEC4_TYPE}} values1 = x4[(input_base >> 2u) + 1u];
+            shared_x[base] = f16vec2(float16_t(float(values0.x)), float16_t(float(values0.y)));
+            shared_x[base + 1u] = f16vec2(float16_t(float(values0.z)), float16_t(float(values0.w)));
+            shared_x[base + 2u] = f16vec2(float16_t(float(values1.x)), float16_t(float(values1.y)));
+            shared_x[base + 3u] = f16vec2(float16_t(float(values1.z)), float16_t(float(values1.w)));
         } else {
             shared_x[base] = f16vec2(
                 float16_t((m < pc.M && k < pc.K) ? float(x[m * pc.K + k]) : 0.0),
@@ -1140,10 +1188,10 @@ void main() {
 
     coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseA> mat_w;
     coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseB> mat_x;
-    coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> sums[CMS_PER_ROW * CMS_PER_COL];
+    coopmat<{{ACCUM_TYPE}}, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> sums[CMS_PER_ROW * CMS_PER_COL];
 
     [[unroll]] for (uint i = 0u; i < CMS_PER_ROW * CMS_PER_COL; ++i) {
-        sums[i] = coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(float16_t(0.0));
+        sums[i] = coopmat<{{ACCUM_TYPE}}, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>({{ACCUM_ZERO}});
     }
 
     for (uint k_base = 0u; k_base < pc.K; k_base += TILE_K) {
@@ -1169,8 +1217,8 @@ void main() {
             const uint sum_index = cm_col * CMS_PER_ROW + cm_row;
             const uint n_tile = n_base + cm_row * TM;
             const uint m_tile = m_base + warp * WN + cm_col * TN;
-            coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> output_tile =
-                coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(sums[sum_index]);
+            coopmat<{{ACCUM_TYPE}}, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> output_tile =
+                coopmat<{{ACCUM_TYPE}}, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(sums[sum_index]);
             if (n_tile + TM <= pc.N && m_tile + TN <= pc.M) {
                 coopMatStore(output_tile, output_values, int(m_tile * pc.N + n_tile), int(pc.N), gl_CooperativeMatrixLayoutColumnMajor);
             } else {
@@ -1182,7 +1230,7 @@ void main() {
                     const uint m = m_tile + col + store_c;
                     if (n < pc.N && m < pc.M) {
                         const uint stage_index = warp * STAGE_SIZE + (col + store_c) * TM + store_r;
-                        output_values[m * pc.N + n] = shared_stage[stage_index];
+                        output_values[m * pc.N + n] = {{STORE_STAGE}};
                     }
                 }
                 controlBarrier(gl_ScopeSubgroup, gl_ScopeSubgroup, gl_StorageSemanticsShared, gl_SemanticsAcquireRelease);
@@ -1194,7 +1242,10 @@ void main() {
 
 
 _Q8_0_COOPMAT_SOURCE = (
-    _COOPMAT_COMMON_HEADER.replace("{{WEIGHT_BUFFER}}", "layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };\n")
+    _COOPMAT_COMMON_HEADER.replace(
+        "{{WEIGHT_BUFFER}}",
+        "layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };\n",
+    )
     + """
 shared float shared_q8_d[TILE_N];
 
@@ -1243,8 +1294,7 @@ float q8_0_value_prepared(uint row, uint k) {
         "        shared_b[i] = float16_t((n < pc.N && k < pc.K) ? q8_0_value_prepared(n, k) : 0.0);\n"
         "    }\n"
         "}\n",
-    )
-    .replace(
+    ).replace(
         "    for (uint k_base = 0u; k_base < pc.K; k_base += TILE_K) {\n"
         "        load_a_tile_pair(lane, row_base, k_base);\n"
         "        load_b_tile(lane, col_base, k_base);\n"

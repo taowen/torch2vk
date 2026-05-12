@@ -118,6 +118,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_self_attn_k_proj_weight=_bind_tensor(
             p_audio_tower_layers_0_self_attn_k_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.self_attn.k_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
@@ -131,6 +132,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_self_attn_k_proj_bias=_bind_tensor(
             p_audio_tower_layers_0_self_attn_k_proj_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.self_attn.k_proj.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -144,6 +146,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_self_attn_v_proj_weight=_bind_tensor(
             p_audio_tower_layers_0_self_attn_v_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.self_attn.v_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
@@ -157,6 +160,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_self_attn_v_proj_bias=_bind_tensor(
             p_audio_tower_layers_0_self_attn_v_proj_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.self_attn.v_proj.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -170,6 +174,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_self_attn_q_proj_weight=_bind_tensor(
             p_audio_tower_layers_0_self_attn_q_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.self_attn.q_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
@@ -183,6 +188,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_self_attn_q_proj_bias=_bind_tensor(
             p_audio_tower_layers_0_self_attn_q_proj_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.self_attn.q_proj.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -196,6 +202,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_self_attn_out_proj_weight=_bind_tensor(
             p_audio_tower_layers_0_self_attn_out_proj_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.self_attn.out_proj.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
@@ -209,6 +216,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_self_attn_out_proj_bias=_bind_tensor(
             p_audio_tower_layers_0_self_attn_out_proj_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.self_attn.out_proj.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -222,6 +230,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_self_attn_layer_norm_weight=_bind_tensor(
             p_audio_tower_layers_0_self_attn_layer_norm_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.self_attn_layer_norm.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -235,6 +244,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_self_attn_layer_norm_bias=_bind_tensor(
             p_audio_tower_layers_0_self_attn_layer_norm_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.self_attn_layer_norm.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -248,6 +258,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_fc1_weight=_bind_tensor(
             p_audio_tower_layers_0_fc1_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.fc1.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(3584, 896)),
@@ -261,6 +272,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_fc1_bias=_bind_tensor(
             p_audio_tower_layers_0_fc1_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.fc1.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(3584,)),
@@ -274,6 +286,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_fc2_weight=_bind_tensor(
             p_audio_tower_layers_0_fc2_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.fc2.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896, 3584)),
@@ -287,6 +300,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_fc2_bias=_bind_tensor(
             p_audio_tower_layers_0_fc2_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.fc2.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -300,6 +314,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_final_layer_norm_weight=_bind_tensor(
             p_audio_tower_layers_0_final_layer_norm_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.final_layer_norm.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -313,6 +328,7 @@ def create_encoder_layer(
         p_audio_tower_layers_0_final_layer_norm_bias=_bind_tensor(
             p_audio_tower_layers_0_final_layer_norm_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=f"thinker.audio_tower.layers.{layer_idx}.final_layer_norm.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -326,6 +342,7 @@ def create_encoder_layer(
         layer_norm=_bind_tensor(
             layer_norm,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='layer_norm',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -339,6 +356,7 @@ def create_encoder_layer(
         linear_1=_bind_tensor(
             linear_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_1',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -352,6 +370,7 @@ def create_encoder_layer(
         reshape_2=_bind_tensor(
             reshape_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='reshape_2',
                 spec=TensorSpec(dtype='float16', shape=(133, 14, 64)),
@@ -365,6 +384,7 @@ def create_encoder_layer(
         linear_2=_bind_tensor(
             linear_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_2',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -378,6 +398,7 @@ def create_encoder_layer(
         reshape_3=_bind_tensor(
             reshape_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='reshape_3',
                 spec=TensorSpec(dtype='float16', shape=(133, 14, 64)),
@@ -391,6 +412,7 @@ def create_encoder_layer(
         linear_3=_bind_tensor(
             linear_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_3',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -404,6 +426,7 @@ def create_encoder_layer(
         reshape_4=_bind_tensor(
             reshape_4,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='reshape_4',
                 spec=TensorSpec(dtype='float16', shape=(133, 14, 64)),
@@ -417,6 +440,7 @@ def create_encoder_layer(
         transpose_1=_bind_tensor(
             transpose_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='transpose_1',
                 spec=TensorSpec(dtype='float16', shape=(14, 133, 64)),
@@ -430,6 +454,7 @@ def create_encoder_layer(
         unsqueeze=_bind_tensor(
             unsqueeze,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='unsqueeze',
                 spec=TensorSpec(dtype='float16', shape=(1, 14, 133, 64)),
@@ -443,6 +468,7 @@ def create_encoder_layer(
         transpose_2=_bind_tensor(
             transpose_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='transpose_2',
                 spec=TensorSpec(dtype='float16', shape=(14, 133, 64)),
@@ -456,6 +482,7 @@ def create_encoder_layer(
         unsqueeze_1=_bind_tensor(
             unsqueeze_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='unsqueeze_1',
                 spec=TensorSpec(dtype='float16', shape=(1, 14, 133, 64)),
@@ -469,6 +496,7 @@ def create_encoder_layer(
         transpose_3=_bind_tensor(
             transpose_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='transpose_3',
                 spec=TensorSpec(dtype='float16', shape=(14, 133, 64)),
@@ -482,6 +510,7 @@ def create_encoder_layer(
         unsqueeze_2=_bind_tensor(
             unsqueeze_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='unsqueeze_2',
                 spec=TensorSpec(dtype='float16', shape=(1, 14, 133, 64)),
@@ -495,6 +524,7 @@ def create_encoder_layer(
         scaled_dot_product_attention=_bind_tensor(
             scaled_dot_product_attention,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='scaled_dot_product_attention',
                 spec=TensorSpec(dtype='float16', shape=(1, 14, 133, 64)),
@@ -508,6 +538,7 @@ def create_encoder_layer(
         transpose_4=_bind_tensor(
             transpose_4,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='transpose_4',
                 spec=TensorSpec(dtype='float16', shape=(1, 133, 14, 64)),
@@ -521,6 +552,7 @@ def create_encoder_layer(
         contiguous=_bind_tensor(
             contiguous,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='contiguous',
                 spec=TensorSpec(dtype='float16', shape=(1, 133, 14, 64)),
@@ -534,6 +566,7 @@ def create_encoder_layer(
         reshape_5=_bind_tensor(
             reshape_5,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='reshape_5',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -547,6 +580,7 @@ def create_encoder_layer(
         linear_4=_bind_tensor(
             linear_4,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_4',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -560,6 +594,7 @@ def create_encoder_layer(
         add_1=_bind_tensor(
             add_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add_1',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -573,6 +608,7 @@ def create_encoder_layer(
         layer_norm_1=_bind_tensor(
             layer_norm_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='layer_norm_1',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -586,6 +622,7 @@ def create_encoder_layer(
         linear_5=_bind_tensor(
             linear_5,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_5',
                 spec=TensorSpec(dtype='float16', shape=(133, 3584)),
@@ -599,6 +636,7 @@ def create_encoder_layer(
         gelu_3=_bind_tensor(
             gelu_3,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='gelu_3',
                 spec=TensorSpec(dtype='float16', shape=(133, 3584)),
@@ -612,6 +650,7 @@ def create_encoder_layer(
         linear_6=_bind_tensor(
             linear_6,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_6',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -625,6 +664,7 @@ def create_encoder_layer(
         add_2=_bind_tensor(
             add_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add_2',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -724,6 +764,7 @@ def create_audio_encoder(
         p_audio_tower_ln_post_weight=_bind_tensor(
             p_audio_tower_ln_post_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.ln_post.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -737,6 +778,7 @@ def create_audio_encoder(
         p_audio_tower_ln_post_bias=_bind_tensor(
             p_audio_tower_ln_post_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.ln_post.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -750,6 +792,7 @@ def create_audio_encoder(
         p_audio_tower_conv2d1_weight=_bind_tensor(
             p_audio_tower_conv2d1_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d1.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(480, 1, 3, 3)),
@@ -763,6 +806,7 @@ def create_audio_encoder(
         p_audio_tower_conv2d1_bias=_bind_tensor(
             p_audio_tower_conv2d1_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d1.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(480,)),
@@ -776,6 +820,7 @@ def create_audio_encoder(
         p_audio_tower_conv2d2_weight=_bind_tensor(
             p_audio_tower_conv2d2_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d2.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(480, 480, 3, 3)),
@@ -789,6 +834,7 @@ def create_audio_encoder(
         p_audio_tower_conv2d2_bias=_bind_tensor(
             p_audio_tower_conv2d2_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d2.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(480,)),
@@ -802,6 +848,7 @@ def create_audio_encoder(
         p_audio_tower_conv2d3_weight=_bind_tensor(
             p_audio_tower_conv2d3_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d3.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(480, 480, 3, 3)),
@@ -815,6 +862,7 @@ def create_audio_encoder(
         p_audio_tower_conv2d3_bias=_bind_tensor(
             p_audio_tower_conv2d3_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d3.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(480,)),
@@ -828,6 +876,7 @@ def create_audio_encoder(
         p_audio_tower_conv_out_weight=_bind_tensor(
             p_audio_tower_conv_out_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv_out.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896, 7680)),
@@ -841,6 +890,7 @@ def create_audio_encoder(
         p_audio_tower_proj1_weight=_bind_tensor(
             p_audio_tower_proj1_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.proj1.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896, 896)),
@@ -854,6 +904,7 @@ def create_audio_encoder(
         p_audio_tower_proj1_bias=_bind_tensor(
             p_audio_tower_proj1_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.proj1.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(896,)),
@@ -867,6 +918,7 @@ def create_audio_encoder(
         p_audio_tower_proj2_weight=_bind_tensor(
             p_audio_tower_proj2_weight,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.proj2.weight",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024, 896)),
@@ -880,6 +932,7 @@ def create_audio_encoder(
         p_audio_tower_proj2_bias=_bind_tensor(
             p_audio_tower_proj2_bias,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key="thinker.audio_tower.proj2.bias",
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
@@ -893,6 +946,7 @@ def create_audio_encoder(
         x=_bind_tensor(
             x,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float16', shape=(11, 1, 128, 100)),
@@ -906,6 +960,7 @@ def create_audio_encoder(
         position_embedding=_bind_tensor(
             position_embedding,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float16', shape=(11, 13, 896)),
@@ -919,6 +974,7 @@ def create_audio_encoder(
         compact_index=_bind_tensor(
             compact_index,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='int64', shape=(133,)),
@@ -932,6 +988,7 @@ def create_audio_encoder(
         attention_mask=_bind_tensor(
             attention_mask,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float16', shape=(1, 1, 133, 133)),
@@ -945,6 +1002,7 @@ def create_audio_encoder(
         conv2d=_bind_tensor(
             conv2d,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='conv2d',
                 spec=TensorSpec(dtype='float16', shape=(11, 480, 64, 50)),
@@ -958,6 +1016,7 @@ def create_audio_encoder(
         gelu=_bind_tensor(
             gelu,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='gelu',
                 spec=TensorSpec(dtype='float16', shape=(11, 480, 64, 50)),
@@ -971,6 +1030,7 @@ def create_audio_encoder(
         conv2d_1=_bind_tensor(
             conv2d_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='conv2d_1',
                 spec=TensorSpec(dtype='float16', shape=(11, 480, 32, 25)),
@@ -984,6 +1044,7 @@ def create_audio_encoder(
         gelu_1=_bind_tensor(
             gelu_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='gelu_1',
                 spec=TensorSpec(dtype='float16', shape=(11, 480, 32, 25)),
@@ -997,6 +1058,7 @@ def create_audio_encoder(
         conv2d_2=_bind_tensor(
             conv2d_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='conv2d_2',
                 spec=TensorSpec(dtype='float16', shape=(11, 480, 16, 13)),
@@ -1010,6 +1072,7 @@ def create_audio_encoder(
         gelu_2=_bind_tensor(
             gelu_2,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='gelu_2',
                 spec=TensorSpec(dtype='float16', shape=(11, 480, 16, 13)),
@@ -1023,6 +1086,7 @@ def create_audio_encoder(
         reshape=_bind_tensor(
             reshape,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='reshape',
                 spec=TensorSpec(dtype='float16', shape=(11, 7680, 13)),
@@ -1036,6 +1100,7 @@ def create_audio_encoder(
         transpose=_bind_tensor(
             transpose,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='transpose',
                 spec=TensorSpec(dtype='float16', shape=(11, 13, 7680)),
@@ -1049,6 +1114,7 @@ def create_audio_encoder(
         linear=_bind_tensor(
             linear,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear',
                 spec=TensorSpec(dtype='float16', shape=(11, 13, 896)),
@@ -1062,6 +1128,7 @@ def create_audio_encoder(
         add=_bind_tensor(
             add,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add',
                 spec=TensorSpec(dtype='float16', shape=(11, 13, 896)),
@@ -1075,6 +1142,7 @@ def create_audio_encoder(
         reshape_1=_bind_tensor(
             reshape_1,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='reshape_1',
                 spec=TensorSpec(dtype='float16', shape=(143, 896)),
@@ -1088,6 +1156,7 @@ def create_audio_encoder(
         index_select=_bind_tensor(
             index_select,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='index_select',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -1101,6 +1170,7 @@ def create_audio_encoder(
         layer_norm_36=_bind_tensor(
             layer_norm_36,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='layer_norm_36',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -1114,6 +1184,7 @@ def create_audio_encoder(
         linear_109=_bind_tensor(
             linear_109,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_109',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -1127,6 +1198,7 @@ def create_audio_encoder(
         gelu_21=_bind_tensor(
             gelu_21,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='gelu_21',
                 spec=TensorSpec(dtype='float16', shape=(133, 896)),
@@ -1140,6 +1212,7 @@ def create_audio_encoder(
         linear_110=_bind_tensor(
             linear_110,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_110',
                 spec=TensorSpec(dtype='float16', shape=(133, 1024)),
@@ -1176,6 +1249,7 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     layout: TensorLayout = CONTIGUOUS_LAYOUT,
+    checkpoint: str | None = None,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -1189,6 +1263,7 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
+        checkpoint=checkpoint,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
         layout=layout,

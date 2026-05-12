@@ -97,6 +97,20 @@ def activation_glsl_type(dtype: str) -> str:
     raise ValueError(f"Unsupported activation dtype for shader generation: {dtype}")
 
 
+def activation_dtype_suffix(dtype: str) -> str:
+    if dtype == "float16":
+        return "f16"
+    if dtype == "float32":
+        return "f32"
+    raise ValueError(f"Unsupported activation dtype for shader generation: {dtype}")
+
+
+def activation_variant_name(base_name: str, dtype: str) -> str:
+    if dtype == "float16":
+        return base_name
+    return f"{base_name}_act_{activation_dtype_suffix(dtype)}"
+
+
 def activation_extension_source(dtype: str) -> str:
     if dtype == "float16":
         return (
@@ -171,7 +185,9 @@ def render_shader_template(source: str, replacements: Mapping[str, str]) -> str:
     return rendered
 
 
-def shape_to_contract(shape: tuple[int, ...], symbols: tuple[str, ...] | None = None) -> tuple[Dim, ...]:
+def shape_to_contract(
+    shape: tuple[int, ...], symbols: tuple[str, ...] | None = None
+) -> tuple[Dim, ...]:
     if symbols is None:
         symbols = _DIM_SYMBOLS if len(shape) <= 4 else tuple(f"D{i}" for i in range(len(shape)))
     result: list[Dim] = []
@@ -229,11 +245,21 @@ def make_unary_elementwise(
         name=shader_name,
         family="export",
         contract=ShaderContract(
-            class_name=f"Export{name.title().replace('_','')}Program",
+            class_name=f"Export{name.title().replace('_', '')}Program",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=input_dtype, shape=contract_shape)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=output_dtype, shape=contract_shape)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=input_dtype, shape=contract_shape),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=output_dtype, shape=contract_shape),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=4,
@@ -264,12 +290,27 @@ def make_binary_same_shape(
         name=shader_name,
         family="export",
         contract=ShaderContract(
-            class_name=f"Export{name.title().replace('_','')}Program",
+            class_name=f"Export{name.title().replace('_', '')}Program",
             shader_name=shader_name,
             fields=(
-                TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype=input_dtype, shape=contract_shape)),
-                TensorFieldSpec("y", IOKind.INPUT, "input", TensorContract(dtype=input_dtype, shape=contract_shape)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=output_dtype, shape=contract_shape)),
+                TensorFieldSpec(
+                    "x",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=input_dtype, shape=contract_shape),
+                ),
+                TensorFieldSpec(
+                    "y",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=input_dtype, shape=contract_shape),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=output_dtype, shape=contract_shape),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=4,

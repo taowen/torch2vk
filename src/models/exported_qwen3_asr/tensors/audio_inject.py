@@ -45,6 +45,7 @@ def create_audio_inject(
         audio_positions=_bind_tensor(
             audio_positions,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='int64', shape=(133,)),
@@ -58,6 +59,7 @@ def create_audio_inject(
         audio_features=_bind_tensor(
             audio_features,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
                 spec=TensorSpec(dtype='float16', shape=(133, 1024)),
@@ -71,6 +73,7 @@ def create_audio_inject(
         unsqueeze=_bind_tensor(
             unsqueeze,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='unsqueeze',
                 spec=TensorSpec(dtype='float16', shape=(1, 133, 1024)),
@@ -84,6 +87,7 @@ def create_audio_inject(
         index_copy=_bind_tensor(
             index_copy,
             _declare_tensor(
+                checkpoint=None,
                 checkpoint_key=None,
                 reference_key='index_copy',
                 spec=TensorSpec(dtype='float16', shape=(1, 151, 1024)),
@@ -107,6 +111,7 @@ def _declare_tensor(
     memory: MemoryClass,
     lifetime: TensorLifetime,
     layout: TensorLayout = CONTIGUOUS_LAYOUT,
+    checkpoint: str | None = None,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
     request_state: bool = False,
@@ -120,6 +125,7 @@ def _declare_tensor(
         role=role,
         memory=memory,
         lifetime=lifetime,
+        checkpoint=checkpoint,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
         layout=layout,

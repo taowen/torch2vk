@@ -15,7 +15,12 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
 )
 from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
-from torch2vk.vulkan.types import CONTIGUOUS_LAYOUT, Q4KWordsLayout, Q6KHalfwordsLayout, Q8_0HalfwordsLayout
+from torch2vk.vulkan.types import (
+    CONTIGUOUS_LAYOUT,
+    Q4KWordsLayout,
+    Q6KHalfwordsLayout,
+    Q8_0HalfwordsLayout,
+)
 
 
 def render_shader_file(variant: ShaderVariant) -> str:
@@ -65,7 +70,9 @@ def render_shader_file(variant: ShaderVariant) -> str:
     for name in sorted(needed):
         imports.append(f"    {name},")
     imports.append(")")
-    execution_requirements_source = _execution_requirements_to_source(variant.execution_requirements)
+    execution_requirements_source = _execution_requirements_to_source(
+        variant.execution_requirements
+    )
     if execution_requirements_source != "None":
         imports.append("from torch2vk.vulkan.shader_execution_requirements import (")
         imports.append("    ShaderExecutionRequirements,")
@@ -74,7 +81,10 @@ def render_shader_file(variant: ShaderVariant) -> str:
             and variant.execution_requirements.cooperative_matrix is not None
         ):
             imports.append("    CooperativeMatrixRequirements,")
-        if variant.execution_requirements is not None and variant.execution_requirements.subgroup is not None:
+        if (
+            variant.execution_requirements is not None
+            and variant.execution_requirements.subgroup is not None
+        ):
             imports.append("    SubgroupRequirements,")
         imports.append(")")
     if layout_import_names:
@@ -116,17 +126,21 @@ def render_shader_file(variant: ShaderVariant) -> str:
     )
 
 
+def clear_python_modules(directory: Path) -> None:
+    for source in directory.glob("*.py"):
+        source.unlink()
+
+
+def count_python_modules(directory: Path) -> int:
+    return sum(1 for _ in directory.glob("*.py"))
+
+
 def clear_shader_package(shaders_dir: Path) -> None:
-    for f in shaders_dir.glob("*.py"):
-        f.unlink()
+    clear_python_modules(shaders_dir)
 
 
 def write_shader_file(shaders_dir: Path, variant: ShaderVariant) -> None:
     (shaders_dir / f"{variant.name}.py").write_text(render_shader_file(variant))
-
-
-def write_shader_init(shaders_dir: Path) -> None:
-    (shaders_dir / "__init__.py").write_text('"""Generated shader package."""\n')
 
 
 def rename_shader_variant(variant: ShaderVariant, new_name: str) -> ShaderVariant:

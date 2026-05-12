@@ -589,6 +589,7 @@ class TemporaryTensorPool:
         if bucket:
             allocation = bucket.pop()
             self._recycled_spec_by_allocation_id.pop(id(allocation), None)
+            self._remove_from_size_class(dtype=spec.dtype, allocation=allocation)
             self._note_reuse(allocation)
             return _slice_for_spec(spec=spec, allocation=allocation), allocation
 
@@ -619,6 +620,16 @@ class TemporaryTensorPool:
             return
         self._note_recycle(allocation)
         self._retire_allocation(spec, allocation)
+
+    def _remove_from_size_class(self, *, dtype: str, allocation: BufferAllocation) -> None:
+        class_key = (dtype, self._size_class(allocation.size))
+        class_bucket = self._free_size_class.get(class_key)
+        if not class_bucket:
+            return
+        for index in range(len(class_bucket) - 1, -1, -1):
+            if class_bucket[index] is allocation:
+                del class_bucket[index]
+                return
 
     def reclaim(self, *, spec: TensorSpec, allocation: BufferAllocation) -> None:
         if self._closed:

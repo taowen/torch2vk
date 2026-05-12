@@ -170,3 +170,39 @@ void main() {
 }
 """.lstrip(),
 )
+
+
+def qwen3_asr_token_select_greedy_variant(*, logits_dtype: str) -> ShaderVariant:
+    if logits_dtype == "float16":
+        return QWEN3_ASR_TOKEN_SELECT_GREEDY_F32
+    if logits_dtype != "float32":
+        raise ValueError(f"unsupported Qwen3-ASR token select logits dtype: {logits_dtype}")
+    return ShaderVariant(
+        name=QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name,
+        family=QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.family,
+        contract=ShaderContract(
+            class_name=QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.contract.class_name,
+            shader_name=QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.name,
+            fields=(
+                TensorFieldSpec(
+                    name="logits",
+                    io_kind=IOKind.INPUT,
+                    role="logits",
+                    contract=TensorContract(dtype="float32", shape=(1, "T", "V")),
+                ),
+                *QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.contract.fields[1:],
+            ),
+            push_constants=QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.contract.push_constants,
+            dispatch=QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.contract.dispatch,
+        ),
+        execution_requirements=ShaderExecutionRequirements(
+            subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
+            require_shader_int64=True,
+        ),
+        source=QWEN3_ASR_TOKEN_SELECT_GREEDY_F32.source.replace(
+            "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n",
+            "",
+        )
+        .replace("#extension GL_EXT_shader_16bit_storage : require\n", "")
+        .replace("float16_t logits[];", "float logits[];"),
+    )

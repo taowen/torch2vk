@@ -71,10 +71,10 @@ def make_cat_variant(node: Node, activation_dtype: str = "float32") -> ShaderVar
         dim = len(out_shape) + dim
 
     a_dim_stride = 1
-    for d in a_shape[dim + 1:]:
+    for d in a_shape[dim + 1 :]:
         a_dim_stride *= d
     b_dim_stride = 1
-    for d in b_shape[dim + 1:]:
+    for d in b_shape[dim + 1 :]:
         b_dim_stride *= d
 
     a_stride = a_shape[dim] * a_dim_stride
@@ -93,9 +93,24 @@ def make_cat_variant(node: Node, activation_dtype: str = "float32") -> ShaderVar
             class_name="ExportCatProgram",
             shader_name="cat_f32",
             fields=(
-                TensorFieldSpec("a", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=a_contract)),
-                TensorFieldSpec("b", IOKind.INPUT, "input", TensorContract(dtype=activation_dtype, shape=b_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "a",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=a_contract),
+                ),
+                TensorFieldSpec(
+                    "b",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=activation_dtype, shape=b_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=16,
@@ -114,8 +129,6 @@ def make_cat_variant(node: Node, activation_dtype: str = "float32") -> ShaderVar
 
 
 def _source(activation_dtype: str) -> str:
-    return (
-        _SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
-        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
-    )
+    return _SOURCE.replace(
+        "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+    ).replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))

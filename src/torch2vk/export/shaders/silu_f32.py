@@ -40,8 +40,7 @@ def make_silu_variant(node: Node, activation_dtype: str = "float32") -> ShaderVa
 
 def _source(activation_dtype: str) -> str:
     return (
-        _SOURCE
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
+        _SOURCE.replace("{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype))
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("const float v = x[idx];", "const float v = float(x[idx]);")
         .replace("{{STORE_SILU}}", activation_store("v / (1.0 + exp(-v))", activation_dtype))

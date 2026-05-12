@@ -49,8 +49,8 @@ MUL_BROADCAST_INNER = ShaderVariant(
             size=12,
             fields=(
                 PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('T', 'H'), 'D'), dynamic=False),
-                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, 4224, dynamic=False),
-                PushConstantFieldSpec('REPEAT', PushConstantType.UINT32, 8, 16, dynamic=False),
+                PushConstantFieldSpec('STRIDE', PushConstantType.UINT32, 4, mul('H', 'D'), dynamic=False),
+                PushConstantFieldSpec('REPEAT', PushConstantType.UINT32, 8, 'T', dynamic=False),
             ),
         ),
         params_buffer=None,
@@ -70,8 +70,8 @@ layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
     if (idx < pc.N) {
-        uint y_idx = (idx / pc.STRIDE) / pc.REPEAT * pc.STRIDE + idx % pc.STRIDE;
-        output_values[idx] = float16_t(x[idx] * y[y_idx]);
+        uint broadcast_idx = (idx / pc.STRIDE) / pc.REPEAT * pc.STRIDE + idx % pc.STRIDE;
+        output_values[idx] = float16_t(x[idx] * y[broadcast_idx]);
     }
 }
 """,

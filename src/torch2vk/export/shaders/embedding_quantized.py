@@ -126,7 +126,9 @@ void main() {
 """
 
 
-def make_embedding_q4_k_m_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
+def make_embedding_q4_k_m_variant(
+    node: Node, activation_dtype: str = "float32"
+) -> ShaderVariant | None:
     out_shape = node_output_shape(node)
     weight_shape = node_input_shape(node, 0)
     indices_shape = node_input_shape(node, 1)
@@ -159,8 +161,18 @@ def make_embedding_q4_k_m_variant(node: Node, activation_dtype: str = "float32")
                         layout=q4_k_words_layout(logical_k="H"),
                     ),
                 ),
-                TensorFieldSpec("indices", IOKind.INPUT, "input", TensorContract(dtype=indices_dtype, shape=idx_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "indices",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=indices_dtype, shape=idx_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=8,
@@ -176,7 +188,9 @@ def make_embedding_q4_k_m_variant(node: Node, activation_dtype: str = "float32")
     )
 
 
-def make_embedding_q8_0_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
+def make_embedding_q8_0_variant(
+    node: Node, activation_dtype: str = "float32"
+) -> ShaderVariant | None:
     out_shape = node_output_shape(node)
     weight_shape = node_input_shape(node, 0)
     indices_shape = node_input_shape(node, 1)
@@ -209,8 +223,18 @@ def make_embedding_q8_0_variant(node: Node, activation_dtype: str = "float32") -
                         layout=q8_0_halfwords_layout(logical_k="H"),
                     ),
                 ),
-                TensorFieldSpec("indices", IOKind.INPUT, "input", TensorContract(dtype=indices_dtype, shape=idx_contract)),
-                TensorFieldSpec("output", IOKind.OUTPUT, "output", TensorContract(dtype=activation_dtype, shape=out_contract)),
+                TensorFieldSpec(
+                    "indices",
+                    IOKind.INPUT,
+                    "input",
+                    TensorContract(dtype=indices_dtype, shape=idx_contract),
+                ),
+                TensorFieldSpec(
+                    "output",
+                    IOKind.OUTPUT,
+                    "output",
+                    TensorContract(dtype=activation_dtype, shape=out_contract),
+                ),
             ),
             push_constants=PushConstantSpec(
                 size=8,
@@ -227,19 +251,29 @@ def make_embedding_q8_0_variant(node: Node, activation_dtype: str = "float32") -
 
 
 def _q4_k_source(dtype: str, activation_dtype: str) -> str:
-    return _render_source(_Q4_K_SOURCE, "q4_k_value(uint(token_id), dim_idx)", dtype, activation_dtype)
+    return _render_source(
+        _Q4_K_SOURCE, "q4_k_value(uint(token_id), dim_idx)", dtype, activation_dtype
+    )
 
 
 def _q8_0_source(dtype: str, activation_dtype: str) -> str:
-    return _render_source(_Q8_0_SOURCE, "q8_0_value(uint(token_id), dim_idx)", dtype, activation_dtype)
+    return _render_source(
+        _Q8_0_SOURCE, "q8_0_value(uint(token_id), dim_idx)", dtype, activation_dtype
+    )
 
 
 def _render_source(source: str, value: str, dtype: str, activation_dtype: str) -> str:
     index_type = "int64_t" if dtype == "int64" else "int"
-    extension = "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require" if dtype == "int64" else ""
+    extension = (
+        "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require"
+        if dtype == "int64"
+        else ""
+    )
     return (
-        source
-        .replace("{{ACTIVATION_EXTENSION}}", activation_extension_source_for_shader(source, activation_dtype).rstrip())
+        source.replace(
+            "{{ACTIVATION_EXTENSION}}",
+            activation_extension_source_for_shader(source, activation_dtype).rstrip(),
+        )
         .replace("{{INDEX_EXTENSION}}", extension)
         .replace("{{INDEX_TYPE}}", index_type)
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
