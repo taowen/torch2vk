@@ -45,7 +45,7 @@ from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
 
-DECODE_REPLAY_CACHE = "quantized_qwen3_asr_decode_step:v1"
+DECODE_REPLAY_CACHE = "quantized_qwen3_asr_decode_step:v3"
 _STOP_CHECK_INTERVAL = 2
 get_shader = make_shader_loader("models.quantized_qwen3_asr.shaders")
 

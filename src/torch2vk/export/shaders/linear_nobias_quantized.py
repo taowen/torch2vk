@@ -667,7 +667,7 @@ layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
-const uint TILE_M = 64u;
+const uint TILE_M = 16u;
 const uint GROUP_M = 32u;
 const uint TILE_N = 16u;
 const uint TILE_K = 16u;

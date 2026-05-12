@@ -39,7 +39,7 @@ from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
 
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_quantized.wav")
-_GENERATION_REPLAY_CACHE = "quantized_omnivoice_generation_step:v1"
+_GENERATION_REPLAY_CACHE = "quantized_omnivoice_generation_step:v2"
 get_shader = make_shader_loader("models.quantized_omnivoice.shaders")
 
 

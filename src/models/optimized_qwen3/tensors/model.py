@@ -119,6 +119,7 @@ def create_model_tensors(
         layer_tensors = create_text_layer(
             f"qwen3.prefill.layer.{layer_idx}",
             layer_idx=layer_idx,
+            num_hidden_layers=num_hidden_layers,
             sequence_length=prompt_length,
             max_sequence_length=max_sequence_length,
             hidden_states=text_hidden,
@@ -164,6 +165,7 @@ def create_model_tensors(
         layer_tensors = create_decode_layer(
             f"qwen3.decode.layer.{layer_idx}",
             layer_idx=layer_idx,
+            num_hidden_layers=num_hidden_layers,
             max_sequence_length=max_sequence_length,
             p_input_layernorm_weight=prefill_layer_tensors.p_input_layernorm_weight,
             p_post_attention_layernorm_weight=prefill_layer_tensors.p_post_attention_layernorm_weight,

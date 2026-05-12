@@ -46,7 +46,7 @@ from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.shader_loader import make_shader_loader
 
-_DECODE_REPLAY_CACHE = "optimized_qwen3_asr_decode_step:v2"
+_DECODE_REPLAY_CACHE = "optimized_qwen3_asr_decode_step:v3"
 _PROMPT_LENGTH = 151
 _MAX_NEW_TOKENS = 64
 _STOP_CHECK_INTERVAL = 2

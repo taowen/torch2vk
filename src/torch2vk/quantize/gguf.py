@@ -39,6 +39,20 @@ class Q4KMQuantizationConfig:
     extra_uint32_metadata: tuple[tuple[str, int], ...] = ()
 
 
+def q4_k_m_more_bits_layer_indices(num_layers: int) -> tuple[int, ...]:
+    if num_layers <= 0:
+        raise ValueError(f"num_layers must be positive, got {num_layers}")
+    first_eighth = num_layers // 8
+    last_eighth = (7 * num_layers) // 8
+    return tuple(
+        layer_idx
+        for layer_idx in range(num_layers)
+        if layer_idx < first_eighth
+        or layer_idx >= last_eighth
+        or (layer_idx - first_eighth) % 3 == 2
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class _GGUFTensor:
     name: str

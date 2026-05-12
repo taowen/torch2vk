@@ -32,6 +32,10 @@ from models.quantized_omnivoice.custom_shaders import (
     OMNIVOICE_INPUT_EMBED_Q8_0_F32,
 )
 from models.quantized_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
+from models.quantized_omnivoice.quantization import (
+    Q8_TENSOR_NAMES,
+    omnivoice_q4_k_m_q6_tensor_names,
+)
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
 from torch2vk.export import (
     LayerLoopHint,
@@ -63,13 +67,6 @@ from torch2vk.runtime.shader import ShaderVariant
 
 
 MODEL_PACKAGE = "models.quantized_omnivoice"
-_QUANTIZED_WEIGHTS = Q4KMWeightQuantization(
-    q8_tensor_names=frozenset({
-        "llm.embed_tokens.weight",
-        "audio_embeddings.weight",
-        "audio_heads.weight",
-    }),
-)
 _TEMPLATE_DIR = Path(__file__).with_name("templates")
 
 _JINJA = Environment(
@@ -149,6 +146,10 @@ def main() -> int:
     hidden_size = shapes["hidden_size"]
     head_dim = shapes["head_dim"]
     num_layers = shapes["num_hidden_layers"]
+    quantized_weights = Q4KMWeightQuantization(
+        q6_tensor_names=frozenset(omnivoice_q4_k_m_q6_tensor_names(num_layers)),
+        q8_tensor_names=frozenset(Q8_TENSOR_NAMES),
+    )
 
     custom_variants = (
         OMNIVOICE_INPUT_EMBED_Q8_0_F32,
@@ -280,7 +281,7 @@ def main() -> int:
                 function_name=f"create_{function_name}",
                 weight_prefix=weight_prefix,
                 registry=export_registry,
-                weight_quantization=_QUANTIZED_WEIGHTS,
+                weight_quantization=quantized_weights,
             )
             (tensors_dir / f"{tensor_file}.py").write_text(render_tensor_module([tensor_source]))
             function_source, shader_imports, used_variants = generate_dispatch_function_source(
@@ -289,6 +290,7 @@ def main() -> int:
                 function_name=name,
                 shader_package=f"{MODEL_PACKAGE}.shaders",
                 registry=export_registry,
+                weight_quantization=quantized_weights,
             )
         else:
             parent_source, layer_source = generate_looped_tensor_class_sources(
@@ -300,7 +302,7 @@ def main() -> int:
                 weight_prefix=weight_prefix,
                 hint=layer_loop,
                 registry=export_registry,
-                weight_quantization=_QUANTIZED_WEIGHTS,
+                weight_quantization=quantized_weights,
             )
             (tensors_dir / f"{tensor_file}.py").write_text(
                 render_tensor_module([layer_source, parent_source])
@@ -313,6 +315,7 @@ def main() -> int:
                 weight_prefix=weight_prefix,
                 hint=layer_loop,
                 registry=export_registry,
+                weight_quantization=quantized_weights,
             )
 
         rename_map: dict[str, str] = {}
@@ -347,6 +350,7 @@ def main() -> int:
                 tensor_expr=f"model_tensors().{function_name}",
                 shader_imports=shader_imports,
                 function_source=bind_dispatch_function_to_tensors(function_source),
+                uses_q4_q6_dispatch="_linear_q4_or_q6" in function_source,
             )
         )
         print(f"  {name}: {len(used_variants)} shaders")
@@ -390,8 +394,8 @@ def main() -> int:
         reference_output_bindings={"linear": "audio_head.linear"},
         reference_tensors="model_tensors()",
         reference_name="omnivoice.step.{step:04d}.audio_head",
-        reference_policy="q8_tensor",
-        export_registry=Q8_0_REGISTRY,
+        reference_policy="q4_tensor",
+        export_registry=Q4_K_M_REGISTRY,
     )
 
     write_shader_init(shaders_dir)

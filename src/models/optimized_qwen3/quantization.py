@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+from torch2vk.quantize import q4_k_m_more_bits_layer_indices
+
+
 Q8_TENSOR_NAMES: tuple[str, ...] = ()
-Q6_LAYER_INDICES = (0, 1, 2, 5, 8, 11, 14, 17, 20, 23, 24, 25, 26, 27)
-Q6_LAYER_INDEX_SET = frozenset(Q6_LAYER_INDICES)
-Q6_TENSOR_NAMES = (
-    "lm_head.weight",
-    *(f"model.layers.{idx}.self_attn.v_proj.weight" for idx in Q6_LAYER_INDICES),
-    *(f"model.layers.{idx}.mlp.down_proj.weight" for idx in Q6_LAYER_INDICES),
-)
+
+
+def qwen3_q4_k_m_uses_q6_layer(layer_idx: int, num_hidden_layers: int) -> bool:
+    return layer_idx in q4_k_m_more_bits_layer_indices(num_hidden_layers)
+
+
+def qwen3_q4_k_m_q6_tensor_names(num_hidden_layers: int) -> tuple[str, ...]:
+    layer_indices = q4_k_m_more_bits_layer_indices(num_hidden_layers)
+    return (
+        "lm_head.weight",
+        *(f"model.layers.{idx}.self_attn.v_proj.weight" for idx in layer_indices),
+        *(f"model.layers.{idx}.mlp.down_proj.weight" for idx in layer_indices),
+    )

@@ -24,7 +24,7 @@ from models.quantized_qwen3.input_prep import (
     load_qwen3_tokenizer,
     prepare_qwen3_inputs,
 )
-from models.quantized_qwen3.quantization import Q6_TENSOR_NAMES, Q8_TENSOR_NAMES
+from models.quantized_qwen3.quantization import Q8_TENSOR_NAMES, qwen3_q4_k_m_q6_tensor_names
 from torch2vk.export import (
     KVCacheInjectHint,
     Q4KMWeightQuantization,
@@ -53,10 +53,6 @@ from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
 MODEL_PACKAGE = "models.quantized_qwen3"
-_QUANTIZED_WEIGHTS = Q4KMWeightQuantization(
-    q6_tensor_names=frozenset(Q6_TENSOR_NAMES),
-    q8_tensor_names=frozenset(Q8_TENSOR_NAMES),
-)
 _TEMPLATE_DIR = Path(__file__).with_name("templates")
 _JINJA = Environment(
     autoescape=False,
@@ -299,6 +295,10 @@ def main() -> int:
     max_sequence_length = shapes["max_sequence_length"]
     hidden_size = shapes["hidden_size"]
     head_dim = shapes["head_dim"]
+    quantized_weights = Q4KMWeightQuantization(
+        q6_tensor_names=frozenset(qwen3_q4_k_m_q6_tensor_names(shapes["num_hidden_layers"])),
+        q8_tensor_names=frozenset(Q8_TENSOR_NAMES),
+    )
     text_shape_exprs = {prompt_length: "sequence_length"}
     text_layer_shape_exprs = {
         prompt_length: "sequence_length",
@@ -312,7 +312,7 @@ def main() -> int:
         args=(torch.zeros((1, prompt_length), dtype=torch.long, device="meta"),),
         weight_prefix="model.embed_tokens.",
         export_registry=Q4_K_M_REGISTRY,
-        weight_quantization=_QUANTIZED_WEIGHTS,
+        weight_quantization=quantized_weights,
         shape_exprs=text_shape_exprs,
     )
     export_one(
@@ -330,7 +330,7 @@ def main() -> int:
         weight_prefix="model.layers.0.",
         kv_inject=KVCacheInjectHint(phase="prefill", max_seq_len=max_sequence_length),
         export_registry=Q4_K_M_REGISTRY,
-        weight_quantization=_QUANTIZED_WEIGHTS,
+        weight_quantization=quantized_weights,
         shape_exprs=text_layer_shape_exprs,
     )
     export_one(
@@ -346,7 +346,7 @@ def main() -> int:
         args=(torch.zeros(1, 1, hidden_size, device="meta"),),
         weight_prefix="lm_head.",
         export_registry=Q4_K_M_REGISTRY,
-        weight_quantization=_QUANTIZED_WEIGHTS,
+        weight_quantization=quantized_weights,
     )
     export_one(
         "run_decode_embed",
@@ -354,7 +354,7 @@ def main() -> int:
         args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
         weight_prefix="model.embed_tokens.",
         export_registry=Q4_K_M_REGISTRY,
-        weight_quantization=_QUANTIZED_WEIGHTS,
+        weight_quantization=quantized_weights,
     )
     export_one(
         "run_decode_layer",
@@ -371,7 +371,7 @@ def main() -> int:
         weight_prefix="model.layers.0.",
         kv_inject=KVCacheInjectHint(phase="decode", max_seq_len=max_sequence_length),
         export_registry=Q4_K_M_REGISTRY,
-        weight_quantization=_QUANTIZED_WEIGHTS,
+        weight_quantization=quantized_weights,
         shape_exprs=decode_layer_shape_exprs,
     )
     export_one(
@@ -386,7 +386,7 @@ def main() -> int:
         args=(torch.zeros(1, 1, hidden_size, device="meta"),),
         weight_prefix="lm_head.",
         export_registry=Q4_K_M_REGISTRY,
-        weight_quantization=_QUANTIZED_WEIGHTS,
+        weight_quantization=quantized_weights,
     )
 
     write_shader_init(shaders_dir)

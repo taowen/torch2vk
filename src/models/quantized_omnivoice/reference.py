@@ -248,7 +248,7 @@ def run_audio_head(
         reference=_load_audio_head(),
         tensors=model_tensors(),
         output_bindings={'linear': 'audio_head.linear'},
-        policy=_policy('q8_tensor'),
+        policy=_policy('q4_tensor'),
         inputs={
             "input": input,
         },

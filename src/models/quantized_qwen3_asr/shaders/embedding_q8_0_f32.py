@@ -63,6 +63,7 @@ EMBEDDING_Q8_0_F32 = ShaderVariant(
 #version 450
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly WeightBuffer { uint16_t weight[]; };

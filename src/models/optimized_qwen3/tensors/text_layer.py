@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Collection
 from dataclasses import dataclass
 
-from models.optimized_qwen3.quantization import Q6_LAYER_INDEX_SET
+from models.optimized_qwen3.quantization import qwen3_q4_k_m_uses_q6_layer
 from torch2vk.runtime.logical import (
     LogicalTensor,
     MemoryClass,
@@ -120,6 +120,7 @@ def create_text_layer(
     prefix: str,
     layer_idx: int,
     *,
+    num_hidden_layers: int,
     sequence_length: int,
     max_sequence_length: int,
     p_attn_q_proj_weight: LogicalTensor | None = None,
@@ -243,8 +244,8 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=f"model.layers.{layer_idx}.self_attn.v_proj.weight",
                 reference_key=None,
-                spec=_q4_or_q6_spec(layer_idx, q4_shape=(1024, 144), q6_shape=(1024, 420)),
-                layout=_q4_or_q6_layout(layer_idx, logical_k=1024),
+                spec=_q4_or_q6_spec(layer_idx, num_hidden_layers, q4_shape=(1024, 144), q6_shape=(1024, 420)),
+                layout=_q4_or_q6_layout(layer_idx, num_hidden_layers, logical_k=1024),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -321,8 +322,8 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=f"model.layers.{layer_idx}.mlp.down_proj.weight",
                 reference_key=None,
-                spec=_q4_or_q6_spec(layer_idx, q4_shape=(1024, 432), q6_shape=(1024, 1260)),
-                layout=_q4_or_q6_layout(layer_idx, logical_k=3072),
+                spec=_q4_or_q6_spec(layer_idx, num_hidden_layers, q4_shape=(1024, 432), q6_shape=(1024, 1260)),
+                layout=_q4_or_q6_layout(layer_idx, num_hidden_layers, logical_k=3072),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -1350,14 +1351,20 @@ def create_text_layer(
     return tensors
 
 
-def _q4_or_q6_spec(layer_idx: int, *, q4_shape: tuple[int, int], q6_shape: tuple[int, int]) -> TensorSpec:
-    if layer_idx in Q6_LAYER_INDEX_SET:
+def _q4_or_q6_spec(
+    layer_idx: int,
+    num_hidden_layers: int,
+    *,
+    q4_shape: tuple[int, int],
+    q6_shape: tuple[int, int],
+) -> TensorSpec:
+    if qwen3_q4_k_m_uses_q6_layer(layer_idx, num_hidden_layers):
         return TensorSpec(dtype='uint16', shape=q6_shape)
     return TensorSpec(dtype='uint32', shape=q4_shape)
 
 
-def _q4_or_q6_layout(layer_idx: int, *, logical_k: int) -> TensorLayout:
-    if layer_idx in Q6_LAYER_INDEX_SET:
+def _q4_or_q6_layout(layer_idx: int, num_hidden_layers: int, *, logical_k: int) -> TensorLayout:
+    if qwen3_q4_k_m_uses_q6_layer(layer_idx, num_hidden_layers):
         return q6_k_halfwords_layout(logical_k=logical_k)
     return q4_k_words_layout(logical_k=logical_k)
 
