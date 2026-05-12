@@ -253,3 +253,21 @@ def run_audio_head(
             "input": input,
         },
     )
+
+def run_audio_decode(
+    rt: RuntimeSession,
+    reference: ArrayReference,
+    *,
+    audio_codes: ReferenceInput,
+) -> ReferenceExpected:
+    return _execute_and_compare(
+        rt,
+        name='omnivoice.audio_decode',
+        reference=reference,
+        tensors=model_tensors(),
+        output_bindings={'conv1d_31': 'audio_decode.conv1d_31'},
+        policy=_policy('q8_tensor'),
+        inputs={
+            "audio_codes": audio_codes,
+        },
+    )

@@ -8,6 +8,20 @@ from torch2vk.quantize import q4_k_m_more_bits_layer_indices
 Q8_TENSOR_NAMES: tuple[str, ...] = (
     "llm.embed_tokens.weight",
     "audio_embeddings.weight",
+    "acoustic_decoder.conv1.weight",
+    "acoustic_decoder.conv2.weight",
+    *(f"acoustic_decoder.block.{block_idx}.conv_t1.weight" for block_idx in range(5)),
+    *(
+        f"acoustic_decoder.block.{block_idx}.res_unit{unit_idx}.conv{conv_idx}.weight"
+        for block_idx in range(5)
+        for unit_idx in range(1, 4)
+        for conv_idx in range(1, 3)
+    ),
+)
+
+Q8_TENSOR_PREFIXES: tuple[str, ...] = (
+    "quantizer.",
+    "fc2.",
 )
 
 

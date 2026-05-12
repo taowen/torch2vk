@@ -36,6 +36,7 @@ class Q4KMQuantizationConfig:
     q6_tensor_prefixes: tuple[str, ...] = ()
     q8_tensor_names: tuple[str, ...] = ()
     q8_tensor_prefixes: tuple[str, ...] = ()
+    safetensor_subdirs: tuple[str, ...] = ()
     extra_uint32_metadata: tuple[tuple[str, int], ...] = ()
 
 
@@ -86,6 +87,7 @@ def export_q4_k_m_gguf(
         q8_tensor_prefixes=config.q8_tensor_prefixes,
         q6_tensor_names=config.q6_tensor_names,
         q6_tensor_prefixes=config.q6_tensor_prefixes,
+        extra_uint32_metadata=config.extra_uint32_metadata,
     ):
         return output_path
 
@@ -94,8 +96,15 @@ def export_q4_k_m_gguf(
         output_path.unlink()
 
     tensors: list[_GGUFTensor] = []
+    seen_tensor_names: set[str] = set()
     with RuntimeSession.open(device_index=0) as rt:
-        for name, tensor in _iter_safetensor_tensors(Path(model_dir).expanduser().resolve()):
+        for name, tensor in _iter_safetensor_tensors(
+            Path(model_dir).expanduser().resolve(),
+            safetensor_subdirs=config.safetensor_subdirs,
+        ):
+            if name in seen_tensor_names:
+                raise ValueError(f"Duplicate safetensor tensor name while writing GGUF: {name}")
+            seen_tensor_names.add(name)
             tensors.append(_tensor_to_gguf_tensor(
                 rt,
                 name=name,
@@ -116,10 +125,14 @@ def _gguf_matches_quantization(
     q8_tensor_prefixes: tuple[str, ...],
     q6_tensor_names: tuple[str, ...],
     q6_tensor_prefixes: tuple[str, ...],
+    extra_uint32_metadata: tuple[tuple[str, int], ...],
 ) -> bool:
     with open_gguf_mmap(path) as gguf:
         if gguf.metadata.get("general.file_type") != GGUF_FILE_TYPE_MOSTLY_Q4_K_M:
             return False
+        for key, value in extra_uint32_metadata:
+            if gguf.metadata.get(key) != value:
+                return False
         for name, entry in gguf.tensors.items():
             expected_type = _expected_gguf_type(
                 name,
@@ -145,9 +158,9 @@ def _expected_gguf_type(
 ) -> GGUFTensorType:
     force_q6 = name in q6_tensor_names or name.startswith(q6_tensor_prefixes)
     force_q8 = name in q8_tensor_names or name.startswith(q8_tensor_prefixes)
-    if force_q6 and name.endswith(".weight") and len(shape) >= 2:
+    if force_q6 and len(shape) >= 2:
         return GGUFTensorType.Q6_K
-    if force_q8 and name.endswith(".weight") and len(shape) >= 2:
+    if force_q8 and len(shape) >= 2:
         return GGUFTensorType.Q8_0
     if len(shape) != 2:
         return GGUFTensorType.F32
@@ -159,14 +172,19 @@ def _expected_gguf_type(
     return GGUFTensorType.F32
 
 
-def _iter_safetensor_tensors(model_dir: Path) -> Iterator[tuple[str, torch.Tensor]]:
-    safetensor_paths = sorted(model_dir.glob("*.safetensors"))
-    if not safetensor_paths:
-        raise FileNotFoundError(f"No safetensors files found in {model_dir}")
-    for safetensor_path in safetensor_paths:
-        with safe_open(safetensor_path, framework="pt", device="cpu") as checkpoint:
-            for name in checkpoint.keys():
-                yield cast(str, name), cast(torch.Tensor, checkpoint.get_tensor(name))
+def _iter_safetensor_tensors(
+    model_dir: Path,
+    *,
+    safetensor_subdirs: tuple[str, ...],
+) -> Iterator[tuple[str, torch.Tensor]]:
+    for source_dir in (model_dir, *(model_dir / subdir for subdir in safetensor_subdirs)):
+        safetensor_paths = sorted(source_dir.glob("*.safetensors"))
+        if not safetensor_paths:
+            raise FileNotFoundError(f"No safetensors files found in {source_dir}")
+        for safetensor_path in safetensor_paths:
+            with safe_open(safetensor_path, framework="pt", device="cpu") as checkpoint:
+                for name in checkpoint.keys():
+                    yield cast(str, name), cast(torch.Tensor, checkpoint.get_tensor(name))
 
 
 def _tensor_to_gguf_tensor(
@@ -182,7 +200,7 @@ def _tensor_to_gguf_tensor(
     array = tensor.float().numpy() if tensor.dtype == torch.bfloat16 else tensor.numpy()
     force_q6 = name in q6_tensor_names or name.startswith(q6_tensor_prefixes)
     force_q8 = name in q8_tensor_names or name.startswith(q8_tensor_prefixes)
-    if force_q6 and name.endswith(".weight") and array.ndim >= 2:
+    if force_q6 and array.ndim >= 2:
         rows, cols = _matrix_shape(tuple(int(dim) for dim in array.shape))
         if cols % 256 != 0:
             raise ValueError(f"Q6_K tensor {name} requires K to be divisible by 256, got {cols}")
@@ -193,7 +211,7 @@ def _tensor_to_gguf_tensor(
             ggml_type=GGUFTensorType.Q6_K,
             logical_shape=(rows, cols),
         )
-    if force_q8 and name.endswith(".weight") and array.ndim >= 2:
+    if force_q8 and array.ndim >= 2:
         rows, cols = _matrix_shape(tuple(int(dim) for dim in array.shape))
         f32 = np.ascontiguousarray(array.reshape(rows, cols), dtype=np.float32)
         padded_cols = _round_up(cols, 32)

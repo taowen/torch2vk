@@ -13,7 +13,6 @@ INTEGER_DTYPES = frozenset(("int64", "int32", "uint32"))
 PARAMETER_DTYPES = frozenset(("bfloat16", "float32", "float16", "int64", "int32", "uint32"))
 FLOAT32_INTERMEDIATE_TARGETS = frozenset(
     (
-        "aten.pow.Tensor_Scalar",
         "aten.mean.dim",
         "aten.rsqrt.default",
         "aten.reciprocal.default",
@@ -39,8 +38,35 @@ def logical_tensor_dtype(
 
 def requires_float32_intermediate(node: Node) -> bool:
     target = str(node.target)
+    if target == "aten.pow.Tensor_Scalar":
+        return _pow_requires_float32(node)
     if target in FLOAT32_INTERMEDIATE_TARGETS:
         return True
+    return target == "aten.add.Tensor" and _scalar_add_feeds_inverse(node)
+
+
+def _pow_requires_float32(node: Node) -> bool:
+    if _is_sin_square(node):
+        return False
+    return True
+
+
+def _is_sin_square(node: Node) -> bool:
+    if len(node.args) < 2:
+        return False
+    x = node.args[0]
+    exponent = node.args[1]
     return (
-        target == "aten.add.Tensor" and len(node.args) >= 2 and not isinstance(node.args[1], Node)
+        isinstance(x, Node)
+        and str(x.target) == "aten.sin.default"
+        and isinstance(exponent, (int, float))
+        and float(exponent) == 2.0
+    )
+
+
+def _scalar_add_feeds_inverse(node: Node) -> bool:
+    if len(node.args) < 2 or isinstance(node.args[1], Node):
+        return False
+    return any(
+        str(user.target) in {"aten.rsqrt.default", "aten.reciprocal.default"} for user in node.users
     )

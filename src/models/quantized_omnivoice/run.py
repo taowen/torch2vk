@@ -12,14 +12,13 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Protocol, Sequence, cast
 
 import numpy as np
 import torch
 from transformers import AutoTokenizer
-from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.hf_cache import resolve_cached_model
+from models.quantized_omnivoice.dispatch.audio_decode import run_audio_decode
 from models.quantized_omnivoice.dispatch.audio_head import run_audio_head
 from models.quantized_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.quantized_omnivoice.export_gguf import export_omnivoice_q4_k_m_gguf
@@ -45,10 +44,6 @@ get_shader = make_shader_loader("models.quantized_omnivoice.shaders")
 
 
 _REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
-
-
-class _AudioDecodeOutput(Protocol):
-    audio_values: Sequence[torch.Tensor]
 
 
 def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float) -> np.ndarray:
@@ -296,17 +291,12 @@ def main(
 
     # Decode audio tokens
     print("\nDecoding audio tokens...")
-    generated_tokens = rt.read_request_state(model_tensors().tokens)
+    with rt.frame("omnivoice.audio_decode"):
+        run_audio_decode(rt)
+    waveform = torch.from_numpy(
+        np.ascontiguousarray(rt.read_request_state(model_tensors().audio_decode.conv1d_31)[0])
+    )
     rt.close()
-    audio_tokenizer_path = model_dir / "audio_tokenizer"
-    audio_tokenizer = HiggsAudioV2TokenizerModel.from_pretrained(
-        str(audio_tokenizer_path), device_map="cuda"
-    )
-    audio_output = cast(
-        _AudioDecodeOutput,
-        audio_tokenizer.decode(torch.from_numpy(generated_tokens).cuda()),
-    )
-    waveform = audio_output.audio_values[0].cpu()
 
     # Save wav
     output_path = save_audio_wav(waveform, output_path)

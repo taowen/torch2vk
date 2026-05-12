@@ -20,8 +20,9 @@ import torch
 import transformers.integrations.sdpa_attention as sdpa_attention_mod
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from transformers import AutoTokenizer
+from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
-from models.exported_omnivoice.pytorch_modules import LlmForwardModule
+from models.exported_omnivoice.pytorch_modules import AudioDecodeModule, LlmForwardModule
 from models.exported_omnivoice.custom_shaders import (
     OMNIVOICE_CFG_SCORE_F32,
     OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
@@ -33,6 +34,7 @@ from models.quantized_omnivoice.custom_shaders import (
 )
 from models.quantized_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
 from models.quantized_omnivoice.quantization import (
+    Q8_TENSOR_PREFIXES,
     Q8_TENSOR_NAMES,
     omnivoice_q4_k_m_q6_tensor_names,
 )
@@ -140,6 +142,13 @@ def main() -> int:
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
+    audio_tokenizer = cast(
+        HiggsAudioV2TokenizerModel,
+        HiggsAudioV2TokenizerModel.from_pretrained(
+            str(resolve_cached_model(REPO_ID) / "audio_tokenizer"),
+            device_map="cuda",
+        ).eval(),
+    )
 
     batch = shapes["batch_size"]
     seq_len = shapes["seq_len"]
@@ -149,6 +158,7 @@ def main() -> int:
     quantized_weights = Q4KMWeightQuantization(
         q6_tensor_names=frozenset(omnivoice_q4_k_m_q6_tensor_names(num_layers)),
         q8_tensor_names=frozenset(Q8_TENSOR_NAMES),
+        q8_tensor_prefixes=Q8_TENSOR_PREFIXES,
     )
 
     custom_variants = (
@@ -235,6 +245,8 @@ def main() -> int:
         *,
         kwargs: dict[str, object] | None = None,
         weight_prefix: str = "",
+        checkpoint: str | None = None,
+        shape_exprs: dict[int, str] | None = None,
         layer_loop: LayerLoopHint | None = None,
         reference_input_bindings: dict[str, str] | None = None,
         reference_output_bindings: dict[str, str] | None = None,
@@ -280,6 +292,8 @@ def main() -> int:
                 class_name=class_name,
                 function_name=f"create_{function_name}",
                 weight_prefix=weight_prefix,
+                checkpoint=checkpoint,
+                shape_exprs=shape_exprs,
                 registry=export_registry,
                 weight_quantization=quantized_weights,
             )
@@ -396,6 +410,35 @@ def main() -> int:
         reference_name="omnivoice.step.{step:04d}.audio_head",
         reference_policy="q4_tensor",
         export_registry=Q4_K_M_REGISTRY,
+    )
+
+    target_len = shapes["target_len"]
+    export_one(
+        "run_audio_decode",
+        AudioDecodeModule(audio_tokenizer),
+        args=(
+            torch.zeros(
+                1,
+                shapes["num_audio_codebook"],
+                target_len,
+                dtype=torch.int64,
+                device="cuda",
+            ),
+        ),
+        shape_exprs={
+            target_len: "target_len",
+            target_len * 8: "target_len * 8",
+            target_len * 40: "target_len * 40",
+            target_len * 160: "target_len * 160",
+            target_len * 320: "target_len * 320",
+            target_len * 960: "target_len * 960",
+        },
+        reference_input_bindings={"audio_codes": "tokens"},
+        reference_output_bindings={"conv1d_31": "audio_decode.conv1d_31"},
+        reference_tensors="model_tensors()",
+        reference_name="omnivoice.audio_decode",
+        reference_policy="q8_tensor",
+        export_registry=Q8_0_REGISTRY,
     )
     print(f"\n  {shader_file_count} shader files written")
 
