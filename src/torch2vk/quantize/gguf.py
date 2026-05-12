@@ -18,7 +18,7 @@ from torch2vk.checkpoints.gguf import (
     GGUFValueType,
     open_gguf_mmap,
 )
-from torch2vk.quantize.vulkan import quantize_q4_k_vulkan, quantize_q8_0_vulkan
+from torch2vk.quantize.vulkan import quantize_q4_k_vulkan, quantize_q6_k_vulkan, quantize_q8_0_vulkan
 from torch2vk.runtime.session import RuntimeSession
 
 
@@ -32,6 +32,8 @@ GGUF_QUANTIZATION_VERSION = 2
 class Q4KMQuantizationConfig:
     model_name: str
     gguf_arch: str
+    q6_tensor_names: tuple[str, ...] = ()
+    q6_tensor_prefixes: tuple[str, ...] = ()
     q8_tensor_names: tuple[str, ...] = ()
     q8_tensor_prefixes: tuple[str, ...] = ()
     extra_uint32_metadata: tuple[tuple[str, int], ...] = ()
@@ -68,6 +70,8 @@ def export_q4_k_m_gguf(
         output_path,
         q8_tensor_names=config.q8_tensor_names,
         q8_tensor_prefixes=config.q8_tensor_prefixes,
+        q6_tensor_names=config.q6_tensor_names,
+        q6_tensor_prefixes=config.q6_tensor_prefixes,
     ):
         return output_path
 
@@ -82,6 +86,8 @@ def export_q4_k_m_gguf(
                 rt,
                 name=name,
                 tensor=tensor,
+                q6_tensor_names=config.q6_tensor_names,
+                q6_tensor_prefixes=config.q6_tensor_prefixes,
                 q8_tensor_names=config.q8_tensor_names,
                 q8_tensor_prefixes=config.q8_tensor_prefixes,
             ))
@@ -94,22 +100,49 @@ def _gguf_matches_quantization(
     *,
     q8_tensor_names: tuple[str, ...],
     q8_tensor_prefixes: tuple[str, ...],
+    q6_tensor_names: tuple[str, ...],
+    q6_tensor_prefixes: tuple[str, ...],
 ) -> bool:
     with open_gguf_mmap(path) as gguf:
         if gguf.metadata.get("general.file_type") != GGUF_FILE_TYPE_MOSTLY_Q4_K_M:
             return False
-        for name in q8_tensor_names:
-            if gguf.entry(name).ggml_type is not GGUFTensorType.Q8_0:
-                return False
         for name, entry in gguf.tensors.items():
-            if (
-                name.startswith(q8_tensor_prefixes)
-                and name.endswith(".weight")
-                and len(entry.logical_shape) >= 2
-                and entry.ggml_type is not GGUFTensorType.Q8_0
-            ):
+            expected_type = _expected_gguf_type(
+                name,
+                entry.logical_shape,
+                q6_tensor_names=q6_tensor_names,
+                q6_tensor_prefixes=q6_tensor_prefixes,
+                q8_tensor_names=q8_tensor_names,
+                q8_tensor_prefixes=q8_tensor_prefixes,
+            )
+            if entry.ggml_type is not expected_type:
                 return False
     return True
+
+
+def _expected_gguf_type(
+    name: str,
+    shape: tuple[int, ...],
+    *,
+    q6_tensor_names: tuple[str, ...],
+    q6_tensor_prefixes: tuple[str, ...],
+    q8_tensor_names: tuple[str, ...],
+    q8_tensor_prefixes: tuple[str, ...],
+) -> GGUFTensorType:
+    force_q6 = name in q6_tensor_names or name.startswith(q6_tensor_prefixes)
+    force_q8 = name in q8_tensor_names or name.startswith(q8_tensor_prefixes)
+    if force_q6 and name.endswith(".weight") and len(shape) >= 2:
+        return GGUFTensorType.Q6_K
+    if force_q8 and name.endswith(".weight") and len(shape) >= 2:
+        return GGUFTensorType.Q8_0
+    if len(shape) != 2:
+        return GGUFTensorType.F32
+    cols = shape[-1]
+    if cols % 256 == 0:
+        return GGUFTensorType.Q4_K
+    if cols % 32 == 0:
+        return GGUFTensorType.Q8_0
+    return GGUFTensorType.F32
 
 
 def _iter_safetensor_tensors(model_dir: Path) -> Iterator[tuple[str, torch.Tensor]]:
@@ -127,11 +160,25 @@ def _tensor_to_gguf_tensor(
     *,
     name: str,
     tensor: torch.Tensor,
+    q6_tensor_names: tuple[str, ...],
+    q6_tensor_prefixes: tuple[str, ...],
     q8_tensor_names: tuple[str, ...],
     q8_tensor_prefixes: tuple[str, ...],
 ) -> _GGUFTensor:
     array = tensor.float().numpy() if tensor.dtype == torch.bfloat16 else tensor.numpy()
+    force_q6 = name in q6_tensor_names or name.startswith(q6_tensor_prefixes)
     force_q8 = name in q8_tensor_names or name.startswith(q8_tensor_prefixes)
+    if force_q6 and name.endswith(".weight") and array.ndim >= 2:
+        rows, cols = _matrix_shape(tuple(int(dim) for dim in array.shape))
+        if cols % 256 != 0:
+            raise ValueError(f"Q6_K tensor {name} requires K to be divisible by 256, got {cols}")
+        f32 = np.ascontiguousarray(array.reshape(rows, cols), dtype=np.float32)
+        return _GGUFTensor(
+            name=name,
+            data=quantize_q6_k_vulkan(rt, f32, name=name),
+            ggml_type=GGUFTensorType.Q6_K,
+            logical_shape=(rows, cols),
+        )
     if force_q8 and name.endswith(".weight") and array.ndim >= 2:
         rows, cols = _matrix_shape(tuple(int(dim) for dim in array.shape))
         f32 = np.ascontiguousarray(array.reshape(rows, cols), dtype=np.float32)

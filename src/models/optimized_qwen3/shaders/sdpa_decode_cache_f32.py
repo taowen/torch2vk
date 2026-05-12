@@ -110,7 +110,6 @@ void main() {
     for (uint key_pos = 0u; key_pos < cache_len; ++key_pos) {
         const float k_val = valid_dim ? float(k[cache_head_base + key_pos * pc.D + dim]) : 0.0;
         const float v_val = valid_dim ? float(v[cache_head_base + key_pos * pc.D + dim]) : 0.0;
-        barrier();
 
         const float dot_part = valid_dim ? q_value * k_val : 0.0;
         const float dot_sum = subgroupAdd(dot_part);

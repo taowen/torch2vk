@@ -12,7 +12,9 @@ from torch.fx import Graph, Node
 
 from torch2vk.export._templates import render_template
 from torch2vk.export.graph import SKIP_OPS, is_alias_op, node_input_names
+from torch2vk.export.quantization import Q4KMWeightQuantization
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
+from torch2vk.export.shaders.linear_nobias_quantized import make_linear_nobias_q6_k_variant
 from torch2vk.runtime.shader import IOKind, ShaderContract, ShaderVariant
 
 
@@ -27,6 +29,7 @@ class _DispatchOp:
     name: str
     variant: ShaderVariant
     bindings: dict[str, str]
+    q6_variant: ShaderVariant | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +94,7 @@ def render_model_dispatch_module(
     shader_imports: Mapping[str, str],
     function_source: str,
     parameters_source: str = "",
+    uses_q4_q6_dispatch: bool = False,
 ) -> str:
     return render_template(
         "model_dispatch_module.py.j2",
@@ -105,6 +109,7 @@ def render_model_dispatch_module(
         ),
         function_source=function_source.rstrip("\n"),
         parameters_source=parameters_source,
+        uses_q4_q6_dispatch=uses_q4_q6_dispatch,
     )
 
 
@@ -244,8 +249,10 @@ def _generate_static_dispatch_function(
     class_name: str,
     function_name: str,
     node_variants: dict[str, ShaderVariant],
+    *,
+    q4_k_m_has_q6: bool = False,
 ) -> tuple[list[str], dict[str, str]]:
-    ops = _collect_ops(graph, node_variants)
+    ops = _collect_ops(graph, node_variants, q4_k_m_has_q6=q4_k_m_has_q6)
     output_names = _find_graph_outputs(graph)
     ops = _prune_dead_ops(ops, output_names)
 
@@ -258,6 +265,26 @@ def _generate_static_dispatch_function(
 
     shader_imports: dict[str, str] = {}
     lines: list[str] = []
+    if any(isinstance(op, _DispatchOp) and op.q6_variant is not None for op in ops):
+        lines.extend((
+            "def _linear_q4_or_q6(",
+            "    rt: RuntimeSession,",
+            "    *,",
+            "    q4: ShaderVariant,",
+            "    q6: ShaderVariant,",
+            "    x: LogicalTensor,",
+            "    weight: LogicalTensor,",
+            "    output: LogicalTensor,",
+            ") -> None:",
+            "    if isinstance(weight.layout, Q6KHalfwordsLayout):",
+            "        q6(rt, x=x, weight=weight, output=output)",
+            "        return",
+            "    if not isinstance(weight.layout, Q4KWordsLayout):",
+            "        raise ValueError(f\"{weight.name} expected Q4_K or Q6_K layout, got {weight.layout}\")",
+            "    q4(rt, x=x, weight=weight, output=output)",
+            "",
+            "",
+        ))
     lines.append(f"def {function_name}(rt: RuntimeSession, tensors: {class_name}) -> None:")
 
     for op in ops:
@@ -267,14 +294,24 @@ def _generate_static_dispatch_function(
             const_name = op.variant.name.upper()
             shader_imports[op.variant.name] = const_name
             args = ", ".join(f"{k}={v}" for k, v in op.bindings.items())
-            lines.append(f"    {const_name}(rt, {args})")
+            if op.q6_variant is not None:
+                q6_const_name = op.q6_variant.name.upper()
+                shader_imports[op.q6_variant.name] = q6_const_name
+                lines.append(f"    _linear_q4_or_q6(rt, q4={const_name}, q6={q6_const_name}, {args})")
+            else:
+                lines.append(f"    {const_name}(rt, {args})")
     if len(lines) == 1:
         lines.append("    pass")
 
     return lines, shader_imports
 
 
-def _collect_ops(graph: Graph, node_variants: dict[str, ShaderVariant]) -> list[_Op]:
+def _collect_ops(
+    graph: Graph,
+    node_variants: dict[str, ShaderVariant],
+    *,
+    q4_k_m_has_q6: bool = False,
+) -> list[_Op]:
     ops: list[_Op] = []
     seen_variants: dict[str, ShaderVariant] = {}
 
@@ -296,7 +333,10 @@ def _collect_ops(graph: Graph, node_variants: dict[str, ShaderVariant]) -> list[
             ops.append(_UnsupportedOp(name=node.name, message=f"unsupported exported op {target} ({node.name})"))
             continue
 
+        q6_shader = _q6_variant_for_q4_k_m(node, shader) if q4_k_m_has_q6 else None
         shader = _dedup_variant(shader, seen_variants)
+        if q6_shader is not None:
+            q6_shader = _dedup_variant(q6_shader, seen_variants)
 
         input_fields = [f for f in shader.contract.fields if f.io_kind in (IOKind.INPUT, IOKind.INOUT)]
         output_fields = [f for f in shader.contract.fields if f.io_kind in (IOKind.OUTPUT, IOKind.INOUT)]
@@ -307,9 +347,25 @@ def _collect_ops(graph: Graph, node_variants: dict[str, ShaderVariant]) -> list[
                 bindings[field.name] = f"tensors.{inputs[i]}"
         for field in output_fields:
             bindings[field.name] = f"tensors.{node.name}"
-        ops.append(_DispatchOp(name=node.name, variant=shader, bindings=bindings))
+        ops.append(_DispatchOp(name=node.name, variant=shader, bindings=bindings, q6_variant=q6_shader))
 
     return ops
+
+
+def _q6_variant_for_q4_k_m(node: Node, shader: ShaderVariant) -> ShaderVariant | None:
+    if shader.name == "linear_nobias_q4_k_f32":
+        return make_linear_nobias_q6_k_variant(node, _activation_dtype(shader), matvec=False)
+    if shader.name == "linear_nobias_q4_k_matvec_f32":
+        return make_linear_nobias_q6_k_variant(node, _activation_dtype(shader), matvec=True)
+    return None
+
+
+def _activation_dtype(shader: ShaderVariant) -> str:
+    field = shader.contract.input_fields[0]
+    dtype = field.contract.dtype
+    if not isinstance(dtype, str):
+        raise TypeError(f"{shader.name} input dtype must be concrete, got {dtype}")
+    return dtype
 
 
 def _dedup_variant(
@@ -385,6 +441,7 @@ def generate_dispatch_function_source(
     function_name: str = "run_exported",
     shader_package: str = "",
     registry: ShaderRegistry = DEFAULT_REGISTRY,
+    weight_quantization: Q4KMWeightQuantization | None = None,
 ) -> tuple[str, dict[str, str], dict[str, ShaderVariant]]:
     """Generate dispatch function with static shader imports.
 
@@ -393,14 +450,17 @@ def generate_dispatch_function_source(
     """
     graph = prog.graph_module.graph
     node_variants = _resolve_all_variants(graph, registry)
+    q4_k_m_has_q6 = weight_quantization is not None and weight_quantization.has_q6
     lines, shader_imports = _generate_static_dispatch_function(
-        graph, class_name, function_name, node_variants,
+        graph, class_name, function_name, node_variants, q4_k_m_has_q6=q4_k_m_has_q6,
     )
-    all_ops = _collect_ops(graph, node_variants)
+    all_ops = _collect_ops(graph, node_variants, q4_k_m_has_q6=q4_k_m_has_q6)
     output_names = _find_graph_outputs(graph)
     live_ops = _prune_dead_ops(all_ops, output_names)
     used_variants: dict[str, ShaderVariant] = {}
     for op in live_ops:
         if isinstance(op, _DispatchOp):
             used_variants.setdefault(op.variant.name, op.variant)
+            if op.q6_variant is not None:
+                used_variants.setdefault(op.q6_variant.name, op.q6_variant)
     return "\n".join(lines), shader_imports, used_variants

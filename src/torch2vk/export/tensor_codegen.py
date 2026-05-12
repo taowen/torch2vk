@@ -44,12 +44,26 @@ class _TensorMeta:
 
 
 def render_tensor_module(classes: list[TensorClassContext]) -> str:
+    q4_k_m_config = _q4_k_m_config(classes)
     return render_template(
         "tensor_module.py.j2",
         classes=classes,
-        uses_q4_k_words_layout=_uses_layout_source(classes, "q4_k_words_layout"),
-        uses_q8_0_halfwords_layout=_uses_layout_source(classes, "q8_0_halfwords_layout"),
+        q4_k_m_config=q4_k_m_config,
+        uses_q4_k_words_layout=q4_k_m_config is not None or _uses_layout_source(classes, "q4_k_words_layout"),
+        uses_q6_k_halfwords_layout=(
+            (q4_k_m_config is not None and bool(q4_k_m_config["q6_names"] or q4_k_m_config["q6_prefixes"]))
+            or _uses_layout_source(classes, "q6_k_halfwords_layout")
+        ),
+        uses_q8_0_halfwords_layout=q4_k_m_config is not None or _uses_layout_source(classes, "q8_0_halfwords_layout"),
     ).rstrip() + "\n"
+
+
+def _q4_k_m_config(classes: list[TensorClassContext]) -> dict[str, tuple[str, ...]] | None:
+    for cls in classes:
+        config = cls.get("q4_k_m_config")
+        if config is not None:
+            return cast(dict[str, tuple[str, ...]], config)
+    return None
 
 
 def _uses_layout_source(classes: list[TensorClassContext], name: str) -> bool:
@@ -72,6 +86,7 @@ def render_tensor_class(
     extra_fields=(),
     extra_initializers=(),
     alias_binding_lines: list[str] | None = None,
+    q4_k_m_config: dict[str, tuple[str, ...]] | None = None,
 ) -> TensorClassContext:
     if alias_binding_lines is None:
         alias_binding_lines = [
@@ -88,6 +103,7 @@ def render_tensor_class(
         "tensors": tuple(tensors),
         "extra_initializers": tuple(extra_initializers),
         "alias_binding_lines": tuple(alias_binding_lines),
+        "q4_k_m_config": q4_k_m_config,
     }
 
 
@@ -220,7 +236,21 @@ def generate_tensor_class_source(
         ),
         tensors=tensor_entries,
         alias_ops=alias_ops,
+        q4_k_m_config=_q4_k_m_config_from_quantization(weight_quantization),
     )
+
+
+def _q4_k_m_config_from_quantization(
+    weight_quantization: Q4KMWeightQuantization | None,
+) -> dict[str, tuple[str, ...]] | None:
+    if weight_quantization is None:
+        return None
+    return {
+        "q6_names": tuple(sorted(weight_quantization.q6_tensor_names)),
+        "q6_prefixes": weight_quantization.q6_tensor_prefixes,
+        "q8_names": tuple(sorted(weight_quantization.q8_tensor_names)),
+        "q8_prefixes": weight_quantization.q8_tensor_prefixes,
+    }
 
 
 def _tensor_entry(
@@ -241,6 +271,7 @@ def _tensor_entry(
     )
     shape = meta.shape
     layout_source = "CONTIGUOUS_LAYOUT"
+    spec_source = f"TensorSpec(dtype={dtype!r}, shape={_shape_source(shape, shape_exprs or {})})"
     if kind == _TensorKind.PARAMETER and weight_quantization is not None:
         if concrete_checkpoint_key is None:
             raise ValueError(f"parameter tensor {name} is missing checkpoint key")
@@ -252,6 +283,16 @@ def _tensor_entry(
         dtype = quantized.dtype
         shape = quantized.shape
         layout_source = quantized.layout_source
+        spec_source = (
+            f"_quantized_weight_spec({checkpoint_key}, "
+            f"dtype={logical_tensor_dtype(is_parameter=True, dtype=meta.dtype, force_float32=meta.force_float32)!r}, "
+            f"shape={_shape_source(meta.shape, shape_exprs or {})})"
+        )
+        layout_source = (
+            f"_quantized_weight_layout({checkpoint_key}, "
+            f"dtype={logical_tensor_dtype(is_parameter=True, dtype=meta.dtype, force_float32=meta.force_float32)!r}, "
+            f"shape={_shape_source(meta.shape, shape_exprs or {})})"
+        )
     if kind == _TensorKind.PARAMETER:
         role = "TensorRole.WEIGHT"
         memory = "MemoryClass.MODEL_WEIGHT"
@@ -271,6 +312,7 @@ def _tensor_entry(
         "reference_key_expr": reference_key,
         "dtype_source": repr(dtype),
         "shape_source": _shape_source(shape, shape_exprs or {}),
+        "spec_source": spec_source,
         "shape_parameters": tuple(_shape_dim_names(shape, shape_exprs or {})),
         "layout_source": layout_source,
         "role": role,

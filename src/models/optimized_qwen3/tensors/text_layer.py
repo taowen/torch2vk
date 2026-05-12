@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Collection
 from dataclasses import dataclass
 
+from models.optimized_qwen3.quantization import Q6_LAYER_INDEX_SET
 from torch2vk.runtime.logical import (
     LogicalTensor,
     MemoryClass,
@@ -18,6 +19,7 @@ from torch2vk.vulkan.types import (
     TensorLayout,
     TensorSpec,
     q4_k_words_layout,
+    q6_k_halfwords_layout,
 )
 
 
@@ -241,8 +243,8 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=f"model.layers.{layer_idx}.self_attn.v_proj.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='uint32', shape=(1024, 144)),
-                layout=q4_k_words_layout(logical_k=1024),
+                spec=_q4_or_q6_spec(layer_idx, q4_shape=(1024, 144), q6_shape=(1024, 420)),
+                layout=_q4_or_q6_layout(layer_idx, logical_k=1024),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -319,8 +321,8 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=f"model.layers.{layer_idx}.mlp.down_proj.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='uint32', shape=(1024, 432)),
-                layout=q4_k_words_layout(logical_k=3072),
+                spec=_q4_or_q6_spec(layer_idx, q4_shape=(1024, 432), q6_shape=(1024, 1260)),
+                layout=_q4_or_q6_layout(layer_idx, logical_k=3072),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -1346,6 +1348,18 @@ def create_text_layer(
     _bind_alias_source(tensors.add_5, tensors.to_6)
     _bind_alias_source(tensors.mul_10, tensors.to_7)
     return tensors
+
+
+def _q4_or_q6_spec(layer_idx: int, *, q4_shape: tuple[int, int], q6_shape: tuple[int, int]) -> TensorSpec:
+    if layer_idx in Q6_LAYER_INDEX_SET:
+        return TensorSpec(dtype='uint16', shape=q6_shape)
+    return TensorSpec(dtype='uint32', shape=q4_shape)
+
+
+def _q4_or_q6_layout(layer_idx: int, *, logical_k: int) -> TensorLayout:
+    if layer_idx in Q6_LAYER_INDEX_SET:
+        return q6_k_halfwords_layout(logical_k=logical_k)
+    return q4_k_words_layout(logical_k=logical_k)
 
 
 def _declare_tensor(

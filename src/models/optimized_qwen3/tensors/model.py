@@ -37,6 +37,13 @@ class OptimizedQwen3Tensors:
     decode_rope: RopeTableTensors
     embed_tokens: EmbedTokensTensors
     text_layers: tuple[TextLayerTensors, ...]
+    prefill_last_residual: LogicalTensor
+    prefill_last_norm: LogicalTensor
+    prefill_last_gate: LogicalTensor
+    prefill_last_up: LogicalTensor
+    prefill_last_gated: LogicalTensor
+    prefill_last_down: LogicalTensor
+    prefill_last_output: LogicalTensor
     text_norm: TextNormTensors
     lm_head: LmHeadTensors
     next_token: LogicalTensor
@@ -44,6 +51,10 @@ class OptimizedQwen3Tensors:
     decode_layers: tuple[DecodeLayerTensors, ...]
     decode_norm: DecodeNormTensors
     decode_lm_head: DecodeLmHeadTensors
+    lm_head_partial_scores: LogicalTensor
+    lm_head_partial_tokens: LogicalTensor
+    lm_head_chunk_scores: LogicalTensor
+    lm_head_chunk_tokens: LogicalTensor
     eos_token_ids: LogicalTensor
     done: LogicalTensor
     generated_tokens: LogicalTensor
@@ -64,6 +75,7 @@ def create_model_tensors(
     head_dim: int,
     max_new_tokens: int,
     eos_token_count: int,
+    vocab_size: int,
 ) -> OptimizedQwen3Tensors:
     input_ids = _host_input_tensor("int64", (1, prompt_length))
     key_caches = tuple(
@@ -120,14 +132,22 @@ def create_model_tensors(
         text_hidden = layer_tensors.add_7
     text_layers = tuple(text_layers_list)
 
+    prefill_last_residual = _activation_tensor("float16", (1, 1, 1024))
+    prefill_last_norm = _activation_tensor("float16", (1, 1, 1024))
+    prefill_last_gate = _activation_tensor("float16", (1, 1, 3072))
+    prefill_last_up = _activation_tensor("float16", (1, 1, 3072))
+    prefill_last_gated = _activation_tensor("float16", (1, 1, 3072))
+    prefill_last_down = _activation_tensor("float16", (1, 1, 1024))
+    prefill_last_output = _activation_tensor("float16", (1, 1, 1024))
+
     text_norm = create_text_norm(
         "qwen3.prefill.norm",
-        sequence_length=prompt_length,
-        hidden_states=text_layers[-1].add_7,
+        sequence_length=1,
+        hidden_states=prefill_last_output,
     )
     lm_head = create_lm_head(
         "qwen3.prefill.lm_head",
-        sequence_length=prompt_length,
+        sequence_length=1,
         input=text_norm.mul_1,
         request_state_outputs={LM_HEAD_OUTPUT},
     )
@@ -180,6 +200,12 @@ def create_model_tensors(
     )
 
     eos_token_ids = _host_input_tensor("int64", (eos_token_count,))
+    lm_head_partial_count = (vocab_size + 3) // 4
+    lm_head_chunk_count = (lm_head_partial_count + 1023) // 1024
+    lm_head_partial_scores = _activation_tensor("float32", (lm_head_partial_count,))
+    lm_head_partial_tokens = _activation_tensor("uint32", (lm_head_partial_count,))
+    lm_head_chunk_scores = _activation_tensor("float32", (lm_head_chunk_count,))
+    lm_head_chunk_tokens = _activation_tensor("uint32", (lm_head_chunk_count,))
     done = _request_output_tensor("uint32", (1,))
     generated_tokens = _request_state_tensor(
         "int64",
@@ -207,6 +233,13 @@ def create_model_tensors(
         decode_rope=decode_rope,
         embed_tokens=embed_tokens,
         text_layers=text_layers,
+        prefill_last_residual=prefill_last_residual,
+        prefill_last_norm=prefill_last_norm,
+        prefill_last_gate=prefill_last_gate,
+        prefill_last_up=prefill_last_up,
+        prefill_last_gated=prefill_last_gated,
+        prefill_last_down=prefill_last_down,
+        prefill_last_output=prefill_last_output,
         text_norm=text_norm,
         lm_head=lm_head,
         next_token=next_token,
@@ -214,6 +247,10 @@ def create_model_tensors(
         decode_layers=decode_layers,
         decode_norm=decode_norm,
         decode_lm_head=decode_lm_head,
+        lm_head_partial_scores=lm_head_partial_scores,
+        lm_head_partial_tokens=lm_head_partial_tokens,
+        lm_head_chunk_scores=lm_head_chunk_scores,
+        lm_head_chunk_tokens=lm_head_chunk_tokens,
         eos_token_ids=eos_token_ids,
         done=done,
         generated_tokens=generated_tokens,
@@ -249,6 +286,15 @@ def _request_output_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
     )
 
 
+def _activation_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        spec=TensorSpec(dtype=dtype, shape=shape),
+        role=TensorRole.ACTIVATION,
+        memory=MemoryClass.FRAME_WORKSPACE,
+        lifetime=TensorLifetime.FRAME,
+    )
+
+
 def _request_state_tensor(
     dtype: str,
     shape: tuple[int, ...],
@@ -262,4 +308,3 @@ def _request_state_tensor(
         lifetime=TensorLifetime.REQUEST,
         semantic=semantic,
     )
-

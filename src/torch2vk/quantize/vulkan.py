@@ -44,6 +44,17 @@ def quantize_q4_k_vulkan(rt: RuntimeSession, array: np.ndarray, *, name: str) ->
     return np.ascontiguousarray(words.view(np.uint8).reshape(array.shape[0], blocks_per_row * 144))
 
 
+def quantize_q6_k_vulkan(rt: RuntimeSession, array: np.ndarray, *, name: str) -> np.ndarray:
+    source = _source_tensor(name, array.shape)
+    blocks_per_row = array.shape[1] // 256
+    packed = _output_tensor(f"{name}.q6_k", "uint16", (array.shape[0], blocks_per_row * 105))
+    rt.register_inputs({source: np.ascontiguousarray(array, dtype=np.float32)})
+    with rt.frame(f"gguf_quantize.q6_k.{name}"):
+        GGUF_QUANTIZE_Q6_K_F32(rt, x=source, output=packed)
+        halfwords = rt.readback(packed)
+    return np.ascontiguousarray(halfwords.view(np.uint8).reshape(array.shape[0], blocks_per_row * 210))
+
+
 def _source_tensor(name: str, shape: tuple[int, ...]) -> LogicalTensor:
     if len(shape) != 2:
         raise ValueError(f"{name} quantization expects rank-2 tensor, got {shape}")
@@ -391,6 +402,224 @@ void main() {
         const uint byte2 = q_byte(q_offset + 2u);
         const uint byte3 = q_byte(q_offset + 3u);
         output_values[output_base + word] = byte0 | (byte1 << 8u) | (byte2 << 16u) | (byte3 << 24u);
+    }
+}
+""",
+)
+
+
+GGUF_QUANTIZE_Q6_K_F32 = ShaderVariant(
+    name="gguf_quantize_q6_k_f32",
+    family="gguf_quantize",
+    contract=ShaderContract(
+        class_name="GGUFQuantizeQ6KF32Program",
+        shader_name="gguf_quantize_q6_k_f32",
+        fields=(
+            TensorFieldSpec(
+                name="x",
+                io_kind=IOKind.INPUT,
+                role="input",
+                contract=TensorContract(dtype="float32", shape=("R", "K")),
+            ),
+            TensorFieldSpec(
+                name="output",
+                io_kind=IOKind.OUTPUT,
+                role="output",
+                contract=TensorContract(dtype="uint16", shape=("R", mul(ceil_div("K", 256), 105))),
+            ),
+        ),
+        push_constants=PushConstantSpec(
+            size=8,
+            fields=(
+                PushConstantFieldSpec("R", PushConstantType.UINT32, 0, "R"),
+                PushConstantFieldSpec("K", PushConstantType.UINT32, 4, "K"),
+            ),
+        ),
+        dispatch=("R", ceil_div("K", 256), 1),
+    ),
+    execution_requirements=ShaderExecutionRequirements(
+        require_storage_buffer_16bit_access=True,
+    ),
+    source="""\
+#version 450
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+
+layout(std430) buffer;
+
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { uint16_t output_values[]; };
+
+layout(push_constant) uniform PushConstants {
+    uint R;
+    uint K;
+} pc;
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+shared float values[256];
+shared int levels[256];
+shared float block_scales[16];
+shared int scale_codes[16];
+shared float d_scale;
+
+int nearest_int(float value) {
+    return int(round(value));
+}
+
+float make_qx_quants16(uint base) {
+    float max_value = 0.0;
+    float max_abs = 0.0;
+    for (uint i = 0u; i < 16u; ++i) {
+        const float value = values[base + i];
+        const float abs_value = abs(value);
+        if (abs_value > max_abs) {
+            max_abs = abs_value;
+            max_value = value;
+        }
+    }
+    if (max_abs < 1.0e-12) {
+        for (uint i = 0u; i < 16u; ++i) {
+            levels[base + i] = 32;
+        }
+        return 0.0;
+    }
+
+    float inv_scale = -32.0 / max_value;
+    float sum_lx = 0.0;
+    float sum_l2 = 0.0;
+    for (uint i = 0u; i < 16u; ++i) {
+        const float value = values[base + i];
+        int level = nearest_int(inv_scale * value);
+        level = clamp(level, -32, 31);
+        levels[base + i] = level + 32;
+        const float weight = value * value;
+        sum_lx += weight * value * float(level);
+        sum_l2 += weight * float(level * level);
+    }
+    float scale = sum_l2 > 0.0 ? sum_lx / sum_l2 : 0.0;
+    float best = scale * sum_lx;
+    for (int step = -9; step <= 9; ++step) {
+        if (step == 0) {
+            continue;
+        }
+        inv_scale = -(32.0 + 0.1 * float(step)) / max_value;
+        sum_lx = 0.0;
+        sum_l2 = 0.0;
+        for (uint i = 0u; i < 16u; ++i) {
+            const float value = values[base + i];
+            int level = nearest_int(inv_scale * value);
+            level = clamp(level, -32, 31);
+            const float weight = value * value;
+            sum_lx += weight * value * float(level);
+            sum_l2 += weight * float(level * level);
+        }
+        if (sum_l2 > 0.0 && sum_lx * sum_lx > best * sum_l2) {
+            for (uint i = 0u; i < 16u; ++i) {
+                int level = nearest_int(inv_scale * values[base + i]);
+                levels[base + i] = clamp(level, -32, 31) + 32;
+            }
+            scale = sum_lx / sum_l2;
+            best = scale * sum_lx;
+        }
+    }
+    return scale;
+}
+
+uint byte_from_level(uint index) {
+    return uint(levels[index]) & 63u;
+}
+
+uint ql_byte(uint byte_index) {
+    const uint section = byte_index >> 6u;
+    const uint local = byte_index & 31u;
+    const uint base = section * 128u;
+    if ((byte_index & 32u) == 0u) {
+        return (byte_from_level(base + local) & 15u) | ((byte_from_level(base + local + 64u) & 15u) << 4u);
+    }
+    return (byte_from_level(base + local + 32u) & 15u) | ((byte_from_level(base + local + 96u) & 15u) << 4u);
+}
+
+uint qh_byte(uint byte_index) {
+    const uint section = byte_index >> 5u;
+    const uint local = byte_index & 31u;
+    const uint base = section * 128u;
+    return ((byte_from_level(base + local) >> 4u) & 3u)
+        | (((byte_from_level(base + local + 32u) >> 4u) & 3u) << 2u)
+        | (((byte_from_level(base + local + 64u) >> 4u) & 3u) << 4u)
+        | (((byte_from_level(base + local + 96u) >> 4u) & 3u) << 6u);
+}
+
+void main() {
+    const uint row = gl_WorkGroupID.x;
+    const uint block = gl_WorkGroupID.y;
+    const uint lane = gl_LocalInvocationID.x;
+    const uint row_offset = row * pc.K + block * 256u;
+
+    values[lane] = x[row_offset + lane];
+    barrier();
+
+    if (lane < 16u) {
+        block_scales[lane] = make_qx_quants16(lane * 16u);
+    }
+    barrier();
+
+    if (lane == 0u) {
+        float max_scale = 0.0;
+        float max_abs_scale = 0.0;
+        for (uint i = 0u; i < 16u; ++i) {
+            const float abs_scale = abs(block_scales[i]);
+            if (abs_scale > max_abs_scale) {
+                max_abs_scale = abs_scale;
+                max_scale = block_scales[i];
+            }
+        }
+        if (max_abs_scale < 1.0e-12) {
+            d_scale = 0.0;
+            for (uint i = 0u; i < 16u; ++i) {
+                scale_codes[i] = 0;
+            }
+        } else {
+            const float inv_scale = -128.0 / max_scale;
+            d_scale = unpackHalf2x16(packHalf2x16(vec2(1.0 / inv_scale, 0.0))).x;
+            for (uint i = 0u; i < 16u; ++i) {
+                scale_codes[i] = clamp(nearest_int(inv_scale * block_scales[i]), -128, 127);
+            }
+        }
+    }
+    barrier();
+
+    if (lane < 16u) {
+        const uint base = lane * 16u;
+        const float d = d_scale * float(scale_codes[lane]);
+        if (d != 0.0) {
+            for (uint i = 0u; i < 16u; ++i) {
+                int level = nearest_int(values[base + i] / d);
+                levels[base + i] = clamp(level, -32, 31) + 32;
+            }
+        }
+    }
+    barrier();
+
+    const uint output_base = row * (pc.K / 256u) * 105u + block * 105u;
+    if (lane < 64u) {
+        const uint byte0 = ql_byte(lane * 2u);
+        const uint byte1 = ql_byte(lane * 2u + 1u);
+        output_values[output_base + lane] = uint16_t(byte0 | (byte1 << 8u));
+    } else if (lane < 96u) {
+        const uint local = lane - 64u;
+        const uint byte0 = qh_byte(local * 2u);
+        const uint byte1 = qh_byte(local * 2u + 1u);
+        output_values[output_base + lane] = uint16_t(byte0 | (byte1 << 8u));
+    } else if (lane < 104u) {
+        const uint local = (lane - 96u) * 2u;
+        const uint byte0 = uint(scale_codes[local] & 255);
+        const uint byte1 = uint(scale_codes[local + 1u] & 255);
+        output_values[output_base + lane] = uint16_t(byte0 | (byte1 << 8u));
+    } else if (lane == 104u) {
+        output_values[output_base + 104u] = uint16_t(packHalf2x16(vec2(d_scale, 0.0)) & 0xffffu);
     }
 }
 """,

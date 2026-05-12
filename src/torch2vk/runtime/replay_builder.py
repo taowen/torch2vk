@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import pickle
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -70,6 +73,7 @@ if TYPE_CHECKING:
 
 
 _REPLAY_TEMPLATE_CACHE: dict[str, list[ReplayPlanTemplate]] = {}
+_REPLAY_TEMPLATE_CACHE_DIR = "replay_templates"
 
 
 def build_replay_plan(
@@ -837,7 +841,7 @@ def cached_replay_plans(rt: RuntimeSession, namespace: str) -> tuple[ReplayPlan,
         for plan in plans
         if not plan._closed and replay_plan_compatible(rt, plan)
     ]
-    templates = _REPLAY_TEMPLATE_CACHE.get(namespace, [])
+    templates = _cached_replay_templates(rt, namespace)
     for template in templates:
         if any(plan.template == template for plan in live_plans):
             continue
@@ -870,9 +874,53 @@ def cache_replay_plan(rt: RuntimeSession, namespace: str, plan: ReplayPlan) -> N
     if not any(existing is plan for existing in plans):
         plans.append(plan)
     if plan.template is not None:
-        templates = _REPLAY_TEMPLATE_CACHE.setdefault(namespace, [])
+        templates = _cached_replay_templates(rt, namespace)
         if plan.template not in templates:
             templates.append(plan.template)
+            _write_replay_templates(rt, namespace, templates)
+
+
+def _cached_replay_templates(
+    rt: RuntimeSession,
+    namespace: str,
+) -> list[ReplayPlanTemplate]:
+    cached = _REPLAY_TEMPLATE_CACHE.get(namespace)
+    if cached is not None:
+        return cached
+    path = _replay_template_cache_path(rt, namespace)
+    if not path.is_file():
+        _REPLAY_TEMPLATE_CACHE[namespace] = []
+        return _REPLAY_TEMPLATE_CACHE[namespace]
+    with path.open("rb") as handle:
+        loaded: object = pickle.load(handle)
+    if not isinstance(loaded, list):
+        raise TypeError(f"Replay template cache {path} did not contain a list")
+    templates: list[ReplayPlanTemplate] = []
+    for item in loaded:
+        if not isinstance(item, ReplayPlanTemplate):
+            raise TypeError(
+                f"Replay template cache {path} contained {type(item).__name__}, "
+                "expected ReplayPlanTemplate"
+            )
+        templates.append(item)
+    _REPLAY_TEMPLATE_CACHE[namespace] = templates
+    return templates
+
+
+def _write_replay_templates(
+    rt: RuntimeSession,
+    namespace: str,
+    templates: Sequence[ReplayPlanTemplate],
+) -> None:
+    path = _replay_template_cache_path(rt, namespace)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as handle:
+        pickle.dump(list(templates), handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def _replay_template_cache_path(rt: RuntimeSession, namespace: str) -> Path:
+    digest = hashlib.sha256(namespace.encode("utf-8")).hexdigest()
+    return rt.artifact_dir.parent / _REPLAY_TEMPLATE_CACHE_DIR / f"{digest}.pkl"
 
 
 def _replay_template_compatible(rt: RuntimeSession, template: ReplayPlanTemplate) -> bool:
@@ -929,18 +977,18 @@ def _allocate_replay_descriptor_tensor(
             f"Tensor {descriptor_tensor.name} has zero size, cannot build replay plan"
         )
     if descriptor_tensor.memory is MemoryClass.HOST_INPUT:
-        if descriptor_tensor not in rt._inputs:
-            raise RuntimeError(f"{descriptor_tensor.name} requires missing replay input")
         alloc = rt.device.allocate_host_visible_allocation(nbytes)
         alloc.buffer.map_persistent()
-        array = np.ascontiguousarray(rt._inputs[descriptor_tensor])
-        if array.nbytes != nbytes:
-            raise ValueError(
-                f"{descriptor_tensor.name} replay input has {array.nbytes} bytes, "
-                f"expected {nbytes}"
-            )
-        alloc.buffer.write_bytes_at(alloc.offset, memoryview(array).cast("B"))
-        rt.device.memory_manager.host_upload_ring.flush(allocation=alloc, size=nbytes)
+        value = rt._inputs.get(descriptor_tensor)
+        if value is not None:
+            array = np.ascontiguousarray(value)
+            if array.nbytes != nbytes:
+                raise ValueError(
+                    f"{descriptor_tensor.name} replay input has {array.nbytes} bytes, "
+                    f"expected {nbytes}"
+                )
+            alloc.buffer.write_bytes_at(alloc.offset, memoryview(array).cast("B"))
+            rt.device.memory_manager.host_upload_ring.flush(allocation=alloc, size=nbytes)
         return alloc
 
     if descriptor_tensor.memory in {

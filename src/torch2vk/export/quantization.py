@@ -16,8 +16,14 @@ class QuantizedWeightDeclaration:
 class Q4KMWeightQuantization:
     """Match the GGUF Q4_K_M writer's physical tensor layout."""
 
+    q6_tensor_names: frozenset[str] = frozenset()
+    q6_tensor_prefixes: tuple[str, ...] = ()
     q8_tensor_names: frozenset[str] = frozenset()
     q8_tensor_prefixes: tuple[str, ...] = ()
+
+    @property
+    def has_q6(self) -> bool:
+        return bool(self.q6_tensor_names or self.q6_tensor_prefixes)
 
     def declare(
         self,
@@ -34,7 +40,17 @@ class Q4KMWeightQuantization:
                 layout_source="CONTIGUOUS_LAYOUT",
             )
 
+        force_q6 = checkpoint_key in self.q6_tensor_names or checkpoint_key.startswith(self.q6_tensor_prefixes)
         force_q8 = checkpoint_key in self.q8_tensor_names or checkpoint_key.startswith(self.q8_tensor_prefixes)
+        if force_q6 and len(shape) >= 2:
+            n, k = _matrix_shape(shape)
+            if k % 256 != 0:
+                raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
+            return QuantizedWeightDeclaration(
+                dtype="uint16",
+                shape=(n, k // 256 * 105),
+                layout_source=f"q6_k_halfwords_layout(logical_k={k})",
+            )
         if force_q8 and len(shape) >= 2:
             n, k = _matrix_shape(shape)
             padded_k = _round_up(k, 32)

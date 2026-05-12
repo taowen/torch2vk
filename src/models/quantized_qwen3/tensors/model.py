@@ -38,6 +38,7 @@ class QuantizedQwen3Tensors:
     embed_tokens: EmbedTokensTensors
     text_layers: tuple[TextLayerTensors, ...]
     text_norm: TextNormTensors
+    prefill_lm_head_input: LogicalTensor
     lm_head: LmHeadTensors
     next_token: LogicalTensor
     decode_embed: DecodeEmbedTensors
@@ -125,10 +126,10 @@ def create_model_tensors(
         sequence_length=prompt_length,
         hidden_states=text_layers[-1].add_7,
     )
+    prefill_lm_head_input = _activation_tensor("float16", (1, 1, 1024))
     lm_head = create_lm_head(
         "qwen3.prefill.lm_head",
-        sequence_length=prompt_length,
-        input=text_norm.mul_1,
+        input=prefill_lm_head_input,
         request_state_outputs={LM_HEAD_OUTPUT},
     )
 
@@ -208,6 +209,7 @@ def create_model_tensors(
         embed_tokens=embed_tokens,
         text_layers=text_layers,
         text_norm=text_norm,
+        prefill_lm_head_input=prefill_lm_head_input,
         lm_head=lm_head,
         next_token=next_token,
         decode_embed=decode_embed,
@@ -249,6 +251,15 @@ def _request_output_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
     )
 
 
+def _activation_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        spec=TensorSpec(dtype=dtype, shape=shape),
+        role=TensorRole.ACTIVATION,
+        memory=MemoryClass.FRAME_WORKSPACE,
+        lifetime=TensorLifetime.FRAME,
+    )
+
+
 def _request_state_tensor(
     dtype: str,
     shape: tuple[int, ...],
@@ -262,4 +273,3 @@ def _request_state_tensor(
         lifetime=TensorLifetime.REQUEST,
         semantic=semantic,
     )
-

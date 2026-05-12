@@ -7,6 +7,11 @@ from {{ model_package }}.tensors.model import model_tensors
 from {{ model_package }}.shaders.{{ item.shader }} import {{ item.const }}
 {% endfor %}
 from {{ model_package }}.tensors.{{ tensor_file }} import {{ tensor_class }}
+{% if uses_q4_q6_dispatch %}
+from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.shader import ShaderVariant
+from torch2vk.vulkan.types import Q4KWordsLayout, Q6KHalfwordsLayout
+{% endif %}
 from torch2vk.runtime.session import RuntimeSession
 
 

@@ -182,6 +182,7 @@ class ReplayPlan:
     bindings: list[BoundComputeBinding]
     profile_state: ReplayProfileState | None = None
     profile_recorder: object | None = None
+    in_place_staging_rebound: bool = False
 
     _closed: bool = False
 
@@ -292,7 +293,9 @@ def stage_replay_step_inputs(
                     raise ValueError(f"{tensor.name} is not an input tensor")
                 rt._inputs[tensor] = value
                 _write_tensor_buffer(rt, tensor, value)
-            rt.rebind_replay_plan(plan)
+            if not plan.in_place_staging_rebound:
+                rt.rebind_replay_plan(plan)
+                plan.in_place_staging_rebound = True
             return
 
         rt.register_inputs(inputs)
@@ -304,6 +307,7 @@ def stage_replay_step_inputs(
                 rt._materialize_read(tensor)
             _write_tensor_buffer(rt, tensor, value)
         rt.rebind_replay_plan(plan)
+        plan.in_place_staging_rebound = True
     finally:
         if rt.profiler.enabled:
             rt.profiler.record_host_event(

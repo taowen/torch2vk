@@ -11,11 +11,11 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
-    ceil_div,
     mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,
+    SubgroupRequirements,
 )
 
 
@@ -63,13 +63,16 @@ SDPA_CAUSAL_F32 = ShaderVariant(
             ),
         ),
         params_buffer=None,
-        dispatch=(mul('Q0', 'Q1'), 'Q2', ceil_div('Q3', 64)),
+        dispatch=(mul('Q0', 'Q1'), 'Q2', 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_shader_16bit_storage : require
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float16_t q[]; };
 layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float16_t k[]; };
@@ -77,44 +80,62 @@ layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float16_t v[]; }
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants { uint B; uint NH; uint NK; uint T; uint S; uint D; } pc;
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+const float NEG_INF = -3.4028234663852886e38;
+
 void main() {
     const uint batch_head = gl_WorkGroupID.x;
     const uint row = gl_WorkGroupID.y;
-    const uint d_out = gl_WorkGroupID.z * 64u + gl_LocalInvocationID.x;
-    if (batch_head >= pc.B * pc.NH || row >= pc.T || d_out >= pc.D) { return; }
+    const uint dim0 = gl_LocalInvocationID.x;
+    const uint dim1 = dim0 + 64u;
+    if (batch_head >= pc.B * pc.NH || row >= pc.T) { return; }
+    const bool valid0 = dim0 < pc.D;
+    const bool valid1 = dim1 < pc.D;
+
     const uint batch = batch_head / pc.NH;
     const uint head = batch_head % pc.NH;
     const uint kv_head = head * pc.NK / pc.NH;
     const uint q_base = (batch * pc.NH + head) * pc.T * pc.D;
     const uint k_base = (batch * pc.NK + kv_head) * pc.S * pc.D;
     const uint v_base = k_base;
+    const uint q_row_base = q_base + row * pc.D;
+    const float q0 = valid0 ? float(q[q_row_base + dim0]) : 0.0;
+    const float q1 = valid1 ? float(q[q_row_base + dim1]) : 0.0;
     const float scale = inversesqrt(float(pc.D));
-    float max_score = -1.0e38;
+
+    float running_max = NEG_INF;
+    float running_sum = 0.0;
+    float acc0 = 0.0;
+    float acc1 = 0.0;
+
     for (uint col = 0u; col <= row && col < pc.S; ++col) {
-        float dot = 0.0;
-        for (uint d = 0u; d < pc.D; ++d) {
-            dot += float(q[q_base + row * pc.D + d]) * float(k[k_base + col * pc.D + d]);
+        const uint kv_offset = col * pc.D;
+        const float k0 = valid0 ? float(k[k_base + kv_offset + dim0]) : 0.0;
+        const float k1 = valid1 ? float(k[k_base + kv_offset + dim1]) : 0.0;
+        const float dot = subgroupAdd(q0 * k0 + q1 * k1);
+        const float score = dot * scale;
+        const float next_max = max(running_max, score);
+        const float old_scale = running_max == NEG_INF ? 0.0 : exp(running_max - next_max);
+        const float score_scale = exp(score - next_max);
+        if (valid0) {
+            acc0 = acc0 * old_scale + score_scale * float(v[v_base + kv_offset + dim0]);
         }
-        max_score = max(max_score, dot * scale);
-    }
-    float sum_exp = 0.0;
-    for (uint col = 0u; col <= row && col < pc.S; ++col) {
-        float dot = 0.0;
-        for (uint d = 0u; d < pc.D; ++d) {
-            dot += float(q[q_base + row * pc.D + d]) * float(k[k_base + col * pc.D + d]);
+        if (valid1) {
+            acc1 = acc1 * old_scale + score_scale * float(v[v_base + kv_offset + dim1]);
         }
-        sum_exp += exp(dot * scale - max_score);
+        running_sum = running_sum * old_scale + score_scale;
+        running_max = next_max;
     }
-    float acc = 0.0;
-    for (uint col = 0u; col <= row && col < pc.S; ++col) {
-        float dot = 0.0;
-        for (uint dd = 0u; dd < pc.D; ++dd) {
-            dot += float(q[q_base + row * pc.D + dd]) * float(k[k_base + col * pc.D + dd]);
+
+    if (running_sum > 0.0) {
+        const uint output_base = (batch * pc.NH + head) * pc.T * pc.D + row * pc.D;
+        if (valid0) {
+            output_values[output_base + dim0] = float16_t(acc0 / running_sum);
         }
-        float w = exp(dot * scale - max_score) / sum_exp;
-        acc += w * float(v[v_base + col * pc.D + d_out]);
+        if (valid1) {
+            output_values[output_base + dim1] = float16_t(acc1 / running_sum);
+        }
     }
-    output_values[(batch * pc.NH + head) * pc.T * pc.D + row * pc.D + d_out] = float16_t(acc);
 }
 """,
 )

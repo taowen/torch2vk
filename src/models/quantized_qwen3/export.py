@@ -24,11 +24,11 @@ from models.quantized_qwen3.input_prep import (
     load_qwen3_tokenizer,
     prepare_qwen3_inputs,
 )
+from models.quantized_qwen3.quantization import Q6_TENSOR_NAMES, Q8_TENSOR_NAMES
 from torch2vk.export import (
     KVCacheInjectHint,
     Q4KMWeightQuantization,
     Q4_K_M_REGISTRY,
-    Q8_0_REGISTRY,
     bind_dispatch_function_to_tensors,
     cast_floating_tensors,
     clear_shader_package,
@@ -47,13 +47,15 @@ from torch2vk.export.shaders.qwen3_asr_token_select_f32 import (
     QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
 )
 from torch2vk.export.shaders.qwen3_asr_token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
+from torch2vk.export.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
 from torch2vk.export.tensor_codegen import render_tensor_module
 from torch2vk.runtime.shader import ShaderContract, ShaderVariant
 
 
 MODEL_PACKAGE = "models.quantized_qwen3"
 _QUANTIZED_WEIGHTS = Q4KMWeightQuantization(
-    q8_tensor_names=frozenset({"model.embed_tokens.weight"}),
+    q6_tensor_names=frozenset(Q6_TENSOR_NAMES),
+    q8_tensor_names=frozenset(Q8_TENSOR_NAMES),
 )
 _TEMPLATE_DIR = Path(__file__).with_name("templates")
 _JINJA = Environment(
@@ -104,6 +106,12 @@ QWEN3_TOKEN_STORE_EOS_F32 = _retag_shader_variant(
     name="qwen3_token_store_eos_f32",
     family="qwen3.text",
     class_name="Qwen3TokenStoreEosF32Program",
+)
+QWEN3_SLICE_LAST_TOKEN_F16 = _retag_shader_variant(
+    SLICE_LAST_TOKEN_F16,
+    name="slice_last_token_f16",
+    family="qwen3.text",
+    class_name="Qwen3SliceLastTokenF16Program",
 )
 
 
@@ -200,7 +208,11 @@ def main() -> int:
         write_shader_file(shaders_dir, variant)
         shader_file_count += 1
 
-    for variant in (QWEN3_TOKEN_SELECT_GREEDY_F32, QWEN3_TOKEN_STORE_EOS_F32):
+    for variant in (
+        QWEN3_TOKEN_SELECT_GREEDY_F32,
+        QWEN3_TOKEN_STORE_EOS_F32,
+        QWEN3_SLICE_LAST_TOKEN_F16,
+    ):
         write_generated_shader(variant)
 
     def export_one(
@@ -244,6 +256,7 @@ def main() -> int:
             function_name=name,
             shader_package=f"{MODEL_PACKAGE}.shaders",
             registry=export_registry,
+            weight_quantization=weight_quantization,
         )
 
         rename_map: dict[str, str] = {}
@@ -277,6 +290,7 @@ def main() -> int:
                 shader_imports=shader_imports,
                 function_source=bind_dispatch_function_to_tensors(func_src),
                 parameters_source=_dispatch_parameters_source(function_name),
+                uses_q4_q6_dispatch="_linear_q4_or_q6" in func_src,
             )
         )
         print(f"  {name}: {len(used_variants)} shaders")
@@ -297,7 +311,7 @@ def main() -> int:
         embed_tokens.float(),
         args=(torch.zeros((1, prompt_length), dtype=torch.long, device="meta"),),
         weight_prefix="model.embed_tokens.",
-        export_registry=Q8_0_REGISTRY,
+        export_registry=Q4_K_M_REGISTRY,
         weight_quantization=_QUANTIZED_WEIGHTS,
         shape_exprs=text_shape_exprs,
     )
@@ -329,18 +343,17 @@ def main() -> int:
     export_one(
         "run_lm_head",
         lm_head.float(),
-        args=(torch.zeros(1, prompt_length, hidden_size, device="meta"),),
+        args=(torch.zeros(1, 1, hidden_size, device="meta"),),
         weight_prefix="lm_head.",
         export_registry=Q4_K_M_REGISTRY,
         weight_quantization=_QUANTIZED_WEIGHTS,
-        shape_exprs=text_shape_exprs,
     )
     export_one(
         "run_decode_embed",
         embed_tokens.float(),
         args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
         weight_prefix="model.embed_tokens.",
-        export_registry=Q8_0_REGISTRY,
+        export_registry=Q4_K_M_REGISTRY,
         weight_quantization=_QUANTIZED_WEIGHTS,
     )
     export_one(

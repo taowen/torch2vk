@@ -17,7 +17,7 @@ from torch2vk.vulkan.types import (
     CONTIGUOUS_LAYOUT,
     TensorLayout,
     TensorSpec,
-    q8_0_halfwords_layout,
+    q4_k_words_layout,
 )
 
 
@@ -46,8 +46,8 @@ def create_decode_embed(
             _declare_tensor(
                 checkpoint_key="model.embed_tokens.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='uint16', shape=(151936, 544)),
-                layout=q8_0_halfwords_layout(logical_k=1024),
+                spec=TensorSpec(dtype='uint32', shape=(151936, 144)),
+                layout=q4_k_words_layout(logical_k=1024),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,

@@ -119,6 +119,12 @@ def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOK
         raise RuntimeError(f"{tensor.name} is an alias of {tensor.alias_source.name} and cannot be written")
     if io_kind is IOKind.INOUT and tensor.buffer is not None:
         return
+    if (
+        tensor.memory is MemoryClass.REQUEST_STATE
+        and tensor.buffer is not None
+        and not tensor.buffer.allocation.released
+    ):
+        return
     size = tensor_nbytes(tensor.spec)
     if size == 0:
         with tensor.runtime_write_scope():

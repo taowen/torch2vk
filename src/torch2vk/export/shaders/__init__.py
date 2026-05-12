@@ -6,7 +6,7 @@ from torch2vk.export.shaders.cat_f32 import make_cat_variant
 from torch2vk.export.shaders.conv2d_f32 import make_conv2d_variant
 from torch2vk.export.shaders.conv2d_quantized import make_conv2d_q8_0_variant
 from torch2vk.export.shaders.embedding_f32 import make_embedding_variant
-from torch2vk.export.shaders.embedding_quantized import make_embedding_q8_0_variant
+from torch2vk.export.shaders.embedding_quantized import make_embedding_q4_k_m_variant, make_embedding_q8_0_variant
 from torch2vk.export.shaders.gelu_f32 import make_gelu_variant
 from torch2vk.export.shaders.index_copy_f32 import make_index_copy_variant
 from torch2vk.export.shaders.index_select_f32 import make_index_select_variant
@@ -16,6 +16,7 @@ from torch2vk.export.shaders.linear_bias_quantized import make_linear_bias_q8_0_
 from torch2vk.export.shaders.linear_nobias_f32 import make_linear_nobias_variant
 from torch2vk.export.shaders.linear_nobias_quantized import (
     make_linear_nobias_q4_k_m_variant,
+    make_linear_nobias_q6_k_variant,
     make_linear_nobias_q8_0_variant,
 )
 from torch2vk.export.shaders.max_f32 import make_max_variant
@@ -43,6 +44,7 @@ __all__ = [
     "make_cat_variant",
     "make_conv2d_q8_0_variant",
     "make_conv2d_variant",
+    "make_embedding_q4_k_m_variant",
     "make_embedding_q8_0_variant",
     "make_embedding_variant",
     "make_gelu_variant",
@@ -53,6 +55,7 @@ __all__ = [
     "make_linear_bias_variant",
     "make_linear_nobias_variant",
     "make_linear_nobias_q4_k_m_variant",
+    "make_linear_nobias_q6_k_variant",
     "make_linear_nobias_q8_0_variant",
     "make_max_variant",
     "make_mean_dim_variant",

@@ -73,6 +73,7 @@ LINEAR_NOBIAS_Q4_K_MATVEC_F32 = ShaderVariant(
 layout(std430) buffer;
 
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { f16vec4 x4[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint weight[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 
@@ -85,62 +86,77 @@ uint q4k_byte(uint block_word, uint byte_offset) {
     return (word_value >> ((byte_offset & 3u) * 8u)) & 0xffu;
 }
 
-void q4k_scale_min(uint block_word, uint subblock, out uint scale, out uint minimum) {
-    if (subblock < 4u) {
-        scale = q4k_byte(block_word, 4u + subblock) & 63u;
-        minimum = q4k_byte(block_word, 8u + subblock) & 63u;
-        return;
-    }
-    const uint local = subblock - 4u;
-    const uint d_byte = q4k_byte(block_word, 4u + local);
-    const uint m_byte = q4k_byte(block_word, 8u + local);
-    const uint packed = q4k_byte(block_word, 12u + local);
-    scale = (packed & 15u) | ((d_byte >> 2u) & 48u);
-    minimum = (packed >> 4u) | ((m_byte >> 2u) & 48u);
+uint q4k_u16(uint block_word, uint half_index) {
+    const uint byte_offset = 4u + half_index * 2u;
+    return q4k_byte(block_word, byte_offset) | (q4k_byte(block_word, byte_offset + 1u) << 8u);
 }
 
-void q4k_accumulate_pair(
+vec4 unpack8_f32(uint value) {
+    return vec4(
+        float(value & 255u),
+        float((value >> 8u) & 255u),
+        float((value >> 16u) & 255u),
+        float((value >> 24u) & 255u)
+    );
+}
+
+vec4 load_x4(uint row, uint k) {
+    return vec4(x4[(row * pc.K + k) >> 2u]);
+}
+
+float q4k_block_dot(
     uint row,
-    uint col0,
-    uint col1,
+    uint col,
     uint block_index,
     uint blocks_per_row,
-    uint lane,
-    inout float acc0,
-    inout float acc1
+    uint q_offset,
+    uint y_offset,
+    uint v_im
 ) {
-    const uint byte_index = lane & 31u;
-    const bool high_nibble = (lane & 32u) != 0u;
-    const uint subblock_base = high_nibble ? 1u : 0u;
-    const uint k_base = block_index * 256u + lane;
-    const bool has_col0 = col0 < pc.N;
-    const bool has_col1 = col1 < pc.N;
-    const uint block_word0 = col0 * blocks_per_row * 36u + block_index * 36u;
-    const uint block_word1 = col1 * blocks_per_row * 36u + block_index * 36u;
-    const vec2 dm0 = has_col0 ? unpackHalf2x16(weight[block_word0]) : vec2(0.0);
-    const vec2 dm1 = has_col1 ? unpackHalf2x16(weight[block_word1]) : vec2(0.0);
+    const uint block_word = col * blocks_per_row * 36u + block_index * 36u;
+    const vec2 dm = unpackHalf2x16(weight[block_word]);
 
-    [[unroll]] for (uint pair = 0u; pair < 4u; ++pair) {
-        const float x_value = float(x[row * pc.K + k_base + pair * 64u]);
-        const uint q_byte_offset = 16u + pair * 32u + byte_index;
-        const uint subblock = pair * 2u + subblock_base;
-        if (has_col0) {
-            uint scale0;
-            uint minimum0;
-            q4k_scale_min(block_word0, subblock, scale0, minimum0);
-            const uint packed_q0 = q4k_byte(block_word0, q_byte_offset);
-            const uint q0 = high_nibble ? (packed_q0 >> 4u) : (packed_q0 & 15u);
-            acc0 = fma(x_value, dm0.x * float(scale0) * float(q0) - dm0.y * float(minimum0), acc0);
-        }
-        if (has_col1) {
-            uint scale1;
-            uint minimum1;
-            q4k_scale_min(block_word1, subblock, scale1, minimum1);
-            const uint packed_q1 = q4k_byte(block_word1, q_byte_offset);
-            const uint q1 = high_nibble ? (packed_q1 >> 4u) : (packed_q1 & 15u);
-            acc1 = fma(x_value, dm1.x * float(scale1) * float(q1) - dm1.y * float(minimum1), acc1);
-        }
-    }
+    const uint scale0_u32 = q4k_u16(block_word, v_im);
+    const uint scale4_u32 = q4k_u16(block_word, v_im + 2u);
+    const uint scale8_u32 = q4k_u16(block_word, v_im + 4u);
+    const uint scale_0_4_l = (scale4_u32 << 16u) | scale0_u32;
+    const uint scale_0_4_h = (scale_0_4_l & 0xC0C0C0C0u) >> 2u;
+    const vec4 scale_0_4_l_f = unpack8_f32(scale_0_4_l & 0x3F3F3F3Fu);
+    const vec4 scale8_f = unpack8_f32((((scale8_u32 << 12u) | scale8_u32) & 0x0F0F0F0Fu) | scale_0_4_h);
+
+    const float sc0 = scale_0_4_l_f.x;
+    const float sc1 = scale_0_4_l_f.y;
+    const float sc2 = scale_0_4_l_f.z;
+    const float sc3 = scale_0_4_l_f.w;
+    const float sc4 = scale8_f.x;
+    const float sc5 = scale8_f.y;
+    const float sc6 = scale8_f.z;
+    const float sc7 = scale8_f.w;
+
+    const uint qs0_u32 = weight[block_word + 4u + q_offset / 4u];
+    const uint qs64_u32 = weight[block_word + 4u + q_offset / 4u + 16u];
+    const vec4 qs0_lo4 = unpack8_f32(qs0_u32 & 0x0F0F0F0Fu);
+    const vec4 qs64_lo4 = unpack8_f32(qs64_u32 & 0x0F0F0F0Fu);
+    const vec4 qs0_hi4 = unpack8_f32((qs0_u32 >> 4u) & 0x0F0F0F0Fu);
+    const vec4 qs64_hi4 = unpack8_f32((qs64_u32 >> 4u) & 0x0F0F0F0Fu);
+
+    const uint y1_idx = block_index * 256u + y_offset;
+    const uint y2_idx = y1_idx + 128u;
+    const vec4 by10 = load_x4(row, y1_idx);
+    const vec4 by132 = load_x4(row, y1_idx + 32u);
+    const vec4 by20 = load_x4(row, y2_idx);
+    const vec4 by232 = load_x4(row, y2_idx + 32u);
+
+    const float sx = dot(by10, qs0_lo4);
+    const float sy = dot(by132, qs0_hi4);
+    const float sz = dot(by20, qs64_lo4);
+    const float sw = dot(by232, qs64_hi4);
+    const float smin =
+        dot(by10, vec4(sc2)) +
+        dot(by132, vec4(sc3)) +
+        dot(by20, vec4(sc6)) +
+        dot(by232, vec4(sc7));
+    return dm.x * (sx * sc0 + sy * sc1 + sz * sc4 + sw * sc5) - dm.y * smin;
 }
 
 void main() {
@@ -152,8 +168,22 @@ void main() {
     float acc1 = 0.0;
     if (row < pc.M) {
         const uint blocks_per_row = pc.K / 256u;
-        for (uint block_index = 0u; block_index < blocks_per_row; ++block_index) {
-            q4k_accumulate_pair(row, col0, col1, block_index, blocks_per_row, lane, acc0, acc1);
+        const uint itid = lane & 15u;
+        const uint ix = lane >> 4u;
+        const uint il = itid >> 2u;
+        const uint ir = itid & 3u;
+        const uint v_im = il >> 1u;
+        const uint v_in = il & 1u;
+        const uint l0 = 4u * (2u * ir + v_in);
+        const uint q_offset = 32u * v_im + l0;
+        const uint y_offset = 64u * v_im + l0;
+        for (uint block_index = ix; block_index < blocks_per_row; block_index += 4u) {
+            if (col0 < pc.N) {
+                acc0 += q4k_block_dot(row, col0, block_index, blocks_per_row, q_offset, y_offset, v_im);
+            }
+            if (col1 < pc.N) {
+                acc1 += q4k_block_dot(row, col1, block_index, blocks_per_row, q_offset, y_offset, v_im);
+            }
         }
     }
     acc0 = subgroupAdd(acc0);

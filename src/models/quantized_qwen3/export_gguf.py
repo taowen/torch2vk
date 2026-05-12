@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from models.hf_cache import resolve_cached_model
+from models.quantized_qwen3.quantization import Q6_TENSOR_NAMES, Q8_TENSOR_NAMES
 from torch2vk.quantize import Q4KMQuantizationConfig, export_q4_k_m_gguf
 
 
@@ -13,7 +14,6 @@ REPO_ID = "Qwen/Qwen3-0.6B"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 QUANTIZE_GGUF_ARCH = "qwen3"
 DEFAULT_Q4_K_M_GGUF = REPO_ROOT / "dist" / "quantized_qwen3" / "model.gguf"
-Q8_TENSOR_NAMES = ("model.embed_tokens.weight",)
 
 
 def export_qwen3_q4_k_m_gguf(
@@ -28,6 +28,7 @@ def export_qwen3_q4_k_m_gguf(
         config=Q4KMQuantizationConfig(
             model_name="Qwen3",
             gguf_arch=QUANTIZE_GGUF_ARCH,
+            q6_tensor_names=Q6_TENSOR_NAMES,
             q8_tensor_names=Q8_TENSOR_NAMES,
         ),
         overwrite=overwrite,
@@ -50,4 +51,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

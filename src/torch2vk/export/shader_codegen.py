@@ -15,7 +15,7 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
 )
 from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements
-from torch2vk.vulkan.types import CONTIGUOUS_LAYOUT, Q4KWordsLayout, Q8_0HalfwordsLayout
+from torch2vk.vulkan.types import CONTIGUOUS_LAYOUT, Q4KWordsLayout, Q6KHalfwordsLayout, Q8_0HalfwordsLayout
 
 
 def render_shader_file(variant: ShaderVariant) -> str:
@@ -181,6 +181,11 @@ def _layout_to_source(layout) -> str:
     if isinstance(layout, Q8_0HalfwordsLayout):
         return (
             f"q8_0_halfwords_layout(logical_k={_expr_to_source(layout.logical_k)}, "
+            f"block_size={layout.block_size}, halfwords_per_block={layout.halfwords_per_block})"
+        )
+    if isinstance(layout, Q6KHalfwordsLayout):
+        return (
+            f"q6_k_halfwords_layout(logical_k={_expr_to_source(layout.logical_k)}, "
             f"block_size={layout.block_size}, halfwords_per_block={layout.halfwords_per_block})"
         )
     raise TypeError(f"Unsupported generated shader tensor layout: {layout!r}")

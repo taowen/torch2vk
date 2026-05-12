@@ -17,7 +17,7 @@ from torch2vk.vulkan.types import (
     CONTIGUOUS_LAYOUT,
     TensorLayout,
     TensorSpec,
-    q4_k_words_layout,
+    q6_k_halfwords_layout,
 )
 
 
@@ -47,8 +47,8 @@ def create_lm_head(
             _declare_tensor(
                 checkpoint_key="lm_head.weight",
                 reference_key=None,
-                spec=TensorSpec(dtype='uint32', shape=(151936, 144)),
-                layout=q4_k_words_layout(logical_k=1024),
+                spec=TensorSpec(dtype='uint16', shape=(151936, 420)),
+                layout=q6_k_halfwords_layout(logical_k=1024),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
