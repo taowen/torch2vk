@@ -10,8 +10,10 @@ from typing import cast
 import numpy as np
 import torch
 from transformers import AutoTokenizer
+from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.exported_omnivoice.pytorch_modules import (
+    AudioDecodeReference,
     InputEmbedReference,
     LlmForwardReference,
     TokenScoreReference,
@@ -20,6 +22,7 @@ from models.exported_omnivoice.pytorch_modules import (
 from models.hf_cache import resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
 from models.optimized_omnivoice import reference
+from models.optimized_omnivoice.dispatch.audio_decode import run_audio_decode
 from models.optimized_omnivoice.dispatch.audio_head import run_audio_head
 from models.optimized_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.optimized_omnivoice.export_gguf import export_omnivoice_q4_k_m_gguf
@@ -47,6 +50,7 @@ class _OmniVoiceCompareState:
     llm_forward: LlmForwardReference
     token_score: TokenScoreReference
     token_update: TokenUpdateReference
+    audio_decode: AudioDecodeReference
     batch_input_ids: torch.Tensor
     batch_audio_mask: torch.Tensor
     attention_mask: torch.Tensor
@@ -88,6 +92,7 @@ def _build_compare_references(
     audio_mask_id: int,
     rng_seed: int,
     head_dim: int,
+    audio_tokenizer: HiggsAudioV2TokenizerModel,
 ) -> _OmniVoiceCompareState:
     reference.set_model(model)
     rope_cos, rope_sin = _make_rope_table(
@@ -101,6 +106,7 @@ def _build_compare_references(
         llm_forward=LlmForwardReference(model),
         token_score=TokenScoreReference(model),
         token_update=TokenUpdateReference(),
+        audio_decode=AudioDecodeReference(audio_tokenizer),
         batch_input_ids=torch.from_numpy(np.ascontiguousarray(batch_input_ids)).cuda(),
         batch_audio_mask=torch.from_numpy(
             np.ascontiguousarray(batch_audio_mask.astype(np.bool_))
@@ -222,6 +228,13 @@ def compare_generation_steps(
             train=True,
         ).eval(),
     )
+    audio_tokenizer = cast(
+        HiggsAudioV2TokenizerModel,
+        HiggsAudioV2TokenizerModel.from_pretrained(
+            str(model_dir / "audio_tokenizer"),
+            device_map="cuda",
+        ).eval(),
+    )
     tokens = np.full(
         (1, config.num_audio_codebook, prepared.target_len),
         config.audio_mask_id,
@@ -237,6 +250,7 @@ def compare_generation_steps(
         audio_mask_id=config.audio_mask_id,
         rng_seed=rng_seed,
         head_dim=llm_config.head_dim,
+        audio_tokenizer=audio_tokenizer,
     )
 
     rt = RuntimeSession.open(
@@ -282,6 +296,13 @@ def compare_generation_steps(
                 step=step,
                 unmask_count=int(unmask_count),
                 refs=refs,
+            )
+        with rt.frame("omnivoice.audio_decode"):
+            run_audio_decode(rt)
+            reference.run_audio_decode(
+                rt,
+                refs.audio_decode,
+                audio_codes=refs.tokens,
             )
     finally:
         rt.close()

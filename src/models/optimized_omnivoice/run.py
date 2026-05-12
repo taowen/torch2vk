@@ -13,14 +13,13 @@ import json
 import math
 import time
 from pathlib import Path
-from typing import Protocol, Sequence, cast
 
 import numpy as np
 import torch
 from transformers import AutoTokenizer
-from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.hf_cache import resolve_cached_model
+from models.optimized_omnivoice.dispatch.audio_decode import run_audio_decode
 from models.optimized_omnivoice.dispatch.audio_head import run_audio_head
 from models.optimized_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.optimized_omnivoice.export_gguf import export_omnivoice_q4_k_m_gguf
@@ -43,12 +42,9 @@ from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
 
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_optimized.wav")
-_GENERATION_REPLAY_CACHE = "optimized_omnivoice_generation_step:v3"
+_GENERATION_REPLAY_CACHE = "optimized_omnivoice_generation_step:v8"
+_AUDIO_DECODE_REPLAY_CACHE = "optimized_omnivoice_audio_decode:v5"
 get_shader = make_shader_loader("models.optimized_omnivoice.shaders")
-
-
-class _AudioDecodeOutput(Protocol):
-    audio_values: Sequence[torch.Tensor]
 
 
 _REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
@@ -142,7 +138,32 @@ def _build_generation_replay_plan(
     return plan
 
 
+def _build_audio_decode_replay_plan(
+    rt: RuntimeSession,
+    *,
+    cache_namespace: str,
+) -> ReplayPlan:
+    plan = rt.build_replay_plan(
+        name="optimized_omnivoice_audio_decode",
+        frame="omnivoice.audio_decode",
+    )
+    if plan.readback_slots:
+        raise RuntimeError("OmniVoice audio decode replay must not use readback slots")
+    rt.cache_replay_plan(cache_namespace, plan)
+    return plan
+
+
 def _cached_generation_replay_plan(
+    rt: RuntimeSession,
+    *,
+    cache_namespace: str,
+) -> ReplayPlan | None:
+    for plan in rt.cached_replay_plans(cache_namespace):
+        return plan
+    return None
+
+
+def _cached_audio_decode_replay_plan(
     rt: RuntimeSession,
     *,
     cache_namespace: str,
@@ -156,6 +177,10 @@ def _generation_replay_cache_namespace(model_dir: Path) -> str:
     return f"{_GENERATION_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
 
 
+def _audio_decode_replay_cache_namespace(model_dir: Path) -> str:
+    return f"{_AUDIO_DECODE_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
+
+
 def main(
     *,
     text: str = DEFAULT_TEXT,
@@ -167,6 +192,7 @@ def main(
     model_dir = resolve_cached_model(REPO_ID)
     gguf_path = export_omnivoice_q4_k_m_gguf(model_dir=model_dir)
     replay_cache_namespace = _generation_replay_cache_namespace(gguf_path.parent)
+    audio_decode_replay_cache_namespace = _audio_decode_replay_cache_namespace(gguf_path.parent)
     config_data = json.loads((model_dir / "config.json").read_text())
     config = OmniVoiceConfig(**config_data)
 
@@ -311,17 +337,26 @@ def main(
 
     # Decode audio tokens
     print("\nDecoding audio tokens...")
-    generated_tokens = rt.read_request_state(model_tensors().tokens)
+    decode_start = time.perf_counter()
+    audio_decode_replay_plan = _cached_audio_decode_replay_plan(
+        rt,
+        cache_namespace=audio_decode_replay_cache_namespace,
+    )
+    if audio_decode_replay_plan is None:
+        with rt.frame("omnivoice.audio_decode"):
+            run_audio_decode(rt)
+        audio_decode_replay_plan = _build_audio_decode_replay_plan(
+            rt,
+            cache_namespace=audio_decode_replay_cache_namespace,
+        )
+    else:
+        execute_replay(audio_decode_replay_plan)
+    waveform = torch.from_numpy(
+        np.ascontiguousarray(rt.read_request_state(model_tensors().audio_decode.conv1d_31)[0])
+    )
+    decode_elapsed = time.perf_counter() - decode_start
     rt.close()
-    audio_tokenizer_path = model_dir / "audio_tokenizer"
-    audio_tokenizer = HiggsAudioV2TokenizerModel.from_pretrained(
-        str(audio_tokenizer_path), device_map="cuda"
-    )
-    audio_output = cast(
-        _AudioDecodeOutput,
-        audio_tokenizer.decode(torch.from_numpy(generated_tokens).cuda()),
-    )
-    waveform = audio_output.audio_values[0].cpu()
+    print(f"  Audio decode: {decode_elapsed:.3f}s")
 
     # Save wav
     output_path = save_audio_wav(waveform, output_path)

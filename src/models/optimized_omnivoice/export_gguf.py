@@ -8,6 +8,7 @@ from pathlib import Path
 from models.hf_cache import load_config_json, resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
 from models.optimized_omnivoice.quantization import (
+    Q8_TENSOR_PREFIXES,
     Q8_TENSOR_NAMES,
     omnivoice_q4_k_m_q6_tensor_names,
 )
@@ -35,6 +36,8 @@ def export_omnivoice_q4_k_m_gguf(
             gguf_arch=QUANTIZE_GGUF_ARCH,
             q6_tensor_names=omnivoice_q4_k_m_q6_tensor_names(_llm_num_hidden_layers(config)),
             q8_tensor_names=Q8_TENSOR_NAMES,
+            q8_tensor_prefixes=Q8_TENSOR_PREFIXES,
+            safetensor_subdirs=("audio_tokenizer",),
             extra_uint32_metadata=(
                 (
                     f"{QUANTIZE_GGUF_ARCH}.audio_vocab_size",
@@ -45,6 +48,7 @@ def export_omnivoice_q4_k_m_gguf(
                     _config_int(config, "num_audio_codebook", 8),
                 ),
                 (f"{QUANTIZE_GGUF_ARCH}.audio_mask_id", _config_int(config, "audio_mask_id", 1024)),
+                (f"{QUANTIZE_GGUF_ARCH}.includes_audio_tokenizer", 1),
             ),
         ),
         overwrite=overwrite,

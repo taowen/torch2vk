@@ -15,8 +15,6 @@ from vulkan import (
 )
 
 from torch2vk.checkpoints.checkpoint_tensor import CheckpointTensor
-from torch2vk.checkpoints.gguf import open_gguf_mmap
-from torch2vk.checkpoints.safetensors import open_safetensors_mmap
 from torch2vk.runtime.logical import LogicalTensor, MemoryClass, TensorLifetime, TensorRole
 from torch2vk.runtime.shader import (
     DTypeReference,
@@ -168,21 +166,16 @@ def materialize_weight(rt: RuntimeSession, tensor: LogicalTensor) -> None:
     tensor_key = tensor.checkpoint_key
     if not tensor_key:
         raise RuntimeError(f"{tensor.name} is a weight tensor but checkpoint_key is not set")
-    if checkpoint.suffix == ".gguf":
-        storage_context = open_gguf_mmap(checkpoint)
-    else:
-        storage_context = open_safetensors_mmap(checkpoint)
-    with storage_context as storage:
-        checkpoint_tensor = CheckpointTensor.open(
-            storage=storage,
-            tensor_key=tensor_key,
-            dtype=tensor.spec.dtype,
-            shape=tensor.concrete_shape,
-            layout=tensor.layout,
-        )
-        ((slice_, allocation),) = rt.device.upload_checkpoint_tensors_with_allocations(
-            [(tensor.name, checkpoint_tensor)]
-        )
+    checkpoint_tensor = CheckpointTensor.open(
+        storage=rt._checkpoint_storage(checkpoint),
+        tensor_key=tensor_key,
+        dtype=tensor.spec.dtype,
+        shape=tensor.concrete_shape,
+        layout=tensor.layout,
+    )
+    ((slice_, allocation),) = rt.device.upload_checkpoint_tensors_with_allocations(
+        [(tensor.name, checkpoint_tensor)]
+    )
     with tensor.runtime_write_scope():
         tensor.buffer = slice_
         tensor.descriptor_nbytes = slice_.nbytes

@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from torch2vk.checkpoints.gguf import GGUFMmap, open_gguf_mmap
+from torch2vk.checkpoints.safetensors import SafetensorsMmap, open_safetensors_mmap
 from torch2vk.runtime.compare import TensorCompareResult
 from torch2vk.runtime.frame import FrameContext
 from torch2vk.runtime.logical import (
@@ -67,6 +69,7 @@ class RuntimeSession:
         self._compare_results: list[TensorCompareResult] = []
         self._pipeline_cache: dict[tuple[object, ...], ComputePipeline] = {}
         self._replay_plan_cache: dict[str, list[ReplayPlan]] = {}
+        self._checkpoint_storage_cache: dict[Path, SafetensorsMmap | GGUFMmap] = {}
 
         self._model_allocations: list[BufferAllocation] = []
         self._request_allocations: list[BufferAllocation] = []
@@ -256,6 +259,9 @@ class RuntimeSession:
         for allocation in reversed(self._model_allocations):
             allocation.close()
         self._model_allocations.clear()
+        for storage in self._checkpoint_storage_cache.values():
+            storage.close()
+        self._checkpoint_storage_cache.clear()
         self.profiler.close()
         self.device.close()
 
@@ -328,6 +334,19 @@ class RuntimeSession:
         from torch2vk.runtime.materialization import resolve_weight_checkpoint
 
         return resolve_weight_checkpoint(self, tensor)
+
+    def _checkpoint_storage(self, checkpoint: Path) -> SafetensorsMmap | GGUFMmap:
+        self._require_open()
+        resolved = checkpoint.expanduser().resolve()
+        storage = self._checkpoint_storage_cache.get(resolved)
+        if storage is not None:
+            return storage
+        if resolved.suffix == ".gguf":
+            storage = open_gguf_mmap(resolved)
+        else:
+            storage = open_safetensors_mmap(resolved)
+        self._checkpoint_storage_cache[resolved] = storage
+        return storage
 
     def _materialize_input(self, tensor: LogicalTensor) -> None:
         from torch2vk.runtime.materialization import materialize_input

@@ -1,19 +1,7 @@
+"""Generated shader: conv1d_q8_0w_f32b_f32_53."""
+
 from __future__ import annotations
 
-from torch.fx import Node
-
-from torch2vk.export.shaders._factory import (
-    activation_extension_source,
-    activation_glsl_type,
-    activation_store,
-    activation_variant_name,
-    node_input_dtype,
-    node_input_shape,
-    node_output_shape,
-    weight_dtype_suffix,
-    weight_extension_source,
-    weight_glsl_type,
-)
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
@@ -27,13 +15,66 @@ from torch2vk.runtime.shader import (
     mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import (
-    CooperativeMatrixRequirements,
     ShaderExecutionRequirements,
+    CooperativeMatrixRequirements,
     SubgroupRequirements,
 )
-from torch2vk.vulkan.types import q8_0_halfwords_layout
+from torch2vk.vulkan.types import (
+    q8_0_halfwords_layout,
+)
 
-_SOURCE_TEMPLATE = """\
+
+CONV1D_Q8_0W_F32B_F32_53 = ShaderVariant(
+    name='conv1d_q8_0w_f32b_f32_53',
+    family='export',
+    contract=ShaderContract(
+        class_name='ExportConv1dQ8_0WeightF32BiasProgram',
+        shader_name='conv1d_q8_0w_f32b_f32_53',
+        fields=(
+            TensorFieldSpec(
+                name='x',
+                io_kind=IOKind.INPUT,
+                role='input',
+                contract=TensorContract(dtype='float16', shape=('B', 'Ci', 'Li',)),
+            ),
+            TensorFieldSpec(
+                name='weight',
+                io_kind=IOKind.INPUT,
+                role='weight',
+                contract=TensorContract(dtype='uint16', shape=('Co', 17,), layout=q8_0_halfwords_layout(logical_k=32, block_size=32, halfwords_per_block=17)),
+            ),
+            TensorFieldSpec(
+                name='bias',
+                io_kind=IOKind.INPUT,
+                role='input',
+                contract=TensorContract(dtype='float32', shape=('Co',)),
+            ),
+            TensorFieldSpec(
+                name='output',
+                io_kind=IOKind.OUTPUT,
+                role='output',
+                contract=TensorContract(dtype='float16', shape=('B', 'Co', 'Lo',)),
+            ),
+        ),
+        push_constants=PushConstantSpec(
+            size=36,
+            fields=(
+                PushConstantFieldSpec('B', PushConstantType.UINT32, 0, 'B', dynamic=False),
+                PushConstantFieldSpec('Ci', PushConstantType.UINT32, 4, 'Ci', dynamic=False),
+                PushConstantFieldSpec('Li', PushConstantType.UINT32, 8, 'Li', dynamic=False),
+                PushConstantFieldSpec('Co', PushConstantType.UINT32, 12, 'Co', dynamic=False),
+                PushConstantFieldSpec('Lo', PushConstantType.UINT32, 16, 'Lo', dynamic=False),
+                PushConstantFieldSpec('Kh', PushConstantType.UINT32, 20, 1, dynamic=False),
+                PushConstantFieldSpec('stride', PushConstantType.UINT32, 24, 1, dynamic=False),
+                PushConstantFieldSpec('padding', PushConstantType.UINT32, 28, 0, dynamic=False),
+                PushConstantFieldSpec('dilation', PushConstantType.UINT32, 32, 1, dynamic=False),
+            ),
+        ),
+        params_buffer=None,
+        dispatch=(ceil_div(mul('B', 'Lo'), 32), ceil_div('Co', 16), 1),
+    ),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), cooperative_matrix=CooperativeMatrixRequirements(scope='subgroup', m_size=16, n_size=16, k_size=16, a_type='float16', b_type='float16', c_type='float32', result_type='float32', saturating_accumulation=False), require_storage_buffer_16bit_access=True),
+    source="""\
 #version 460
 
 #pragma use_vulkan_memory_model
@@ -43,14 +84,14 @@ _SOURCE_TEMPLATE = """\
 #extension GL_KHR_cooperative_matrix : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_16bit_storage : require
-{{ACTIVATION_EXTENSION}}\
-{{BIAS_EXTENSION}}\
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
-layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { {{BIAS_TYPE}} bias[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
+layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { float bias[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint B; uint Ci; uint Li; uint Co; uint Lo; uint Kh;
     uint stride; uint padding; uint dilation;
@@ -199,139 +240,14 @@ void main() {
             const uint t1 = m1 - b1 * pc.Lo;
             if (m0 < pc.B * pc.Lo) {
                 float acc = shared_out0[i] + float(bias[n]);
-                output_values[(b0 * pc.Co + n) * pc.Lo + t0] = {{STORE_ACC}};
+                output_values[(b0 * pc.Co + n) * pc.Lo + t0] = float16_t(acc);
             }
             if (m1 < pc.B * pc.Lo) {
                 float acc = shared_out1[i] + float(bias[n]);
-                output_values[(b1 * pc.Co + n) * pc.Lo + t1] = {{STORE_ACC}};
+                output_values[(b1 * pc.Co + n) * pc.Lo + t1] = float16_t(acc);
             }
         }
     }
 }
-"""
-
-
-def make_conv1d_q8_0_variant(node: Node, activation_dtype: str = "float16") -> ShaderVariant | None:
-    input_shape = node_input_shape(node, 0)
-    weight_shape = node_input_shape(node, 1)
-    output_shape = node_output_shape(node)
-    if (
-        not input_shape
-        or not weight_shape
-        or not output_shape
-        or len(input_shape) != 3
-        or len(weight_shape) != 3
-        or len(output_shape) != 3
-    ):
-        return None
-    if len(node.args) < 3:
-        return None
-
-    stride = _first_int_arg(node, 3, default=1)
-    padding = _first_int_arg(node, 4, default=0)
-    dilation = _first_int_arg(node, 5, default=1)
-    groups = _first_int_arg(node, 6, default=1)
-    if groups != 1:
-        return None
-
-    _, in_channels, kernel_width = weight_shape
-    kernel_width = int(kernel_width)
-    kernel_k = int(in_channels) * kernel_width
-    blocks_halfwords = ((kernel_k + 31) // 32) * 17
-
-    bias_dtype = node_input_dtype(node, 2)
-    bias_suffix = weight_dtype_suffix(bias_dtype)
-    base_name = f"conv1d_q8_0w_{bias_suffix}b_f32"
-    shader_name = activation_variant_name(base_name, activation_dtype)
-
-    return ShaderVariant(
-        name=shader_name,
-        family="export",
-        contract=ShaderContract(
-            class_name=f"ExportConv1dQ8_0Weight{bias_suffix.title()}BiasProgram",
-            shader_name=shader_name,
-            fields=(
-                TensorFieldSpec(
-                    "x",
-                    IOKind.INPUT,
-                    "input",
-                    TensorContract(dtype=activation_dtype, shape=("B", "Ci", "Li")),
-                ),
-                TensorFieldSpec(
-                    "weight",
-                    IOKind.INPUT,
-                    "weight",
-                    TensorContract(
-                        dtype="uint16",
-                        shape=("Co", blocks_halfwords),
-                        layout=q8_0_halfwords_layout(logical_k=kernel_k),
-                    ),
-                ),
-                TensorFieldSpec(
-                    "bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("Co",))
-                ),
-                TensorFieldSpec(
-                    "output",
-                    IOKind.OUTPUT,
-                    "output",
-                    TensorContract(dtype=activation_dtype, shape=("B", "Co", "Lo")),
-                ),
-            ),
-            push_constants=PushConstantSpec(
-                size=36,
-                fields=(
-                    PushConstantFieldSpec("B", PushConstantType.UINT32, 0, "B"),
-                    PushConstantFieldSpec("Ci", PushConstantType.UINT32, 4, "Ci"),
-                    PushConstantFieldSpec("Li", PushConstantType.UINT32, 8, "Li"),
-                    PushConstantFieldSpec("Co", PushConstantType.UINT32, 12, "Co"),
-                    PushConstantFieldSpec("Lo", PushConstantType.UINT32, 16, "Lo"),
-                    PushConstantFieldSpec("Kh", PushConstantType.UINT32, 20, kernel_width),
-                    PushConstantFieldSpec("stride", PushConstantType.UINT32, 24, stride),
-                    PushConstantFieldSpec("padding", PushConstantType.UINT32, 28, padding),
-                    PushConstantFieldSpec("dilation", PushConstantType.UINT32, 32, dilation),
-                ),
-            ),
-            dispatch=(ceil_div(mul("B", "Lo"), 32), ceil_div("Co", 16), 1),
-        ),
-        source=_source(bias_dtype=bias_dtype, activation_dtype=activation_dtype),
-        execution_requirements=ShaderExecutionRequirements(
-            subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
-            cooperative_matrix=CooperativeMatrixRequirements(
-                scope="subgroup",
-                m_size=16,
-                n_size=16,
-                k_size=16,
-                a_type="float16",
-                b_type="float16",
-                c_type="float32",
-                result_type="float32",
-            ),
-            require_storage_buffer_16bit_access=True,
-        ),
-    )
-
-
-def _first_int_arg(node: Node, index: int, *, default: int) -> int:
-    if len(node.args) <= index:
-        return default
-    arg = node.args[index]
-    if isinstance(arg, int):
-        return arg
-    if isinstance(arg, (list, tuple)) and len(arg) == 1 and isinstance(arg[0], int):
-        return arg[0]
-    return default
-
-
-def _source(*, bias_dtype: str, activation_dtype: str) -> str:
-    return (
-        _SOURCE_TEMPLATE.replace(
-            "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
-        )
-        .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
-        .replace(
-            "{{BIAS_EXTENSION}}",
-            weight_extension_source("bfloat16") if bias_dtype == "bfloat16" else "",
-        )
-        .replace("{{BIAS_TYPE}}", weight_glsl_type(bias_dtype))
-        .replace("{{STORE_ACC}}", activation_store("acc", activation_dtype))
-    )
+""",
+)
