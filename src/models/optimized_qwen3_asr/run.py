@@ -49,16 +49,17 @@ from models.optimized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
 from models.optimized_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
+from torch2vk.runtime.replay_cache_key import source_tree_digest
 from torch2vk.runtime.rope_table import ROPE_TABLE_F32, run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.shader_loader import make_shader_loader
 
 _DECODE_REPLAY_CACHE = "optimized_qwen3_asr_decode_step:v4"
-_PROMPT_LENGTH = 151
 _MAX_NEW_TOKENS = 64
 _STOP_CHECK_INTERVAL = 2
 _model_shader = make_shader_loader("models.optimized_qwen3_asr.shaders")
+_REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
 
 
 def get_shader(name: str) -> ShaderVariant:
@@ -206,7 +207,7 @@ def _cached_decode_replay_plan(
 
 
 def _decode_replay_cache_namespace(model_dir: Path) -> str:
-    return f"{_DECODE_REPLAY_CACHE}:{model_dir.resolve()}"
+    return f"{_DECODE_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
 
 
 # ==============================================================
@@ -254,8 +255,6 @@ def main(
         language=language,
     )
     prompt_length = prepared.prompt_length
-    if prompt_length != _PROMPT_LENGTH:
-        raise ValueError(f"optimized_qwen3_asr is generated for prompt_length={_PROMPT_LENGTH}")
     max_sequence_length = prepared.prompt_length + max_new_tokens
     audio_feature_length = int(
         np.asarray(prepared.feature_attention_mask).sum(axis=-1).reshape(-1)[0]
