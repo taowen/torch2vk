@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import numpy as np
 from vulkan import (
     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -15,6 +14,7 @@ from vulkan import (
 )
 
 from torch2vk.checkpoints.checkpoint_tensor import CheckpointTensor
+from torch2vk.runtime.host_array import prepare_host_array
 from torch2vk.runtime.logical import LogicalTensor, MemoryClass, TensorLifetime, TensorRole
 from torch2vk.runtime.shader import (
     DTypeReference,
@@ -222,11 +222,7 @@ def materialize_input(rt: RuntimeSession, tensor: LogicalTensor) -> None:
     if tensor not in rt._inputs:
         raise RuntimeError(f"{tensor.name} requires missing input")
     value = rt._inputs[tensor]
-    if tensor.spec.dtype == "bool":
-        array = np.ascontiguousarray(value)
-        array = np.ascontiguousarray(np.asarray(array, dtype=np.bool_).astype(np.uint32))
-    else:
-        array = np.ascontiguousarray(value, dtype=np.dtype(tensor.spec.dtype))
+    array = prepare_host_array(tensor, value, context="input")
     expected = tensor_nbytes(tensor.spec)
     if array.nbytes != expected:
         raise ValueError(f"{tensor.name} input has {array.nbytes} bytes, expected {expected}")

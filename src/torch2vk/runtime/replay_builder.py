@@ -10,7 +10,6 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import numpy as np
 from vulkan import (
     VK_ACCESS_HOST_READ_BIT,
     VK_ACCESS_SHADER_WRITE_BIT,
@@ -38,6 +37,7 @@ from vulkan import (
     vkEndCommandBuffer,
 )
 
+from torch2vk.runtime.host_array import prepare_host_array
 from torch2vk.runtime.logical import LogicalTensor, MemoryClass
 from torch2vk.runtime.replay import (
     ReplayDescriptorBinding,
@@ -981,7 +981,11 @@ def _allocate_replay_descriptor_tensor(
         alloc.buffer.map_persistent()
         value = rt._inputs.get(descriptor_tensor)
         if value is not None:
-            array = np.ascontiguousarray(value)
+            array = prepare_host_array(
+                descriptor_tensor,
+                value,
+                context="replay input",
+            )
             if array.nbytes != nbytes:
                 raise ValueError(
                     f"{descriptor_tensor.name} replay input has {array.nbytes} bytes, "

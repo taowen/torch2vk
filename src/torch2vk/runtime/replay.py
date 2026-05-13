@@ -25,6 +25,7 @@ from vulkan import (
 )
 from vulkan._vulkan import ffi
 
+from torch2vk.runtime.host_array import prepare_host_array
 from torch2vk.runtime.logical import TensorRole
 from torch2vk.runtime.shader import (
     ExprDim,
@@ -331,7 +332,7 @@ def _write_tensor_buffer(
     tensor: "LogicalTensor",
     data: np.ndarray,
 ) -> None:
-    contiguous = np.ascontiguousarray(data, dtype=tensor.spec.dtype)
+    contiguous = prepare_host_array(tensor, data, context="replay write")
     if tensor.buffer is None:
         raise RuntimeError(f"Tensor {tensor.name} not materialized for replay write")
     raw_bytes = memoryview(contiguous).cast("B")

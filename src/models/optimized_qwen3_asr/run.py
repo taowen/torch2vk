@@ -43,6 +43,7 @@ from models.optimized_qwen3_asr.shaders.qwen3_asr_token_store_eos import (
     QWEN3_ASR_TOKEN_STORE_EOS,
 )
 from models.optimized_qwen3_asr.tensors.model import create_model_tensors, model_tensors
+from torch2vk.runtime.host_array import as_float16_array, as_float16_attention_mask
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
 from torch2vk.runtime.replay_cache_key import (
@@ -68,6 +69,7 @@ _REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
 def _require_gpu_output(tensor: LogicalTensor) -> None:
     if tensor.buffer is None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
+
 
 
 def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
@@ -217,6 +219,7 @@ def main(
     max_new_tokens: int = 64,
     wav_path: str | Path | np.ndarray = Path("tests/fixtures/qwen3_asr_asknot.wav"),
     language: str | None = "English",
+    profile_dir: str | Path | None = None,
 ) -> str:
     if max_new_tokens != _MAX_NEW_TOKENS:
         raise ValueError(f"optimized_qwen3_asr is generated for max_new_tokens={_MAX_NEW_TOKENS}")
@@ -294,13 +297,14 @@ def main(
     rt = RuntimeSession.open(
         device_index=0,
         model_dir=gguf_path.parent,
+        profile_dir=profile_dir,
         model_tensors=model_tensors(),
         get_shader=get_shader,
     )
 
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
-        dtype=np.float32,
+        dtype=np.float16,
     )
     rt.initialize_request_state(
         {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
@@ -312,10 +316,14 @@ def main(
     print(f"  audio encoder ({model_tensors().audio_encoder.x.spec.shape})...")
     rt.register_inputs(
         {
-            model_tensors().audio_encoder.x: preprocessed["padded_feature"],
-            model_tensors().audio_encoder.position_embedding: preprocessed["position_embedding"],
+            model_tensors().audio_encoder.x: as_float16_array(preprocessed["padded_feature"]),
+            model_tensors().audio_encoder.position_embedding: as_float16_array(
+                preprocessed["position_embedding"]
+            ),
             model_tensors().audio_encoder.compact_index: preprocessed["compact_index"],
-            model_tensors().audio_encoder.attention_mask: preprocessed["audio_attention_mask"],
+            model_tensors().audio_encoder.attention_mask: as_float16_attention_mask(
+                preprocessed["audio_attention_mask"]
+            ),
         }
     )
     with rt.frame("spike.audio"):

@@ -57,6 +57,7 @@ from models.quantized_qwen3_asr.shaders.qwen3_token_select_reduce_f32 import (
 )
 from models.quantized_qwen3_asr.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
 from models.quantized_qwen3_asr.tensors.model import create_model_tensors, model_tensors
+from torch2vk.runtime.host_array import as_float16_array, as_float16_attention_mask
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
@@ -82,6 +83,7 @@ class _QwenCompareReferences:
 def _require_gpu_output(tensor: LogicalTensor) -> None:
     if tensor.buffer is None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
+
 
 
 def _vulkan_input(rt: RuntimeSession, tensor: LogicalTensor) -> reference.ReferenceInput:
@@ -447,7 +449,7 @@ def compare_decode_steps(
 
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
-        dtype=np.float32,
+        dtype=np.float16,
     )
     rt.initialize_request_state(
         {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
@@ -459,10 +461,14 @@ def compare_decode_steps(
     print(f"  audio encoder ({model_tensors().audio_encoder.x.spec.shape})...")
     rt.register_inputs(
         {
-            model_tensors().audio_encoder.x: preprocessed["padded_feature"],
-            model_tensors().audio_encoder.position_embedding: preprocessed["position_embedding"],
+            model_tensors().audio_encoder.x: as_float16_array(preprocessed["padded_feature"]),
+            model_tensors().audio_encoder.position_embedding: as_float16_array(
+                preprocessed["position_embedding"]
+            ),
             model_tensors().audio_encoder.compact_index: preprocessed["compact_index"],
-            model_tensors().audio_encoder.attention_mask: preprocessed["audio_attention_mask"],
+            model_tensors().audio_encoder.attention_mask: as_float16_attention_mask(
+                preprocessed["audio_attention_mask"]
+            ),
         }
     )
     with rt.frame("spike.audio"):
@@ -470,10 +476,10 @@ def compare_decode_steps(
         reference.run_audio_encoder(
             rt,
             compare_refs.audio_encoder,
-            x=preprocessed["padded_feature"],
-            position_embedding=preprocessed["position_embedding"],
+            x=as_float16_array(preprocessed["padded_feature"]),
+            position_embedding=as_float16_array(preprocessed["position_embedding"]),
             compact_index=preprocessed["compact_index"],
-            attention_mask=preprocessed["audio_attention_mask"],
+            attention_mask=as_float16_attention_mask(preprocessed["audio_attention_mask"]),
         )
         ref_audio_features = _vulkan_input(rt, model_tensors().audio_encoder.linear_110)
     _require_gpu_output(model_tensors().audio_encoder.linear_110)

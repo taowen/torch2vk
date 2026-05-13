@@ -31,6 +31,7 @@ from models.quantized_omnivoice.shaders.omnivoice_token_update_topk_f32 import (
 from models.quantized_omnivoice.tensors.model import create_model_tensors, model_tensors
 from omnivoice.models.omnivoice import OmniVoiceConfig
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
+from torch2vk.runtime.host_array import as_float16_attention_mask
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
 from torch2vk.runtime.replay_cache_key import (
@@ -55,6 +56,7 @@ def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float)
     t = np.linspace(t_start, t_end, num_step + 1, dtype=np.float64)
     t = t_shift * t / (1.0 + (t_shift - 1.0) * t)
     return t.astype(np.float32)
+
 
 
 def _run_rope_table(rt: RuntimeSession, *, frame_name: str) -> None:
@@ -185,7 +187,7 @@ def main(
     seq_len = prepared.seq_len
     batch_input_ids = prepared.batch_input_ids
     batch_audio_mask = prepared.batch_audio_mask
-    attn_mask_np = prepared.attention_mask
+    attn_mask_np = as_float16_attention_mask(prepared.attention_mask)
 
     print(f"  seq_len={seq_len}, target_len={target_len}, cond_audio_start={prepared.cond_audio_start}")
 

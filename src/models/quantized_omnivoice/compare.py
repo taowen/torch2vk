@@ -37,6 +37,7 @@ from models.quantized_omnivoice.run import (
 )
 from models.quantized_omnivoice.tensors.model import create_model_tensors, model_tensors
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
+from torch2vk.runtime.host_array import as_float16_attention_mask
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
@@ -80,6 +81,7 @@ def _make_rope_table(
     cos = torch.cos(angle).expand(batch, -1, -1).contiguous()
     sin = torch.sin(angle).expand(batch, -1, -1).contiguous()
     return cos, sin
+
 
 
 def _build_compare_references(
@@ -240,12 +242,13 @@ def compare_generation_steps(
         config.audio_mask_id,
         dtype=np.int64,
     )
+    attention_mask = as_float16_attention_mask(prepared.attention_mask)
     rng_seed = 0x1234ABCD
     refs = _build_compare_references(
         model,
         batch_input_ids=prepared.batch_input_ids,
         batch_audio_mask=prepared.batch_audio_mask,
-        attention_mask=prepared.attention_mask,
+        attention_mask=attention_mask,
         tokens=tokens,
         audio_mask_id=config.audio_mask_id,
         rng_seed=rng_seed,
@@ -264,7 +267,7 @@ def compare_generation_steps(
             {
                 model_tensors().batch_input_ids: prepared.batch_input_ids,
                 model_tensors().batch_audio_mask: prepared.batch_audio_mask,
-                model_tensors().attention_mask: prepared.attention_mask,
+                model_tensors().attention_mask: attention_mask,
                 model_tensors().audio_mask_id: np.array([config.audio_mask_id], dtype=np.int64),
                 model_tensors().rng_seed: np.array([rng_seed], dtype=np.uint32),
                 model_tensors().tokens: tokens,

@@ -12,6 +12,7 @@ from vulkan import (
     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 )
 
+from torch2vk.runtime.host_array import prepare_host_array
 from torch2vk.runtime.logical import LogicalTensor, MemoryClass, TensorSemantic
 from torch2vk.vulkan.allocation import BufferAllocation, BufferSlice
 from torch2vk.vulkan.device import VulkanDevice
@@ -35,10 +36,7 @@ def initialize_request_state(
         tensor.validate_declaration()
         if tensor.memory is not MemoryClass.REQUEST_STATE:
             raise ValueError(f"{tensor.name} is not REQUEST_STATE memory")
-        if tensor.spec.dtype == "bool":
-            array = np.ascontiguousarray(np.asarray(value, dtype=np.bool_).astype(np.uint32))
-        else:
-            array = np.ascontiguousarray(value, dtype=np.dtype(tensor.spec.dtype))
+        array = prepare_host_array(tensor, value, context="request state")
         expected = tensor_nbytes(tensor.spec)
         if array.nbytes != expected:
             raise ValueError(
