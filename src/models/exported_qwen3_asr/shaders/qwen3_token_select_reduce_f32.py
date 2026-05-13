@@ -1,4 +1,4 @@
-"""Generated shader: qwen3_asr_token_select_greedy_f32."""
+"""Generated shader: qwen3_token_select_reduce_f32."""
 
 from __future__ import annotations
 
@@ -18,18 +18,24 @@ from torch2vk.vulkan.shader_execution_requirements import (
 )
 
 
-QWEN3_ASR_TOKEN_SELECT_GREEDY_F32 = ShaderVariant(
-    name='qwen3_asr_token_select_greedy_f32',
-    family='qwen3_asr.text',
+QWEN3_TOKEN_SELECT_REDUCE_F32 = ShaderVariant(
+    name='qwen3_token_select_reduce_f32',
+    family='qwen3.text',
     contract=ShaderContract(
-        class_name='Qwen3AsrTokenSelectGreedyF32Program',
-        shader_name='qwen3_asr_token_select_greedy_f32',
+        class_name='Qwen3TokenSelectReduceF32Program',
+        shader_name='qwen3_token_select_reduce_f32',
         fields=(
             TensorFieldSpec(
-                name='logits',
+                name='partial_scores',
                 io_kind=IOKind.INPUT,
-                role='logits',
-                contract=TensorContract(dtype='float32', shape=(1, 'T', 'V',)),
+                role='partial_scores',
+                contract=TensorContract(dtype='float32', shape=('G',)),
+            ),
+            TensorFieldSpec(
+                name='partial_tokens',
+                io_kind=IOKind.INPUT,
+                role='partial_tokens',
+                contract=TensorContract(dtype='uint32', shape=('G',)),
             ),
             TensorFieldSpec(
                 name='eos_token_ids',
@@ -51,11 +57,10 @@ QWEN3_ASR_TOKEN_SELECT_GREEDY_F32 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=12,
+            size=8,
             fields=(
-                PushConstantFieldSpec('T', PushConstantType.UINT32, 0, 'T', dynamic=False),
-                PushConstantFieldSpec('V', PushConstantType.UINT32, 4, 'V', dynamic=False),
-                PushConstantFieldSpec('E', PushConstantType.UINT32, 8, 'E', dynamic=False),
+                PushConstantFieldSpec('G', PushConstantType.UINT32, 0, 'G', dynamic=False),
+                PushConstantFieldSpec('E', PushConstantType.UINT32, 4, 'E', dynamic=False),
             ),
         ),
         params_buffer=None,
@@ -66,37 +71,23 @@ QWEN3_ASR_TOKEN_SELECT_GREEDY_F32 = ShaderVariant(
 #version 450
 
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
-#extension GL_KHR_shader_subgroup_basic : enable
-#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly LogitsBuffer {
-    float logits[];
-};
+layout(set = 0, binding = 0) buffer restrict readonly PartialScoresBuffer { float partial_scores[]; };
+layout(set = 0, binding = 1) buffer restrict readonly PartialTokensBuffer { uint partial_tokens[]; };
+layout(set = 0, binding = 2) buffer restrict readonly EosBuffer { int64_t eos_token_ids[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly NextTokenBuffer { int64_t next_token[]; };
+layout(set = 0, binding = 4) buffer restrict writeonly DoneBuffer { uint done[]; };
 
-layout(set = 0, binding = 1) buffer restrict readonly EosBuffer {
-    int64_t eos_token_ids[];
-};
+layout(push_constant) uniform PushConstants { uint G; uint E; } pc;
 
-layout(set = 0, binding = 2) buffer restrict writeonly NextTokenBuffer {
-    int64_t next_token[];
-};
+layout(local_size_x = 1024, local_size_y = 1, local_size_z = 1) in;
 
-layout(set = 0, binding = 3) buffer restrict writeonly DoneBuffer {
-    uint done[];
-};
-
-layout(push_constant) uniform PushConstants {
-    uint T;
-    uint V;
-    uint E;
-} pc;
-
-layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
-
-shared float shared_score[256];
-shared uint shared_token[256];
+shared float shared_score[16];
+shared uint shared_token[16];
 
 bool better_pair(float lhs_score, uint lhs_token, float rhs_score, uint rhs_token) {
     return lhs_score > rhs_score || (lhs_score == rhs_score && lhs_token < rhs_token);
@@ -105,15 +96,10 @@ bool better_pair(float lhs_score, uint lhs_token, float rhs_score, uint rhs_toke
 void main() {
     const uint tid = gl_LocalInvocationID.x;
     float best_score = -3.4028234663852886e+38;
-    uint best_token = 0u;
-    const uint row_offset = (pc.T - 1u) * pc.V;
-
-    for (uint token = tid; token < pc.V; token += 256u) {
-        const float score = logits[row_offset + token];
-        if (better_pair(score, token, best_score, best_token)) {
-            best_score = score;
-            best_token = token;
-        }
+    uint best_token = 0xffffffffu;
+    if (tid < pc.G) {
+        best_score = partial_scores[tid];
+        best_token = partial_tokens[tid];
     }
 
     const float subgroup_best_score = subgroupMax(best_score);
@@ -123,8 +109,7 @@ void main() {
     }
     subgroup_best_token = subgroupMin(subgroup_best_token);
 
-    const uint subgroup_count = gl_WorkGroupSize.x / gl_SubgroupSize;
-    const uint subgroup_id = tid / gl_SubgroupSize;
+    const uint subgroup_id = tid >> 6u;
     const uint subgroup_lane = gl_SubgroupInvocationID;
     if (subgroup_lane == 0u) {
         shared_score[subgroup_id] = subgroup_best_score;
@@ -132,29 +117,15 @@ void main() {
     }
     barrier();
 
-    if (tid < subgroup_count) {
-        best_score = shared_score[tid];
-        best_token = shared_token[tid];
-    } else {
-        best_score = -3.4028234663852886e+38;
-        best_token = 0xffffffffu;
-    }
-    barrier();
-
-    for (uint stride = subgroup_count >> 1u; stride > 0u; stride >>= 1u) {
-        if (tid < stride) {
-            const float other_score = shared_score[tid + stride];
-            const uint other_token = shared_token[tid + stride];
-            if (better_pair(other_score, other_token, shared_score[tid], shared_token[tid])) {
-                shared_score[tid] = other_score;
-                shared_token[tid] = other_token;
+    if (tid == 0u) {
+        float score = shared_score[0];
+        uint token = shared_token[0];
+        for (uint i = 1u; i < 16u; ++i) {
+            if (better_pair(shared_score[i], shared_token[i], score, token)) {
+                score = shared_score[i];
+                token = shared_token[i];
             }
         }
-        barrier();
-    }
-
-    if (tid == 0u) {
-        const uint token = shared_token[0];
         next_token[0] = int64_t(token);
         uint is_done = 0u;
         for (uint i = 0u; i < pc.E; ++i) {

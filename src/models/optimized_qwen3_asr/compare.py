@@ -31,7 +31,6 @@ from models.optimized_qwen3_asr.dispatch.decode_embed import run_decode_embed
 from models.optimized_qwen3_asr.dispatch.decode_layer import run_decode_layer
 from models.optimized_qwen3_asr.dispatch.decode_norm import run_decode_norm
 from models.optimized_qwen3_asr.dispatch.embed_tokens import run_embed_tokens
-from models.optimized_qwen3_asr.dispatch.lm_head import run_lm_head
 from models.optimized_qwen3_asr.dispatch.text_layer import run_text_last_layer_tail, run_text_layer
 from models.optimized_qwen3_asr.dispatch.text_norm import run_text_norm
 from models.optimized_qwen3_asr.pytorch_modules import (
@@ -46,9 +45,6 @@ from models.optimized_qwen3_asr.pytorch_modules import (
 )
 from models.optimized_qwen3_asr.shaders.lm_head_q6_k_argmax_partial_f16 import (
     LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
-)
-from models.optimized_qwen3_asr.shaders.qwen3_asr_token_select_greedy_f32 import (
-    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
 )
 from models.optimized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
     QWEN3_ASR_TOKEN_STORE_EOS_F32,
@@ -127,26 +123,6 @@ def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
         next_token=tensors.next_token,
         done=tensors.done,
     )
-
-
-def _run_token_select(
-    rt: RuntimeSession,
-    *,
-    logits: LogicalTensor,
-    eos_token_ids: LogicalTensor,
-    next_token: LogicalTensor,
-    done: LogicalTensor,
-    frame_name: str,
-) -> LogicalTensor:
-    with rt.frame(frame_name):
-        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
-            rt,
-            logits=logits,
-            eos_token_ids=eos_token_ids,
-            next_token=next_token,
-            done=done,
-        )
-    return next_token
 
 
 def _run_token_store(
@@ -525,6 +501,14 @@ def compare_decode_steps(
         (3, 1, prompt_length),
     ).copy()
     prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
+    eos_token_array = np.array(eos_token_ids, dtype=np.int64)
+    rt.initialize_request_state(
+        {
+            model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
+            model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
+            model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
+        }
+    )
     with rt.frame("spike.text.prefill"):
         rt.register_inputs(
             {
@@ -547,6 +531,7 @@ def compare_decode_steps(
                 model_tensors().position_ids: prefill_position_ids,
                 model_tensors().audio_inject.audio_positions: preprocessed["audio_positions"],
                 model_tensors().text_layers[0].cache_position: prefill_cache_position,
+                model_tensors().eos_token_ids: eos_token_array,
             }
         )
         run_embed_tokens(rt)
@@ -589,41 +574,18 @@ def compare_decode_steps(
             hidden_states=ref_hidden,
         )
         ref_hidden = _vulkan_input(rt, model_tensors().text_norm.mul_1)
-        run_lm_head(rt)
-        reference.run_lm_head(
+        _run_lm_head_select(rt, x=model_tensors().text_norm.mul_1)
+        _compare_token_select(
             rt,
-            input=ref_hidden,
+            frame_name="spike.text.token_select",
+            logits=_reference_lm_head_logits(compare_refs.lm_head, ref_hidden),
+            eos_token_ids=eos_token_array,
+            next_token=model_tensors().next_token,
+            done=model_tensors().done,
+            refs=compare_refs,
         )
 
     print("  lm_head + token_select...")
-    _require_gpu_output(model_tensors().lm_head.linear)
-
-    eos_token_array = np.array(eos_token_ids, dtype=np.int64)
-    rt.initialize_request_state(
-        {
-            model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
-            model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
-            model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
-        }
-    )
-    rt.register_inputs({model_tensors().eos_token_ids: eos_token_array})
-    _run_token_select(
-        rt,
-        logits=model_tensors().lm_head.linear,
-        eos_token_ids=model_tensors().eos_token_ids,
-        next_token=model_tensors().next_token,
-        done=model_tensors().done,
-        frame_name="spike.text.token_select",
-    )
-    _compare_token_select(
-        rt,
-        frame_name="spike.text.token_select",
-        logits=_vulkan_input(rt, model_tensors().lm_head.linear),
-        eos_token_ids=eos_token_array,
-        next_token=model_tensors().next_token,
-        done=model_tensors().done,
-        refs=compare_refs,
-    )
     rt.register_inputs({model_tensors().token_index: np.array([0], dtype=np.int64)})
     _run_token_store(
         rt,

@@ -30,7 +30,6 @@ from {{ model_package }}.tensors.embed_tokens import (
     create_embed_tokens,
 )
 from {{ model_package }}.tensors.lm_head import (
-    LM_HEAD_OUTPUT,
     LmHeadTensors,
     create_lm_head,
 )
@@ -64,6 +63,7 @@ class ExportedQwen3AsrTensors:
     decode_rope: RopeTableTensors
     text_layers: tuple[TextLayerTensors, ...]
     text_norm: TextNormTensors
+    prefill_lm_head_input: LogicalTensor
     lm_head: LmHeadTensors
     next_token: LogicalTensor
     decode_embed: DecodeEmbedTensors
@@ -178,11 +178,14 @@ def create_model_tensors(
         sequence_length=prompt_length,
         hidden_states=text_layers[-1].add_7,
     )
+    prefill_lm_head_input = _activation_tensor(
+        "float32",
+        (1, 1, int(text_norm.mul_1.spec.shape[-1])),
+    )
     lm_head = create_lm_head(
         "spike.text.lm_head",
-        sequence_length=prompt_length,
-        input=text_norm.mul_1,
-        request_state_outputs={LM_HEAD_OUTPUT},
+        sequence_length=1,
+        input=prefill_lm_head_input,
     )
     next_token = _request_output_tensor("int64", (1, 1))
     decode_embed = create_decode_embed(
@@ -269,6 +272,7 @@ def create_model_tensors(
         decode_rope=decode_rope,
         text_layers=text_layers,
         text_norm=text_norm,
+        prefill_lm_head_input=prefill_lm_head_input,
         lm_head=lm_head,
         next_token=next_token,
         decode_embed=decode_embed,

@@ -20,6 +20,9 @@ from torch2vk.export.shaders.gelu_f32 import make_gelu_variant
 from torch2vk.export.shaders.index_copy_f32 import make_index_copy_variant
 from torch2vk.export.shaders.index_select_f32 import make_index_select_variant
 from torch2vk.export.shaders.layer_norm_f32 import make_layer_norm_variant
+from torch2vk.export.shaders.lm_head_bf16_argmax_partial_f16 import (
+    LM_HEAD_BF16_ARGMAX_PARTIAL_F16,
+)
 from torch2vk.export.shaders.linear_bias_f32 import make_linear_bias_variant
 from torch2vk.export.shaders.linear_bias_quantized import make_linear_bias_q8_0_variant
 from torch2vk.export.shaders.linear_nobias_f32 import make_linear_nobias_variant
@@ -41,6 +44,10 @@ from torch2vk.export.shaders.qwen3_asr_token_store_f32 import (
     QWEN3_ASR_TOKEN_STORE_EOS_F32,
     QWEN3_ASR_TOKEN_STORE_F32,
 )
+from torch2vk.export.shaders.qwen3_token_select_reduce_f32 import (
+    QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
+    QWEN3_TOKEN_SELECT_REDUCE_F32,
+)
 from torch2vk.export.shaders.reciprocal_f32 import make_reciprocal_variant
 from torch2vk.export.shaders.rsqrt_f32 import make_rsqrt_variant
 from torch2vk.export.shaders.sdpa_f32 import make_sdpa_variant
@@ -48,6 +55,7 @@ from torch2vk.export.shaders.select_int import make_select_variant
 from torch2vk.export.shaders.silu_f32 import make_silu_variant
 from torch2vk.export.shaders.sin_f32 import make_sin_variant
 from torch2vk.export.shaders.slice_f32 import make_slice_variant
+from torch2vk.export.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16, SLICE_LAST_TOKEN_F32
 from torch2vk.export.shaders.sub_f32 import make_sub_variant
 from torch2vk.export.shaders.transpose_f32 import make_transpose_variant
 
@@ -68,6 +76,7 @@ __all__ = [
     "make_index_copy_variant",
     "make_index_select_variant",
     "make_layer_norm_variant",
+    "LM_HEAD_BF16_ARGMAX_PARTIAL_F16",
     "make_linear_bias_q8_0_variant",
     "make_linear_bias_variant",
     "make_linear_nobias_variant",
@@ -83,6 +92,8 @@ __all__ = [
     "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32",
     "QWEN3_ASR_TOKEN_STORE_EOS_F32",
     "QWEN3_ASR_TOKEN_STORE_F32",
+    "QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32",
+    "QWEN3_TOKEN_SELECT_REDUCE_F32",
     "make_reciprocal_variant",
     "make_rsqrt_variant",
     "make_sdpa_variant",
@@ -90,6 +101,8 @@ __all__ = [
     "make_silu_variant",
     "make_sin_variant",
     "make_slice_variant",
+    "SLICE_LAST_TOKEN_F16",
+    "SLICE_LAST_TOKEN_F32",
     "make_sub_variant",
     "make_transpose_variant",
 ]

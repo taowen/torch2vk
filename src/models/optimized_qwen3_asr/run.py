@@ -24,7 +24,6 @@ from models.optimized_qwen3_asr.dispatch.decode_embed import run_decode_embed
 from models.optimized_qwen3_asr.dispatch.decode_layer import run_decode_layer
 from models.optimized_qwen3_asr.dispatch.decode_norm import run_decode_norm
 from models.optimized_qwen3_asr.dispatch.embed_tokens import run_embed_tokens
-from models.optimized_qwen3_asr.dispatch.lm_head import run_lm_head
 from models.optimized_qwen3_asr.dispatch.text_layer import run_text_last_layer_tail, run_text_layer
 from models.optimized_qwen3_asr.dispatch.text_norm import run_text_norm
 from models.optimized_qwen3_asr.pytorch_modules import (
@@ -39,9 +38,6 @@ from models.optimized_qwen3_asr.shaders.qwen3_token_select_reduce_chunks_f32 imp
 )
 from models.optimized_qwen3_asr.shaders.qwen3_token_select_reduce_f32 import (
     QWEN3_TOKEN_SELECT_REDUCE_F32,
-)
-from models.optimized_qwen3_asr.shaders.qwen3_asr_token_select_greedy_f32 import (
-    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
 )
 from models.optimized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
     QWEN3_ASR_TOKEN_STORE_EOS_F32,
@@ -398,14 +394,7 @@ def main(
                 print(f"    layer {layer_idx} done")
         run_text_last_layer_tail(rt)
         run_text_norm(rt)
-        run_lm_head(rt)
-        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
-            rt,
-            logits=model_tensors().lm_head.linear,
-            eos_token_ids=model_tensors().eos_token_ids,
-            next_token=model_tensors().next_token,
-            done=model_tensors().done,
-        )
+        _run_lm_head_select(rt, x=model_tensors().text_norm.mul_1)
         QWEN3_ASR_TOKEN_STORE_EOS_F32(
             rt,
             next_token=model_tensors().next_token,

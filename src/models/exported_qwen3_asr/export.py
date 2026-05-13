@@ -33,10 +33,15 @@ from torch2vk.export import (
     set_module_checkpoint_dtypes,
 )
 from torch2vk.export.graph import inject_kv_cache
-from torch2vk.export.shaders.qwen3_asr_token_select_f32 import (
-    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
+from torch2vk.export.shaders.lm_head_bf16_argmax_partial_f16 import (
+    LM_HEAD_BF16_ARGMAX_PARTIAL_F16,
 )
 from torch2vk.export.shaders.qwen3_asr_token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
+from torch2vk.export.shaders.qwen3_token_select_reduce_f32 import (
+    QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
+    QWEN3_TOKEN_SELECT_REDUCE_F32,
+)
+from torch2vk.export.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
 from torch2vk.export.dispatch_codegen import (
     bind_dispatch_function_to_tensors,
     generate_dispatch_function_source,
@@ -215,7 +220,10 @@ def main() -> int:
     at = model.thinker.audio_tower
 
     custom_shader_variants = (
-        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
+        SLICE_LAST_TOKEN_F16,
+        LM_HEAD_BF16_ARGMAX_PARTIAL_F16,
+        QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
+        QWEN3_TOKEN_SELECT_REDUCE_F32,
         QWEN3_ASR_TOKEN_STORE_EOS_F32,
     )
     seen_shader_variants: dict[str, ShaderVariant] = {}
@@ -245,7 +253,7 @@ def main() -> int:
         frame_name="{name}",
         policy="token",
         input_bindings={
-            "logits": "decode_lm_head.linear",
+            "logits": "logits",
             "eos_token_ids": "eos_token_ids",
         },
         output_bindings={"next_token": "next_token", "done": "done"},
@@ -482,7 +490,7 @@ def main() -> int:
                reference_tensors="model_tensors().text_norm",
                reference_name="spike.text.norm")
     export_one("run_lm_head", model.thinker.lm_head.float(),
-               args=(torch.zeros(1, pl, hs, device="meta"),),
+               args=(torch.zeros(1, 1, hs, device="meta"),),
                weight_prefix="thinker.lm_head.",
                reference_module="thinker.lm_head",
                reference_tensors="model_tensors().lm_head",
@@ -517,12 +525,6 @@ def main() -> int:
                reference_module="thinker.model.norm",
                reference_tensors="model_tensors().decode_norm",
                reference_name="spike.decode.{step:04d}.norm")
-    export_one("run_decode_lm_head", model.thinker.lm_head.float(),
-               args=(torch.zeros(1, 1, hs, device="meta"),),
-               weight_prefix="thinker.lm_head.",
-               reference_module="thinker.lm_head",
-               reference_tensors="model_tensors().decode_lm_head",
-               reference_name="spike.decode.{step:04d}.lm_head")
     print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.

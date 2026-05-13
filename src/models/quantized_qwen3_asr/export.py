@@ -39,10 +39,12 @@ from torch2vk.export import (
     module_floating_dtype,
 )
 from torch2vk.export.graph import inject_kv_cache
-from torch2vk.export.shaders.qwen3_asr_token_select_f32 import (
-    qwen3_asr_token_select_greedy_variant,
-)
 from torch2vk.export.shaders.qwen3_asr_token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
+from torch2vk.export.shaders.qwen3_token_select_reduce_f32 import (
+    QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
+    QWEN3_TOKEN_SELECT_REDUCE_F32,
+)
+from torch2vk.export.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F32
 from torch2vk.export.dispatch_codegen import (
     bind_dispatch_function_to_tensors,
     generate_dispatch_function_source,
@@ -231,7 +233,9 @@ def main() -> int:
     )
 
     custom_shader_variants = (
-        qwen3_asr_token_select_greedy_variant(logits_dtype="float32"),
+        SLICE_LAST_TOKEN_F32,
+        QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
+        QWEN3_TOKEN_SELECT_REDUCE_F32,
         QWEN3_ASR_TOKEN_STORE_EOS_F32,
     )
     seen_shader_variants: dict[str, ShaderVariant] = {}
@@ -261,7 +265,7 @@ def main() -> int:
         frame_name="{name}",
         policy="token",
         input_bindings={
-            "logits": "lm_head.linear",
+            "logits": "logits",
             "eos_token_ids": "eos_token_ids",
         },
         output_bindings={"next_token": "next_token", "done": "done"},
