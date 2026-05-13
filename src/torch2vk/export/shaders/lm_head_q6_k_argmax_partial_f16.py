@@ -1,4 +1,4 @@
-"""Q6_K lm_head matvec that emits local argmax partials."""
+"""Q6_K lm_head matvec for float16 activations."""
 
 from __future__ import annotations
 
@@ -21,15 +21,15 @@ from torch2vk.vulkan.shader_execution_requirements import (
 from torch2vk.vulkan.types import q6_k_halfwords_layout
 
 
-LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32 = ShaderVariant(
-    name="lm_head_q6_k_argmax_partial_f32",
+LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16 = ShaderVariant(
+    name="lm_head_q6_k_argmax_partial_f16",
     family="qwen3.text",
     contract=ShaderContract(
-        class_name="LmHeadQ6KArgmaxPartialF32Program",
-        shader_name="lm_head_q6_k_argmax_partial_f32",
+        class_name="LmHeadQ6KArgmaxPartialF16Program",
+        shader_name="lm_head_q6_k_argmax_partial_f16",
         fields=(
             TensorFieldSpec(
-                "x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=(1, 1, "K"))
+                "x", IOKind.INPUT, "input", TensorContract(dtype="float16", shape=(1, 1, "K"))
             ),
             TensorFieldSpec(
                 "weight",
@@ -73,13 +73,14 @@ LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32 = ShaderVariant(
 #extension GL_EXT_control_flow_attributes : enable
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_16bit_storage : require
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { vec4 x4[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { f16vec4 x4[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
 layout(set = 0, binding = 2) buffer restrict writeonly PartialScoresBuffer { float partial_scores[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly PartialTokensBuffer { uint partial_tokens[]; };
@@ -119,7 +120,7 @@ vec4 unpack8_f32(uint value) {
 }
 
 vec4 load_x4(uint k) {
-    return x4[k >> 2u];
+    return vec4(x4[k >> 2u]);
 }
 
 float q6k_block_dot(uint col, uint block_index, uint itid) {
@@ -205,39 +206,4 @@ void main() {
     }
 }
 """,
-)
-
-
-LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16 = ShaderVariant(
-    name="lm_head_q6_k_argmax_partial_f16",
-    family=LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32.family,
-    contract=ShaderContract(
-        class_name="LmHeadQ6KArgmaxPartialF16Program",
-        shader_name="lm_head_q6_k_argmax_partial_f16",
-        fields=(
-            TensorFieldSpec(
-                "x", IOKind.INPUT, "input", TensorContract(dtype="float16", shape=(1, 1, "K"))
-            ),
-            LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32.contract.fields[1],
-            LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32.contract.fields[2],
-            LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32.contract.fields[3],
-        ),
-        push_constants=LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32.contract.push_constants,
-        dispatch=LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32.contract.dispatch,
-    ),
-    execution_requirements=LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32.execution_requirements,
-    source=LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32.source.replace(
-        "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n",
-        "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
-        "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n",
-    )
-    .replace(
-        "layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };",
-        "layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };",
-    )
-    .replace(
-        "layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { vec4 x4[]; };",
-        "layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { f16vec4 x4[]; };",
-    )
-    .replace("return x4[k >> 2u];", "return vec4(x4[k >> 2u]);"),
 )

@@ -39,7 +39,7 @@ from torch2vk.export import (
     module_floating_dtype,
 )
 from torch2vk.export.graph import inject_kv_cache
-from torch2vk.export.shaders.lm_head_q6_k_argmax_partial_f32 import (
+from torch2vk.export.shaders.lm_head_q6_k_argmax_partial_f16 import (
     LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
 )
 from torch2vk.export.shaders.qwen3_asr_token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32

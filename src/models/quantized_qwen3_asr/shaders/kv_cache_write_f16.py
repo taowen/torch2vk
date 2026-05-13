@@ -1,4 +1,4 @@
-"""Generated shader: kv_cache_write_f32."""
+"""Generated shader: kv_cache_write_f16."""
 
 from __future__ import annotations
 
@@ -19,12 +19,12 @@ from torch2vk.vulkan.shader_execution_requirements import (
 )
 
 
-KV_CACHE_WRITE_F32 = ShaderVariant(
-    name='kv_cache_write_f32',
+KV_CACHE_WRITE_F16 = ShaderVariant(
+    name='kv_cache_write_f16',
     family='export',
     contract=ShaderContract(
-        class_name='ExportKvCacheWriteF32Program',
-        shader_name='kv_cache_write_f32',
+        class_name='ExportKvCacheWriteF16Program',
+        shader_name='kv_cache_write_f16',
         fields=(
             TensorFieldSpec(
                 name='cache',

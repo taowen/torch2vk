@@ -5,6 +5,7 @@ import hashlib
 from torch.fx import Node
 
 from torch2vk.export.shaders._factory import (
+    activation_dtype_suffix,
     activation_extension_source,
     activation_glsl_type,
     activation_requirements,
@@ -160,12 +161,15 @@ def _make_kv_cache_write_variant(node: Node, activation_dtype: str) -> ShaderVar
         return None
 
     total = mul(mul(mul("B", "H"), "T"), "D")
+    suffix = activation_dtype_suffix(activation_dtype)
+    shader_name = f"kv_cache_write_{suffix}"
+    class_name = f"ExportKvCacheWrite{suffix.upper()}Program"
     return ShaderVariant(
-        name="kv_cache_write_f32",
+        name=shader_name,
         family="export",
         contract=ShaderContract(
-            class_name="ExportKvCacheWriteF32Program",
-            shader_name="kv_cache_write_f32",
+            class_name=class_name,
+            shader_name=shader_name,
             fields=(
                 TensorFieldSpec(
                     "cache",

@@ -9,7 +9,7 @@ from models.exported_qwen3_asr.shaders.add_scalar import ADD_SCALAR
 from models.exported_qwen3_asr.shaders.add_scalar_16 import ADD_SCALAR_16
 from models.exported_qwen3_asr.shaders.add_scalar_9 import ADD_SCALAR_9
 from models.exported_qwen3_asr.shaders.cat_f32 import CAT_F32
-from models.exported_qwen3_asr.shaders.kv_cache_write_f32 import KV_CACHE_WRITE_F32
+from models.exported_qwen3_asr.shaders.kv_cache_write_f16 import KV_CACHE_WRITE_F16
 from models.exported_qwen3_asr.shaders.linear_nobias_bf16w_f32 import LINEAR_NOBIAS_BF16W_F32
 from models.exported_qwen3_asr.shaders.mean_dim_f32 import MEAN_DIM_F32
 from models.exported_qwen3_asr.shaders.mean_dim_f32_15 import MEAN_DIM_F32_15
@@ -81,8 +81,8 @@ def _run_text_layer_with_tensors(rt: RuntimeSession, tensors: TextLayerTensors) 
     CAT_F32(rt, a=tensors.neg_1, b=tensors.slice_3, output=tensors.cat_1)
     MUL_BROADCAST_INNER(rt, x=tensors.cat_1, y=tensors.unsqueeze_1, output=tensors.mul_9)
     TEXT_LAYER_ADD_F32(rt, x=tensors.mul_8, y=tensors.mul_9, output=tensors.add_4)
-    KV_CACHE_WRITE_F32(rt, cache=tensors.index_copy, cache_position=tensors.cache_position, src=tensors.add_4)
-    KV_CACHE_WRITE_F32(rt, cache=tensors.index_copy_1, cache_position=tensors.cache_position, src=tensors.transpose_2)
+    KV_CACHE_WRITE_F16(rt, cache=tensors.index_copy, cache_position=tensors.cache_position, src=tensors.add_4)
+    KV_CACHE_WRITE_F16(rt, cache=tensors.index_copy_1, cache_position=tensors.cache_position, src=tensors.transpose_2)
     SDPA_CAUSAL_F32(rt, q=tensors.add_3, k=tensors.add_4, v=tensors.transpose_2, output=tensors.scaled_dot_product_attention)
     TRANSPOSE_F32_9E00CA2F33(rt, x=tensors.scaled_dot_product_attention, output=tensors.transpose_3)
     LINEAR_NOBIAS_BF16W_F32(rt, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)
