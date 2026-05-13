@@ -9,7 +9,6 @@ from models.optimized_qwen3.shaders.linear_nobias_q4_k_qkv_matvec_f32 import LIN
 from models.optimized_qwen3.shaders.linear_nobias_q4_qk_q6_v_matvec_f32 import (
     LINEAR_NOBIAS_Q4_QK_Q6_V_MATVEC_F32,
 )
-from models.optimized_qwen3.shaders.linear_nobias_q6_k_matvec_f32 import LINEAR_NOBIAS_Q6_K_MATVEC_F32
 from models.optimized_qwen3.shaders.linear_nobias_q6_k_matvec_add_f32 import LINEAR_NOBIAS_Q6_K_MATVEC_ADD_F32
 from models.optimized_qwen3.shaders.rms_norm_mul_f16_f32 import RMS_NORM_MUL_F16_F32
 from models.optimized_qwen3.shaders.rms_norm_rope_transpose_f16 import RMS_NORM_ROPE_TRANSPOSE_F16

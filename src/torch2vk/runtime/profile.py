@@ -13,6 +13,12 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from torch2vk.runtime.profile_features import (
+    build_shape_hint,
+    classify_op_group,
+    empty_shader_features,
+    scan_shader_features,
+)
 from torch2vk.runtime.shader import DispatchRecord
 
 if TYPE_CHECKING:
@@ -67,6 +73,7 @@ class RuntimeProfiler:
             elapsed_wall_ns=elapsed_wall_ns,
         )
         self._attach_profile_shader_source(row, pipeline)
+        _attach_profile_compare_fields(row)
         self._append_dispatch_row(row)
 
     def sqtt_label(
@@ -109,6 +116,7 @@ class RuntimeProfiler:
                 sample_index=len(self._replay_dispatch_samples[(plan.name, i)]) - 1,
             )
             self._attach_profile_shader_source(row, entry.pipeline)
+            _attach_profile_compare_fields(row)
             self._append_dispatch_row(row)
 
     def record_host_event(
@@ -200,6 +208,18 @@ class RuntimeProfiler:
         if source_path.resolve() != destination.resolve():
             shutil.copy2(source_path, destination)
         row["shader_glsl_path"] = str(destination)
+        row["shader_features"] = scan_shader_features(destination)
+
+
+def _attach_profile_compare_fields(row: dict[str, Any]) -> None:
+    row["op_group"] = classify_op_group(
+        shader=str(row.get("shader", "")),
+        frame=str(row.get("frame", "")),
+        output_op=str(row.get("output_op", "")),
+    )
+    row["shape_hint"] = build_shape_hint(row)
+    if "shader_features" not in row:
+        row["shader_features"] = empty_shader_features()
 
 
 def _dispatch_record_row(
@@ -235,6 +255,7 @@ def _dispatch_record_row(
             for field, binding, offset, nbytes in record.descriptor_views
         ],
         "tensors": [asdict(snapshot) for snapshot in record.tensor_snapshots],
+        "output_op": _output_op_name(record.logical_writes),
         "elapsed_ns": None,
         "elapsed_wall_ns": elapsed_wall_ns,
     }
@@ -300,6 +321,11 @@ def _record_summary(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "wall_elapsed_ns_total": sum(wall_values),
         "top_shaders_by_wall_ns": _top_groups(rows, key_field="shader", value_field="elapsed_wall_ns"),
         "top_frames_by_wall_ns": _top_groups(rows, key_field="frame", value_field="elapsed_wall_ns"),
+        "top_op_groups_by_wall_ns": _top_groups(
+            rows,
+            key_field="op_group",
+            value_field="elapsed_wall_ns",
+        ),
     }
 
 
@@ -315,6 +341,7 @@ def _replay_summary(
     }
     top_dispatches = []
     shader_groups: dict[str, list[int]] = defaultdict(list)
+    op_groups: dict[str, list[int]] = defaultdict(list)
     output_groups: dict[str, list[int]] = defaultdict(list)
     for (plan_name, dispatch_index), values in sorted(dispatch_samples.items()):
         matching_row = next(
@@ -336,7 +363,10 @@ def _replay_summary(
             entry["shader"] = matching_row.get("shader")
             entry["frame"] = matching_row.get("frame")
             entry["source_dispatch_index"] = matching_row.get("source_dispatch_index")
+            entry["op_group"] = matching_row.get("op_group")
+            entry["output_op"] = matching_row.get("output_op")
             shader_groups[str(matching_row.get("shader", ""))].append(median_ns)
+            op_groups[str(matching_row.get("op_group", ""))].append(median_ns)
             output_groups[str(matching_row.get("output_op", ""))].append(median_ns)
         top_dispatches.append(entry)
     top_dispatches.sort(key=lambda entry: int(entry.get("median_ns", 0)), reverse=True)
@@ -345,6 +375,7 @@ def _replay_summary(
         "dispatch_samples": len(replay_rows),
         "plans": plans,
         "top_shaders_by_median_ns": _top_median_groups(shader_groups),
+        "top_op_groups_by_median_ns": _top_median_groups(op_groups),
         "top_outputs_by_median_ns": _top_median_groups(output_groups),
         "top_dispatches_by_median_ns": top_dispatches[:20],
     }

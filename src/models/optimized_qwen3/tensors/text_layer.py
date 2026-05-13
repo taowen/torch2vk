@@ -91,6 +91,12 @@ class TextLayerTensors:
     add_4: LogicalTensor
     index_copy: LogicalTensor
     index_copy_1: LogicalTensor
+    flash_key_cache: LogicalTensor
+    flash_value_cache: LogicalTensor
+    global_key_cache: LogicalTensor
+    global_value_cache: LogicalTensor
+    decode_key_cache: LogicalTensor
+    decode_value_cache: LogicalTensor
     scaled_dot_product_attention: LogicalTensor
     transpose_3: LogicalTensor
     contiguous: LogicalTensor
@@ -122,6 +128,8 @@ def create_text_layer(
     *,
     num_hidden_layers: int,
     sequence_length: int,
+    attention_sequence_length: int,
+    global_attention_sequence_length: int,
     max_sequence_length: int,
     p_attn_q_proj_weight: LogicalTensor | None = None,
     p_attn_k_proj_weight: LogicalTensor | None = None,
@@ -189,6 +197,12 @@ def create_text_layer(
     add_4: LogicalTensor | None = None,
     index_copy: LogicalTensor | None = None,
     index_copy_1: LogicalTensor | None = None,
+    flash_key_cache: LogicalTensor | None = None,
+    flash_value_cache: LogicalTensor | None = None,
+    global_key_cache: LogicalTensor | None = None,
+    global_value_cache: LogicalTensor | None = None,
+    decode_key_cache: LogicalTensor | None = None,
+    decode_value_cache: LogicalTensor | None = None,
     scaled_dot_product_attention: LogicalTensor | None = None,
     transpose_3: LogicalTensor | None = None,
     contiguous: LogicalTensor | None = None,
@@ -361,7 +375,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key=None,
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -413,7 +427,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -478,7 +492,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -491,7 +505,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_1',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -504,7 +518,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_1',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -517,7 +531,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 2048)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 2048)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -530,7 +544,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='view',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 16, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -543,7 +557,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_2',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 16, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -608,7 +622,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_2',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 16, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -621,7 +635,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_3',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 16, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -634,7 +648,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_3',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 16, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -647,7 +661,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose',
-                spec=TensorSpec(dtype='float16', shape=(1, 16, sequence_length, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, 16, sequence_length, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -660,7 +674,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_1',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -673,7 +687,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='view_1',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 8, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -686,7 +700,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_4',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 8, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -751,7 +765,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_4',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 8, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -764,7 +778,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_5',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 8, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -777,7 +791,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_5',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 8, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -803,7 +817,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_2',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -816,7 +830,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='view_2',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 8, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 8, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -829,7 +843,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose_2',
-                spec=TensorSpec(dtype='float16', shape=(1, 8, sequence_length, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 8, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -946,7 +960,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_3',
-                spec=TensorSpec(dtype='float16', shape=(1, 16, sequence_length, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 16, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1037,7 +1051,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_4',
-                spec=TensorSpec(dtype='float16', shape=(1, 8, sequence_length, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 8, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1071,12 +1085,90 @@ def create_text_layer(
                 request_state='index_copy_1' in request_state_outputs,
             ),
         ),
+        flash_key_cache=_bind_tensor(
+            flash_key_cache,
+            _declare_tensor(
+                checkpoint_key=None,
+                reference_key=None,
+                spec=TensorSpec(dtype='float16', shape=(1, attention_sequence_length, 8, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.STATE,
+                memory=MemoryClass.REQUEST_STATE,
+                lifetime=TensorLifetime.REQUEST,
+                request_state=False,
+            ),
+        ),
+        flash_value_cache=_bind_tensor(
+            flash_value_cache,
+            _declare_tensor(
+                checkpoint_key=None,
+                reference_key=None,
+                spec=TensorSpec(dtype='float16', shape=(1, attention_sequence_length, 8, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.STATE,
+                memory=MemoryClass.REQUEST_STATE,
+                lifetime=TensorLifetime.REQUEST,
+                request_state=False,
+            ),
+        ),
+        global_key_cache=_bind_tensor(
+            global_key_cache,
+            _declare_tensor(
+                checkpoint_key=None,
+                reference_key=None,
+                spec=TensorSpec(dtype='float16', shape=(1, global_attention_sequence_length, 8, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.STATE,
+                memory=MemoryClass.REQUEST_STATE,
+                lifetime=TensorLifetime.REQUEST,
+                request_state=False,
+            ),
+        ),
+        global_value_cache=_bind_tensor(
+            global_value_cache,
+            _declare_tensor(
+                checkpoint_key=None,
+                reference_key=None,
+                spec=TensorSpec(dtype='float16', shape=(1, global_attention_sequence_length, 8, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.STATE,
+                memory=MemoryClass.REQUEST_STATE,
+                lifetime=TensorLifetime.REQUEST,
+                request_state=False,
+            ),
+        ),
+        decode_key_cache=_bind_tensor(
+            decode_key_cache,
+            _declare_tensor(
+                checkpoint_key=None,
+                reference_key=None,
+                spec=TensorSpec(dtype='float16', shape=(1, max_sequence_length, 8, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.STATE,
+                memory=MemoryClass.REQUEST_STATE,
+                lifetime=TensorLifetime.REQUEST,
+                request_state=False,
+            ),
+        ),
+        decode_value_cache=_bind_tensor(
+            decode_value_cache,
+            _declare_tensor(
+                checkpoint_key=None,
+                reference_key=None,
+                spec=TensorSpec(dtype='float16', shape=(1, max_sequence_length, 8, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.STATE,
+                memory=MemoryClass.REQUEST_STATE,
+                lifetime=TensorLifetime.REQUEST,
+                request_state=False,
+            ),
+        ),
         scaled_dot_product_attention=_bind_tensor(
             scaled_dot_product_attention,
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='scaled_dot_product_attention',
-                spec=TensorSpec(dtype='float16', shape=(1, 16, sequence_length, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 16, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1089,7 +1181,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='transpose_3',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 16, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1102,7 +1194,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='contiguous',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 16, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 16, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1115,7 +1207,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='reshape',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 2048)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 2048)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1128,7 +1220,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_3',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1141,7 +1233,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_5',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1154,7 +1246,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_6',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1219,7 +1311,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_10',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1232,7 +1324,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='to_7',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1245,7 +1337,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_11',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1258,7 +1350,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_4',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 3072)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 3072)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1271,7 +1363,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='silu',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 3072)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 3072)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1284,7 +1376,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_5',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 3072)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 3072)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1297,7 +1389,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='mul_12',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 3072)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 3072)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1310,7 +1402,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='linear_6',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1323,7 +1415,7 @@ def create_text_layer(
             _declare_tensor(
                 checkpoint_key=None,
                 reference_key='add_7',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
+                spec=TensorSpec(dtype='float32', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,

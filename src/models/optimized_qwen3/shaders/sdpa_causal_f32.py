@@ -11,7 +11,6 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
-    ceil_div,
     mul,
 )
 from torch2vk.vulkan.shader_execution_requirements import (

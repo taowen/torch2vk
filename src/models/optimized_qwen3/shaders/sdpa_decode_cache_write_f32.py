@@ -42,13 +42,13 @@ SDPA_DECODE_CACHE_WRITE_F32 = ShaderVariant(
                 "k_cache",
                 IOKind.INOUT,
                 "state",
-                TensorContract(dtype="float16", shape=("B", "NK", "S", "D")),
+                TensorContract(dtype="float16", shape=("B", "S", "NK", "D")),
             ),
             TensorFieldSpec(
                 "v_cache",
                 IOKind.INOUT,
                 "state",
-                TensorContract(dtype="float16", shape=("B", "NK", "S", "D")),
+                TensorContract(dtype="float16", shape=("B", "S", "NK", "D")),
             ),
             TensorFieldSpec(
                 "cache_position",
@@ -108,12 +108,11 @@ void main() {
     const uint q_heads_per_kv = pc.NH / pc.NK;
     const bool cache_writer = head == kv_head * q_heads_per_kv;
     const uint current_pos = uint(cache_position[0]);
-    const uint cache_head_base = kv_head * pc.S * pc.D;
     const uint new_offset = kv_head * pc.D + dim;
     const float new_k_value = valid_dim ? float(new_k[new_offset]) : 0.0;
     const float new_v_value = valid_dim ? float(new_v[new_offset]) : 0.0;
     if (cache_writer && valid_dim && current_pos < pc.S) {
-        const uint cache_offset = cache_head_base + current_pos * pc.D + dim;
+        const uint cache_offset = (current_pos * pc.NK + kv_head) * pc.D + dim;
         k_cache[cache_offset] = float16_t(new_k_value);
         v_cache[cache_offset] = float16_t(new_v_value);
     }
@@ -133,7 +132,7 @@ void main() {
             k_val = new_k_value;
             v_val = new_v_value;
         } else if (valid_dim) {
-            const uint cache_offset = cache_head_base + key_pos * pc.D + dim;
+            const uint cache_offset = (key_pos * pc.NK + kv_head) * pc.D + dim;
             k_val = float(k_cache[cache_offset]);
             v_val = float(v_cache[cache_offset]);
         }
