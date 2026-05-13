@@ -1,4 +1,4 @@
-"""Q6_K weight matvec with f16 activations."""
+"""Generated shader: linear_nobias_q6_k_matvec_f32."""
 
 from __future__ import annotations
 
@@ -14,54 +14,53 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
-from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements, SubgroupRequirements
-from torch2vk.vulkan.types import q6_k_halfwords_layout
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+    SubgroupRequirements,
+)
+from torch2vk.vulkan.types import (
+    q6_k_halfwords_layout,
+)
 
 
 LINEAR_NOBIAS_Q6_K_MATVEC_F32 = ShaderVariant(
-    name="linear_nobias_q6_k_matvec_f32",
-    family="export",
+    name='linear_nobias_q6_k_matvec_f32',
+    family='export',
     contract=ShaderContract(
-        class_name="ExportLinearNobiasQ6KMatvecProgram",
-        shader_name="linear_nobias_q6_k_matvec_f32",
+        class_name='ExportLinearNobiasQ6KMatvecProgram',
+        shader_name='linear_nobias_q6_k_matvec_f32',
         fields=(
             TensorFieldSpec(
-                name="x",
+                name='x',
                 io_kind=IOKind.INPUT,
-                role="input",
-                contract=TensorContract(dtype="float16", shape=("X0", "X1", "K")),
+                role='input',
+                contract=TensorContract(dtype='float16', shape=('X0', 'X1', 'K',)),
             ),
             TensorFieldSpec(
-                name="weight",
+                name='weight',
                 io_kind=IOKind.INPUT,
-                role="weight",
-                contract=TensorContract(
-                    dtype="uint16",
-                    shape=("N", mul(ceil_div("K", 256), 105)),
-                    layout=q6_k_halfwords_layout(logical_k="K"),
-                ),
+                role='weight',
+                contract=TensorContract(dtype='uint16', shape=('N', mul(ceil_div('K', 256), 105),), layout=q6_k_halfwords_layout(logical_k='K', block_size=256, halfwords_per_block=105)),
             ),
             TensorFieldSpec(
-                name="output",
+                name='output',
                 io_kind=IOKind.OUTPUT,
-                role="output",
-                contract=TensorContract(dtype="float16", shape=("X0", "X1", "N")),
+                role='output',
+                contract=TensorContract(dtype='float16', shape=('X0', 'X1', 'N',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec("M", PushConstantType.UINT32, 0, mul("X0", "X1")),
-                PushConstantFieldSpec("K", PushConstantType.UINT32, 4, "K"),
-                PushConstantFieldSpec("N", PushConstantType.UINT32, 8, "N"),
+                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, mul('X0', 'X1'), dynamic=False),
+                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 'K', dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 'N', dynamic=False),
             ),
         ),
-        dispatch=(ceil_div("N", 2), mul("X0", "X1"), 1),
+        params_buffer=None,
+        dispatch=(ceil_div('N', 2), mul('X0', 'X1'), 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(
-        subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
-        require_storage_buffer_16bit_access=True,
-    ),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 

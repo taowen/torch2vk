@@ -39,8 +39,8 @@ from models.optimized_qwen3_asr.shaders.qwen3_token_select_reduce_chunks_f32 imp
 from models.optimized_qwen3_asr.shaders.qwen3_token_select_reduce_f32 import (
     QWEN3_TOKEN_SELECT_REDUCE_F32,
 )
-from models.optimized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
-    QWEN3_ASR_TOKEN_STORE_EOS_F32,
+from models.optimized_qwen3_asr.shaders.qwen3_asr_token_store_eos import (
+    QWEN3_ASR_TOKEN_STORE_EOS,
 )
 from models.optimized_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
@@ -113,7 +113,7 @@ def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
             run_decode_layer(rt, layer_idx)
         run_decode_norm(rt)
         _run_lm_head_select(rt, x=tensors.decode_norm.mul_1)
-        QWEN3_ASR_TOKEN_STORE_EOS_F32(
+        QWEN3_ASR_TOKEN_STORE_EOS(
             rt,
             next_token=tensors.next_token,
             token_index=tensors.token_index,
@@ -395,7 +395,7 @@ def main(
         run_text_last_layer_tail(rt)
         run_text_norm(rt)
         _run_lm_head_select(rt, x=model_tensors().text_norm.mul_1)
-        QWEN3_ASR_TOKEN_STORE_EOS_F32(
+        QWEN3_ASR_TOKEN_STORE_EOS(
             rt,
             next_token=model_tensors().next_token,
             token_index=model_tensors().token_index,

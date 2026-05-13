@@ -1,4 +1,4 @@
-"""Final-stage greedy token reduction for Qwen3 logits."""
+"""Generated shader: qwen3_token_select_reduce_f32."""
 
 from __future__ import annotations
 
@@ -19,31 +19,54 @@ from torch2vk.vulkan.shader_execution_requirements import (
 
 
 QWEN3_TOKEN_SELECT_REDUCE_F32 = ShaderVariant(
-    name="qwen3_token_select_reduce_f32",
-    family="quantized_qwen3",
+    name='qwen3_token_select_reduce_f32',
+    family='qwen3.text',
     contract=ShaderContract(
-        class_name="Qwen3TokenSelectReduceF32Program",
-        shader_name="qwen3_token_select_reduce_f32",
+        class_name='Qwen3TokenSelectReduceF32Program',
+        shader_name='qwen3_token_select_reduce_f32',
         fields=(
-            TensorFieldSpec("partial_scores", IOKind.INPUT, "partial_scores", TensorContract(dtype="float32", shape=("G",))),
-            TensorFieldSpec("partial_tokens", IOKind.INPUT, "partial_tokens", TensorContract(dtype="uint32", shape=("G",))),
-            TensorFieldSpec("eos_token_ids", IOKind.INPUT, "eos_token_ids", TensorContract(dtype="int64", shape=("E",))),
-            TensorFieldSpec("next_token", IOKind.OUTPUT, "next_token", TensorContract(dtype="int64", shape=(1, 1))),
-            TensorFieldSpec("done", IOKind.OUTPUT, "done", TensorContract(dtype="uint32", shape=(1,))),
+            TensorFieldSpec(
+                name='partial_scores',
+                io_kind=IOKind.INPUT,
+                role='partial_scores',
+                contract=TensorContract(dtype='float32', shape=('G',)),
+            ),
+            TensorFieldSpec(
+                name='partial_tokens',
+                io_kind=IOKind.INPUT,
+                role='partial_tokens',
+                contract=TensorContract(dtype='uint32', shape=('G',)),
+            ),
+            TensorFieldSpec(
+                name='eos_token_ids',
+                io_kind=IOKind.INPUT,
+                role='eos_token_ids',
+                contract=TensorContract(dtype='int64', shape=('E',)),
+            ),
+            TensorFieldSpec(
+                name='next_token',
+                io_kind=IOKind.OUTPUT,
+                role='next_token',
+                contract=TensorContract(dtype='int64', shape=(1, 1,)),
+            ),
+            TensorFieldSpec(
+                name='done',
+                io_kind=IOKind.OUTPUT,
+                role='done',
+                contract=TensorContract(dtype='uint32', shape=(1,)),
+            ),
         ),
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec("G", PushConstantType.UINT32, 0, "G"),
-                PushConstantFieldSpec("E", PushConstantType.UINT32, 4, "E"),
+                PushConstantFieldSpec('G', PushConstantType.UINT32, 0, 'G', dynamic=False),
+                PushConstantFieldSpec('E', PushConstantType.UINT32, 4, 'E', dynamic=False),
             ),
         ),
+        params_buffer=None,
         dispatch=(1, 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(
-        subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
-        require_shader_int64=True,
-    ),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_shader_int64=True),
     source="""\
 #version 450
 

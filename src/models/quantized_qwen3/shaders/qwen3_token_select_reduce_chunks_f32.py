@@ -1,4 +1,4 @@
-"""Reduce token-score partials in independent chunks."""
+"""Generated shader: qwen3_token_select_reduce_chunks_f32."""
 
 from __future__ import annotations
 
@@ -13,30 +13,54 @@ from torch2vk.runtime.shader import (
     TensorFieldSpec,
     ceil_div,
 )
-from torch2vk.vulkan.shader_execution_requirements import ShaderExecutionRequirements, SubgroupRequirements
+from torch2vk.vulkan.shader_execution_requirements import (
+    ShaderExecutionRequirements,
+    SubgroupRequirements,
+)
 
 
 QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32 = ShaderVariant(
-    name="qwen3_token_select_reduce_chunks_f32",
-    family="quantized_qwen3",
+    name='qwen3_token_select_reduce_chunks_f32',
+    family='qwen3.text',
     contract=ShaderContract(
-        class_name="Qwen3TokenSelectReduceChunksF32Program",
-        shader_name="qwen3_token_select_reduce_chunks_f32",
+        class_name='Qwen3TokenSelectReduceChunksF32Program',
+        shader_name='qwen3_token_select_reduce_chunks_f32',
         fields=(
-            TensorFieldSpec("scores", IOKind.INPUT, "scores", TensorContract(dtype="float32", shape=("G",))),
-            TensorFieldSpec("tokens", IOKind.INPUT, "tokens", TensorContract(dtype="uint32", shape=("G",))),
-            TensorFieldSpec("chunk_scores", IOKind.OUTPUT, "chunk_scores", TensorContract(dtype="float32", shape=("C",))),
-            TensorFieldSpec("chunk_tokens", IOKind.OUTPUT, "chunk_tokens", TensorContract(dtype="uint32", shape=("C",))),
+            TensorFieldSpec(
+                name='scores',
+                io_kind=IOKind.INPUT,
+                role='scores',
+                contract=TensorContract(dtype='float32', shape=('G',)),
+            ),
+            TensorFieldSpec(
+                name='tokens',
+                io_kind=IOKind.INPUT,
+                role='tokens',
+                contract=TensorContract(dtype='uint32', shape=('G',)),
+            ),
+            TensorFieldSpec(
+                name='chunk_scores',
+                io_kind=IOKind.OUTPUT,
+                role='chunk_scores',
+                contract=TensorContract(dtype='float32', shape=('C',)),
+            ),
+            TensorFieldSpec(
+                name='chunk_tokens',
+                io_kind=IOKind.OUTPUT,
+                role='chunk_tokens',
+                contract=TensorContract(dtype='uint32', shape=('C',)),
+            ),
         ),
         push_constants=PushConstantSpec(
             size=4,
-            fields=(PushConstantFieldSpec("G", PushConstantType.UINT32, 0, "G"),),
+            fields=(
+                PushConstantFieldSpec('G', PushConstantType.UINT32, 0, 'G', dynamic=False),
+            ),
         ),
-        dispatch=(ceil_div("G", 1024), 1, 1),
+        params_buffer=None,
+        dispatch=(ceil_div('G', 1024), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(
-        subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
-    ),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)),
     source="""\
 #version 450
 

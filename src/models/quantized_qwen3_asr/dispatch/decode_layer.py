@@ -32,7 +32,7 @@ from models.quantized_qwen3_asr.shaders.pow_scalar_f32_9 import POW_SCALAR_F32_9
 from models.quantized_qwen3_asr.shaders.rsqrt_f32 import RSQRT_F32
 from models.quantized_qwen3_asr.shaders.rsqrt_f32_12 import RSQRT_F32_12
 from models.quantized_qwen3_asr.shaders.rsqrt_f32_19 import RSQRT_F32_19
-from models.quantized_qwen3_asr.shaders.sdpa_decode_cache_f32 import SDPA_DECODE_CACHE_F32
+from models.quantized_qwen3_asr.shaders.sdpa_decode_cache_f16 import SDPA_DECODE_CACHE_F16
 from models.quantized_qwen3_asr.shaders.silu_f32 import SILU_F32
 from models.quantized_qwen3_asr.shaders.slice_f32 import SLICE_F32
 from models.quantized_qwen3_asr.shaders.slice_f32_25 import SLICE_F32_25
@@ -86,7 +86,7 @@ def _run_decode_layer_with_tensors(rt: RuntimeSession, tensors: DecodeLayerTenso
     DECODE_LAYER_ADD_F32(rt, x=tensors.mul_8, y=tensors.mul_9, output=tensors.add_4)
     KV_CACHE_WRITE_F16(rt, cache=tensors.index_copy, cache_position=tensors.cache_position, src=tensors.add_4)
     KV_CACHE_WRITE_F16(rt, cache=tensors.index_copy_1, cache_position=tensors.cache_position, src=tensors.transpose_2)
-    SDPA_DECODE_CACHE_F32(rt, q=tensors.add_3, k=tensors.index_copy, v=tensors.index_copy_1, cache_position=tensors.cache_position, output=tensors.scaled_dot_product_attention)
+    SDPA_DECODE_CACHE_F16(rt, q=tensors.add_3, k=tensors.index_copy, v=tensors.index_copy_1, cache_position=tensors.cache_position, output=tensors.scaled_dot_product_attention)
     TRANSPOSE_F32_9E77B1CEE2(rt, x=tensors.scaled_dot_product_attention, output=tensors.transpose_3)
     run_quantized_linear(rt, q4=LINEAR_NOBIAS_Q4_K_MATVEC_F32, q6=LINEAR_NOBIAS_Q6_K_MATVEC_F32, q8=LINEAR_NOBIAS_Q8_0_MATVEC_F32, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)
     ADD_F32_33(rt, x=tensors.to, y=tensors.linear_3, output=tensors.add_5)

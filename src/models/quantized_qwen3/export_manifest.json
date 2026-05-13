@@ -1,0 +1,5 @@
+{
+  "repo_id": "Qwen/Qwen3-0.6B",
+  "prompt": "Explain Vulkan compute shaders in one concise paragraph, focusing on why they are useful for neural network inference.",
+  "generated_by": "models.quantized_qwen3.export"
+}

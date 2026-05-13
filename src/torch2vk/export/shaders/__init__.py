@@ -40,13 +40,17 @@ from torch2vk.export.shaders.mul_f32 import make_mul_variant
 from torch2vk.export.shaders.neg_f32 import make_neg_variant
 from torch2vk.export.shaders.pow_scalar_f32 import make_pow_scalar_variant
 from torch2vk.export.shaders.permute_f32 import make_permute_variant
-from torch2vk.export.shaders.qwen3_asr_token_store_f32 import (
-    QWEN3_ASR_TOKEN_STORE_EOS_F32,
-    QWEN3_ASR_TOKEN_STORE_F32,
+from torch2vk.export.shaders.qwen3_asr_token_store import (
+    QWEN3_ASR_TOKEN_STORE,
+    QWEN3_ASR_TOKEN_STORE_EOS,
 )
 from torch2vk.export.shaders.qwen3_token_select_reduce_f32 import (
     QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
     QWEN3_TOKEN_SELECT_REDUCE_F32,
+)
+from torch2vk.export.shaders.qwen3_token_store import (
+    QWEN3_TOKEN_STORE,
+    QWEN3_TOKEN_STORE_EOS,
 )
 from torch2vk.export.shaders.reciprocal_f32 import make_reciprocal_variant
 from torch2vk.export.shaders.rsqrt_f32 import make_rsqrt_variant
@@ -90,10 +94,12 @@ __all__ = [
     "make_neg_variant",
     "make_pow_scalar_variant",
     "make_permute_variant",
-    "QWEN3_ASR_TOKEN_STORE_EOS_F32",
-    "QWEN3_ASR_TOKEN_STORE_F32",
+    "QWEN3_ASR_TOKEN_STORE",
+    "QWEN3_ASR_TOKEN_STORE_EOS",
     "QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32",
     "QWEN3_TOKEN_SELECT_REDUCE_F32",
+    "QWEN3_TOKEN_STORE",
+    "QWEN3_TOKEN_STORE_EOS",
     "make_reciprocal_variant",
     "make_rsqrt_variant",
     "make_sdpa_variant",

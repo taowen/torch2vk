@@ -279,15 +279,17 @@ def inject_kv_cache(prog: torch.export.ExportedProgram, hint: KVCacheInjectHint)
             qparams={},
         )
 
+    cache_dtype = torch.float16
+
     with graph.inserting_after(last_placeholder):
         key_cache_node = graph.placeholder("key_cache")
-    key_cache_node.meta["tensor_meta"] = _make_tensor_meta(cache_shape, torch.float32)
-    key_cache_node.meta["val"] = torch.empty(cache_shape, dtype=torch.float32, device="meta")
+    key_cache_node.meta["tensor_meta"] = _make_tensor_meta(cache_shape, cache_dtype)
+    key_cache_node.meta["val"] = torch.empty(cache_shape, dtype=cache_dtype, device="meta")
 
     with graph.inserting_after(key_cache_node):
         value_cache_node = graph.placeholder("value_cache")
-    value_cache_node.meta["tensor_meta"] = _make_tensor_meta(cache_shape, torch.float32)
-    value_cache_node.meta["val"] = torch.empty(cache_shape, dtype=torch.float32, device="meta")
+    value_cache_node.meta["tensor_meta"] = _make_tensor_meta(cache_shape, cache_dtype)
+    value_cache_node.meta["val"] = torch.empty(cache_shape, dtype=cache_dtype, device="meta")
 
     with graph.inserting_after(value_cache_node):
         cache_position_node = graph.placeholder("cache_position")
@@ -302,14 +304,14 @@ def inject_kv_cache(prog: torch.export.ExportedProgram, hint: KVCacheInjectHint)
             args=(key_cache_node, 2, cache_position_node, k_node),
         )
         index_copy_key.name = "index_copy"
-        index_copy_key.meta["tensor_meta"] = _make_tensor_meta(cache_shape, torch.float32)
+        index_copy_key.meta["tensor_meta"] = _make_tensor_meta(cache_shape, cache_dtype)
 
         index_copy_value = graph.call_function(
             torch.ops.aten.index_copy.default,
             args=(value_cache_node, 2, cache_position_node, v_node),
         )
         index_copy_value.name = "index_copy_1"
-        index_copy_value.meta["tensor_meta"] = _make_tensor_meta(cache_shape, torch.float32)
+        index_copy_value.meta["tensor_meta"] = _make_tensor_meta(cache_shape, cache_dtype)
 
     if hint.phase == "decode":
         sdpa_node.args = (

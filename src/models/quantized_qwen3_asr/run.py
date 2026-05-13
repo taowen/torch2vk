@@ -33,8 +33,8 @@ from models.quantized_qwen3_asr.pytorch_modules import (
 from models.quantized_qwen3_asr.shaders.lm_head_q6_k_argmax_partial_f16 import (
     LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
 )
-from models.quantized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
-    QWEN3_ASR_TOKEN_STORE_EOS_F32,
+from models.quantized_qwen3_asr.shaders.qwen3_asr_token_store_eos import (
+    QWEN3_ASR_TOKEN_STORE_EOS,
 )
 from models.quantized_qwen3_asr.shaders.qwen3_token_select_reduce_chunks_f32 import (
     QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
@@ -116,7 +116,7 @@ def _run_token_store(
     frame_name: str,
 ) -> None:
     with rt.frame(frame_name):
-        QWEN3_ASR_TOKEN_STORE_EOS_F32(
+        QWEN3_ASR_TOKEN_STORE_EOS(
             rt,
             next_token=next_token,
             token_index=token_index,
@@ -137,7 +137,7 @@ def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
             run_decode_layer(rt, layer_idx)
         run_decode_norm(rt)
         _run_lm_head_select(rt, x=tensors.decode_norm.mul_1)
-        QWEN3_ASR_TOKEN_STORE_EOS_F32(
+        QWEN3_ASR_TOKEN_STORE_EOS(
             rt,
             next_token=tensors.next_token,
             token_index=tensors.token_index,

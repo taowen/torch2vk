@@ -42,7 +42,7 @@ from torch2vk.export.graph import inject_kv_cache
 from torch2vk.export.shaders.lm_head_q6_k_argmax_partial_f16 import (
     LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
 )
-from torch2vk.export.shaders.qwen3_asr_token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
+from torch2vk.export.shaders.qwen3_asr_token_store import QWEN3_ASR_TOKEN_STORE_EOS
 from torch2vk.export.shaders.qwen3_token_select_reduce_f32 import (
     QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
     QWEN3_TOKEN_SELECT_REDUCE_F32,
@@ -238,7 +238,7 @@ def main() -> int:
         SLICE_LAST_TOKEN_F16,
         QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
         QWEN3_TOKEN_SELECT_REDUCE_F32,
-        QWEN3_ASR_TOKEN_STORE_EOS_F32,
+        QWEN3_ASR_TOKEN_STORE_EOS,
     )
     seen_shader_variants: dict[str, ShaderVariant] = {}
     shader_file_count = 0

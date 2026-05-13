@@ -3,6 +3,7 @@ from __future__ import annotations
 from torch.fx import Node
 
 from torch2vk.export.shaders._factory import (
+    activation_dtype_suffix,
     activation_extension_source,
     activation_glsl_type,
     activation_requirements,
@@ -462,12 +463,13 @@ def _make_decode_cache_variant(
         return None
     if cache_position_dtype not in {"int32", "int64"}:
         return None
+    suffix = activation_dtype_suffix(activation_dtype)
     return ShaderVariant(
-        name="sdpa_decode_cache_f32",
+        name=f"sdpa_decode_cache_{suffix}",
         family="export",
         contract=ShaderContract(
-            class_name="ExportSdpaDecodeCacheF32Program",
-            shader_name="sdpa_decode_cache_f32",
+            class_name=f"ExportSdpaDecodeCache{suffix.upper()}Program",
+            shader_name=f"sdpa_decode_cache_{suffix}",
             fields=(
                 TensorFieldSpec(
                     "q",
