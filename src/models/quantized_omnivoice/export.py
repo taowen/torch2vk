@@ -33,17 +33,10 @@ from models.quantized_omnivoice.custom_shaders import (
     OMNIVOICE_INPUT_EMBED_Q8_0_F32,
 )
 from models.quantized_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
-from models.quantized_omnivoice.quantization import (
-    Q8_TENSOR_PREFIXES,
-    Q8_TENSOR_NAMES,
-    omnivoice_q4_k_m_q6_tensor_names,
-)
+from models.quantized_omnivoice.quantization import omnivoice_q4_k_m_config
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
 from torch2vk.export import (
     LayerLoopHint,
-    Q4KMWeightQuantization,
-    Q4_K_M_REGISTRY,
-    Q8_0_REGISTRY,
     ReferencePolicy,
     bind_dispatch_function_to_tensors,
     cast_floating_tensors,
@@ -64,8 +57,8 @@ from torch2vk.export import (
     render_reference_module,
     write_shader_file,
 )
-from torch2vk.export.registry import ShaderRegistry
 from torch2vk.export.tensor_codegen import render_tensor_module
+from torch2vk.quantize import Q4KMQuantizationConfig
 from torch2vk.runtime.shader import ShaderVariant
 
 
@@ -155,10 +148,11 @@ def main() -> int:
     hidden_size = shapes["hidden_size"]
     head_dim = shapes["head_dim"]
     num_layers = shapes["num_hidden_layers"]
-    quantized_weights = Q4KMWeightQuantization(
-        q6_tensor_names=frozenset(omnivoice_q4_k_m_q6_tensor_names(num_layers)),
-        q8_tensor_names=frozenset(Q8_TENSOR_NAMES),
-        q8_tensor_prefixes=Q8_TENSOR_PREFIXES,
+    q4_k_m_config = omnivoice_q4_k_m_config(
+        num_hidden_layers=num_layers,
+        audio_vocab_size=int(config.audio_vocab_size),
+        num_audio_codebook=int(config.num_audio_codebook),
+        audio_mask_id=int(config.audio_mask_id),
     )
 
     custom_variants = (
@@ -254,7 +248,7 @@ def main() -> int:
         reference_name: str | None = None,
         reference_policy: ReferencePolicy = "tensor",
         reference_module: str | None = None,
-        export_registry: ShaderRegistry,
+        quantization_config: Q4KMQuantizationConfig | None = None,
     ) -> None:
         module = module.float()
         export_dtype = module_floating_dtype(module)
@@ -294,8 +288,7 @@ def main() -> int:
                 weight_prefix=weight_prefix,
                 checkpoint=checkpoint,
                 shape_exprs=shape_exprs,
-                registry=export_registry,
-                weight_quantization=quantized_weights,
+                quantization_config=quantization_config,
             )
             (tensors_dir / f"{tensor_file}.py").write_text(render_tensor_module([tensor_source]))
             function_source, shader_imports, used_variants = generate_dispatch_function_source(
@@ -303,8 +296,8 @@ def main() -> int:
                 class_name=class_name,
                 function_name=name,
                 shader_package=f"{MODEL_PACKAGE}.shaders",
-                registry=export_registry,
-                weight_quantization=quantized_weights,
+                weight_prefix=weight_prefix,
+                quantization_config=quantization_config,
             )
         else:
             parent_source, layer_source = generate_looped_tensor_class_sources(
@@ -315,8 +308,7 @@ def main() -> int:
                 layer_function_name="create_llm_layer",
                 weight_prefix=weight_prefix,
                 hint=layer_loop,
-                registry=export_registry,
-                weight_quantization=quantized_weights,
+                quantization_config=quantization_config,
             )
             (tensors_dir / f"{tensor_file}.py").write_text(
                 render_tensor_module([layer_source, parent_source])
@@ -328,8 +320,7 @@ def main() -> int:
                 function_name=name,
                 weight_prefix=weight_prefix,
                 hint=layer_loop,
-                registry=export_registry,
-                weight_quantization=quantized_weights,
+                quantization_config=quantization_config,
             )
 
         rename_map: dict[str, str] = {}
@@ -393,7 +384,7 @@ def main() -> int:
             reference_tensors="model_tensors()",
             reference_name="omnivoice.step.{step:04d}.llm_forward",
             reference_policy="q4_tensor",
-            export_registry=Q4_K_M_REGISTRY,
+            quantization_config=q4_k_m_config,
         )
     finally:
         sdpa_attention_mod.use_gqa_in_sdpa = original_use_gqa
@@ -409,7 +400,7 @@ def main() -> int:
         reference_tensors="model_tensors()",
         reference_name="omnivoice.step.{step:04d}.audio_head",
         reference_policy="q4_tensor",
-        export_registry=Q4_K_M_REGISTRY,
+        quantization_config=q4_k_m_config,
     )
 
     target_len = shapes["target_len"]
@@ -438,7 +429,7 @@ def main() -> int:
         reference_tensors="model_tensors()",
         reference_name="omnivoice.audio_decode",
         reference_policy="q8_tensor",
-        export_registry=Q8_0_REGISTRY,
+        quantization_config=q4_k_m_config,
     )
     print(f"\n  {shader_file_count} shader files written")
 

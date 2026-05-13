@@ -3,21 +3,35 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from collections.abc import Mapping
 
 from torch.export import ExportedProgram
 from torch.export.graph_signature import ExportGraphSignature, InputKind
 from torch.fx import Graph, Node
 
+from torch2vk.checkpoints.gguf import GGUFTensorType
 from torch2vk.export._templates import render_template
 from torch2vk.export.graph import SKIP_OPS, is_alias_op, node_input_names
-from torch2vk.export.quantization import Q4KMWeightQuantization
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
+from torch2vk.export.shaders._factory import node_input_dtype, node_input_shape
+from torch2vk.export.shaders.conv1d_quantized import make_conv1d_q8_0_variant
+from torch2vk.export.shaders.conv2d_quantized import make_conv2d_q8_0_variant
+from torch2vk.export.shaders.conv_transpose1d_quantized import (
+    make_conv_transpose1d_q8_0_variant,
+)
+from torch2vk.export.shaders.embedding_quantized import (
+    make_embedding_q4_k_m_variant,
+    make_embedding_q8_0_variant,
+)
+from torch2vk.export.shaders.linear_bias_quantized import make_linear_bias_q8_0_variant
 from torch2vk.export.shaders.linear_nobias_quantized import (
+    make_linear_nobias_q4_k_m_variant,
     make_linear_nobias_q6_k_variant,
     make_linear_nobias_q8_0_variant,
 )
+from torch2vk.quantize import Q4KMQuantizationConfig
+from torch2vk.quantize.gguf import _WeightDeclaration
 from torch2vk.runtime.shader import IOKind, ShaderContract, ShaderVariant
 
 
@@ -152,7 +166,13 @@ def generate_dispatch_source(
     return "\n".join(lines)
 
 
-def _resolve_all_variants(graph: Graph, registry: ShaderRegistry) -> dict[str, ShaderVariant]:
+def _resolve_all_variants(
+    graph: Graph,
+    registry: ShaderRegistry,
+    *,
+    parameter_map: Mapping[str, str] | None = None,
+    quantization_config: Q4KMQuantizationConfig | None = None,
+) -> dict[str, ShaderVariant]:
     variants: dict[str, ShaderVariant] = {}
     for node in graph.nodes:
         if node.op != "call_function":
@@ -160,10 +180,236 @@ def _resolve_all_variants(graph: Graph, registry: ShaderRegistry) -> dict[str, S
         target = str(node.target)
         if target in SKIP_OPS or is_alias_op(node):
             continue
-        shader = registry.resolve(node)
+        shader = _resolve_variant(
+            node,
+            registry,
+            parameter_map=parameter_map or {},
+            quantization_config=quantization_config,
+        )
         if shader is not None:
             variants[node.name] = shader
     return variants
+
+
+def _resolve_variant(
+    node: Node,
+    registry: ShaderRegistry,
+    *,
+    parameter_map: Mapping[str, str],
+    quantization_config: Q4KMQuantizationConfig | None,
+) -> ShaderVariant | None:
+    if quantization_config is not None:
+        quantized = _resolve_quantized_variant(
+            node,
+            quantization_config=quantization_config,
+            parameter_map=parameter_map,
+            activation_dtype=registry.activation_dtype,
+        )
+        if quantized is not None:
+            return quantized
+    return registry.resolve(node)
+
+
+def _resolve_quantized_variant(
+    node: Node,
+    *,
+    quantization_config: Q4KMQuantizationConfig,
+    parameter_map: Mapping[str, str],
+    activation_dtype: str,
+) -> ShaderVariant | None:
+    target = str(node.target)
+    if target == "aten.linear.default":
+        return _resolve_quantized_linear_variant(
+            node,
+            quantization_config=quantization_config,
+            parameter_map=parameter_map,
+            activation_dtype=activation_dtype,
+        )
+    if target == "aten.embedding.default":
+        return _resolve_quantized_embedding_variant(
+            node,
+            quantization_config=quantization_config,
+            parameter_map=parameter_map,
+            activation_dtype=activation_dtype,
+        )
+    if target == "aten.conv1d.default":
+        return _resolve_quantized_q8_only_variant(
+            node,
+            quantization_config=quantization_config,
+            parameter_map=parameter_map,
+            activation_dtype=activation_dtype,
+            weight_arg_index=1,
+            factory=make_conv1d_q8_0_variant,
+        )
+    if target == "aten.conv2d.default":
+        return _resolve_quantized_q8_only_variant(
+            node,
+            quantization_config=quantization_config,
+            parameter_map=parameter_map,
+            activation_dtype=activation_dtype,
+            weight_arg_index=1,
+            factory=make_conv2d_q8_0_variant,
+        )
+    if target == "aten.conv_transpose1d.default":
+        return _resolve_quantized_q8_only_variant(
+            node,
+            quantization_config=quantization_config,
+            parameter_map=parameter_map,
+            activation_dtype=activation_dtype,
+            weight_arg_index=1,
+            factory=make_conv_transpose1d_q8_0_variant,
+        )
+    return None
+
+
+def _resolve_quantized_linear_variant(
+    node: Node,
+    *,
+    quantization_config: Q4KMQuantizationConfig,
+    parameter_map: Mapping[str, str],
+    activation_dtype: str,
+) -> ShaderVariant | None:
+    declaration = _quantized_weight_declaration(
+        node,
+        quantization_config=quantization_config,
+        parameter_map=parameter_map,
+        weight_arg_index=1,
+    )
+    if declaration is None or declaration.gguf_type is GGUFTensorType.F32:
+        return None
+    has_bias = len(node.args) >= 3 and isinstance(node.args[2], Node)
+    if has_bias:
+        if declaration.gguf_type is not GGUFTensorType.Q8_0:
+            raise RuntimeError(
+                f"{node.name} has quantized {declaration.gguf_type.name} linear weight with bias; "
+                "only Q8_0 biased linear is supported"
+            )
+        return make_linear_bias_q8_0_variant(node, activation_dtype)
+    checkpoint_key = _weight_checkpoint_key(node, parameter_map, 1)
+    if checkpoint_key is not None and _may_need_mixed_layer_quantized_dispatch(
+        checkpoint_key,
+        quantization_config,
+    ):
+        return make_linear_nobias_q4_k_m_variant(node, activation_dtype)
+    if declaration.gguf_type is GGUFTensorType.Q4_K:
+        return make_linear_nobias_q4_k_m_variant(node, activation_dtype)
+    if declaration.gguf_type is GGUFTensorType.Q6_K:
+        return make_linear_nobias_q6_k_variant(node, activation_dtype)
+    if declaration.gguf_type is GGUFTensorType.Q8_0:
+        return make_linear_nobias_q8_0_variant(node, activation_dtype)
+    return None
+
+
+def _resolve_quantized_embedding_variant(
+    node: Node,
+    *,
+    quantization_config: Q4KMQuantizationConfig,
+    parameter_map: Mapping[str, str],
+    activation_dtype: str,
+) -> ShaderVariant | None:
+    declaration = _quantized_weight_declaration(
+        node,
+        quantization_config=quantization_config,
+        parameter_map=parameter_map,
+        weight_arg_index=0,
+    )
+    if declaration is None or declaration.gguf_type is GGUFTensorType.F32:
+        return None
+    if declaration.gguf_type is GGUFTensorType.Q4_K:
+        return make_embedding_q4_k_m_variant(node, activation_dtype)
+    if declaration.gguf_type is GGUFTensorType.Q8_0:
+        return make_embedding_q8_0_variant(node, activation_dtype)
+    raise RuntimeError(f"{node.name} has unsupported quantized embedding weight: {declaration.gguf_type.name}")
+
+
+def _resolve_quantized_q8_only_variant(
+    node: Node,
+    *,
+    quantization_config: Q4KMQuantizationConfig,
+    parameter_map: Mapping[str, str],
+    activation_dtype: str,
+    weight_arg_index: int,
+    factory: Callable[[Node, str], ShaderVariant | None],
+) -> ShaderVariant | None:
+    declaration = _quantized_weight_declaration(
+        node,
+        quantization_config=quantization_config,
+        parameter_map=parameter_map,
+        weight_arg_index=weight_arg_index,
+    )
+    if declaration is None or declaration.gguf_type is GGUFTensorType.F32:
+        return None
+    if declaration.gguf_type is not GGUFTensorType.Q8_0:
+        raise RuntimeError(
+            f"{node.name} has unsupported quantized convolution weight: {declaration.gguf_type.name}"
+        )
+    return factory(node, activation_dtype)
+
+
+def _quantized_weight_declaration(
+    node: Node,
+    *,
+    quantization_config: Q4KMQuantizationConfig,
+    parameter_map: Mapping[str, str],
+    weight_arg_index: int,
+) -> _WeightDeclaration | None:
+    checkpoint_key = _weight_checkpoint_key(node, parameter_map, weight_arg_index)
+    if checkpoint_key is None:
+        return None
+    weight_shape = node_input_shape(node, weight_arg_index)
+    if not weight_shape:
+        return None
+    return quantization_config.declare_weight(
+        checkpoint_key=checkpoint_key,
+        dtype=node_input_dtype(node, weight_arg_index),
+        shape=tuple(int(dim) for dim in weight_shape),
+    )
+
+
+def _weight_checkpoint_key(
+    node: Node,
+    parameter_map: Mapping[str, str],
+    weight_arg_index: int,
+) -> str | None:
+    inputs = node_input_names(node)
+    if weight_arg_index >= len(inputs):
+        return None
+    return parameter_map.get(inputs[weight_arg_index])
+
+
+def _may_need_mixed_layer_quantized_dispatch(
+    checkpoint_key: str,
+    quantization_config: Q4KMQuantizationConfig,
+) -> bool:
+    marker = ".layers.0."
+    if marker not in checkpoint_key or not quantization_config.has_q6:
+        return False
+    layer_prefix, suffix = checkpoint_key.split(marker, 1)
+    layer_prefix = f"{layer_prefix}.layers."
+    return any(
+        name.startswith(layer_prefix) and name.endswith(suffix)
+        for name in quantization_config.q6_tensor_names
+    )
+
+
+def _mixed_quantized_linear_op_names(
+    graph: Graph,
+    *,
+    parameter_map: Mapping[str, str],
+    quantization_config: Q4KMQuantizationConfig | None,
+) -> frozenset[str]:
+    if quantization_config is None or not quantization_config.has_q6:
+        return frozenset()
+    names: set[str] = set()
+    for node in graph.nodes:
+        if node.op != "call_function" or str(node.target) != "aten.linear.default":
+            continue
+        checkpoint_key = _weight_checkpoint_key(node, parameter_map, 1)
+        if checkpoint_key is None:
+            continue
+        if _may_need_mixed_layer_quantized_dispatch(checkpoint_key, quantization_config):
+            names.add(node.name)
+    return frozenset(names)
 
 
 def _generate_param_fields(sig: ExportGraphSignature, weight_prefix: str = "") -> list[str]:
@@ -174,6 +420,14 @@ def _generate_param_fields(sig: ExportGraphSignature, weight_prefix: str = "") -
             lines.append(f'    "{spec.arg.name}": "{weight_prefix}{spec.target}",')
     lines.append("}")
     return lines
+
+
+def _parameter_map(sig: ExportGraphSignature, weight_prefix: str = "") -> dict[str, str]:
+    parameter_map: dict[str, str] = {}
+    for spec in sig.input_specs:
+        if spec.kind in (InputKind.PARAMETER, InputKind.BUFFER):
+            parameter_map[spec.arg.name] = f"{weight_prefix}{spec.target}"
+    return parameter_map
 
 
 def _generate_dataclass(graph: Graph, sig: ExportGraphSignature, class_name: str) -> list[str]:
@@ -255,9 +509,9 @@ def _generate_static_dispatch_function(
     function_name: str,
     node_variants: dict[str, ShaderVariant],
     *,
-    q4_k_m_has_q6: bool = False,
+    q6_variant_op_names: frozenset[str] = frozenset(),
 ) -> tuple[list[str], dict[str, str]]:
-    ops = _collect_ops(graph, node_variants, q4_k_m_has_q6=q4_k_m_has_q6)
+    ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
     output_names = _find_graph_outputs(graph)
     ops = _prune_dead_ops(ops, output_names)
 
@@ -299,7 +553,7 @@ def _collect_ops(
     graph: Graph,
     node_variants: dict[str, ShaderVariant],
     *,
-    q4_k_m_has_q6: bool = False,
+    q6_variant_op_names: frozenset[str] = frozenset(),
 ) -> list[_Op]:
     ops: list[_Op] = []
     seen_variants: dict[str, ShaderVariant] = {}
@@ -326,7 +580,7 @@ def _collect_ops(
             )
             continue
 
-        q6_shader = _q6_variant_for_q4_k_m(node, shader) if q4_k_m_has_q6 else None
+        q6_shader = _q6_variant_for_q4_k_m(node, shader) if node.name in q6_variant_op_names else None
         q8_shader = _q8_variant_for_q4_k_m(node, shader) if q6_shader is not None else None
         shader = _dedup_variant(shader, seen_variants)
         if q6_shader is not None:
@@ -467,7 +721,8 @@ def generate_dispatch_function_source(
     function_name: str = "run_exported",
     shader_package: str = "",
     registry: ShaderRegistry = DEFAULT_REGISTRY,
-    weight_quantization: Q4KMWeightQuantization | None = None,
+    weight_prefix: str = "",
+    quantization_config: Q4KMQuantizationConfig | None = None,
 ) -> tuple[str, dict[str, str], dict[str, ShaderVariant]]:
     """Generate dispatch function with static shader imports.
 
@@ -475,16 +730,26 @@ def generate_dispatch_function_source(
     The caller is responsible for assembling the final file with imports.
     """
     graph = prog.graph_module.graph
-    node_variants = _resolve_all_variants(graph, registry)
-    q4_k_m_has_q6 = weight_quantization is not None and weight_quantization.has_q6
+    parameter_map = _parameter_map(prog.graph_signature, weight_prefix)
+    node_variants = _resolve_all_variants(
+        graph,
+        registry,
+        parameter_map=parameter_map,
+        quantization_config=quantization_config,
+    )
+    q6_variant_op_names = _mixed_quantized_linear_op_names(
+        graph,
+        parameter_map=parameter_map,
+        quantization_config=quantization_config,
+    )
     lines, shader_imports = _generate_static_dispatch_function(
         graph,
         class_name,
         function_name,
         node_variants,
-        q4_k_m_has_q6=q4_k_m_has_q6,
+        q6_variant_op_names=q6_variant_op_names,
     )
-    all_ops = _collect_ops(graph, node_variants, q4_k_m_has_q6=q4_k_m_has_q6)
+    all_ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
     output_names = _find_graph_outputs(graph)
     live_ops = _prune_dead_ops(all_ops, output_names)
     used_variants: dict[str, ShaderVariant] = {}

@@ -18,11 +18,9 @@ from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM
 from models.hf_cache import resolve_cached_model
 from models.quantized_qwen3.export_gguf import REPO_ID
 from models.quantized_qwen3.input_prep import DEFAULT_PROMPT, load_qwen3_tokenizer, prepare_qwen3_inputs
-from models.quantized_qwen3.quantization import Q8_TENSOR_NAMES, qwen3_q4_k_m_q6_tensor_names
+from models.quantized_qwen3.quantization import qwen3_q4_k_m_config
 from torch2vk.export import (
     KVCacheInjectHint,
-    Q4KMWeightQuantization,
-    Q4_K_M_REGISTRY,
     bind_dispatch_function_to_tensors,
     cast_floating_tensors,
     clear_python_modules,
@@ -41,7 +39,6 @@ from torch2vk.export import (
     write_shader_file,
 )
 from torch2vk.export.reference_codegen import render_reference_function
-from torch2vk.export.registry import DEFAULT_REGISTRY
 from torch2vk.export.shaders.lm_head_q6_k_argmax_partial_f16 import (
     LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
 )
@@ -52,6 +49,7 @@ from torch2vk.export.shaders.qwen3_token_select_reduce_f32 import (
 from torch2vk.export.shaders.qwen3_token_store import QWEN3_TOKEN_STORE_EOS
 from torch2vk.export.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
 from torch2vk.export.tensor_codegen import render_tensor_module
+from torch2vk.quantize import Q4KMQuantizationConfig
 from torch2vk.runtime.shader import ShaderVariant
 
 
@@ -129,10 +127,7 @@ def main() -> int:
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
-    quantized_weights = Q4KMWeightQuantization(
-        q6_tensor_names=frozenset(qwen3_q4_k_m_q6_tensor_names(shapes["num_hidden_layers"])),
-        q8_tensor_names=frozenset(Q8_TENSOR_NAMES),
-    )
+    q4_k_m_config = qwen3_q4_k_m_config(shapes["num_hidden_layers"])
 
     custom_shader_variants = (
         LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
@@ -180,8 +175,7 @@ def main() -> int:
         kv_inject: KVCacheInjectHint | None = None,
         reference_tensors: str | None = None,
         reference_name: str | None = None,
-        export_registry=DEFAULT_REGISTRY,
-        weight_quantization: Q4KMWeightQuantization | None = None,
+        quantization_config: Q4KMQuantizationConfig | None = None,
         shape_exprs: dict[int, str] | None = None,
     ) -> None:
         nonlocal shader_file_count
@@ -210,8 +204,7 @@ def main() -> int:
             class_name=cls_name,
             function_name=f"create_{func_name}",
             weight_prefix=weight_prefix,
-            registry=export_registry,
-            weight_quantization=weight_quantization,
+            quantization_config=quantization_config,
             shape_exprs=shape_exprs,
         )
         (tensors_dir / f"{tensor_file}.py").write_text(render_tensor_module([tensor_src]))
@@ -221,8 +214,8 @@ def main() -> int:
             class_name=cls_name,
             function_name=name,
             shader_package=f"{MODEL_PACKAGE}.shaders",
-            registry=export_registry,
-            weight_quantization=weight_quantization,
+            weight_prefix=weight_prefix,
+            quantization_config=quantization_config,
         )
 
         rename_map: dict[str, str] = {}
@@ -276,8 +269,7 @@ def main() -> int:
         text_model.embed_tokens,
         args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
         weight_prefix="model.embed_tokens.",
-        export_registry=Q4_K_M_REGISTRY,
-        weight_quantization=quantized_weights,
+        quantization_config=q4_k_m_config,
         shape_exprs=text_shape_exprs,
     )
     export_one(
@@ -296,8 +288,7 @@ def main() -> int:
         kv_inject=KVCacheInjectHint(phase="prefill", max_seq_len=max_seq),
         reference_tensors="model_tensors().text_layers[layer_idx]",
         reference_name="qwen3.prefill.layer.{layer_idx}",
-        export_registry=Q4_K_M_REGISTRY,
-        weight_quantization=quantized_weights,
+        quantization_config=q4_k_m_config,
         shape_exprs=layer_shape_exprs,
     )
     export_one(
@@ -312,8 +303,7 @@ def main() -> int:
         text_model.embed_tokens,
         args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
         weight_prefix="model.embed_tokens.",
-        export_registry=Q4_K_M_REGISTRY,
-        weight_quantization=quantized_weights,
+        quantization_config=q4_k_m_config,
     )
     export_one(
         "run_decode_layer",
@@ -331,8 +321,7 @@ def main() -> int:
         kv_inject=KVCacheInjectHint(phase="decode", max_seq_len=max_seq),
         reference_tensors="model_tensors().decode_layers[layer_idx]",
         reference_name="qwen3.decode.{step:04d}.layer.{layer_idx}",
-        export_registry=Q4_K_M_REGISTRY,
-        weight_quantization=quantized_weights,
+        quantization_config=q4_k_m_config,
         shape_exprs=decode_shape_exprs,
     )
     export_one(
@@ -351,7 +340,7 @@ def main() -> int:
             checkpoint_key="lm_head.weight",
             dtype="float32",
             shape=lm_head_shape,
-            weight_quantization=quantized_weights,
+        quantization_config=q4_k_m_config,
         )
     ]))
     (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))

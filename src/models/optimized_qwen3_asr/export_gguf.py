@@ -8,16 +8,11 @@ from pathlib import Path
 
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
-from models.optimized_qwen3_asr.quantization import (
-    Q8_TENSOR_NAMES,
-    Q8_TENSOR_PREFIXES,
-    qwen3_asr_q4_k_m_q6_tensor_names,
-)
-from torch2vk.quantize import Q4KMQuantizationConfig, export_q4_k_m_gguf
+from models.optimized_qwen3_asr.quantization import qwen3_asr_q4_k_m_config
+from torch2vk.quantize import export_q4_k_m_gguf
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-QUANTIZE_GGUF_ARCH = "qwen3-asr"
 DEFAULT_Q4_K_M_GGUF = REPO_ROOT / "dist" / "optimized_qwen3_asr" / "model.gguf"
 
 
@@ -33,13 +28,7 @@ def export_qwen3_asr_q4_k_m_gguf(
     return export_q4_k_m_gguf(
         model_dir=resolved_model_dir,
         output=output,
-        config=Q4KMQuantizationConfig(
-            model_name="Qwen3-ASR",
-            gguf_arch=QUANTIZE_GGUF_ARCH,
-            q6_tensor_names=qwen3_asr_q4_k_m_q6_tensor_names(num_hidden_layers),
-            q8_tensor_names=Q8_TENSOR_NAMES,
-            q8_tensor_prefixes=Q8_TENSOR_PREFIXES,
-        ),
+        config=qwen3_asr_q4_k_m_config(num_hidden_layers),
         overwrite=overwrite,
     )
 

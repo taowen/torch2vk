@@ -22,17 +22,10 @@ from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
 from models.quantized_qwen3_asr.pytorch_modules import AudioEncoderModule, AudioInjectModule
-from models.quantized_qwen3_asr.quantization import (
-    Q8_TENSOR_NAMES,
-    Q8_TENSOR_PREFIXES,
-    qwen3_asr_q4_k_m_q6_tensor_names,
-)
+from models.quantized_qwen3_asr.quantization import qwen3_asr_q4_k_m_config
 from torch2vk.export import (
     KVCacheInjectHint,
     LayerLoopHint,
-    Q4KMWeightQuantization,
-    Q4_K_M_REGISTRY,
-    Q8_0_REGISTRY,
     ReferencePolicy,
     cast_floating_tensors,
     export_submodule,
@@ -59,7 +52,6 @@ from torch2vk.export.reference_codegen import (
     render_reference_loader,
     render_reference_module,
 )
-from torch2vk.export.registry import DEFAULT_REGISTRY
 from torch2vk.export.shader_codegen import (
     clear_python_modules,
     clear_shader_package,
@@ -76,6 +68,7 @@ from torch2vk.export.codegen_loop import (
     generate_looped_dispatch_function_source,
     generate_looped_tensor_class_sources,
 )
+from torch2vk.quantize import Q4KMQuantizationConfig
 from torch2vk.runtime.shader import ShaderVariant
 
 
@@ -227,11 +220,7 @@ def main() -> int:
     model, config, shapes = _load_model_and_shapes()
     ac = config.thinker_config.audio_config
     at = model.thinker.audio_tower
-    quantized_weights = Q4KMWeightQuantization(
-        q6_tensor_names=frozenset(qwen3_asr_q4_k_m_q6_tensor_names(shapes["num_hidden_layers"])),
-        q8_tensor_names=frozenset(Q8_TENSOR_NAMES),
-        q8_tensor_prefixes=Q8_TENSOR_PREFIXES,
-    )
+    q4_k_m_config = qwen3_asr_q4_k_m_config(shapes["num_hidden_layers"])
 
     custom_shader_variants = (
         LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
@@ -307,8 +296,7 @@ def main() -> int:
         reference_name=None,
         reference_policy: ReferencePolicy = "tensor",
         reference_module=None,
-        export_registry=DEFAULT_REGISTRY,
-        weight_quantization: Q4KMWeightQuantization | None = None,
+        quantization_config: Q4KMQuantizationConfig | None = None,
         shape_exprs: dict[int, str] | None = None,
     ):
         module = module.float()
@@ -322,7 +310,6 @@ def main() -> int:
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
         tensor_file = _tensor_file_name(cls_name)
-        registry = export_registry
         reference_source = "reference"
         if reference_module is not None:
             loader_fields.append(func_name)
@@ -357,8 +344,7 @@ def main() -> int:
                 layer_function_name=layer_func_name,
                 weight_prefix=weight_prefix,
                 hint=layer_loop,
-                registry=registry,
-                weight_quantization=weight_quantization,
+                quantization_config=quantization_config,
                 shape_exprs=shape_exprs,
             )
             (tensors_dir / f"{tensor_file}.py").write_text(
@@ -372,7 +358,7 @@ def main() -> int:
                 function_name=name,
                 weight_prefix=weight_prefix,
                 hint=layer_loop,
-                registry=registry,
+                quantization_config=quantization_config,
             )
         else:
             # Flat export: single tensor class + dispatch
@@ -381,8 +367,7 @@ def main() -> int:
                 class_name=cls_name,
                 function_name=f"create_{func_name}",
                 weight_prefix=weight_prefix,
-                registry=registry,
-                weight_quantization=weight_quantization,
+                quantization_config=quantization_config,
                 shape_exprs=shape_exprs,
             )
             (tensors_dir / f"{tensor_file}.py").write_text(render_tensor_module([tensor_src]))
@@ -392,8 +377,8 @@ def main() -> int:
                 class_name=cls_name,
                 function_name=name,
                 shader_package=f"{MODEL_PACKAGE}.shaders",
-                registry=registry,
-                weight_quantization=weight_quantization,
+                weight_prefix=weight_prefix,
+                quantization_config=quantization_config,
             )
 
         # Handle cross-submodule shader name conflicts
@@ -473,8 +458,7 @@ def main() -> int:
                reference_tensors="model_tensors().audio_encoder",
                reference_name="spike.audio.encoder",
                reference_policy="q4_tensor",
-               export_registry=Q8_0_REGISTRY,
-               weight_quantization=quantized_weights,
+               quantization_config=q4_k_m_config,
                shape_exprs=audio_shape_exprs)
 
     # Text pipeline exports
@@ -492,8 +476,7 @@ def main() -> int:
                reference_tensors="model_tensors().embed_tokens",
                reference_name="spike.text.embed",
                reference_policy="q8_tensor",
-               export_registry=Q8_0_REGISTRY,
-               weight_quantization=quantized_weights,
+               quantization_config=q4_k_m_config,
                shape_exprs=text_shape_exprs)
     export_one("run_audio_inject", AudioInjectModule(),
                args=(torch.zeros(1, pl, hs, device="meta"),
@@ -507,7 +490,6 @@ def main() -> int:
                reference_output_bindings={"embedding": "index_copy"},
                reference_tensors="model_tensors().audio_inject",
                reference_name="spike.text.audio_inject",
-               export_registry=DEFAULT_REGISTRY,
                shape_exprs={pl: "sequence_length", enc_seq: "audio_sequence_length"})
     export_one("run_text_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, pl, hs, device="meta"),
@@ -526,8 +508,7 @@ def main() -> int:
                reference_tensors="model_tensors().text_layers[layer_idx]",
                reference_name="spike.text.layer.{layer_idx}",
                reference_policy="q4_tensor",
-               export_registry=Q4_K_M_REGISTRY,
-               weight_quantization=quantized_weights,
+               quantization_config=q4_k_m_config,
                shape_exprs=text_layer_shape_exprs)
     export_one("run_text_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, pl, hs, device="meta"),),
@@ -535,7 +516,6 @@ def main() -> int:
                reference_module="thinker.model.norm",
                reference_tensors="model_tensors().text_norm",
                reference_name="spike.text.norm",
-               export_registry=DEFAULT_REGISTRY,
                shape_exprs=text_shape_exprs)
 
     # Decode-step exports (seq_len=1)
@@ -546,8 +526,7 @@ def main() -> int:
                reference_tensors="model_tensors().decode_embed",
                reference_name="spike.decode.{step:04d}.embed",
                reference_policy="q8_tensor",
-               export_registry=Q8_0_REGISTRY,
-               weight_quantization=quantized_weights)
+               quantization_config=q4_k_m_config)
     export_one("run_decode_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, 1, hs, device="meta"),
                      (torch.zeros(1, 1, hd, device="meta"),
@@ -565,16 +544,14 @@ def main() -> int:
                reference_tensors="model_tensors().decode_layers[layer_idx]",
                reference_name="spike.decode.{step:04d}.layer.{layer_idx}",
                reference_policy="q4_tensor",
-               export_registry=Q4_K_M_REGISTRY,
-               weight_quantization=quantized_weights,
+               quantization_config=q4_k_m_config,
                shape_exprs=decode_layer_shape_exprs)
     export_one("run_decode_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, 1, hs, device="meta"),),
                weight_prefix="thinker.model.norm.",
                reference_module="thinker.model.norm",
                reference_tensors="model_tensors().decode_norm",
-               reference_name="spike.decode.{step:04d}.norm",
-               export_registry=DEFAULT_REGISTRY)
+               reference_name="spike.decode.{step:04d}.norm")
     print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.
@@ -587,7 +564,7 @@ def main() -> int:
             checkpoint_key="thinker.lm_head.weight",
             dtype="float32",
             shape=lm_head_shape,
-            weight_quantization=quantized_weights,
+            quantization_config=q4_k_m_config,
         )
     ]))
     (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))

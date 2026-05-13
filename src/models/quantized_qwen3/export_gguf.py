@@ -8,13 +8,12 @@ from pathlib import Path
 from transformers import AutoConfig
 
 from models.hf_cache import resolve_cached_model
-from models.quantized_qwen3.quantization import Q8_TENSOR_NAMES, qwen3_q4_k_m_q6_tensor_names
-from torch2vk.quantize import Q4KMQuantizationConfig, export_q4_k_m_gguf
+from models.quantized_qwen3.quantization import qwen3_q4_k_m_config
+from torch2vk.quantize import export_q4_k_m_gguf
 
 
 REPO_ID = "Qwen/Qwen3-0.6B"
 REPO_ROOT = Path(__file__).resolve().parents[3]
-QUANTIZE_GGUF_ARCH = "qwen3"
 DEFAULT_Q4_K_M_GGUF = REPO_ROOT / "dist" / "quantized_qwen3" / "model.gguf"
 
 
@@ -29,12 +28,7 @@ def export_qwen3_q4_k_m_gguf(
     return export_q4_k_m_gguf(
         model_dir=resolved_model_dir,
         output=output,
-        config=Q4KMQuantizationConfig(
-            model_name="Qwen3",
-            gguf_arch=QUANTIZE_GGUF_ARCH,
-            q6_tensor_names=qwen3_q4_k_m_q6_tensor_names(int(config.num_hidden_layers)),
-            q8_tensor_names=Q8_TENSOR_NAMES,
-        ),
+        config=qwen3_q4_k_m_config(int(config.num_hidden_layers)),
         overwrite=overwrite,
     )
 

@@ -30,8 +30,6 @@ from torch2vk.export.reference_codegen import (
     render_reference_loader,
     render_reference_module,
 )
-from torch2vk.export.quantization import Q4KMWeightQuantization
-from torch2vk.export.registry import Q4_K_M_REGISTRY, Q8_0_REGISTRY
 from torch2vk.export.tensor_codegen import (
     TensorClassContext,
     generate_tensor_class_source,
@@ -49,9 +47,6 @@ __all__ = [
     "KVCacheExportHint",
     "KVCacheInjectHint",
     "LayerLoopHint",
-    "Q4KMWeightQuantization",
-    "Q4_K_M_REGISTRY",
-    "Q8_0_REGISTRY",
     "export_submodule",
     "inject_kv_cache",
     "read_checkpoint_dtypes",

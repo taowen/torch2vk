@@ -22,8 +22,8 @@ from torch2vk.export.dispatch_codegen import (
 )
 from torch2vk.export.dtype_policy import logical_tensor_dtype, requires_float32_intermediate
 from torch2vk.export.graph import SKIP_OPS
-from torch2vk.export.quantization import Q4KMWeightQuantization
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
+from torch2vk.quantize import Q4KMQuantizationConfig
 
 
 TensorClassContext: TypeAlias = dict[str, object]
@@ -156,7 +156,7 @@ def generate_tensor_class_source(
     checkpoint: str | None = None,
     is_layered: bool | None = None,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
-    weight_quantization: Q4KMWeightQuantization | None = None,
+    quantization_config: Q4KMQuantizationConfig | None = None,
     shape_exprs: Mapping[int, str] | None = None,
 ) -> TensorClassContext:
     """Generate tensor dataclass + factory function context for a single submodule."""
@@ -203,7 +203,12 @@ def generate_tensor_class_source(
 
     output_name = _find_output_name(graph, tensors)
 
-    node_variants = _resolve_all_variants(graph, registry)
+    node_variants = _resolve_all_variants(
+        graph,
+        registry,
+        parameter_map=param_map,
+        quantization_config=quantization_config,
+    )
     ops = _collect_ops(graph, node_variants)
     output_names = _find_graph_outputs(graph)
     if not output_names:
@@ -241,7 +246,7 @@ def generate_tensor_class_source(
                 checkpoint=repr(checkpoint) if meta.kind == _TensorKind.PARAMETER else "None",
                 concrete_checkpoint_key=param_map.get(name),
                 reference_key="None" if meta.kind != _TensorKind.INTERMEDIATE else repr(name),
-                weight_quantization=weight_quantization,
+                quantization_config=quantization_config,
                 shape_exprs=shape_exprs,
                 activation_dtype=registry.activation_dtype,
             )
@@ -264,7 +269,7 @@ def generate_tensor_class_source(
         ),
         tensors=tensor_entries,
         alias_ops=alias_ops,
-        q4_k_m_config=_q4_k_m_config_from_quantization(weight_quantization),
+        q4_k_m_config=_q4_k_m_config_from_quantization(quantization_config),
     )
 
 
@@ -276,7 +281,7 @@ def generate_weight_tensor_class_source(
     checkpoint_key: str,
     dtype: str,
     shape: tuple[int, ...],
-    weight_quantization: Q4KMWeightQuantization | None = None,
+    quantization_config: Q4KMQuantizationConfig | None = None,
     shape_exprs: Mapping[int, str] | None = None,
 ) -> TensorClassContext:
     """Generate a tensor class for a standalone model weight."""
@@ -292,7 +297,7 @@ def generate_weight_tensor_class_source(
         checkpoint="None",
         concrete_checkpoint_key=checkpoint_key,
         reference_key="None",
-        weight_quantization=weight_quantization,
+        quantization_config=quantization_config,
         shape_exprs=shape_exprs,
     )
     return render_tensor_class(
@@ -308,21 +313,21 @@ def generate_weight_tensor_class_source(
             uses_request_state_outputs=False,
         ),
         tensors=(tensor_entry,),
-        q4_k_m_config=_q4_k_m_config_from_quantization(weight_quantization),
+        q4_k_m_config=_q4_k_m_config_from_quantization(quantization_config),
         uses_request_state_outputs=False,
     )
 
 
 def _q4_k_m_config_from_quantization(
-    weight_quantization: Q4KMWeightQuantization | None,
+    quantization_config: Q4KMQuantizationConfig | None,
 ) -> dict[str, tuple[str, ...]] | None:
-    if weight_quantization is None:
+    if quantization_config is None:
         return None
     return {
-        "q6_names": tuple(sorted(weight_quantization.q6_tensor_names)),
-        "q6_prefixes": weight_quantization.q6_tensor_prefixes,
-        "q8_names": tuple(sorted(weight_quantization.q8_tensor_names)),
-        "q8_prefixes": weight_quantization.q8_tensor_prefixes,
+        "q6_names": tuple(sorted(quantization_config.q6_tensor_names)),
+        "q6_prefixes": quantization_config.q6_tensor_prefixes,
+        "q8_names": tuple(sorted(quantization_config.q8_tensor_names)),
+        "q8_prefixes": quantization_config.q8_tensor_prefixes,
     }
 
 
@@ -334,7 +339,7 @@ def _tensor_entry(
     checkpoint: str,
     concrete_checkpoint_key: str | None,
     reference_key: str,
-    weight_quantization: Q4KMWeightQuantization | None = None,
+    quantization_config: Q4KMQuantizationConfig | None = None,
     shape_exprs: Mapping[int, str] | None = None,
     activation_dtype: str = "float16",
 ) -> dict[str, object]:
@@ -348,10 +353,10 @@ def _tensor_entry(
     shape = meta.shape
     layout_source = "CONTIGUOUS_LAYOUT"
     spec_source = f"TensorSpec(dtype={dtype!r}, shape={_shape_source(shape, shape_exprs or {})})"
-    if kind == _TensorKind.PARAMETER and weight_quantization is not None:
+    if kind == _TensorKind.PARAMETER and quantization_config is not None:
         if concrete_checkpoint_key is None:
             raise ValueError(f"parameter tensor {name} is missing checkpoint key")
-        quantized = weight_quantization.declare(
+        quantized = quantization_config.declare_weight(
             checkpoint_key=concrete_checkpoint_key,
             dtype=dtype,
             shape=shape,

@@ -22,12 +22,13 @@ from torch2vk.export.dispatch_codegen import (
     _UnsupportedOp,
     _collect_ops,
     _find_graph_outputs,
+    _mixed_quantized_linear_op_names,
+    _parameter_map,
     _prune_dead_ops,
     _resolve_all_variants,
 )
 from torch2vk.export.dtype_policy import requires_float32_intermediate
 from torch2vk.export.graph import SKIP_OPS, LayerLoopHint
-from torch2vk.export.quantization import Q4KMWeightQuantization
 from torch2vk.export.tensor_codegen import (
     TensorClassContext,
     _TensorKind,
@@ -41,6 +42,7 @@ from torch2vk.export.tensor_codegen import (
     render_tensor_class,
 )
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
+from torch2vk.quantize import Q4KMQuantizationConfig
 from torch2vk.runtime.shader import ShaderVariant
 
 
@@ -292,16 +294,26 @@ def generate_looped_dispatch_function_source(
     weight_prefix: str = "",
     hint: LayerLoopHint,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
-    weight_quantization: Q4KMWeightQuantization | None = None,
+    quantization_config: Q4KMQuantizationConfig | None = None,
 ) -> tuple[str, dict[str, str], dict[str, ShaderVariant]]:
     """Generate dispatch function with a loop over layers.
 
     Returns (function_source, {shader_name: CONST_NAME}, {shader_name: ShaderVariant}).
     """
     graph = prog.graph_module.graph
-    node_variants = _resolve_all_variants(graph, registry)
-    q4_k_m_has_q6 = weight_quantization is not None and weight_quantization.has_q6
-    all_ops = _collect_ops(graph, node_variants, q4_k_m_has_q6=q4_k_m_has_q6)
+    parameter_map = _parameter_map(prog.graph_signature, weight_prefix)
+    node_variants = _resolve_all_variants(
+        graph,
+        registry,
+        parameter_map=parameter_map,
+        quantization_config=quantization_config,
+    )
+    q6_variant_op_names = _mixed_quantized_linear_op_names(
+        graph,
+        parameter_map=parameter_map,
+        quantization_config=quantization_config,
+    )
+    all_ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
     output_names = _find_graph_outputs(graph)
     live_ops = _prune_dead_ops(all_ops, output_names)
 
@@ -480,7 +492,7 @@ def generate_looped_tensor_class_sources(
     weight_prefix: str = "",
     hint: LayerLoopHint,
     registry: ShaderRegistry = DEFAULT_REGISTRY,
-    weight_quantization: Q4KMWeightQuantization | None = None,
+    quantization_config: Q4KMQuantizationConfig | None = None,
     shape_exprs: Mapping[int, str] | None = None,
 ) -> tuple[TensorClassContext, TensorClassContext]:
     """Generate parent + layer tensor classes.
@@ -489,7 +501,6 @@ def generate_looped_tensor_class_sources(
     """
     graph = prog.graph_module.graph
     sig = prog.graph_signature
-    node_variants = _resolve_all_variants(graph, registry)
 
     # Collect tensor metadata
     tensors: dict[str, _TensorMeta] = {}
@@ -514,6 +525,13 @@ def generate_looped_tensor_class_sources(
                     else:
                         user_inputs.append(spec.arg.name)
                 break
+
+    node_variants = _resolve_all_variants(
+        graph,
+        registry,
+        parameter_map=param_map,
+        quantization_config=quantization_config,
+    )
 
     for node in graph.nodes:
         if node.op == "call_function" and node.name not in tensors:
@@ -610,7 +628,7 @@ def generate_looped_tensor_class_sources(
         class_name=layer_class_name,
         function_name=layer_function_name,
         weight_prefix=weight_prefix,
-        weight_quantization=weight_quantization,
+        quantization_config=quantization_config,
         shape_exprs=shape_exprs,
         activation_dtype=registry.activation_dtype,
     )
@@ -629,7 +647,7 @@ def generate_looped_tensor_class_sources(
         output_name=output_name,
         analysis=analysis,
         classification=classification,
-        weight_quantization=weight_quantization,
+        quantization_config=quantization_config,
         shape_exprs=shape_exprs,
         activation_dtype=registry.activation_dtype,
     )
@@ -654,7 +672,7 @@ def _render_layer_class(
     class_name: str,
     function_name: str,
     weight_prefix: str,
-    weight_quantization: Q4KMWeightQuantization | None = None,
+    quantization_config: Q4KMQuantizationConfig | None = None,
     shape_exprs: Mapping[int, str] | None = None,
     activation_dtype: str = "float16",
 ) -> TensorClassContext:
@@ -672,7 +690,7 @@ def _render_layer_class(
                     checkpoint="None",
                     concrete_checkpoint_key=safetensors_key,
                     reference_key="None",
-                    weight_quantization=weight_quantization,
+                    quantization_config=quantization_config,
                     shape_exprs=shape_exprs,
                     activation_dtype=activation_dtype,
                 )
@@ -712,7 +730,7 @@ def _render_layer_class(
             shape_parameters=shape_parameters,
         ),
         tensors=tensor_entries,
-        q4_k_m_config=_q4_k_m_config_from_quantization(weight_quantization),
+        q4_k_m_config=_q4_k_m_config_from_quantization(quantization_config),
     )
 
 
@@ -730,7 +748,7 @@ def _render_parent_class(
     output_name: str | None,
     analysis: _LoopAnalysis,
     classification: dict[str, str],
-    weight_quantization: Q4KMWeightQuantization | None = None,
+    quantization_config: Q4KMQuantizationConfig | None = None,
     shape_exprs: Mapping[int, str] | None = None,
     activation_dtype: str = "float16",
 ) -> TensorClassContext:
@@ -747,7 +765,7 @@ def _render_parent_class(
                     checkpoint="None",
                     concrete_checkpoint_key=safetensors_key,
                     reference_key="None",
-                    weight_quantization=weight_quantization,
+                    quantization_config=quantization_config,
                     shape_exprs=shape_exprs,
                     activation_dtype=activation_dtype,
                 )
@@ -811,7 +829,7 @@ def _render_parent_class(
             ),
         ),
         alias_binding_lines=_loop_alias_binding_lines(analysis, classification),
-        q4_k_m_config=_q4_k_m_config_from_quantization(weight_quantization),
+        q4_k_m_config=_q4_k_m_config_from_quantization(quantization_config),
     )
 
 

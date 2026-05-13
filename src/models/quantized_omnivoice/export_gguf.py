@@ -7,16 +7,11 @@ from pathlib import Path
 
 from models.hf_cache import load_config_json, resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
-from models.quantized_omnivoice.quantization import (
-    Q8_TENSOR_PREFIXES,
-    Q8_TENSOR_NAMES,
-    omnivoice_q4_k_m_q6_tensor_names,
-)
-from torch2vk.quantize import Q4KMQuantizationConfig, export_q4_k_m_gguf
+from models.quantized_omnivoice.quantization import omnivoice_q4_k_m_config
+from torch2vk.quantize import export_q4_k_m_gguf
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-QUANTIZE_GGUF_ARCH = "clip"
 DEFAULT_Q4_K_M_GGUF = REPO_ROOT / "dist" / "quantized_omnivoice" / "model.gguf"
 
 
@@ -31,22 +26,11 @@ def export_omnivoice_q4_k_m_gguf(
     return export_q4_k_m_gguf(
         model_dir=resolved_model_dir,
         output=output,
-        config=Q4KMQuantizationConfig(
-            model_name="OmniVoice",
-            gguf_arch=QUANTIZE_GGUF_ARCH,
-            q6_tensor_names=omnivoice_q4_k_m_q6_tensor_names(_llm_num_hidden_layers(config)),
-            q8_tensor_names=Q8_TENSOR_NAMES,
-            q8_tensor_prefixes=Q8_TENSOR_PREFIXES,
-            safetensor_subdirs=("audio_tokenizer",),
-            extra_uint32_metadata=(
-                (f"{QUANTIZE_GGUF_ARCH}.audio_vocab_size", _config_int(config, "audio_vocab_size", 1025)),
-                (
-                    f"{QUANTIZE_GGUF_ARCH}.num_audio_codebook",
-                    _config_int(config, "num_audio_codebook", 8),
-                ),
-                (f"{QUANTIZE_GGUF_ARCH}.audio_mask_id", _config_int(config, "audio_mask_id", 1024)),
-                (f"{QUANTIZE_GGUF_ARCH}.includes_audio_tokenizer", 1),
-            ),
+        config=omnivoice_q4_k_m_config(
+            num_hidden_layers=_llm_num_hidden_layers(config),
+            audio_vocab_size=_config_int(config, "audio_vocab_size", 1025),
+            num_audio_codebook=_config_int(config, "num_audio_codebook", 8),
+            audio_mask_id=_config_int(config, "audio_mask_id", 1024),
         ),
         overwrite=overwrite,
     )
