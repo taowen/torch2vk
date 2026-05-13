@@ -19,12 +19,12 @@ from torch2vk.vulkan.shader_execution_requirements import (
 )
 
 
-SDPA_CAUSAL_CACHE_WRITE_F32 = ShaderVariant(
-    name="sdpa_causal_cache_write_f32",
+SDPA_CAUSAL_CACHE_WRITE_F16 = ShaderVariant(
+    name="sdpa_causal_cache_write_f16",
     family="export",
     contract=ShaderContract(
         class_name="OptimizedQwen3SdpaCausalCacheWriteProgram",
-        shader_name="sdpa_causal_cache_write_f32",
+        shader_name="sdpa_causal_cache_write_f16",
         fields=(
             TensorFieldSpec(
                 name="q",
@@ -73,7 +73,7 @@ SDPA_CAUSAL_CACHE_WRITE_F32 = ShaderVariant(
                 io_kind=IOKind.INOUT,
                 role="state",
                 contract=TensorContract(
-                    dtype="float32",
+                    dtype="float16",
                     shape=(
                         "B",
                         "NK",
@@ -87,7 +87,7 @@ SDPA_CAUSAL_CACHE_WRITE_F32 = ShaderVariant(
                 io_kind=IOKind.INOUT,
                 role="state",
                 contract=TensorContract(
-                    dtype="float32",
+                    dtype="float16",
                     shape=(
                         "B",
                         "NK",
@@ -148,8 +148,8 @@ layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float16_t q[]; };
 layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float16_t k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float16_t v[]; };
-layout(set = 0, binding = 3) buffer restrict KCacheBuffer { float k_cache[]; };
-layout(set = 0, binding = 4) buffer restrict VCacheBuffer { float v_cache[]; };
+layout(set = 0, binding = 3) buffer restrict KCacheBuffer { float16_t k_cache[]; };
+layout(set = 0, binding = 4) buffer restrict VCacheBuffer { float16_t v_cache[]; };
 layout(set = 0, binding = 5) buffer restrict readonly CachePositionBuffer { int64_t cache_position[]; };
 layout(set = 0, binding = 6) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants { uint B; uint NH; uint NK; uint T; uint S; uint D; } pc;
@@ -183,12 +183,12 @@ void main() {
         const uint k_row_base = k_base + row * pc.D;
         const uint cache_row_base = cache_base + dst_t * pc.D;
         if (valid0) {
-            k_cache[cache_row_base + dim0] = float(k[k_row_base + dim0]);
-            v_cache[cache_row_base + dim0] = float(v[((batch * pc.T + row) * pc.NK + kv_head) * pc.D + dim0]);
+            k_cache[cache_row_base + dim0] = k[k_row_base + dim0];
+            v_cache[cache_row_base + dim0] = v[((batch * pc.T + row) * pc.NK + kv_head) * pc.D + dim0];
         }
         if (valid1) {
-            k_cache[cache_row_base + dim1] = float(k[k_row_base + dim1]);
-            v_cache[cache_row_base + dim1] = float(v[((batch * pc.T + row) * pc.NK + kv_head) * pc.D + dim1]);
+            k_cache[cache_row_base + dim1] = k[k_row_base + dim1];
+            v_cache[cache_row_base + dim1] = v[((batch * pc.T + row) * pc.NK + kv_head) * pc.D + dim1];
         }
     }
 

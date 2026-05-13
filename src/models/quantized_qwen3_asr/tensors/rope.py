@@ -17,5 +17,4 @@ def create_rope_table(
         batch=batch,
         sequence_length=sequence_length,
         head_dim=head_dim,
-        dtype="float32",
     )

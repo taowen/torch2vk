@@ -1,4 +1,4 @@
-"""Generated shader: linear_bias_q8_0w_f32b_f32_act_f32."""
+"""Generated shader: linear_nobias_q8_0_f32."""
 
 from __future__ import annotations
 
@@ -24,18 +24,18 @@ from torch2vk.vulkan.types import (
 )
 
 
-LINEAR_BIAS_Q8_0W_F32B_F32_ACT_F32 = ShaderVariant(
-    name='linear_bias_q8_0w_f32b_f32_act_f32',
+LINEAR_NOBIAS_Q8_0_F32 = ShaderVariant(
+    name='linear_nobias_q8_0_f32',
     family='export',
     contract=ShaderContract(
-        class_name='ExportLinearBiasQ8_0WeightF32BiasProgram',
-        shader_name='linear_bias_q8_0w_f32b_f32_act_f32',
+        class_name='ExportLinearNobiasQ8_0Program',
+        shader_name='linear_nobias_q8_0_f32',
         fields=(
             TensorFieldSpec(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('X0', 'K',)),
+                contract=TensorContract(dtype='float16', shape=('X0', 'X1', 'K',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -44,28 +44,22 @@ LINEAR_BIAS_Q8_0W_F32B_F32_ACT_F32 = ShaderVariant(
                 contract=TensorContract(dtype='uint16', shape=('N', mul(ceil_div('K', 32), 17),), layout=q8_0_halfwords_layout(logical_k='K', block_size=32, halfwords_per_block=17)),
             ),
             TensorFieldSpec(
-                name='bias',
-                io_kind=IOKind.INPUT,
-                role='input',
-                contract=TensorContract(dtype='float32', shape=('N',)),
-            ),
-            TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('X0', 'N',)),
+                contract=TensorContract(dtype='float16', shape=('X0', 'X1', 'N',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, 'X0', dynamic=False),
+                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, mul('X0', 'X1'), dynamic=False),
                 PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 'K', dynamic=False),
                 PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 'N', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div('X0', 32), ceil_div('N', 16), 1),
+        dispatch=(ceil_div(mul('X0', 'X1'), 32), ceil_div('N', 16), 1),
     ),
     execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), cooperative_matrix=CooperativeMatrixRequirements(scope='subgroup', m_size=16, n_size=16, k_size=16, a_type='float16', b_type='float16', c_type='float32', result_type='float32', saturating_accumulation=False), require_storage_buffer_16bit_access=True),
     source="""\
@@ -82,10 +76,10 @@ LINEAR_BIAS_Q8_0W_F32B_F32_ACT_F32 = ShaderVariant(
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
-layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { float bias[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 
 layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
 
@@ -103,6 +97,7 @@ shared float16_t shared_a1[TILE_SIZE];
 shared float16_t shared_b[TILE_SIZE];
 shared float shared_out0[OUT_SIZE];
 shared float shared_out1[OUT_SIZE];
+
 shared float shared_q8_d[TILE_N];
 
 void prepare_q8_0_tile_scales(uint lane, uint col_base, uint k_base) {
@@ -130,7 +125,6 @@ float q8_0_value_prepared(uint row, uint k) {
     if (quant >= 128) { quant -= 256; }
     return shared_q8_d[row & 15u] * float(quant);
 }
-
 void load_a_tile_pair(uint lane, uint row_base, uint k_base) {
     for (uint i = lane; i < TILE_SIZE; i += 64u) {
         const uint row = i / TILE_K;
@@ -203,10 +197,10 @@ void main() {
         const uint n = col_base + col;
         if (n < pc.N) {
             if (m0 < pc.M) {
-                output_values[m0 * pc.N + n] = shared_out0[i] + float(bias[n]);
+                output_values[m0 * pc.N + n] = float16_t(shared_out0[i]);
             }
             if (m1 < pc.M) {
-                output_values[m1 * pc.N + n] = shared_out1[i] + float(bias[n]);
+                output_values[m1 * pc.N + n] = float16_t(shared_out1[i]);
             }
         }
     }

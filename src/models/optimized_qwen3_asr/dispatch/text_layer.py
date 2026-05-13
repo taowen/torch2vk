@@ -26,8 +26,8 @@ from models.optimized_qwen3_asr.shaders.rms_norm_mul_f16_f32 import RMS_NORM_MUL
 from models.optimized_qwen3_asr.shaders.rms_norm_rope_transpose_f16 import (
     RMS_NORM_ROPE_TRANSPOSE_F16,
 )
-from models.optimized_qwen3_asr.shaders.sdpa_causal_cache_write_f32 import (
-    SDPA_CAUSAL_CACHE_WRITE_F32,
+from models.optimized_qwen3_asr.shaders.sdpa_causal_cache_write_f16 import (
+    SDPA_CAUSAL_CACHE_WRITE_F16,
 )
 from models.optimized_qwen3_asr.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
 from models.optimized_qwen3_asr.shaders.swiglu_f16 import SWIGLU_F16
@@ -105,7 +105,7 @@ def _run_text_layer_with_tensors(rt: RuntimeSession, tensors: TextLayerTensors) 
         sin=tensors.position_embeddings_1,
         output=tensors.add_4,
     )
-    SDPA_CAUSAL_CACHE_WRITE_F32(
+    SDPA_CAUSAL_CACHE_WRITE_F16(
         rt,
         q=tensors.add_3,
         k=tensors.add_4,
@@ -166,7 +166,7 @@ def _run_text_last_layer_tail_with_tensors(rt: RuntimeSession, tensors: TextLaye
         sin=tensors.position_embeddings_1,
         output=tensors.add_4,
     )
-    SDPA_CAUSAL_CACHE_WRITE_F32(
+    SDPA_CAUSAL_CACHE_WRITE_F16(
         rt,
         q=tensors.add_3,
         k=tensors.add_4,

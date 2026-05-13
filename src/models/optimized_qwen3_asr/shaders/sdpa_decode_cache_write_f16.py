@@ -18,12 +18,12 @@ from torch2vk.vulkan.shader_execution_requirements import (
 )
 
 
-SDPA_DECODE_CACHE_WRITE_F32 = ShaderVariant(
-    name="sdpa_decode_cache_write_f32",
+SDPA_DECODE_CACHE_WRITE_F16 = ShaderVariant(
+    name="sdpa_decode_cache_write_f16",
     family="optimized_qwen3_asr",
     contract=ShaderContract(
-        class_name="SdpaDecodeCacheWriteF32Program",
-        shader_name="sdpa_decode_cache_write_f32",
+        class_name="SdpaDecodeCacheWriteF16Program",
+        shader_name="sdpa_decode_cache_write_f16",
         fields=(
             TensorFieldSpec(
                 "q",
@@ -47,13 +47,13 @@ SDPA_DECODE_CACHE_WRITE_F32 = ShaderVariant(
                 "k_cache",
                 IOKind.INOUT,
                 "state",
-                TensorContract(dtype="float32", shape=("B", "NK", "S", "D")),
+                TensorContract(dtype="float16", shape=("B", "NK", "S", "D")),
             ),
             TensorFieldSpec(
                 "v_cache",
                 IOKind.INOUT,
                 "state",
-                TensorContract(dtype="float32", shape=("B", "NK", "S", "D")),
+                TensorContract(dtype="float16", shape=("B", "NK", "S", "D")),
             ),
             TensorFieldSpec(
                 "cache_position",
@@ -97,8 +97,8 @@ layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float16_t q[]; };
 layout(set = 0, binding = 1) buffer restrict readonly NewKBuffer { float16_t new_k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly NewVBuffer { float16_t new_v[]; };
-layout(set = 0, binding = 3) buffer restrict KCacheBuffer { float k_cache[]; };
-layout(set = 0, binding = 4) buffer restrict VCacheBuffer { float v_cache[]; };
+layout(set = 0, binding = 3) buffer restrict KCacheBuffer { float16_t k_cache[]; };
+layout(set = 0, binding = 4) buffer restrict VCacheBuffer { float16_t v_cache[]; };
 layout(set = 0, binding = 5) buffer restrict readonly CachePositionBuffer { int64_t cache_position[]; };
 layout(set = 0, binding = 6) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; } pc;
@@ -124,8 +124,8 @@ void main() {
     const float new_v_value = valid_dim ? float(new_v[new_offset]) : 0.0;
     if (cache_writer && valid_dim && current_pos < pc.S) {
         const uint cache_offset = cache_head_base + current_pos * pc.D + dim;
-        k_cache[cache_offset] = new_k_value;
-        v_cache[cache_offset] = new_v_value;
+        k_cache[cache_offset] = float16_t(new_k_value);
+        v_cache[cache_offset] = float16_t(new_v_value);
     }
 
     const float q_value = valid_dim ? float(q[head * pc.D + dim]) : 0.0;

@@ -127,7 +127,7 @@ def create_model_tensors(
     )
     key_caches = tuple(
         _request_state_tensor(
-            "float32",
+            "float16",
             (1, num_key_value_heads, max_sequence_length, head_dim),
             semantic=TensorSemantic.KV_CACHE,
         )
@@ -135,7 +135,7 @@ def create_model_tensors(
     )
     value_caches = tuple(
         _request_state_tensor(
-            "float32",
+            "float16",
             (1, num_key_value_heads, max_sequence_length, head_dim),
             semantic=TensorSemantic.KV_CACHE,
         )
@@ -179,7 +179,7 @@ def create_model_tensors(
         hidden_states=text_layers[-1].add_7,
     )
     prefill_lm_head_input = _activation_tensor(
-        "float32",
+        "float16",
         (1, 1, int(text_norm.mul_1.spec.shape[-1])),
     )
     lm_head = create_lm_head(

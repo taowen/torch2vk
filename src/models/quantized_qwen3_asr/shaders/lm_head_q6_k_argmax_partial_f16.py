@@ -1,4 +1,4 @@
-"""Generated shader: linear_nobias_q6_k_matvec_f32_act_f32."""
+"""Generated shader: lm_head_q6_k_argmax_partial_f16."""
 
 from __future__ import annotations
 
@@ -23,18 +23,18 @@ from torch2vk.vulkan.types import (
 )
 
 
-LINEAR_NOBIAS_Q6_K_MATVEC_F32_ACT_F32 = ShaderVariant(
-    name='linear_nobias_q6_k_matvec_f32_act_f32',
-    family='export',
+LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16 = ShaderVariant(
+    name='lm_head_q6_k_argmax_partial_f16',
+    family='qwen3.text',
     contract=ShaderContract(
-        class_name='ExportLinearNobiasQ6KMatvecProgram',
-        shader_name='linear_nobias_q6_k_matvec_f32_act_f32',
+        class_name='LmHeadQ6KArgmaxPartialF16Program',
+        shader_name='lm_head_q6_k_argmax_partial_f16',
         fields=(
             TensorFieldSpec(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('X0', 'X1', 'K',)),
+                contract=TensorContract(dtype='float16', shape=(1, 1, 'K',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -43,22 +43,27 @@ LINEAR_NOBIAS_Q6_K_MATVEC_F32_ACT_F32 = ShaderVariant(
                 contract=TensorContract(dtype='uint16', shape=('N', mul(ceil_div('K', 256), 105),), layout=q6_k_halfwords_layout(logical_k='K', block_size=256, halfwords_per_block=105)),
             ),
             TensorFieldSpec(
-                name='output',
+                name='partial_scores',
                 io_kind=IOKind.OUTPUT,
-                role='output',
-                contract=TensorContract(dtype='float32', shape=('X0', 'X1', 'N',)),
+                role='partial_scores',
+                contract=TensorContract(dtype='float32', shape=('G',)),
+            ),
+            TensorFieldSpec(
+                name='partial_tokens',
+                io_kind=IOKind.OUTPUT,
+                role='partial_tokens',
+                contract=TensorContract(dtype='uint32', shape=('G',)),
             ),
         ),
         push_constants=PushConstantSpec(
-            size=12,
+            size=8,
             fields=(
-                PushConstantFieldSpec('M', PushConstantType.UINT32, 0, mul('X0', 'X1'), dynamic=False),
-                PushConstantFieldSpec('K', PushConstantType.UINT32, 4, 'K', dynamic=False),
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 8, 'N', dynamic=False),
+                PushConstantFieldSpec('K', PushConstantType.UINT32, 0, 'K', dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 4, 'N', dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div('N', 2), mul('X0', 'X1'), 1),
+        dispatch=(ceil_div('N', 4), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_storage_buffer_16bit_access=True),
     source="""\
@@ -73,14 +78,18 @@ LINEAR_NOBIAS_Q6_K_MATVEC_F32_ACT_F32 = ShaderVariant(
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
-layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { vec4 x4[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { f16vec4 x4[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly PartialScoresBuffer { float partial_scores[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly PartialTokensBuffer { uint partial_tokens[]; };
 
-layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
+layout(push_constant) uniform PushConstants { uint K; uint N; } pc;
 
-layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+shared float shared_score[4];
+shared uint shared_token[4];
 
 uint q6k_byte(uint block_half, uint byte_offset) {
     const uint packed = uint(weight[block_half + (byte_offset >> 1u)]);
@@ -109,11 +118,11 @@ vec4 unpack8_f32(uint value) {
     );
 }
 
-vec4 load_x4(uint row, uint k) {
-    return vec4(x4[(row * pc.K + k) >> 2u]);
+vec4 load_x4(uint k) {
+    return vec4(x4[k >> 2u]);
 }
 
-float q6k_block_dot(uint row, uint col, uint block_index, uint itid) {
+float q6k_block_dot(uint col, uint block_index, uint itid) {
     const uint blocks_per_row = pc.K / 256u;
     const uint block_half = col * blocks_per_row * 105u + block_index * 105u;
     const uint k_base = block_index * 256u;
@@ -122,11 +131,11 @@ float q6k_block_dot(uint row, uint col, uint block_index, uint itid) {
     const uint v_in = itid - 8u * v_im;
     const uint l0 = 4u * v_in;
     const uint is = v_in >> 2u;
-    const uint x_offset = k_base + 128u * v_im + l0;
 
     const uint ql_offset = 64u * v_im + l0;
     const uint qh_offset = 128u + 32u * v_im + l0;
     const uint scale_offset = 192u + 8u * v_im + is;
+    const uint x_offset = k_base + 128u * v_im + l0;
 
     const uint ql0 = q6k_u32(block_half, ql_offset);
     const uint ql32 = q6k_u32(block_half, ql_offset + 32u);
@@ -142,10 +151,10 @@ float q6k_block_dot(uint row, uint col, uint block_index, uint itid) {
     const vec4 q2 = unpack8_f32(q2_word) - vec4(32.0);
     const vec4 q3 = unpack8_f32(q3_word) - vec4(32.0);
 
-    const vec4 x0 = load_x4(row, x_offset);
-    const vec4 x1 = load_x4(row, x_offset + 32u);
-    const vec4 x2 = load_x4(row, x_offset + 64u);
-    const vec4 x3 = load_x4(row, x_offset + 96u);
+    const vec4 x0 = load_x4(x_offset);
+    const vec4 x1 = load_x4(x_offset + 32u);
+    const vec4 x2 = load_x4(x_offset + 64u);
+    const vec4 x3 = load_x4(x_offset + 96u);
 
     const float d = unpackHalf2x16(uint(weight[block_half + 104u])).x;
     const float s0 = float(q6k_i8(block_half, scale_offset));
@@ -155,38 +164,44 @@ float q6k_block_dot(uint row, uint col, uint block_index, uint itid) {
     return d * (dot(q0, x0) * s0 + dot(q1, x1) * s1 + dot(q2, x2) * s2 + dot(q3, x3) * s3);
 }
 
-void main() {
-    const uint col0 = gl_WorkGroupID.x * 2u;
-    const uint col1 = col0 + 1u;
-    const uint row = gl_WorkGroupID.y;
+float q6k_dot(uint col) {
     const uint lane = gl_SubgroupInvocationID;
-    if (row >= pc.M) {
-        return;
-    }
-
     const uint itid = lane & 15u;
     const uint ix = lane >> 4u;
     const uint blocks_per_row = pc.K / 256u;
-    float acc0 = 0.0;
-    float acc1 = 0.0;
+    float acc = 0.0;
     for (uint block = ix; block < blocks_per_row; block += 4u) {
-        if (col0 < pc.N) {
-            acc0 += q6k_block_dot(row, col0, block, itid);
-        }
-        if (col1 < pc.N) {
-            acc1 += q6k_block_dot(row, col1, block, itid);
-        }
+        acc += q6k_block_dot(col, block, itid);
     }
+    return subgroupAdd(acc);
+}
 
-    acc0 = subgroupAdd(acc0);
-    acc1 = subgroupAdd(acc1);
-    if (lane == 0u) {
-        if (col0 < pc.N) {
-            output_values[row * pc.N + col0] = acc0;
+bool better_pair(float lhs_score, uint lhs_token, float rhs_score, uint rhs_token) {
+    return lhs_score > rhs_score || (lhs_score == rhs_score && lhs_token < rhs_token);
+}
+
+void main() {
+    const uint subgroup_id = gl_SubgroupID;
+    const uint subgroup_lane = gl_SubgroupInvocationID;
+    const uint token = gl_WorkGroupID.x * 4u + subgroup_id;
+    const float score = token < pc.N ? q6k_dot(token) : -3.4028234663852886e+38;
+    if (subgroup_lane == 0u) {
+        shared_score[subgroup_id] = score;
+        shared_token[subgroup_id] = token;
+    }
+    barrier();
+
+    if (gl_LocalInvocationID.x == 0u) {
+        float best_score = shared_score[0];
+        uint best_token = shared_token[0];
+        for (uint i = 1u; i < 4u; ++i) {
+            if (better_pair(shared_score[i], shared_token[i], best_score, best_token)) {
+                best_score = shared_score[i];
+                best_token = shared_token[i];
+            }
         }
-        if (col1 < pc.N) {
-            output_values[row * pc.N + col1] = acc1;
-        }
+        partial_scores[gl_WorkGroupID.x] = best_score;
+        partial_tokens[gl_WorkGroupID.x] = best_token;
     }
 }
 """,

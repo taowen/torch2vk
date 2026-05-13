@@ -30,25 +30,25 @@ SDPA_CAUSAL_F32 = ShaderVariant(
                 name='q',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('Q0', 'Q1', 'Q2', 'Q3',)),
+                contract=TensorContract(dtype='float16', shape=('Q0', 'Q1', 'Q2', 'Q3',)),
             ),
             TensorFieldSpec(
                 name='k',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('K0', 'K1', 'K2', 'K3',)),
+                contract=TensorContract(dtype='float16', shape=('K0', 'K1', 'K2', 'K3',)),
             ),
             TensorFieldSpec(
                 name='v',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('V0', 'V1', 'V2', 'V3',)),
+                contract=TensorContract(dtype='float16', shape=('V0', 'V1', 'V2', 'V3',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('O0', 'O1', 'O2', 'O3',)),
+                contract=TensorContract(dtype='float16', shape=('O0', 'O1', 'O2', 'O3',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -65,17 +65,19 @@ SDPA_CAUSAL_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(mul('Q0', 'Q1'), 'Q2', 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True)),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
 
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float q[]; };
-layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float k[]; };
-layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float v[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float16_t q[]; };
+layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float16_t k[]; };
+layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float16_t v[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants { uint B; uint NH; uint NK; uint T; uint S; uint D; } pc;
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
@@ -128,10 +130,10 @@ void main() {
     if (running_sum > 0.0) {
         const uint output_base = (batch * pc.NH + head) * pc.T * pc.D + row * pc.D;
         if (valid0) {
-            output_values[output_base + dim0] = acc0 / running_sum;
+            output_values[output_base + dim0] = float16_t(acc0 / running_sum);
         }
         if (valid1) {
-            output_values[output_base + dim1] = acc1 / running_sum;
+            output_values[output_base + dim1] = float16_t(acc1 / running_sum);
         }
     }
 }

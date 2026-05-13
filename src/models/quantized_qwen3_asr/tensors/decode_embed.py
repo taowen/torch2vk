@@ -76,7 +76,7 @@ def create_decode_embed(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='embedding',
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,

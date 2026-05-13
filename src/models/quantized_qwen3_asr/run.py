@@ -30,8 +30,8 @@ from models.quantized_qwen3_asr.pytorch_modules import (
     audio_position_embedding_shape,
     preprocess_audio_inputs,
 )
-from models.quantized_qwen3_asr.shaders.lm_head_q6_k_argmax_partial_f32 import (
-    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32,
+from models.quantized_qwen3_asr.shaders.lm_head_q6_k_argmax_partial_f16 import (
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
 )
 from models.quantized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
     QWEN3_ASR_TOKEN_STORE_EOS_F32,
@@ -42,7 +42,7 @@ from models.quantized_qwen3_asr.shaders.qwen3_token_select_reduce_chunks_f32 imp
 from models.quantized_qwen3_asr.shaders.qwen3_token_select_reduce_f32 import (
     QWEN3_TOKEN_SELECT_REDUCE_F32,
 )
-from models.quantized_qwen3_asr.shaders.slice_last_token_f32 import SLICE_LAST_TOKEN_F32
+from models.quantized_qwen3_asr.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
 from models.quantized_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
@@ -71,7 +71,7 @@ def _require_gpu_output(tensor: LogicalTensor) -> None:
 
 def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
     tensors = model_tensors()
-    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32(
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16(
         rt,
         x=x,
         weight=tensors.lm_head.p_weight,
@@ -97,7 +97,7 @@ def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
 
 def _slice_prefill_lm_head_input(rt: RuntimeSession) -> None:
     tensors = model_tensors()
-    SLICE_LAST_TOKEN_F32(
+    SLICE_LAST_TOKEN_F16(
         rt,
         x=tensors.text_norm.mul_1,
         output=tensors.prefill_lm_head_input,

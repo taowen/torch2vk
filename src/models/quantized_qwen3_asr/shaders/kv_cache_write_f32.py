@@ -30,7 +30,7 @@ KV_CACHE_WRITE_F32 = ShaderVariant(
                 name='cache',
                 io_kind=IOKind.INOUT,
                 role='state',
-                contract=TensorContract(dtype='float32', shape=('B', 'H', 'S', 'D',)),
+                contract=TensorContract(dtype='float16', shape=('B', 'H', 'S', 'D',)),
             ),
             TensorFieldSpec(
                 name='cache_position',
@@ -42,7 +42,7 @@ KV_CACHE_WRITE_F32 = ShaderVariant(
                 name='src',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('B', 'H', 'T', 'D',)),
+                contract=TensorContract(dtype='float16', shape=('B', 'H', 'T', 'D',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -58,14 +58,16 @@ KV_CACHE_WRITE_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul(mul(mul('B', 'H'), 'T'), 'D'), 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True, require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict CacheBuffer { float cache[]; };
+layout(set = 0, binding = 0) buffer restrict CacheBuffer { float16_t cache[]; };
 layout(set = 0, binding = 1) buffer restrict readonly CachePositionBuffer { int64_t cache_position[]; };
-layout(set = 0, binding = 2) buffer restrict readonly SrcBuffer { float src[]; };
+layout(set = 0, binding = 2) buffer restrict readonly SrcBuffer { float16_t src[]; };
 layout(push_constant) uniform PushConstants { uint B; uint H; uint S; uint D; uint T; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {

@@ -22,8 +22,8 @@ from models.optimized_qwen3_asr.shaders.rms_norm_mul_f16_f32 import RMS_NORM_MUL
 from models.optimized_qwen3_asr.shaders.rms_norm_rope_transpose_f16 import (
     RMS_NORM_ROPE_TRANSPOSE_F16,
 )
-from models.optimized_qwen3_asr.shaders.sdpa_decode_cache_write_f32 import (
-    SDPA_DECODE_CACHE_WRITE_F32,
+from models.optimized_qwen3_asr.shaders.sdpa_decode_cache_write_f16 import (
+    SDPA_DECODE_CACHE_WRITE_F16,
 )
 from models.optimized_qwen3_asr.shaders.swiglu_f16 import SWIGLU_F16
 from models.optimized_qwen3_asr.tensors.decode_layer import DecodeLayerTensors
@@ -94,7 +94,7 @@ def _run_decode_layer_with_tensors(rt: RuntimeSession, tensors: DecodeLayerTenso
         sin=tensors.position_embeddings_1,
         output=tensors.add_4,
     )
-    SDPA_DECODE_CACHE_WRITE_F32(
+    SDPA_DECODE_CACHE_WRITE_F16(
         rt,
         q=tensors.add_3,
         new_k=tensors.add_4,

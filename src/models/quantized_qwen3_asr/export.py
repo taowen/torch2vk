@@ -40,14 +40,14 @@ from torch2vk.export import (
 )
 from torch2vk.export.graph import inject_kv_cache
 from torch2vk.export.shaders.lm_head_q6_k_argmax_partial_f32 import (
-    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32,
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
 )
 from torch2vk.export.shaders.qwen3_asr_token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
 from torch2vk.export.shaders.qwen3_token_select_reduce_f32 import (
     QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
     QWEN3_TOKEN_SELECT_REDUCE_F32,
 )
-from torch2vk.export.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F32
+from torch2vk.export.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
 from torch2vk.export.dispatch_codegen import (
     bind_dispatch_function_to_tensors,
     generate_dispatch_function_source,
@@ -81,9 +81,6 @@ from torch2vk.runtime.shader import ShaderVariant
 
 MODEL_PACKAGE = "models.quantized_qwen3_asr"
 _TEMPLATE_DIR = Path(__file__).with_name("templates")
-_DEFAULT_F32_REGISTRY = DEFAULT_REGISTRY.with_activation_dtype("float32")
-_Q4_K_M_F32_REGISTRY = Q4_K_M_REGISTRY.with_activation_dtype("float32")
-_Q8_0_F32_REGISTRY = Q8_0_REGISTRY.with_activation_dtype("float32")
 
 _JINJA = Environment(
     autoescape=False,
@@ -237,8 +234,8 @@ def main() -> int:
     )
 
     custom_shader_variants = (
-        LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32,
-        SLICE_LAST_TOKEN_F32,
+        LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
+        SLICE_LAST_TOKEN_F16,
         QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
         QWEN3_TOKEN_SELECT_REDUCE_F32,
         QWEN3_ASR_TOKEN_STORE_EOS_F32,
@@ -476,7 +473,7 @@ def main() -> int:
                reference_tensors="model_tensors().audio_encoder",
                reference_name="spike.audio.encoder",
                reference_policy="q4_tensor",
-               export_registry=_Q8_0_F32_REGISTRY,
+               export_registry=Q8_0_REGISTRY,
                weight_quantization=quantized_weights,
                shape_exprs=audio_shape_exprs)
 
@@ -495,7 +492,7 @@ def main() -> int:
                reference_tensors="model_tensors().embed_tokens",
                reference_name="spike.text.embed",
                reference_policy="q8_tensor",
-               export_registry=_Q8_0_F32_REGISTRY,
+               export_registry=Q8_0_REGISTRY,
                weight_quantization=quantized_weights,
                shape_exprs=text_shape_exprs)
     export_one("run_audio_inject", AudioInjectModule(),
@@ -510,7 +507,7 @@ def main() -> int:
                reference_output_bindings={"embedding": "index_copy"},
                reference_tensors="model_tensors().audio_inject",
                reference_name="spike.text.audio_inject",
-               export_registry=_DEFAULT_F32_REGISTRY,
+               export_registry=DEFAULT_REGISTRY,
                shape_exprs={pl: "sequence_length", enc_seq: "audio_sequence_length"})
     export_one("run_text_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, pl, hs, device="meta"),
@@ -529,7 +526,7 @@ def main() -> int:
                reference_tensors="model_tensors().text_layers[layer_idx]",
                reference_name="spike.text.layer.{layer_idx}",
                reference_policy="q4_tensor",
-               export_registry=_Q4_K_M_F32_REGISTRY,
+               export_registry=Q4_K_M_REGISTRY,
                weight_quantization=quantized_weights,
                shape_exprs=text_layer_shape_exprs)
     export_one("run_text_norm", model.thinker.model.norm.float(),
@@ -538,7 +535,7 @@ def main() -> int:
                reference_module="thinker.model.norm",
                reference_tensors="model_tensors().text_norm",
                reference_name="spike.text.norm",
-               export_registry=_DEFAULT_F32_REGISTRY,
+               export_registry=DEFAULT_REGISTRY,
                shape_exprs=text_shape_exprs)
 
     # Decode-step exports (seq_len=1)
@@ -549,7 +546,7 @@ def main() -> int:
                reference_tensors="model_tensors().decode_embed",
                reference_name="spike.decode.{step:04d}.embed",
                reference_policy="q8_tensor",
-               export_registry=_Q8_0_F32_REGISTRY,
+               export_registry=Q8_0_REGISTRY,
                weight_quantization=quantized_weights)
     export_one("run_decode_layer", model.thinker.model.layers[0],
                args=(torch.zeros(1, 1, hs, device="meta"),
@@ -568,7 +565,7 @@ def main() -> int:
                reference_tensors="model_tensors().decode_layers[layer_idx]",
                reference_name="spike.decode.{step:04d}.layer.{layer_idx}",
                reference_policy="q4_tensor",
-               export_registry=_Q4_K_M_F32_REGISTRY,
+               export_registry=Q4_K_M_REGISTRY,
                weight_quantization=quantized_weights,
                shape_exprs=decode_layer_shape_exprs)
     export_one("run_decode_norm", model.thinker.model.norm.float(),
@@ -577,7 +574,7 @@ def main() -> int:
                reference_module="thinker.model.norm",
                reference_tensors="model_tensors().decode_norm",
                reference_name="spike.decode.{step:04d}.norm",
-               export_registry=_DEFAULT_F32_REGISTRY)
+               export_registry=DEFAULT_REGISTRY)
     print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.

@@ -1,4 +1,4 @@
-"""Generated shader: conv2d_q8_0w_f32b_f32_2."""
+"""Generated shader: conv2d_q8_0w_f32b_f16_3."""
 
 from __future__ import annotations
 
@@ -22,18 +22,18 @@ from torch2vk.vulkan.types import (
 )
 
 
-CONV2D_Q8_0W_F32B_F32_2 = ShaderVariant(
-    name='conv2d_q8_0w_f32b_f32_2',
+CONV2D_Q8_0W_F32B_F16_3 = ShaderVariant(
+    name='conv2d_q8_0w_f32b_f16_3',
     family='export',
     contract=ShaderContract(
         class_name='ExportConv2dQ8_0WeightF32BiasProgram',
-        shader_name='conv2d_q8_0w_f32b_f32_2',
+        shader_name='conv2d_q8_0w_f32b_f16_3',
         fields=(
             TensorFieldSpec(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('B', 'Ci', 'Hi', 'Wi',)),
+                contract=TensorContract(dtype='float16', shape=('B', 'Ci', 'Hi', 'Wi',)),
             ),
             TensorFieldSpec(
                 name='weight',
@@ -51,7 +51,7 @@ CONV2D_Q8_0W_F32B_F32_2 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('B', 'Co', 'Ho', 'Wo',)),
+                contract=TensorContract(dtype='float16', shape=('B', 'Co', 'Ho', 'Wo',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -81,12 +81,14 @@ CONV2D_Q8_0W_F32B_F32_2 = ShaderVariant(
 
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
 layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { float bias[]; };
-layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float output_values[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint batch; uint in_c; uint in_h; uint in_w;
     uint out_c; uint out_h; uint out_w;
@@ -130,7 +132,7 @@ void main() {
             }
         }
     }
-    output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = acc;
+    output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = float16_t(acc);
 }
 """,
 )
