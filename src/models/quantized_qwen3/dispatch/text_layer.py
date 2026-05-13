@@ -3,106 +3,275 @@
 from __future__ import annotations
 
 from models.quantized_qwen3.tensors.model import model_tensors
-from models.quantized_qwen3.shaders.add_f32 import ADD_F32
-from models.quantized_qwen3.shaders.add_f32_33 import ADD_F32_33
 from models.quantized_qwen3.shaders.add_f32_36 import ADD_F32_36
-from models.quantized_qwen3.shaders.add_scalar import ADD_SCALAR
-from models.quantized_qwen3.shaders.add_scalar_11 import ADD_SCALAR_11
-from models.quantized_qwen3.shaders.add_scalar_18 import ADD_SCALAR_18
-from models.quantized_qwen3.shaders.cat_f32 import CAT_F32
-from models.quantized_qwen3.shaders.kv_cache_write_f32 import KV_CACHE_WRITE_F32
-from models.quantized_qwen3.shaders.linear_nobias_q4_k_f32 import LINEAR_NOBIAS_Q4_K_F32
-from models.quantized_qwen3.shaders.linear_nobias_q6_k_f32 import LINEAR_NOBIAS_Q6_K_F32
-from models.quantized_qwen3.shaders.linear_nobias_q8_0_f32 import LINEAR_NOBIAS_Q8_0_F32
-from models.quantized_qwen3.shaders.mean_dim_f32 import MEAN_DIM_F32
-from models.quantized_qwen3.shaders.mean_dim_f32_10 import MEAN_DIM_F32_10
-from models.quantized_qwen3.shaders.mean_dim_f32_17 import MEAN_DIM_F32_17
-from models.quantized_qwen3.shaders.mul_broadcast_inner import MUL_BROADCAST_INNER
-from models.quantized_qwen3.shaders.mul_broadcast_last import MUL_BROADCAST_LAST
-from models.quantized_qwen3.shaders.mul_broadcast_last_13 import MUL_BROADCAST_LAST_13
-from models.quantized_qwen3.shaders.mul_broadcast_last_20 import MUL_BROADCAST_LAST_20
-from models.quantized_qwen3.shaders.mul_f32 import MUL_F32
-from models.quantized_qwen3.shaders.mul_left_broadcast_f32x_f32 import MUL_LEFT_BROADCAST_F32X_F32
-from models.quantized_qwen3.shaders.mul_left_broadcast_f32x_f32_14 import MUL_LEFT_BROADCAST_F32X_F32_14
-from models.quantized_qwen3.shaders.mul_left_broadcast_f32x_f32_21 import MUL_LEFT_BROADCAST_F32X_F32_21
-from models.quantized_qwen3.shaders.neg_f32 import NEG_F32
-from models.quantized_qwen3.shaders.pow_scalar_f32 import POW_SCALAR_F32
-from models.quantized_qwen3.shaders.pow_scalar_f32_16 import POW_SCALAR_F32_16
-from models.quantized_qwen3.shaders.pow_scalar_f32_9 import POW_SCALAR_F32_9
-from models.quantized_qwen3.shaders.rsqrt_f32 import RSQRT_F32
-from models.quantized_qwen3.shaders.rsqrt_f32_12 import RSQRT_F32_12
-from models.quantized_qwen3.shaders.rsqrt_f32_19 import RSQRT_F32_19
-from models.quantized_qwen3.shaders.sdpa_causal_f32 import SDPA_CAUSAL_F32
-from models.quantized_qwen3.shaders.silu_f32 import SILU_F32
-from models.quantized_qwen3.shaders.slice_f32 import SLICE_F32
-from models.quantized_qwen3.shaders.slice_f32_25 import SLICE_F32_25
-from models.quantized_qwen3.shaders.slice_f32_29 import SLICE_F32_29
-from models.quantized_qwen3.shaders.transpose_f32_18ea7e18c0 import TRANSPOSE_F32_18EA7E18C0
-from models.quantized_qwen3.shaders.transpose_f32_db1599f0ff import TRANSPOSE_F32_DB1599F0FF
-from models.quantized_qwen3.shaders.transpose_f32_ec88ebb72b import TRANSPOSE_F32_EC88EBB72B
+from models.quantized_qwen3.shaders.add_f32_prefill import ADD_F32_PREFILL
+from models.quantized_qwen3.shaders.fa_mask_opt_f16 import FA_MASK_OPT_F16
+from models.quantized_qwen3.shaders.llama_matmul_q4_k_f32 import (
+    LLAMA_MATMUL_Q4_K_F32_L,
+    LLAMA_MATMUL_Q4_K_F32_M,
+)
+from models.quantized_qwen3.shaders.llama_matmul_q6_k_f32 import (
+    LLAMA_MATMUL_Q6_K_F32_L,
+    LLAMA_MATMUL_Q6_K_F32_M,
+)
+from models.quantized_qwen3.shaders.linear_nobias_q4_k_matvec_f32 import LINEAR_NOBIAS_Q4_K_MATVEC_F32
+from models.quantized_qwen3.shaders.linear_nobias_q4_k_qk_matvec_f32 import LINEAR_NOBIAS_Q4_K_QK_MATVEC_F32
+from models.quantized_qwen3.shaders.linear_nobias_q6_k_matvec_f32 import LINEAR_NOBIAS_Q6_K_MATVEC_F32
+from models.quantized_qwen3.shaders.rms_norm_mul_f32 import RMS_NORM_MUL_F32
+from models.quantized_qwen3.shaders.rms_norm_mul_f16_f32 import RMS_NORM_MUL_F16_F32
+from models.quantized_qwen3.shaders.rms_norm_rope_token_f32 import RMS_NORM_ROPE_TOKEN_F32
+from models.quantized_qwen3.shaders.rms_norm_rope_token_f32_to_f16 import (
+    RMS_NORM_ROPE_TOKEN_F32_TO_F16,
+)
+from models.quantized_qwen3.shaders.llama_flash_attn_f32_f16_f16 import LLAMA_FLASH_ATTN_F32_F16_F16
+from models.quantized_qwen3.shaders.slice_last_token_f32_to_f16 import SLICE_LAST_TOKEN_F32_TO_F16
+from models.quantized_qwen3.shaders.swiglu_f32 import SWIGLU_F32
+from models.quantized_qwen3.shaders.swiglu_f16 import SWIGLU_F16
+from models.quantized_qwen3.shaders.token_major_kv_cache_write_f16_pair import (
+    TOKEN_MAJOR_KV_CACHE_WRITE_F16_PAIR,
+)
+from models.quantized_qwen3.shaders.token_major_kv_cache_write_f16_triple import (
+    TOKEN_MAJOR_KV_CACHE_WRITE_F16_TRIPLE,
+)
+from models.quantized_qwen3.shaders.token_major_value_cache_write_f32_to_f16_pair import (
+    TOKEN_MAJOR_VALUE_CACHE_WRITE_F32_TO_F16_PAIR,
+)
+from models.quantized_qwen3.shaders.token_major_value_cache_write_f32_to_f16_triple import (
+    TOKEN_MAJOR_VALUE_CACHE_WRITE_F32_TO_F16_TRIPLE,
+)
 from models.quantized_qwen3.tensors.text_layer import TextLayerTensors
-from torch2vk.runtime.quantized_dispatch import run_quantized_linear
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.session import RuntimeSession
 
 
-def _run_text_layer_with_tensors(rt: RuntimeSession, tensors: TextLayerTensors) -> None:
-    POW_SCALAR_F32(rt, x=tensors.to, output=tensors.pow_1)
-    MEAN_DIM_F32(rt, x=tensors.pow_1, output=tensors.mean)
-    ADD_SCALAR(rt, x=tensors.mean, output=tensors.add)
-    RSQRT_F32(rt, x=tensors.add, output=tensors.rsqrt)
-    MUL_BROADCAST_LAST(rt, x=tensors.to, y=tensors.rsqrt, output=tensors.mul)
-    MUL_LEFT_BROADCAST_F32X_F32(rt, x=tensors.p_input_layernorm_weight, y=tensors.to_1, output=tensors.mul_1)
-    run_quantized_linear(rt, q4=LINEAR_NOBIAS_Q4_K_F32, q6=LINEAR_NOBIAS_Q6_K_F32, q8=LINEAR_NOBIAS_Q8_0_F32, x=tensors.mul_1, weight=tensors.p_attn_q_proj_weight, output=tensors.linear)
-    POW_SCALAR_F32_9(rt, x=tensors.to_2, output=tensors.pow_2)
-    MEAN_DIM_F32_10(rt, x=tensors.pow_2, output=tensors.mean_1)
-    ADD_SCALAR_11(rt, x=tensors.mean_1, output=tensors.add_1)
-    RSQRT_F32_12(rt, x=tensors.add_1, output=tensors.rsqrt_1)
-    MUL_BROADCAST_LAST_13(rt, x=tensors.to_2, y=tensors.rsqrt_1, output=tensors.mul_2)
-    MUL_LEFT_BROADCAST_F32X_F32_14(rt, x=tensors.p_attn_q_norm_weight, y=tensors.to_3, output=tensors.mul_3)
-    TRANSPOSE_F32_18EA7E18C0(rt, x=tensors.mul_3, output=tensors.transpose)
-    run_quantized_linear(rt, q4=LINEAR_NOBIAS_Q4_K_F32, q6=LINEAR_NOBIAS_Q6_K_F32, q8=LINEAR_NOBIAS_Q8_0_F32, x=tensors.mul_1, weight=tensors.p_attn_k_proj_weight, output=tensors.linear_1)
-    POW_SCALAR_F32_16(rt, x=tensors.to_4, output=tensors.pow_3)
-    MEAN_DIM_F32_17(rt, x=tensors.pow_3, output=tensors.mean_2)
-    ADD_SCALAR_18(rt, x=tensors.mean_2, output=tensors.add_2)
-    RSQRT_F32_19(rt, x=tensors.add_2, output=tensors.rsqrt_2)
-    MUL_BROADCAST_LAST_20(rt, x=tensors.to_4, y=tensors.rsqrt_2, output=tensors.mul_4)
-    MUL_LEFT_BROADCAST_F32X_F32_21(rt, x=tensors.p_attn_k_norm_weight, y=tensors.to_5, output=tensors.mul_5)
-    TRANSPOSE_F32_EC88EBB72B(rt, x=tensors.mul_5, output=tensors.transpose_1)
-    run_quantized_linear(rt, q4=LINEAR_NOBIAS_Q4_K_F32, q6=LINEAR_NOBIAS_Q6_K_F32, q8=LINEAR_NOBIAS_Q8_0_F32, x=tensors.mul_1, weight=tensors.p_attn_v_proj_weight, output=tensors.linear_2)
-    TRANSPOSE_F32_EC88EBB72B(rt, x=tensors.view_2, output=tensors.transpose_2)
-    MUL_BROADCAST_INNER(rt, x=tensors.transpose, y=tensors.unsqueeze, output=tensors.mul_6)
-    SLICE_F32(rt, x=tensors.transpose, output=tensors.slice_1)
-    SLICE_F32_25(rt, x=tensors.transpose, output=tensors.slice_2)
-    NEG_F32(rt, x=tensors.slice_2, output=tensors.neg)
-    CAT_F32(rt, a=tensors.neg, b=tensors.slice_1, output=tensors.cat)
-    MUL_BROADCAST_INNER(rt, x=tensors.cat, y=tensors.unsqueeze_1, output=tensors.mul_7)
-    ADD_F32(rt, x=tensors.mul_6, y=tensors.mul_7, output=tensors.add_3)
-    MUL_BROADCAST_INNER(rt, x=tensors.transpose_1, y=tensors.unsqueeze, output=tensors.mul_8)
-    SLICE_F32(rt, x=tensors.transpose_1, output=tensors.slice_3)
-    SLICE_F32_29(rt, x=tensors.transpose_1, output=tensors.slice_4)
-    NEG_F32(rt, x=tensors.slice_4, output=tensors.neg_1)
-    CAT_F32(rt, a=tensors.neg_1, b=tensors.slice_3, output=tensors.cat_1)
-    MUL_BROADCAST_INNER(rt, x=tensors.cat_1, y=tensors.unsqueeze_1, output=tensors.mul_9)
-    ADD_F32(rt, x=tensors.mul_8, y=tensors.mul_9, output=tensors.add_4)
-    KV_CACHE_WRITE_F32(rt, cache=tensors.index_copy, cache_position=tensors.cache_position, src=tensors.add_4)
-    KV_CACHE_WRITE_F32(rt, cache=tensors.index_copy_1, cache_position=tensors.cache_position, src=tensors.transpose_2)
-    SDPA_CAUSAL_F32(rt, q=tensors.add_3, k=tensors.add_4, v=tensors.transpose_2, output=tensors.scaled_dot_product_attention)
-    TRANSPOSE_F32_DB1599F0FF(rt, x=tensors.scaled_dot_product_attention, output=tensors.transpose_3)
-    run_quantized_linear(rt, q4=LINEAR_NOBIAS_Q4_K_F32, q6=LINEAR_NOBIAS_Q6_K_F32, q8=LINEAR_NOBIAS_Q8_0_F32, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)
-    ADD_F32_33(rt, x=tensors.to, y=tensors.linear_3, output=tensors.add_5)
-    POW_SCALAR_F32(rt, x=tensors.to_6, output=tensors.pow_4)
-    MEAN_DIM_F32(rt, x=tensors.pow_4, output=tensors.mean_3)
-    ADD_SCALAR(rt, x=tensors.mean_3, output=tensors.add_6)
-    RSQRT_F32(rt, x=tensors.add_6, output=tensors.rsqrt_3)
-    MUL_BROADCAST_LAST(rt, x=tensors.to_6, y=tensors.rsqrt_3, output=tensors.mul_10)
-    MUL_LEFT_BROADCAST_F32X_F32(rt, x=tensors.p_post_attention_layernorm_weight, y=tensors.to_7, output=tensors.mul_11)
-    run_quantized_linear(rt, q4=LINEAR_NOBIAS_Q4_K_F32, q6=LINEAR_NOBIAS_Q6_K_F32, q8=LINEAR_NOBIAS_Q8_0_F32, x=tensors.mul_11, weight=tensors.p_mlp_gate_proj_weight, output=tensors.linear_4)
-    SILU_F32(rt, x=tensors.linear_4, output=tensors.silu)
-    run_quantized_linear(rt, q4=LINEAR_NOBIAS_Q4_K_F32, q6=LINEAR_NOBIAS_Q6_K_F32, q8=LINEAR_NOBIAS_Q8_0_F32, x=tensors.mul_11, weight=tensors.p_mlp_up_proj_weight, output=tensors.linear_5)
-    MUL_F32(rt, x=tensors.silu, y=tensors.linear_5, output=tensors.mul_12)
-    run_quantized_linear(rt, q4=LINEAR_NOBIAS_Q4_K_F32, q6=LINEAR_NOBIAS_Q6_K_F32, q8=LINEAR_NOBIAS_Q8_0_F32, x=tensors.mul_12, weight=tensors.p_mlp_down_proj_weight, output=tensors.linear_6)
-    ADD_F32_36(rt, x=tensors.to_6, y=tensors.linear_6, output=tensors.add_7)
+def _linear_q4_or_q6(rt: RuntimeSession, *, x: LogicalTensor, weight: LogicalTensor, output: LogicalTensor) -> None:
+    if weight.spec.dtype == "uint16":
+        _llama_matmul_q6(rt, x=x, weight=weight, output=output)
+        return
+    _llama_matmul_q4(rt, x=x, weight=weight, output=output)
 
 
-def run_text_layer(rt: RuntimeSession, layer_idx: int) -> None:
-    _run_text_layer_with_tensors(rt, model_tensors().text_layers[layer_idx])
+def _llama_matmul_q4(rt: RuntimeSession, *, x: LogicalTensor, weight: LogicalTensor, output: LogicalTensor) -> None:
+    if _token_count(x) <= 320:
+        LLAMA_MATMUL_Q4_K_F32_M(rt, x=x, weight=weight, output=output)
+        return
+    LLAMA_MATMUL_Q4_K_F32_L(rt, x=x, weight=weight, output=output)
+
+
+def _llama_matmul_q6(rt: RuntimeSession, *, x: LogicalTensor, weight: LogicalTensor, output: LogicalTensor) -> None:
+    if _token_count(x) <= 320:
+        LLAMA_MATMUL_Q6_K_F32_M(rt, x=x, weight=weight, output=output)
+        return
+    LLAMA_MATMUL_Q6_K_F32_L(rt, x=x, weight=weight, output=output)
+
+
+def _token_count(tensor: LogicalTensor) -> int:
+    x0, x1, _ = tensor.spec.shape
+    if not isinstance(x0, int) or not isinstance(x1, int):
+        raise ValueError(f"{tensor.name} has non-concrete prefill shape {tensor.spec.shape}")
+    return x0 * x1
+
+
+def _linear_q4_or_q6_matvec(rt: RuntimeSession, *, x: LogicalTensor, weight: LogicalTensor, output: LogicalTensor) -> None:
+    if weight.spec.dtype == "uint16":
+        LINEAR_NOBIAS_Q6_K_MATVEC_F32(rt, x=x, weight=weight, output=output)
+        return
+    LINEAR_NOBIAS_Q4_K_MATVEC_F32(rt, x=x, weight=weight, output=output)
+
+
+def _attn_qkv(rt: RuntimeSession, tensors: TextLayerTensors) -> None:
+    _linear_q4_or_q6(rt, x=tensors.mul_1, weight=tensors.p_attn_q_proj_weight, output=tensors.linear)
+    _linear_q4_or_q6(rt, x=tensors.mul_1, weight=tensors.p_attn_k_proj_weight, output=tensors.linear_1)
+    _linear_q4_or_q6(rt, x=tensors.mul_1, weight=tensors.p_attn_v_proj_weight, output=tensors.linear_2)
+
+
+def _flash_attention(
+    rt: RuntimeSession,
+    tensors: TextLayerTensors,
+    *,
+    mask: LogicalTensor,
+    mask_opt: LogicalTensor,
+) -> None:
+    if tensors.flash_key_cache is not tensors.global_key_cache:
+        TOKEN_MAJOR_KV_CACHE_WRITE_F16_TRIPLE(
+            rt,
+            cache_a=tensors.global_key_cache,
+            cache_b=tensors.flash_key_cache,
+            cache_c=tensors.decode_key_cache,
+            cache_position=tensors.cache_position,
+            src=tensors.add_4,
+        )
+    else:
+        TOKEN_MAJOR_KV_CACHE_WRITE_F16_PAIR(
+            rt,
+            cache_a=tensors.global_key_cache,
+            cache_b=tensors.decode_key_cache,
+            cache_position=tensors.cache_position,
+            src=tensors.add_4,
+        )
+    if tensors.flash_value_cache is not tensors.global_value_cache:
+        TOKEN_MAJOR_VALUE_CACHE_WRITE_F32_TO_F16_TRIPLE(
+            rt,
+            cache_a=tensors.global_value_cache,
+            cache_b=tensors.flash_value_cache,
+            cache_c=tensors.decode_value_cache,
+            cache_position=tensors.cache_position,
+            src=tensors.view_2,
+        )
+    else:
+        TOKEN_MAJOR_VALUE_CACHE_WRITE_F32_TO_F16_PAIR(
+            rt,
+            cache_a=tensors.global_value_cache,
+            cache_b=tensors.decode_value_cache,
+            cache_position=tensors.cache_position,
+            src=tensors.view_2,
+        )
+    LLAMA_FLASH_ATTN_F32_F16_F16(
+        rt,
+        q=tensors.add_3,
+        k=tensors.flash_key_cache,
+        v=tensors.flash_value_cache,
+        mask=mask,
+        sink=tensors.add_3,
+        output=tensors.transpose_3,
+        mask_opt=mask_opt,
+    )
+
+
+def _run_text_layer_with_tensors(
+    rt: RuntimeSession,
+    tensors: TextLayerTensors,
+    *,
+    mask: LogicalTensor,
+    mask_opt: LogicalTensor,
+) -> None:
+    RMS_NORM_MUL_F32(
+        rt,
+        x=tensors.to,
+        weight=tensors.p_input_layernorm_weight,
+        output=tensors.mul_1,
+    )
+    _attn_qkv(rt, tensors)
+    RMS_NORM_ROPE_TOKEN_F32(
+        rt,
+        x=tensors.to_2,
+        weight=tensors.p_attn_q_norm_weight,
+        cos=tensors.position_embeddings_0,
+        sin=tensors.position_embeddings_1,
+        output=tensors.add_3,
+    )
+    RMS_NORM_ROPE_TOKEN_F32_TO_F16(
+        rt,
+        x=tensors.to_4,
+        weight=tensors.p_attn_k_norm_weight,
+        cos=tensors.position_embeddings_0,
+        sin=tensors.position_embeddings_1,
+        output=tensors.add_4,
+    )
+    _flash_attention(rt, tensors, mask=mask, mask_opt=mask_opt)
+    _linear_q4_or_q6(rt, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)
+    ADD_F32_PREFILL(rt, x=tensors.to, y=tensors.linear_3, output=tensors.add_5)
+    RMS_NORM_MUL_F32(
+        rt,
+        x=tensors.to_6,
+        weight=tensors.p_post_attention_layernorm_weight,
+        output=tensors.mul_11,
+    )
+    _linear_q4_or_q6(rt, x=tensors.mul_11, weight=tensors.p_mlp_gate_proj_weight, output=tensors.linear_4)
+    _linear_q4_or_q6(rt, x=tensors.mul_11, weight=tensors.p_mlp_up_proj_weight, output=tensors.linear_5)
+    SWIGLU_F32(rt, gate=tensors.linear_4, up=tensors.linear_5, output=tensors.mul_12)
+    _linear_q4_or_q6(rt, x=tensors.mul_12, weight=tensors.p_mlp_down_proj_weight, output=tensors.linear_6)
+    ADD_F32_PREFILL(rt, x=tensors.to_6, y=tensors.linear_6, output=tensors.add_7)
+
+
+def _run_text_last_layer_tail_with_tensors(
+    rt: RuntimeSession,
+    tensors: TextLayerTensors,
+    *,
+    mask: LogicalTensor,
+    mask_opt: LogicalTensor,
+) -> None:
+    model = model_tensors()
+    RMS_NORM_MUL_F32(
+        rt,
+        x=tensors.to,
+        weight=tensors.p_input_layernorm_weight,
+        output=tensors.mul_1,
+    )
+    _attn_qkv(rt, tensors)
+    RMS_NORM_ROPE_TOKEN_F32(rt, x=tensors.to_2, weight=tensors.p_attn_q_norm_weight, cos=tensors.position_embeddings_0, sin=tensors.position_embeddings_1, output=tensors.add_3)
+    RMS_NORM_ROPE_TOKEN_F32_TO_F16(rt, x=tensors.to_4, weight=tensors.p_attn_k_norm_weight, cos=tensors.position_embeddings_0, sin=tensors.position_embeddings_1, output=tensors.add_4)
+    _flash_attention(rt, tensors, mask=mask, mask_opt=mask_opt)
+    _linear_q4_or_q6(rt, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)
+    ADD_F32_PREFILL(rt, x=tensors.to, y=tensors.linear_3, output=tensors.add_5)
+    SLICE_LAST_TOKEN_F32_TO_F16(rt, x=tensors.add_5, output=model.prefill_last_residual)
+    RMS_NORM_MUL_F16_F32(
+        rt,
+        x=model.prefill_last_residual,
+        weight=tensors.p_post_attention_layernorm_weight,
+        output=model.prefill_last_norm,
+    )
+    LINEAR_NOBIAS_Q4_K_QK_MATVEC_F32(
+        rt,
+        x=model.prefill_last_norm,
+        q_weight=tensors.p_mlp_gate_proj_weight,
+        k_weight=tensors.p_mlp_up_proj_weight,
+        q_output=model.prefill_last_gate,
+        k_output=model.prefill_last_up,
+    )
+    SWIGLU_F16(rt, gate=model.prefill_last_gate, up=model.prefill_last_up, output=model.prefill_last_gated)
+    _linear_q4_or_q6_matvec(
+        rt,
+        x=model.prefill_last_gated,
+        weight=tensors.p_mlp_down_proj_weight,
+        output=model.prefill_last_down,
+    )
+    ADD_F32_36(rt, x=model.prefill_last_residual, y=model.prefill_last_down, output=model.prefill_last_output)
+
+
+def run_prefill_full_layer(rt: RuntimeSession, layer_idx: int) -> None:
+    tensors = model_tensors()
+    _run_text_layer_with_tensors(
+        rt,
+        tensors.prefill_full_layers[layer_idx],
+        mask=tensors.prefill_full_causal_mask,
+        mask_opt=tensors.prefill_full_mask_opt,
+    )
+
+
+def run_prefill_tail_layer(rt: RuntimeSession, layer_idx: int) -> None:
+    tensors = model_tensors()
+    _run_text_layer_with_tensors(
+        rt,
+        tensors.prefill_tail_layers[layer_idx],
+        mask=tensors.prefill_tail_causal_mask,
+        mask_opt=tensors.prefill_tail_mask_opt,
+    )
+
+
+def run_prefill_tail_last_layer_tail(rt: RuntimeSession) -> None:
+    tensors = model_tensors()
+    _run_text_last_layer_tail_with_tensors(
+        rt,
+        tensors.prefill_tail_layers[-1],
+        mask=tensors.prefill_tail_causal_mask,
+        mask_opt=tensors.prefill_tail_mask_opt,
+    )
+
+
+def run_prefill_full_mask_opt(rt: RuntimeSession) -> None:
+    tensors = model_tensors()
+    FA_MASK_OPT_F16(
+        rt,
+        mask=tensors.prefill_full_causal_mask,
+        output=tensors.prefill_full_mask_opt,
+    )
+
+
+def run_prefill_tail_mask_opt(rt: RuntimeSession) -> None:
+    tensors = model_tensors()
+    FA_MASK_OPT_F16(
+        rt,
+        mask=tensors.prefill_tail_causal_mask,
+        output=tensors.prefill_tail_mask_opt,
+    )

@@ -33,7 +33,6 @@ from torch2vk.export import (
     cast_floating_tensors,
     clear_python_modules,
     clear_shader_package,
-    count_python_modules,
     export_submodule,
     generate_dispatch_function_source,
     generate_tensor_class_source,

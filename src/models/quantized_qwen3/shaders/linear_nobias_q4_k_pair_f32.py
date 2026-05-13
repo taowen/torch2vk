@@ -1,4 +1,4 @@
-"""Q6_K weight linear shader with f16 activations and cooperative matrix."""
+"""Fused pair of Q4_K cooperative-matrix linear projections."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from torch2vk.runtime.shader import (
     ShaderVariant,
     TensorContract,
     TensorFieldSpec,
+    add,
     ceil_div,
     mul,
 )
@@ -19,48 +20,50 @@ from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,
     SubgroupRequirements,
 )
-from torch2vk.vulkan.types import q6_k_halfwords_layout
+from torch2vk.vulkan.types import q4_k_words_layout
 
 
-LINEAR_NOBIAS_Q6_K_F32 = ShaderVariant(
-    name="linear_nobias_q6_k_f32",
-    family="export",
+LINEAR_NOBIAS_Q4_K_PAIR_F32 = ShaderVariant(
+    name="linear_nobias_q4_k_pair_f32",
+    family="quantized_qwen3",
     contract=ShaderContract(
-        class_name="ExportLinearNobiasQ6KProgram",
-        shader_name="linear_nobias_q6_k_f32",
+        class_name="LinearNobiasQ4KPairProgram",
+        shader_name="linear_nobias_q4_k_pair_f32",
         fields=(
+            TensorFieldSpec("x", IOKind.INPUT, "input", TensorContract(dtype="float16", shape=("X0", "X1", "K"))),
             TensorFieldSpec(
-                name="x",
-                io_kind=IOKind.INPUT,
-                role="input",
-                contract=TensorContract(dtype="float16", shape=("X0", "X1", "K")),
-            ),
-            TensorFieldSpec(
-                name="weight",
-                io_kind=IOKind.INPUT,
-                role="weight",
-                contract=TensorContract(
-                    dtype="uint16",
-                    shape=("N", mul(ceil_div("K", 256), 105)),
-                    layout=q6_k_halfwords_layout(logical_k="K"),
+                "weight0",
+                IOKind.INPUT,
+                "weight",
+                TensorContract(
+                    dtype="uint32",
+                    shape=("N0", mul(ceil_div("K", 256), 36)),
+                    layout=q4_k_words_layout(logical_k="K"),
                 ),
             ),
             TensorFieldSpec(
-                name="output",
-                io_kind=IOKind.OUTPUT,
-                role="output",
-                contract=TensorContract(dtype="float16", shape=("X0", "X1", "N")),
+                "weight1",
+                IOKind.INPUT,
+                "weight",
+                TensorContract(
+                    dtype="uint32",
+                    shape=("N1", mul(ceil_div("K", 256), 36)),
+                    layout=q4_k_words_layout(logical_k="K"),
+                ),
             ),
+            TensorFieldSpec("output0", IOKind.OUTPUT, "output", TensorContract(dtype="float16", shape=("X0", "X1", "N0"))),
+            TensorFieldSpec("output1", IOKind.OUTPUT, "output", TensorContract(dtype="float16", shape=("X0", "X1", "N1"))),
         ),
         push_constants=PushConstantSpec(
-            size=12,
+            size=16,
             fields=(
                 PushConstantFieldSpec("M", PushConstantType.UINT32, 0, mul("X0", "X1")),
                 PushConstantFieldSpec("K", PushConstantType.UINT32, 4, "K"),
-                PushConstantFieldSpec("N", PushConstantType.UINT32, 8, "N"),
+                PushConstantFieldSpec("N0", PushConstantType.UINT32, 8, "N0"),
+                PushConstantFieldSpec("N1", PushConstantType.UINT32, 12, "N1"),
             ),
         ),
-        dispatch=(ceil_div("N", 64), ceil_div(mul("X0", "X1"), 64), 1),
+        dispatch=(ceil_div(add("N0", "N1"), 64), ceil_div(mul("X0", "X1"), 64), 1),
     ),
     execution_requirements=ShaderExecutionRequirements(
         subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
@@ -83,7 +86,6 @@ LINEAR_NOBIAS_Q6_K_F32 = ShaderVariant(
 
 #extension GL_EXT_control_flow_attributes : enable
 #extension GL_EXT_shader_16bit_storage : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_KHR_memory_scope_semantics : require
 #extension GL_KHR_shader_subgroup_basic : require
@@ -93,10 +95,12 @@ layout(std430) buffer;
 
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
 layout(set = 0, binding = 0) buffer restrict readonly XVec4Buffer { f16vec4 x4[]; };
-layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { uint16_t weight[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(set = 0, binding = 1) buffer restrict readonly Weight0Buffer { uint weight0[]; };
+layout(set = 0, binding = 2) buffer restrict readonly Weight1Buffer { uint weight1[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly Output0Buffer { float16_t output0[]; };
+layout(set = 0, binding = 4) buffer restrict writeonly Output1Buffer { float16_t output1[]; };
 
-layout(push_constant) uniform PushConstants { uint M; uint K; uint N; } pc;
+layout(push_constant) uniform PushConstants { uint M; uint K; uint N0; uint N1; } pc;
 
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
@@ -125,54 +129,102 @@ const uint SHMEM_STRIDE = TILE_K / 2u + 4u;
 shared f16vec2 shared_w[TILE_N * SHMEM_STRIDE];
 shared f16vec2 shared_x[TILE_M * SHMEM_STRIDE];
 shared float16_t shared_stage[WARPS * STAGE_SIZE];
+shared float shared_q4_d[TILE_N];
+shared float shared_q4_m[TILE_N];
 
-uint q6k_byte(uint block_half, uint byte_offset) {
-    const uint packed = uint(weight[block_half + (byte_offset >> 1u)]);
-    return ((byte_offset & 1u) == 0u) ? (packed & 255u) : (packed >> 8u);
+uint total_n() {
+    return pc.N0 + pc.N1;
 }
 
-int q6k_i8(uint block_half, uint byte_offset) {
-    int value = int(q6k_byte(block_half, byte_offset));
-    if (value >= 128) {
-        value -= 256;
+bool use_second(uint logical_n) {
+    return logical_n >= pc.N0;
+}
+
+uint local_n(uint logical_n) {
+    return use_second(logical_n) ? logical_n - pc.N0 : logical_n;
+}
+
+uint weight_word(bool second, uint index) {
+    return second ? weight1[index] : weight0[index];
+}
+
+uint q4k_byte(bool second, uint block_word, uint byte_offset) {
+    const uint word_value = weight_word(second, block_word + (byte_offset >> 2u));
+    return (word_value >> ((byte_offset & 3u) * 8u)) & 0xffu;
+}
+
+void q4k_scale_min(bool second, uint block_word, uint subblock, out uint scale, out uint minimum) {
+    if (subblock < 4u) {
+        scale = q4k_byte(second, block_word, 4u + subblock) & 63u;
+        minimum = q4k_byte(second, block_word, 8u + subblock) & 63u;
+        return;
     }
-    return value;
+    const uint local = subblock - 4u;
+    const uint d_byte = q4k_byte(second, block_word, 4u + local);
+    const uint m_byte = q4k_byte(second, block_word, 8u + local);
+    const uint packed = q4k_byte(second, block_word, 12u + local);
+    scale = (packed & 15u) | ((d_byte >> 2u) & 48u);
+    minimum = (packed >> 4u) | ((m_byte >> 2u) & 48u);
 }
 
-f16vec2 q6k_pair(uint block_half, uint local_k) {
-    const uint iqs = (local_k >> 1u) & 127u;
-    const uint section = iqs >> 6u;
-    const uint b = ((iqs & 63u) >> 5u) * 4u;
-    const uint is_b = (iqs & 15u) >> 3u;
-    const uint qhshift = ((iqs & 63u) >> 4u) * 2u;
-    const uint scale_index = 8u * section + qhshift + is_b;
-    const uint qsi = section * 32u + (iqs & 31u);
-    const uint qhi = section * 16u + (iqs & 15u);
-    const float d = unpackHalf2x16(uint(weight[block_half + 104u])).x;
-    const float dscale = d * float(q6k_i8(block_half, 192u + scale_index));
-    const uint ql = (uint(weight[block_half + qsi]) >> b) & 0x0F0Fu;
-    const uint qh = (uint(weight[block_half + 64u + qhi]) >> qhshift) & 0x0303u;
-    const uint packed = ql | (qh << 4u);
-    return f16vec2(
-        float16_t((float(int(packed & 255u)) - 32.0) * dscale),
-        float16_t((float(int((packed >> 8u) & 255u)) - 32.0) * dscale)
-    );
+uint q4k_quant4(bool second, uint block_word, uint local_k) {
+    const uint pair = local_k >> 6u;
+    const uint byte_index = local_k & 31u;
+    const uint packed_q = weight_word(second, block_word + ((16u + pair * 32u + byte_index) >> 2u));
+    return ((local_k & 32u) == 0u) ? (packed_q & 0x0F0F0F0Fu) : ((packed_q >> 4u) & 0x0F0F0F0Fu);
+}
+
+void prepare_q4k_tile_scales(uint local_id, uint n_base, uint k_base) {
+    const uint blocks_per_row = pc.K / 256u;
+    const uint block_index = k_base >> 8u;
+    const uint subblock = (k_base & 255u) >> 5u;
+    const uint total = total_n();
+    for (uint row = local_id; row < TILE_N; row += 128u) {
+        const uint logical_n = n_base + row;
+        if (logical_n < total) {
+            const bool second = use_second(logical_n);
+            const uint n = local_n(logical_n);
+            const uint block_word = n * blocks_per_row * 36u + block_index * 36u;
+            const vec2 dm = unpackHalf2x16(weight_word(second, block_word));
+            uint scale;
+            uint minimum;
+            q4k_scale_min(second, block_word, subblock, scale, minimum);
+            shared_q4_d[row] = dm.x * float(scale);
+            shared_q4_m[row] = dm.y * float(minimum);
+        } else {
+            shared_q4_d[row] = 0.0;
+            shared_q4_m[row] = 0.0;
+        }
+    }
 }
 
 void load_weight_tile(uint local_id, uint n_base, uint k_base) {
     const uint blocks_per_row = pc.K / 256u;
     const uint block_index = k_base >> 8u;
+    const uint total = total_n();
     for (uint i = local_id; i < TILE_NK_LOADS; i += 128u) {
         const uint row = i / TILE_K_WEIGHT_LOADS;
         const uint k_offset = (i - row * TILE_K_WEIGHT_LOADS) * WEIGHT_VALUES_PER_LOAD;
-        const uint n = n_base + row;
-        const uint k = k_base + k_offset;
+        const uint logical_n = n_base + row;
         const uint base = row * SHMEM_STRIDE + k_offset / 2u;
-        if (n < pc.N && k < pc.K) {
-            const uint block_half = n * blocks_per_row * 105u + block_index * 105u;
-            const uint local_k = k & 255u;
-            shared_w[base] = q6k_pair(block_half, local_k);
-            shared_w[base + 1u] = q6k_pair(block_half, local_k + 2u);
+        if (logical_n < total && k_base + k_offset < pc.K) {
+            const bool second = use_second(logical_n);
+            const uint n = local_n(logical_n);
+            const uint block_word = n * blocks_per_row * 36u + block_index * 36u;
+            const uint local_k = (k_base + k_offset) & 255u;
+            const uint packed_q = q4k_quant4(second, block_word, local_k);
+            const uint q0 = packed_q & 15u;
+            const uint q1 = (packed_q >> 8u) & 15u;
+            const uint q2 = (packed_q >> 16u) & 15u;
+            const uint q3 = (packed_q >> 24u) & 15u;
+            shared_w[base] = f16vec2(
+                float16_t(shared_q4_d[row] * float(q0) - shared_q4_m[row]),
+                float16_t(shared_q4_d[row] * float(q1) - shared_q4_m[row])
+            );
+            shared_w[base + 1u] = f16vec2(
+                float16_t(shared_q4_d[row] * float(q2) - shared_q4_m[row]),
+                float16_t(shared_q4_d[row] * float(q3) - shared_q4_m[row])
+            );
         } else {
             shared_w[base] = f16vec2(0.0);
             shared_w[base + 1u] = f16vec2(0.0);
@@ -216,6 +268,17 @@ void load_x_tile(uint local_id, uint m_base, uint k_base) {
     }
 }
 
+void store_value(uint m, uint logical_n, float16_t value) {
+    if (logical_n < pc.N0) {
+        output0[m * pc.N0 + logical_n] = value;
+        return;
+    }
+    const uint n1 = logical_n - pc.N0;
+    if (n1 < pc.N1) {
+        output1[m * pc.N1 + n1] = value;
+    }
+}
+
 void main() {
     const uint local_id = gl_LocalInvocationID.x;
     const uint lane = gl_SubgroupInvocationID;
@@ -236,6 +299,8 @@ void main() {
     }
 
     for (uint k_base = 0u; k_base < pc.K; k_base += TILE_K) {
+        prepare_q4k_tile_scales(local_id, n_base, k_base);
+        barrier();
         load_weight_tile(local_id, n_base, k_base);
         load_x_tile(local_id, m_base, k_base);
         barrier();
@@ -253,25 +318,31 @@ void main() {
         barrier();
     }
 
+    const uint total = total_n();
     [[unroll]] for (uint cm_row = 0u; cm_row < CMS_PER_ROW; ++cm_row) {
         [[unroll]] for (uint cm_col = 0u; cm_col < CMS_PER_COL; ++cm_col) {
             const uint sum_index = cm_col * CMS_PER_ROW + cm_row;
             const uint n_tile = n_base + cm_row * TM;
             const uint m_tile = m_base + warp * WN + cm_col * TN;
-            if (n_tile + TM <= pc.N && m_tile + TN <= pc.M) {
+            const bool full_tile = n_tile + TM <= total && m_tile + TN <= pc.M;
+            if (full_tile && n_tile + TM <= pc.N0) {
                 coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> output_tile =
                     coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(sums[sum_index]);
-                coopMatStore(output_tile, output_values, int(m_tile * pc.N + n_tile), int(pc.N), gl_CooperativeMatrixLayoutColumnMajor);
+                coopMatStore(output_tile, output0, int(m_tile * pc.N0 + n_tile), int(pc.N0), gl_CooperativeMatrixLayoutColumnMajor);
+            } else if (full_tile && n_tile >= pc.N0) {
+                coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> output_tile =
+                    coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(sums[sum_index]);
+                coopMatStore(output_tile, output1, int(m_tile * pc.N1 + n_tile - pc.N0), int(pc.N1), gl_CooperativeMatrixLayoutColumnMajor);
             } else {
                 coopMatStore(sums[sum_index], shared_stage, int(warp * STAGE_SIZE), int(TM), gl_CooperativeMatrixLayoutColumnMajor);
                 controlBarrier(gl_ScopeSubgroup, gl_ScopeSubgroup, gl_StorageSemanticsShared, gl_SemanticsAcquireRelease);
 
                 [[unroll]] for (uint col = 0u; col < TN; col += store_stride) {
-                    const uint n = n_tile + store_r;
+                    const uint logical_n = n_tile + store_r;
                     const uint m = m_tile + col + store_c;
-                    if (n < pc.N && m < pc.M) {
+                    if (logical_n < total && m < pc.M) {
                         const uint stage_index = warp * STAGE_SIZE + (col + store_c) * TM + store_r;
-                        output_values[m * pc.N + n] = shared_stage[stage_index];
+                        store_value(m, logical_n, shared_stage[stage_index]);
                     }
                 }
                 controlBarrier(gl_ScopeSubgroup, gl_ScopeSubgroup, gl_StorageSemanticsShared, gl_SemanticsAcquireRelease);

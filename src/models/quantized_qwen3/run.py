@@ -17,11 +17,15 @@ from transformers import AutoConfig
 from models.hf_cache import resolve_cached_model
 from models.quantized_qwen3.dispatch.decode_embed import run_decode_embed
 from models.quantized_qwen3.dispatch.decode_layer import run_decode_layer
-from models.quantized_qwen3.dispatch.decode_lm_head import run_decode_lm_head
 from models.quantized_qwen3.dispatch.decode_norm import run_decode_norm
-from models.quantized_qwen3.dispatch.embed_tokens import run_embed_tokens
-from models.quantized_qwen3.dispatch.lm_head import run_lm_head
-from models.quantized_qwen3.dispatch.text_layer import run_text_layer
+from models.quantized_qwen3.dispatch.embed_tokens import run_prefill_full_embed, run_prefill_tail_embed
+from models.quantized_qwen3.dispatch.text_layer import (
+    run_prefill_full_mask_opt,
+    run_prefill_full_layer,
+    run_prefill_tail_mask_opt,
+    run_prefill_tail_last_layer_tail,
+    run_prefill_tail_layer,
+)
 from models.quantized_qwen3.dispatch.text_norm import run_text_norm
 from models.quantized_qwen3.export_gguf import REPO_ID, export_qwen3_q4_k_m_gguf
 from models.quantized_qwen3.input_prep import (
@@ -29,30 +33,52 @@ from models.quantized_qwen3.input_prep import (
     load_qwen3_tokenizer,
     prepare_qwen3_inputs,
 )
-from models.quantized_qwen3.shaders.qwen3_token_select_greedy_f32 import (
-    QWEN3_TOKEN_SELECT_GREEDY_F32,
+from models.quantized_qwen3.shaders.lm_head_q6_k_argmax_partial_f16 import (
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
+)
+from models.quantized_qwen3.shaders.llama_matmul_q4_k_f32 import (
+    LLAMA_MATMUL_Q4_K_F32_L,
+    LLAMA_MATMUL_Q4_K_F32_M,
+)
+from models.quantized_qwen3.shaders.llama_matmul_q6_k_f32 import (
+    LLAMA_MATMUL_Q6_K_F32_L,
+    LLAMA_MATMUL_Q6_K_F32_M,
+)
+from models.quantized_qwen3.shaders.qwen3_token_select_reduce_f32 import (
+    QWEN3_TOKEN_SELECT_REDUCE_F32,
+)
+from models.quantized_qwen3.shaders.qwen3_token_select_reduce_chunks_f32 import (
+    QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
 )
 from models.quantized_qwen3.shaders.qwen3_token_store_eos_f32 import QWEN3_TOKEN_STORE_EOS_F32
-from models.quantized_qwen3.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
 from models.quantized_qwen3.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
 from torch2vk.runtime.replay_cache_key import source_tree_digest
-from torch2vk.runtime.rope_table import ROPE_TABLE_F32, run_rope_table_f32
+from torch2vk.runtime.rope_table import ROPE_TABLE_F32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.shader_loader import make_shader_loader
 
 
-PREFILL_REPLAY_CACHE = "quantized_qwen3_prefill:v3"
-DECODE_REPLAY_CACHE = "quantized_qwen3_decode_step:v2"
-_STOP_CHECK_INTERVAL = 16
+PREFILL_CHUNK_SIZE = 512
+PREFILL_FULL_REPLAY_CACHE = "quantized_qwen3_prefill_full512:v3"
+PREFILL_TAIL_REPLAY_CACHE = "quantized_qwen3_prefill_tail:v3"
+DECODE_REPLAY_CACHE = "quantized_qwen3_decode_step:v3"
 _load_model_shader = make_shader_loader("models.quantized_qwen3.shaders")
+_SPECIAL_SHADERS = {
+    LLAMA_MATMUL_Q4_K_F32_M.name: LLAMA_MATMUL_Q4_K_F32_M,
+    LLAMA_MATMUL_Q4_K_F32_L.name: LLAMA_MATMUL_Q4_K_F32_L,
+    LLAMA_MATMUL_Q6_K_F32_M.name: LLAMA_MATMUL_Q6_K_F32_M,
+    LLAMA_MATMUL_Q6_K_F32_L.name: LLAMA_MATMUL_Q6_K_F32_L,
+}
 
 
 def get_shader(name: str) -> ShaderVariant:
     if name == ROPE_TABLE_F32.name:
         return ROPE_TABLE_F32
+    if name in _SPECIAL_SHADERS:
+        return _SPECIAL_SHADERS[name]
     return _load_model_shader(name)
 
 
@@ -85,70 +111,30 @@ def _require_gpu_output(tensor: LogicalTensor) -> None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
 
 
-def _run_rope_table(
-    rt: RuntimeSession,
-    *,
-    phase: str,
-    frame_name: str,
-) -> None:
+def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
     tensors = model_tensors()
-    if phase == "prefill":
-        rope_t = tensors.prefill_rope
-    elif phase == "decode":
-        rope_t = tensors.decode_rope
-    else:
-        raise ValueError(f"unknown rope phase: {phase}")
-    run_rope_table_f32(
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16(
         rt,
-        start_position=rope_t.start_position,
-        theta=rope_t.theta,
-        cos=rope_t.cos,
-        sin=rope_t.sin,
-        frame_name=frame_name,
+        x=x,
+        weight=tensors.lm_head.p_weight,
+        partial_scores=tensors.lm_head_partial_scores,
+        partial_tokens=tensors.lm_head_partial_tokens,
     )
-
-
-def _run_token_select(
-    rt: RuntimeSession,
-    *,
-    logits: LogicalTensor,
-    eos_token_ids: LogicalTensor,
-    next_token: LogicalTensor,
-    done: LogicalTensor,
-    frame_name: str,
-) -> LogicalTensor:
-    with rt.frame(frame_name):
-        QWEN3_TOKEN_SELECT_GREEDY_F32(
-            rt,
-            logits=logits,
-            eos_token_ids=eos_token_ids,
-            next_token=next_token,
-            done=done,
-        )
-    return next_token
-
-
-def _run_token_store(
-    rt: RuntimeSession,
-    *,
-    next_token: LogicalTensor,
-    token_index: LogicalTensor,
-    done: LogicalTensor,
-    generated_tokens: LogicalTensor,
-    generated_length: LogicalTensor,
-    stopped: LogicalTensor,
-    frame_name: str,
-) -> None:
-    with rt.frame(frame_name):
-        QWEN3_TOKEN_STORE_EOS_F32(
-            rt,
-            next_token=next_token,
-            token_index=token_index,
-            done=done,
-            generated_tokens=generated_tokens,
-            generated_length=generated_length,
-            stopped=stopped,
-        )
+    QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32(
+        rt,
+        scores=tensors.lm_head_partial_scores,
+        tokens=tensors.lm_head_partial_tokens,
+        chunk_scores=tensors.lm_head_chunk_scores,
+        chunk_tokens=tensors.lm_head_chunk_tokens,
+    )
+    QWEN3_TOKEN_SELECT_REDUCE_F32(
+        rt,
+        partial_scores=tensors.lm_head_chunk_scores,
+        partial_tokens=tensors.lm_head_chunk_tokens,
+        eos_token_ids=tensors.eos_token_ids,
+        next_token=tensors.next_token,
+        done=tensors.done,
+    )
 
 
 def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
@@ -165,14 +151,7 @@ def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
         for layer_idx in range(len(tensors.decode_layers)):
             run_decode_layer(rt, layer_idx)
         run_decode_norm(rt)
-        run_decode_lm_head(rt)
-        QWEN3_TOKEN_SELECT_GREEDY_F32(
-            rt,
-            logits=tensors.decode_lm_head.linear,
-            eos_token_ids=tensors.eos_token_ids,
-            next_token=tensors.next_token,
-            done=tensors.done,
-        )
+        _run_lm_head_select(rt, x=tensors.decode_norm.mul_1)
         QWEN3_TOKEN_STORE_EOS_F32(
             rt,
             next_token=tensors.next_token,
@@ -207,10 +186,6 @@ def _read_selected_token(rt: RuntimeSession, next_token: LogicalTensor) -> int:
     return int(rt.read_request_state(next_token).reshape(-1)[0])
 
 
-def _request_stopped(rt: RuntimeSession) -> bool:
-    return bool(rt.read_request_state(model_tensors().stopped).reshape(-1)[0])
-
-
 def _build_decode_replay_plan(
     rt: RuntimeSession,
     *,
@@ -231,11 +206,12 @@ def _build_decode_replay_plan(
 def _build_prefill_replay_plan(
     rt: RuntimeSession,
     *,
+    name: str,
     frame: str,
     cache_namespace: str,
 ) -> ReplayPlan:
     plan = rt.build_replay_plan(
-        name="quantized_qwen3_prefill",
+        name=name,
         frame=frame,
     )
     if plan.readback_slots:
@@ -269,8 +245,26 @@ def _decode_replay_cache_namespace(model_dir: Path) -> str:
     return f"{DECODE_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
 
 
-def _prefill_replay_cache_namespace(model_dir: Path, prompt_length: int) -> str:
-    return f"{PREFILL_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}:prompt={prompt_length}"
+def _prefill_full_replay_cache_namespace(model_dir: Path) -> str:
+    return f"{PREFILL_FULL_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
+
+
+def _prefill_tail_replay_cache_namespace(model_dir: Path, tail_length: int, attention_length: int) -> str:
+    return (
+        f"{PREFILL_TAIL_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}:"
+        f"tail={tail_length}:attention={attention_length}"
+    )
+
+
+def _round_up(value: int, multiple: int) -> int:
+    return ((value + multiple - 1) // multiple) * multiple
+
+
+def _prefill_causal_mask(chunk_start: int, chunk_length: int, attention_length: int) -> np.ndarray:
+    mask = np.zeros((chunk_length, attention_length), dtype=np.float16)
+    for row in range(chunk_length):
+        mask[row, chunk_start + row + 1 :] = np.float16(-np.inf)
+    return mask
 
 
 def main(
@@ -286,26 +280,35 @@ def main(
     gguf_path = export_qwen3_q4_k_m_gguf(model_dir=model_dir)
     tokenizer = load_qwen3_tokenizer(model_dir)
     prepared = prepare_qwen3_inputs(tokenizer=tokenizer, prompt=prompt)
-    prefill_cache_namespace = _prefill_replay_cache_namespace(
-        gguf_path.parent,
-        prepared.prompt_length,
-    )
     replay_cache_namespace = _decode_replay_cache_namespace(gguf_path.parent)
     config = AutoConfig.from_pretrained(model_dir)
     prompt_length = prepared.prompt_length
-    max_sequence_length = prompt_length + 128
+    fixed_prefill_length = PREFILL_CHUNK_SIZE if prompt_length > PREFILL_CHUNK_SIZE else 0
+    tail_length = prompt_length - fixed_prefill_length
+    max_sequence_length = _round_up(prompt_length + 128, 64)
+    prefill_attention_length = _round_up(prompt_length, 64)
+    prefill_full_cache_namespace = _prefill_full_replay_cache_namespace(gguf_path.parent)
+    prefill_tail_cache_namespace = _prefill_tail_replay_cache_namespace(
+        gguf_path.parent,
+        tail_length,
+        prefill_attention_length,
+    )
     rope_theta = float(getattr(config, "rope_theta", 1_000_000.0))
     eos_token_ids = (int(config.eos_token_id),)
 
     print("Declaring tensors...")
     create_model_tensors(
         prompt_length=prompt_length,
+        prefill_chunk_length=PREFILL_CHUNK_SIZE,
+        prefill_tail_length=tail_length,
+        prefill_attention_length=prefill_attention_length,
         max_sequence_length=max_sequence_length,
         num_hidden_layers=int(config.num_hidden_layers),
         num_key_value_heads=int(config.num_key_value_heads),
         head_dim=int(config.head_dim),
         max_new_tokens=max_new_tokens,
         eos_token_count=len(eos_token_ids),
+        vocab_size=int(config.vocab_size),
     )
     rt = RuntimeSession.open(
         device_index=0,
@@ -315,12 +318,35 @@ def main(
         get_shader=get_shader,
     )
 
-    zero_cache = np.zeros(
-        (1, int(config.num_key_value_heads), max_sequence_length, int(config.head_dim)),
+    zero_full_flash_cache = np.zeros(
+        (1, PREFILL_CHUNK_SIZE, int(config.num_key_value_heads), int(config.head_dim)),
+        dtype=np.float16,
+    )
+    zero_prefill_flash_cache = np.zeros(
+        (1, prefill_attention_length, int(config.num_key_value_heads), int(config.head_dim)),
+        dtype=np.float16,
+    )
+    zero_decode_cache = np.zeros(
+        (1, max_sequence_length, int(config.num_key_value_heads), int(config.head_dim)),
         dtype=np.float16,
     )
     rt.initialize_request_state(
-        {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
+        {
+            cache: zero_full_flash_cache
+            for cache in model_tensors().prefill_full_key_caches + model_tensors().prefill_full_value_caches
+        }
+    )
+    rt.initialize_request_state(
+        {
+            cache: zero_prefill_flash_cache
+            for cache in model_tensors().prefill_key_caches + model_tensors().prefill_value_caches
+        }
+    )
+    rt.initialize_request_state(
+        {
+            cache: zero_decode_cache
+            for cache in model_tensors().decode_key_caches + model_tensors().decode_value_caches
+        }
     )
     rt.initialize_request_state(
         {
@@ -333,91 +359,133 @@ def main(
 
     print(f"Prefill prompt_length={prompt_length}...")
     eos_token_array = np.array(eos_token_ids, dtype=np.int64)
-    prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
-    prefill_inputs = {
-        model_tensors().input_ids: prepared.input_ids,
-        model_tensors().text_layers[0].cache_position: prefill_cache_position,
+    tail_inputs = {
+        model_tensors().prefill_tail_input_ids: prepared.input_ids[:, fixed_prefill_length:],
+        model_tensors().prefill_tail_causal_mask: _prefill_causal_mask(
+            fixed_prefill_length,
+            tail_length,
+            prefill_attention_length,
+        ),
+        model_tensors().prefill_tail_layers[0].cache_position: np.arange(
+            fixed_prefill_length,
+            prompt_length,
+            dtype=np.int64,
+        ),
+        model_tensors().eos_token_ids: eos_token_array,
+        model_tensors().prefill_tail_rope.start_position: np.array([fixed_prefill_length], dtype=np.int64),
+        model_tensors().prefill_tail_rope.theta: np.array([rope_theta], dtype=np.float32),
+        model_tensors().token_index: np.array([0], dtype=np.int64),
     }
-    rt.register_inputs(prefill_inputs)
-    prefill_replay_plan = _cached_prefill_replay_plan(
-        rt,
-        cache_namespace=prefill_cache_namespace,
-    )
-    rt.register_inputs(
-        {
-            model_tensors().prefill_rope.start_position: np.array([0], dtype=np.int64),
-            model_tensors().prefill_rope.theta: np.array([rope_theta], dtype=np.float32),
+    full_inputs: dict[LogicalTensor, np.ndarray] = {}
+    if fixed_prefill_length:
+        full_inputs = {
+            model_tensors().prefill_full_input_ids: prepared.input_ids[:, :PREFILL_CHUNK_SIZE],
+            model_tensors().prefill_full_causal_mask: _prefill_causal_mask(
+                0,
+                PREFILL_CHUNK_SIZE,
+                PREFILL_CHUNK_SIZE,
+            ),
+            model_tensors().prefill_full_layers[0].cache_position: np.arange(
+                PREFILL_CHUNK_SIZE,
+                dtype=np.int64,
+            ),
+            model_tensors().prefill_full_rope.start_position: np.array([0], dtype=np.int64),
+            model_tensors().prefill_full_rope.theta: np.array([rope_theta], dtype=np.float32),
         }
+    full_prefill_replay_plan = (
+        _cached_prefill_replay_plan(rt, cache_namespace=prefill_full_cache_namespace)
+        if fixed_prefill_length
+        else None
+    )
+    tail_prefill_replay_plan = _cached_prefill_replay_plan(
+        rt,
+        cache_namespace=prefill_tail_cache_namespace,
     )
     prefill_start = time.perf_counter()
-    _run_rope_table(rt, phase="prefill", frame_name="qwen3.prefill.rope")
-    if prefill_replay_plan is None:
-        with rt.frame("qwen3.prefill"):
-            run_embed_tokens(rt)
-            for layer_idx in range(len(model_tensors().text_layers)):
-                run_text_layer(rt, layer_idx)
-            run_text_norm(rt)
-            SLICE_LAST_TOKEN_F16(
+    if fixed_prefill_length:
+        if full_prefill_replay_plan is None:
+            rt.register_inputs(full_inputs)
+            with rt.frame("qwen3.prefill.full512"):
+                ROPE_TABLE_F32(
+                    rt,
+                    start_position=model_tensors().prefill_full_rope.start_position,
+                    theta=model_tensors().prefill_full_rope.theta,
+                    cos=model_tensors().prefill_full_rope.cos,
+                    sin=model_tensors().prefill_full_rope.sin,
+                )
+                run_prefill_full_embed(rt)
+                run_prefill_full_mask_opt(rt)
+                for layer_idx in range(len(model_tensors().prefill_full_layers)):
+                    run_prefill_full_layer(rt, layer_idx)
+            _build_prefill_replay_plan(
                 rt,
-                x=model_tensors().text_norm.mul_1,
-                output=model_tensors().prefill_lm_head_input,
+                name="quantized_qwen3_prefill_full512",
+                frame="qwen3.prefill.full512",
+                cache_namespace=prefill_full_cache_namespace,
             )
-            run_lm_head(rt)
+        else:
+            stage_replay_step_inputs(
+                rt,
+                plan=full_prefill_replay_plan,
+                inputs=full_inputs,
+                write_through=(model_tensors().prefill_full_layers[0].cache_position,),
+            )
+            execute_replay(full_prefill_replay_plan)
+
+    if tail_prefill_replay_plan is None:
+        rt.register_inputs(tail_inputs)
+        with rt.frame("qwen3.prefill.tail"):
+            ROPE_TABLE_F32(
+                rt,
+                start_position=model_tensors().prefill_tail_rope.start_position,
+                theta=model_tensors().prefill_tail_rope.theta,
+                cos=model_tensors().prefill_tail_rope.cos,
+                sin=model_tensors().prefill_tail_rope.sin,
+            )
+            run_prefill_tail_embed(rt)
+            run_prefill_tail_mask_opt(rt)
+            for layer_idx in range(len(model_tensors().prefill_tail_layers) - 1):
+                run_prefill_tail_layer(rt, layer_idx)
+            run_prefill_tail_last_layer_tail(rt)
+            run_text_norm(rt)
+            _run_lm_head_select(rt, x=model_tensors().text_norm.mul_1)
+            QWEN3_TOKEN_STORE_EOS_F32(
+                rt,
+                next_token=model_tensors().next_token,
+                token_index=model_tensors().token_index,
+                done=model_tensors().done,
+                generated_tokens=model_tensors().generated_tokens,
+                generated_length=model_tensors().generated_length,
+                stopped=model_tensors().stopped,
+            )
         _build_prefill_replay_plan(
             rt,
-            frame="qwen3.prefill",
-            cache_namespace=prefill_cache_namespace,
+            name="quantized_qwen3_prefill_tail",
+            frame="qwen3.prefill.tail",
+            cache_namespace=prefill_tail_cache_namespace,
         )
     else:
         stage_replay_step_inputs(
             rt,
-            plan=prefill_replay_plan,
-            inputs=prefill_inputs,
-            write_through=(model_tensors().text_layers[0].cache_position,),
+            plan=tail_prefill_replay_plan,
+            inputs=tail_inputs,
+            write_through=(
+                model_tensors().prefill_tail_layers[0].cache_position,
+                model_tensors().token_index,
+            ),
         )
-        execute_replay(prefill_replay_plan)
-    _require_gpu_output(model_tensors().lm_head.linear)
-    rt.register_inputs({model_tensors().eos_token_ids: eos_token_array})
-    _run_token_select(
-        rt,
-        logits=model_tensors().lm_head.linear,
-        eos_token_ids=model_tensors().eos_token_ids,
-        next_token=model_tensors().next_token,
-        done=model_tensors().done,
-        frame_name="qwen3.prefill.token_select",
-    )
-    rt.register_inputs({model_tensors().token_index: np.array([0], dtype=np.int64)})
-    _run_token_store(
-        rt,
-        next_token=model_tensors().next_token,
-        token_index=model_tensors().token_index,
-        done=model_tensors().done,
-        generated_tokens=model_tensors().generated_tokens,
-        generated_length=model_tensors().generated_length,
-        stopped=model_tensors().stopped,
-        frame_name="qwen3.prefill.token_store",
-    )
+        execute_replay(tail_prefill_replay_plan)
     first_token = _read_selected_token(rt, model_tensors().next_token)
     prefill_elapsed = time.perf_counter() - prefill_start
     print(f"  first_token={first_token}, prefill={prefill_elapsed:.3f}s")
 
-    first_decode_inputs = _decode_step_inputs(
-        cache_position=prompt_length,
-        rope_theta=rope_theta,
-        eos_token_array=eos_token_array,
-        token_index_value=1,
-    )
-    rt.register_inputs(first_decode_inputs)
     decode_replay_plan: ReplayPlan | None = _cached_decode_replay_plan(
         rt,
         cache_namespace=replay_cache_namespace,
     )
     decode_steps = 0
     decode_start = time.perf_counter()
-    should_decode = not _request_stopped(rt)
     for step in range(max_new_tokens - 1):
-        if not should_decode:
-            break
         cache_pos = prompt_length + step
         decode_step_inputs = _decode_step_inputs(
             cache_position=cache_pos,
@@ -461,7 +529,6 @@ def main(
             )
             execute_replay(decode_replay_plan)
         decode_steps += 1
-        should_decode = (step + 1) % _STOP_CHECK_INTERVAL != 0 or not _request_stopped(rt)
 
     decode_elapsed = time.perf_counter() - decode_start
     generated_length = int(rt.read_request_state(model_tensors().generated_length).reshape(-1)[0])

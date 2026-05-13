@@ -1,4 +1,4 @@
-"""Quantization topology for generated Qwen3."""
+"""Quantization topology for optimized Qwen3."""
 
 from __future__ import annotations
 
@@ -6,6 +6,10 @@ from torch2vk.quantize import q4_k_m_more_bits_layer_indices
 
 
 Q8_TENSOR_NAMES: tuple[str, ...] = ()
+
+
+def qwen3_q4_k_m_uses_q6_layer(layer_idx: int, num_hidden_layers: int) -> bool:
+    return layer_idx in q4_k_m_more_bits_layer_indices(num_hidden_layers)
 
 
 def qwen3_q4_k_m_q6_tensor_names(num_hidden_layers: int) -> tuple[str, ...]:

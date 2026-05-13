@@ -45,7 +45,7 @@ def make_linear_nobias_q4_k_m_variant(
     k = int(x_shape[-1])
     m = _flattened_rows(x_shape)
     if k % 256 == 0:
-        if activation_dtype == "float32" or m <= 8:
+        if m <= 8:
             return _make_quantized_variant(
                 name="linear_nobias_q4_k_matvec_f32",
                 class_name="ExportLinearNobiasQ4KMatvecProgram",
@@ -77,7 +77,7 @@ def make_linear_nobias_q4_k_m_variant(
             activation_dtype=activation_dtype,
         )
     if k % 32 == 0:
-        if activation_dtype == "float32" or m <= 8:
+        if m <= 8:
             return _make_q8_0_matvec_variant(
                 x_shape=x_shape,
                 w_shape=w_shape,
@@ -117,7 +117,7 @@ def make_linear_nobias_q6_k_variant(
     if k % 256 != 0:
         return None
     m = _flattened_rows(x_shape)
-    use_matvec = (activation_dtype == "float32" or m <= 8) if matvec is None else matvec
+    use_matvec = (m <= 8) if matvec is None else matvec
     if use_matvec:
         return _make_quantized_variant(
             name="linear_nobias_q6_k_matvec_f32",
@@ -163,7 +163,7 @@ def make_linear_nobias_q8_0_variant(
     if k % 32 != 0:
         return make_linear_nobias_variant(node, activation_dtype)
     m = _flattened_rows(x_shape)
-    if activation_dtype == "float32" or m <= 8:
+    if m <= 8:
         return _make_q8_0_matvec_variant(
             x_shape=x_shape,
             w_shape=w_shape,
