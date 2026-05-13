@@ -261,7 +261,7 @@ def main() -> int:
         frame_name="{name}",
         policy="token",
         input_bindings={
-            "logits": "decode_lm_head.linear",
+            "logits": "lm_head.linear",
             "eos_token_ids": "eos_token_ids",
         },
         output_bindings={"next_token": "next_token", "done": "done"},
@@ -579,15 +579,6 @@ def main() -> int:
                reference_tensors="model_tensors().decode_norm",
                reference_name="spike.decode.{step:04d}.norm",
                export_registry=_DEFAULT_F32_REGISTRY)
-    export_one("run_decode_lm_head", model.thinker.lm_head.float(),
-               args=(torch.zeros(1, 1, hs, device="meta"),),
-               weight_prefix="thinker.lm_head.",
-               reference_module="thinker.lm_head",
-               reference_tensors="model_tensors().decode_lm_head",
-               reference_name="spike.decode.{step:04d}.lm_head",
-               reference_policy="q4_tensor",
-               export_registry=_Q4_K_M_F32_REGISTRY,
-               weight_quantization=quantized_weights)
     print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.

@@ -33,7 +33,12 @@ from omnivoice.models.omnivoice import OmniVoiceConfig
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
-from torch2vk.runtime.replay_cache_key import source_tree_digest
+from torch2vk.runtime.replay_cache_key import (
+    build_cached_replay_plan,
+    cached_replay_plan,
+    replay_cache_namespace,
+    source_tree_digest,
+)
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
@@ -124,14 +129,13 @@ def _build_generation_replay_plan(
     frame: str,
     cache_namespace: str,
 ) -> ReplayPlan:
-    plan = rt.build_replay_plan(
+    return build_cached_replay_plan(
+        rt,
+        namespace=cache_namespace,
         name="quantized_omnivoice_generation_step",
         frame=frame,
+        readback_error="OmniVoice generation replay must not use readback slots",
     )
-    if plan.readback_slots:
-        raise RuntimeError("OmniVoice generation replay must not use readback slots")
-    rt.cache_replay_plan(cache_namespace, plan)
-    return plan
 
 
 def _cached_generation_replay_plan(
@@ -139,13 +143,15 @@ def _cached_generation_replay_plan(
     *,
     cache_namespace: str,
 ) -> ReplayPlan | None:
-    for plan in rt.cached_replay_plans(cache_namespace):
-        return plan
-    return None
+    return cached_replay_plan(rt, namespace=cache_namespace)
 
 
 def _generation_replay_cache_namespace(model_dir: Path) -> str:
-    return f"{_GENERATION_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
+    return replay_cache_namespace(
+        name=_GENERATION_REPLAY_CACHE,
+        source_digest=_REPLAY_SOURCE_DIGEST,
+        model_dir=model_dir,
+    )
 
 
 def main(

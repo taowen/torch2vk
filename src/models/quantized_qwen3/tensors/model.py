@@ -6,11 +6,6 @@ from dataclasses import dataclass
 
 from models.quantized_qwen3.tensors.decode_embed import DecodeEmbedTensors, create_decode_embed
 from models.quantized_qwen3.tensors.decode_layer import DecodeLayerTensors, create_decode_layer
-from models.quantized_qwen3.tensors.decode_lm_head import (
-    DECODE_LM_HEAD_OUTPUT,
-    DecodeLmHeadTensors,
-    create_decode_lm_head,
-)
 from models.quantized_qwen3.tensors.decode_norm import DecodeNormTensors, create_decode_norm
 from models.quantized_qwen3.tensors.embed_tokens import EmbedTokensTensors, create_embed_tokens
 from models.quantized_qwen3.tensors.lm_head import LM_HEAD_OUTPUT, LmHeadTensors, create_lm_head
@@ -62,7 +57,6 @@ class QuantizedQwen3Tensors:
     decode_embed: DecodeEmbedTensors
     decode_layers: tuple[DecodeLayerTensors, ...]
     decode_norm: DecodeNormTensors
-    decode_lm_head: DecodeLmHeadTensors
     lm_head_partial_scores: LogicalTensor
     lm_head_partial_tokens: LogicalTensor
     lm_head_chunk_scores: LogicalTensor
@@ -308,12 +302,6 @@ def create_model_tensors(
         p_weight=text_norm.p_weight,
         hidden_states=decode_layers[-1].add_7,
     )
-    decode_lm_head = create_decode_lm_head(
-        "qwen3.decode.lm_head",
-        p_weight=lm_head.p_weight,
-        input=decode_norm.mul_1,
-        request_state_outputs={DECODE_LM_HEAD_OUTPUT},
-    )
 
     eos_token_ids = _host_input_tensor("int64", (eos_token_count,))
     lm_head_partial_count = (vocab_size + 3) // 4
@@ -374,7 +362,6 @@ def create_model_tensors(
         decode_embed=decode_embed,
         decode_layers=decode_layers,
         decode_norm=decode_norm,
-        decode_lm_head=decode_lm_head,
         lm_head_partial_scores=lm_head_partial_scores,
         lm_head_partial_tokens=lm_head_partial_tokens,
         lm_head_chunk_scores=lm_head_chunk_scores,

@@ -54,10 +54,14 @@ from models.optimized_qwen3.shaders.qwen3_token_store_eos_f32 import QWEN3_TOKEN
 from models.optimized_qwen3.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
-from torch2vk.runtime.replay_cache_key import source_tree_digest
+from torch2vk.runtime.replay_cache_key import (
+    build_cached_replay_plan,
+    cached_replay_plan,
+    replay_cache_namespace,
+    source_tree_digest,
+)
 from torch2vk.runtime.rope_table import ROPE_TABLE_F32
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.shader_loader import make_shader_loader
 
 
@@ -65,21 +69,16 @@ PREFILL_CHUNK_SIZE = 512
 PREFILL_FULL_REPLAY_CACHE = "optimized_qwen3_prefill_full512:v3"
 PREFILL_TAIL_REPLAY_CACHE = "optimized_qwen3_prefill_tail:v3"
 DECODE_REPLAY_CACHE = "optimized_qwen3_decode_step:v3"
-_load_model_shader = make_shader_loader("models.optimized_qwen3.shaders")
-_SPECIAL_SHADERS = {
-    LLAMA_MATMUL_Q4_K_F32_M.name: LLAMA_MATMUL_Q4_K_F32_M,
-    LLAMA_MATMUL_Q4_K_F32_L.name: LLAMA_MATMUL_Q4_K_F32_L,
-    LLAMA_MATMUL_Q6_K_F32_M.name: LLAMA_MATMUL_Q6_K_F32_M,
-    LLAMA_MATMUL_Q6_K_F32_L.name: LLAMA_MATMUL_Q6_K_F32_L,
-}
-
-
-def get_shader(name: str) -> ShaderVariant:
-    if name == ROPE_TABLE_F32.name:
-        return ROPE_TABLE_F32
-    if name in _SPECIAL_SHADERS:
-        return _SPECIAL_SHADERS[name]
-    return _load_model_shader(name)
+get_shader = make_shader_loader(
+    "models.optimized_qwen3.shaders",
+    extra_variants=(
+        ROPE_TABLE_F32,
+        LLAMA_MATMUL_Q4_K_F32_M,
+        LLAMA_MATMUL_Q4_K_F32_L,
+        LLAMA_MATMUL_Q6_K_F32_M,
+        LLAMA_MATMUL_Q6_K_F32_L,
+    ),
+)
 
 
 _REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
@@ -192,15 +191,13 @@ def _build_decode_replay_plan(
     frame: str,
     cache_namespace: str,
 ) -> ReplayPlan:
-    plan = rt.build_replay_plan(
+    return build_cached_replay_plan(
+        rt,
+        namespace=cache_namespace,
         name="optimized_qwen3_decode_step",
         frame=frame,
+        readback_error="Qwen3 decode replay must not use readback slots",
     )
-    if plan.readback_slots:
-        plan.close()
-        raise RuntimeError("Qwen3 decode replay must not use readback slots")
-    rt.cache_replay_plan(cache_namespace, plan)
-    return plan
 
 
 def _build_prefill_replay_plan(
@@ -210,15 +207,13 @@ def _build_prefill_replay_plan(
     frame: str,
     cache_namespace: str,
 ) -> ReplayPlan:
-    plan = rt.build_replay_plan(
+    return build_cached_replay_plan(
+        rt,
+        namespace=cache_namespace,
         name=name,
         frame=frame,
+        readback_error="Qwen3 prefill replay must not use readback slots",
     )
-    if plan.readback_slots:
-        plan.close()
-        raise RuntimeError("Qwen3 prefill replay must not use readback slots")
-    rt.cache_replay_plan(cache_namespace, plan)
-    return plan
 
 
 def _cached_decode_replay_plan(
@@ -226,9 +221,7 @@ def _cached_decode_replay_plan(
     *,
     cache_namespace: str,
 ) -> ReplayPlan | None:
-    for plan in rt.cached_replay_plans(cache_namespace):
-        return plan
-    return None
+    return cached_replay_plan(rt, namespace=cache_namespace)
 
 
 def _cached_prefill_replay_plan(
@@ -236,23 +229,31 @@ def _cached_prefill_replay_plan(
     *,
     cache_namespace: str,
 ) -> ReplayPlan | None:
-    for plan in rt.cached_replay_plans(cache_namespace):
-        return plan
-    return None
+    return cached_replay_plan(rt, namespace=cache_namespace)
 
 
 def _decode_replay_cache_namespace(model_dir: Path) -> str:
-    return f"{DECODE_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
+    return replay_cache_namespace(
+        name=DECODE_REPLAY_CACHE,
+        source_digest=_REPLAY_SOURCE_DIGEST,
+        model_dir=model_dir,
+    )
 
 
 def _prefill_full_replay_cache_namespace(model_dir: Path) -> str:
-    return f"{PREFILL_FULL_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
+    return replay_cache_namespace(
+        name=PREFILL_FULL_REPLAY_CACHE,
+        source_digest=_REPLAY_SOURCE_DIGEST,
+        model_dir=model_dir,
+    )
 
 
 def _prefill_tail_replay_cache_namespace(model_dir: Path, tail_length: int, attention_length: int) -> str:
-    return (
-        f"{PREFILL_TAIL_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}:"
-        f"tail={tail_length}:attention={attention_length}"
+    return replay_cache_namespace(
+        name=PREFILL_TAIL_REPLAY_CACHE,
+        source_digest=_REPLAY_SOURCE_DIGEST,
+        model_dir=model_dir,
+        shape_key=f"tail={tail_length}:attention={attention_length}",
     )
 
 

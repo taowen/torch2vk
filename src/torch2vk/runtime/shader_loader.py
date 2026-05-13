@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from torch2vk.runtime.shader import ShaderVariant
 
@@ -24,8 +24,17 @@ def load_shader(shader_package: str, name: str) -> ShaderVariant:
     return value
 
 
-def make_shader_loader(shader_package: str) -> Callable[[str], ShaderVariant]:
+def make_shader_loader(
+    shader_package: str,
+    *,
+    extra_variants: Sequence[ShaderVariant] = (),
+) -> Callable[[str], ShaderVariant]:
+    extra_by_name = {variant.name: variant for variant in extra_variants}
+
     def get_shader(name: str) -> ShaderVariant:
+        variant = extra_by_name.get(name)
+        if variant is not None:
+            return variant
         return load_shader(shader_package, name)
 
     return get_shader

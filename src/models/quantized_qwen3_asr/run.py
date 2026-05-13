@@ -22,7 +22,6 @@ from models.quantized_qwen3_asr.dispatch.audio_encoder import run_audio_encoder
 from models.quantized_qwen3_asr.dispatch.audio_inject import run_audio_inject
 from models.quantized_qwen3_asr.dispatch.decode_embed import run_decode_embed
 from models.quantized_qwen3_asr.dispatch.decode_layer import run_decode_layer
-from models.quantized_qwen3_asr.dispatch.decode_lm_head import run_decode_lm_head
 from models.quantized_qwen3_asr.dispatch.decode_norm import run_decode_norm
 from models.quantized_qwen3_asr.dispatch.embed_tokens import run_embed_tokens
 from models.quantized_qwen3_asr.dispatch.lm_head import run_lm_head
@@ -32,16 +31,30 @@ from models.quantized_qwen3_asr.pytorch_modules import (
     audio_position_embedding_shape,
     preprocess_audio_inputs,
 )
+from models.quantized_qwen3_asr.shaders.lm_head_q6_k_argmax_partial_f32 import (
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32,
+)
 from models.quantized_qwen3_asr.shaders.qwen3_asr_token_select_greedy_f32 import (
     QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
 )
 from models.quantized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
     QWEN3_ASR_TOKEN_STORE_EOS_F32,
 )
+from models.quantized_qwen3_asr.shaders.qwen3_token_select_reduce_chunks_f32 import (
+    QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
+)
+from models.quantized_qwen3_asr.shaders.qwen3_token_select_reduce_f32 import (
+    QWEN3_TOKEN_SELECT_REDUCE_F32,
+)
 from models.quantized_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
-from torch2vk.runtime.replay_cache_key import source_tree_digest
+from torch2vk.runtime.replay_cache_key import (
+    build_cached_replay_plan,
+    cached_replay_plan,
+    replay_cache_namespace,
+    source_tree_digest,
+)
 from torch2vk.runtime.rope_table import run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
@@ -57,6 +70,32 @@ _REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
 def _require_gpu_output(tensor: LogicalTensor) -> None:
     if tensor.buffer is None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
+
+
+def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
+    tensors = model_tensors()
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32(
+        rt,
+        x=x,
+        weight=tensors.lm_head.p_weight,
+        partial_scores=tensors.lm_head_partial_scores,
+        partial_tokens=tensors.lm_head_partial_tokens,
+    )
+    QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32(
+        rt,
+        scores=tensors.lm_head_partial_scores,
+        tokens=tensors.lm_head_partial_tokens,
+        chunk_scores=tensors.lm_head_chunk_scores,
+        chunk_tokens=tensors.lm_head_chunk_tokens,
+    )
+    QWEN3_TOKEN_SELECT_REDUCE_F32(
+        rt,
+        partial_scores=tensors.lm_head_chunk_scores,
+        partial_tokens=tensors.lm_head_chunk_tokens,
+        eos_token_ids=tensors.eos_token_ids,
+        next_token=tensors.next_token,
+        done=tensors.done,
+    )
 
 
 def _run_token_select(
@@ -111,14 +150,7 @@ def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
         for layer_idx in range(len(tensors.decode_layers)):
             run_decode_layer(rt, layer_idx)
         run_decode_norm(rt)
-        run_decode_lm_head(rt)
-        QWEN3_ASR_TOKEN_SELECT_GREEDY_F32(
-            rt,
-            logits=tensors.decode_lm_head.linear,
-            eos_token_ids=tensors.eos_token_ids,
-            next_token=tensors.next_token,
-            done=tensors.done,
-        )
+        _run_lm_head_select(rt, x=tensors.decode_norm.mul_1)
         QWEN3_ASR_TOKEN_STORE_EOS_F32(
             rt,
             next_token=tensors.next_token,
@@ -185,15 +217,13 @@ def _build_decode_replay_plan(
     frame: str,
     cache_namespace: str,
 ) -> ReplayPlan:
-    plan = rt.build_replay_plan(
+    return build_cached_replay_plan(
+        rt,
+        namespace=cache_namespace,
         name="quantized_qwen3_asr_decode_step",
         frame=frame,
+        readback_error="Spike Qwen3-ASR decode replay must not use readback slots",
     )
-    if plan.readback_slots:
-        plan.close()
-        raise RuntimeError("Spike Qwen3-ASR decode replay must not use readback slots")
-    rt.cache_replay_plan(cache_namespace, plan)
-    return plan
 
 
 def _cached_decode_replay_plan(
@@ -201,13 +231,15 @@ def _cached_decode_replay_plan(
     *,
     cache_namespace: str,
 ) -> ReplayPlan | None:
-    for plan in rt.cached_replay_plans(cache_namespace):
-        return plan
-    return None
+    return cached_replay_plan(rt, namespace=cache_namespace)
 
 
 def _decode_replay_cache_namespace(model_dir: Path) -> str:
-    return f"{DECODE_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
+    return replay_cache_namespace(
+        name=DECODE_REPLAY_CACHE,
+        source_digest=_REPLAY_SOURCE_DIGEST,
+        model_dir=model_dir,
+    )
 
 
 # ==============================================================
@@ -287,6 +319,7 @@ def main(
         head_dim=tc.head_dim,
         max_new_tokens=max_new_tokens,
         eos_token_count=len(eos_token_ids),
+        vocab_size=int(tc.vocab_size),
     )
     rt = RuntimeSession.open(
         device_index=0,

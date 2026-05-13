@@ -49,23 +49,24 @@ from models.optimized_qwen3_asr.shaders.qwen3_asr_token_store_eos_f32 import (
 from models.optimized_qwen3_asr.tensors.model import create_model_tensors, model_tensors
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
-from torch2vk.runtime.replay_cache_key import source_tree_digest
+from torch2vk.runtime.replay_cache_key import (
+    build_cached_replay_plan,
+    cached_replay_plan,
+    replay_cache_namespace,
+    source_tree_digest,
+)
 from torch2vk.runtime.rope_table import ROPE_TABLE_F32, run_rope_table_f32
 from torch2vk.runtime.session import RuntimeSession
-from torch2vk.runtime.shader import ShaderVariant
 from torch2vk.runtime.shader_loader import make_shader_loader
 
 _DECODE_REPLAY_CACHE = "optimized_qwen3_asr_decode_step:v4"
 _MAX_NEW_TOKENS = 64
 _STOP_CHECK_INTERVAL = 2
-_model_shader = make_shader_loader("models.optimized_qwen3_asr.shaders")
+get_shader = make_shader_loader(
+    "models.optimized_qwen3_asr.shaders",
+    extra_variants=(ROPE_TABLE_F32,),
+)
 _REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
-
-
-def get_shader(name: str) -> ShaderVariant:
-    if name == ROPE_TABLE_F32.name:
-        return ROPE_TABLE_F32
-    return _model_shader(name)
 
 
 def _require_gpu_output(tensor: LogicalTensor) -> None:
@@ -185,15 +186,13 @@ def _build_decode_replay_plan(
     frame: str,
     cache_namespace: str,
 ) -> ReplayPlan:
-    plan = rt.build_replay_plan(
+    return build_cached_replay_plan(
+        rt,
+        namespace=cache_namespace,
         name="optimized_qwen3_asr_decode_step",
         frame=frame,
+        readback_error="Spike Qwen3-ASR decode replay must not use readback slots",
     )
-    if plan.readback_slots:
-        plan.close()
-        raise RuntimeError("Spike Qwen3-ASR decode replay must not use readback slots")
-    rt.cache_replay_plan(cache_namespace, plan)
-    return plan
 
 
 def _cached_decode_replay_plan(
@@ -201,13 +200,15 @@ def _cached_decode_replay_plan(
     *,
     cache_namespace: str,
 ) -> ReplayPlan | None:
-    for plan in rt.cached_replay_plans(cache_namespace):
-        return plan
-    return None
+    return cached_replay_plan(rt, namespace=cache_namespace)
 
 
 def _decode_replay_cache_namespace(model_dir: Path) -> str:
-    return f"{_DECODE_REPLAY_CACHE}:{_REPLAY_SOURCE_DIGEST}:{model_dir.resolve()}"
+    return replay_cache_namespace(
+        name=_DECODE_REPLAY_CACHE,
+        source_digest=_REPLAY_SOURCE_DIGEST,
+        model_dir=model_dir,
+    )
 
 
 # ==============================================================
