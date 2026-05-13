@@ -30,7 +30,6 @@ from models.optimized_qwen3_asr.tensors.embed_tokens import (
     create_embed_tokens,
 )
 from models.optimized_qwen3_asr.tensors.lm_head import (
-    LM_HEAD_OUTPUT,
     LmHeadTensors,
     create_lm_head,
 )
@@ -195,9 +194,6 @@ def create_model_tensors(
     )
     lm_head = create_lm_head(
         "spike.text.lm_head",
-        sequence_length=1,
-        input=text_norm.mul_1,
-        request_state_outputs={LM_HEAD_OUTPUT},
     )
     next_token = _request_output_tensor("int64", (1, 1))
     decode_embed = create_decode_embed(

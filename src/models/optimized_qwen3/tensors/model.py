@@ -8,7 +8,7 @@ from models.optimized_qwen3.tensors.decode_embed import DecodeEmbedTensors, crea
 from models.optimized_qwen3.tensors.decode_layer import DecodeLayerTensors, create_decode_layer
 from models.optimized_qwen3.tensors.decode_norm import DecodeNormTensors, create_decode_norm
 from models.optimized_qwen3.tensors.embed_tokens import EmbedTokensTensors, create_embed_tokens
-from models.optimized_qwen3.tensors.lm_head import LM_HEAD_OUTPUT, LmHeadTensors, create_lm_head
+from models.optimized_qwen3.tensors.lm_head import LmHeadTensors, create_lm_head
 from models.optimized_qwen3.tensors.rope import RopeTableTensors, create_rope_table
 from models.optimized_qwen3.tensors.text_layer import TextLayerTensors, create_text_layer
 from models.optimized_qwen3.tensors.text_norm import TextNormTensors, create_text_norm
@@ -256,9 +256,6 @@ def create_model_tensors(
     )
     lm_head = create_lm_head(
         "qwen3.prefill.lm_head",
-        sequence_length=1,
-        input=text_norm.mul_1,
-        request_state_outputs={LM_HEAD_OUTPUT},
     )
 
     next_token = _request_output_tensor("int64", (1, 1))

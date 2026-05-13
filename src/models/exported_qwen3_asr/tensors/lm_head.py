@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -10,7 +9,6 @@ from torch2vk.runtime.logical import (
     MemoryClass,
     TensorLifetime,
     TensorRole,
-    bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import (
@@ -23,63 +21,28 @@ from torch2vk.vulkan.types import (
 @dataclass(frozen=True, slots=True)
 class LmHeadTensors:
     p_weight: LogicalTensor
-    input: LogicalTensor
-    linear: LogicalTensor
 
 
-LM_HEAD_OUTPUT: str = 'linear'
 
 
 def create_lm_head(
     prefix: str,
     *,
     p_weight: LogicalTensor | None = None,
-    input: LogicalTensor | None = None,
-    linear: LogicalTensor | None = None,
-    request_state_outputs: Collection[str] = frozenset(),
 ) -> LmHeadTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('linear',)))
     tensors = LmHeadTensors(
         p_weight=_bind_tensor(
             p_weight,
             _declare_tensor(
                 checkpoint=None,
-                checkpoint_key="thinker.lm_head.weight",
+                checkpoint_key='thinker.lm_head.weight',
                 reference_key=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(151936, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_weight' in request_state_outputs,
-            ),
-        ),
-        input=_bind_tensor(
-            input,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.INPUT,
-                memory=MemoryClass.HOST_INPUT,
-                lifetime=TensorLifetime.FRAME,
-                request_state='input' in request_state_outputs,
-            ),
-        ),
-        linear=_bind_tensor(
-            linear,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='linear',
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 151936)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='linear' in request_state_outputs,
+                request_state=False,
             ),
         ),
     )
@@ -126,16 +89,3 @@ def _bind_tensor(
         tensor_name = tensor.name or "<declared>"
         raise ValueError(f"{bound_name} spec {bound.spec} does not match {tensor_name} spec {tensor.spec}")
     return bound
-
-
-def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
-    bind_logical_tensor_alias(src, dst)
-
-
-def _validate_request_state_outputs(
-    request_state_outputs: Collection[str],
-    output_names: frozenset[str],
-) -> None:
-    unknown = frozenset(request_state_outputs) - output_names
-    if unknown:
-        raise ValueError(f"request_state_outputs must name module outputs, got {sorted(unknown)}")

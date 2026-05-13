@@ -35,7 +35,6 @@ class ArrayReference(Protocol):
 _MODEL: Qwen3ASRForConditionalGeneration | None = None
 _embed_tokens_reference: torch.nn.Module | None = None
 _text_norm_reference: torch.nn.Module | None = None
-_lm_head_reference: torch.nn.Module | None = None
 _decode_embed_reference: torch.nn.Module | None = None
 _decode_norm_reference: torch.nn.Module | None = None
 
@@ -51,8 +50,6 @@ def _clear_cached_references() -> None:
     _embed_tokens_reference = None
     global _text_norm_reference
     _text_norm_reference = None
-    global _lm_head_reference
-    _lm_head_reference = None
     global _decode_embed_reference
     _decode_embed_reference = None
     global _decode_norm_reference
@@ -78,13 +75,6 @@ def _load_text_norm() -> torch.nn.Module:
         _text_norm_reference = _require_model().get_submodule('thinker.model.norm')
         _text_norm_reference.eval()
     return _text_norm_reference
-
-def _load_lm_head() -> torch.nn.Module:
-    global _lm_head_reference
-    if _lm_head_reference is None:
-        _lm_head_reference = _require_model().get_submodule('thinker.lm_head')
-        _lm_head_reference.eval()
-    return _lm_head_reference
 
 def _load_decode_embed() -> torch.nn.Module:
     global _decode_embed_reference
@@ -324,23 +314,6 @@ def run_text_norm(
         policy=_policy('tensor'),
         inputs={
             "hidden_states": hidden_states,
-        },
-    )
-
-def run_lm_head(
-    rt: RuntimeSession,
-    *,
-    input: ReferenceInput,
-) -> ReferenceExpected:
-    return _execute_and_compare(
-        rt,
-        name='spike.text.lm_head',
-        reference=_load_lm_head(),
-        tensors=model_tensors().lm_head,
-        output_bindings={'linear': 'linear'},
-        policy=_policy('tensor'),
-        inputs={
-            "input": input,
         },
     )
 

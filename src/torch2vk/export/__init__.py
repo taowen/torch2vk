@@ -35,6 +35,7 @@ from torch2vk.export.registry import Q4_K_M_REGISTRY, Q8_0_REGISTRY
 from torch2vk.export.tensor_codegen import (
     TensorClassContext,
     generate_tensor_class_source,
+    generate_weight_tensor_class_source,
 )
 from torch2vk.export.shader_codegen import (
     clear_python_modules,
@@ -66,6 +67,7 @@ __all__ = [
     "generate_looped_dispatch_function_source",
     "generate_looped_tensor_class_sources",
     "generate_tensor_class_source",
+    "generate_weight_tensor_class_source",
     "module_floating_dtype",
     "rename_shader_variant",
     "render_exported_reference_function",

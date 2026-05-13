@@ -39,6 +39,9 @@ from torch2vk.export import (
     module_floating_dtype,
 )
 from torch2vk.export.graph import inject_kv_cache
+from torch2vk.export.shaders.lm_head_q6_k_argmax_partial_f32 import (
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32,
+)
 from torch2vk.export.shaders.qwen3_asr_token_store_f32 import QWEN3_ASR_TOKEN_STORE_EOS_F32
 from torch2vk.export.shaders.qwen3_token_select_reduce_f32 import (
     QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
@@ -66,6 +69,7 @@ from torch2vk.export.shader_codegen import (
 )
 from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
+    generate_weight_tensor_class_source,
     render_tensor_module,
 )
 from torch2vk.export.codegen_loop import (
@@ -233,6 +237,7 @@ def main() -> int:
     )
 
     custom_shader_variants = (
+        LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32,
         SLICE_LAST_TOKEN_F32,
         QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32,
         QWEN3_TOKEN_SELECT_REDUCE_F32,
@@ -535,16 +540,6 @@ def main() -> int:
                reference_name="spike.text.norm",
                export_registry=_DEFAULT_F32_REGISTRY,
                shape_exprs=text_shape_exprs)
-    export_one("run_lm_head", model.thinker.lm_head.float(),
-               args=(torch.zeros(1, pl, hs, device="meta"),),
-               weight_prefix="thinker.lm_head.",
-               reference_module="thinker.lm_head",
-               reference_tensors="model_tensors().lm_head",
-               reference_name="spike.text.lm_head",
-               reference_policy="q4_tensor",
-               export_registry=_Q4_K_M_F32_REGISTRY,
-               weight_quantization=quantized_weights,
-               shape_exprs=text_shape_exprs)
 
     # Decode-step exports (seq_len=1)
     export_one("run_decode_embed", model.thinker.model.embed_tokens.float(),
@@ -586,6 +581,18 @@ def main() -> int:
     print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.
+    lm_head_shape = tuple(int(dim) for dim in model.thinker.lm_head.weight.shape)
+    (tensors_dir / "lm_head.py").write_text(render_tensor_module([
+        generate_weight_tensor_class_source(
+            class_name="LmHeadTensors",
+            function_name="create_lm_head",
+            field_name="p_weight",
+            checkpoint_key="thinker.lm_head.weight",
+            dtype="float32",
+            shape=lm_head_shape,
+            weight_quantization=quantized_weights,
+        )
+    ]))
     (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))
     (tensors_dir / "model.py").write_text(
         _render_template("model.py.j2", model_package=MODEL_PACKAGE)

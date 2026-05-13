@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -10,12 +9,9 @@ from torch2vk.runtime.logical import (
     MemoryClass,
     TensorLifetime,
     TensorRole,
-    bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import (
-    CONTIGUOUS_LAYOUT,
-    TensorLayout,
     TensorSpec,
     q6_k_halfwords_layout,
 )
@@ -24,92 +20,28 @@ from torch2vk.vulkan.types import (
 @dataclass(frozen=True, slots=True)
 class LmHeadTensors:
     p_weight: LogicalTensor
-    input: LogicalTensor
-    linear: LogicalTensor
-
-
-LM_HEAD_OUTPUT: str = 'linear'
 
 
 def create_lm_head(
     prefix: str,
     *,
-    sequence_length: int,
     p_weight: LogicalTensor | None = None,
-    input: LogicalTensor | None = None,
-    linear: LogicalTensor | None = None,
-    request_state_outputs: Collection[str] = frozenset(),
 ) -> LmHeadTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('linear',)))
     tensors = LmHeadTensors(
         p_weight=_bind_tensor(
             p_weight,
-            _declare_tensor(
-                checkpoint_key="lm_head.weight",
-                reference_key=None,
-                spec=TensorSpec(dtype='uint16', shape=(151936, 420)),
-                layout=q6_k_halfwords_layout(logical_k=1024),
+            LogicalTensor(
+                spec=TensorSpec(dtype="uint16", shape=(151936, 420)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_weight' in request_state_outputs,
-            ),
-        ),
-        input=_bind_tensor(
-            input,
-            _declare_tensor(
-                checkpoint_key=None,
-                reference_key=None,
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.INPUT,
-                memory=MemoryClass.HOST_INPUT,
-                lifetime=TensorLifetime.FRAME,
-                request_state='input' in request_state_outputs,
-            ),
-        ),
-        linear=_bind_tensor(
-            linear,
-            _declare_tensor(
-                checkpoint_key=None,
-                reference_key='linear',
-                spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 151936)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='linear' in request_state_outputs,
+                checkpoint_key="lm_head.weight",
+                layout=q6_k_halfwords_layout(logical_k=1024),
             ),
         ),
     )
     bind_logical_tensor_names(tensors, prefix)
     return tensors
-
-
-def _declare_tensor(
-    *,
-    spec: TensorSpec,
-    role: TensorRole,
-    memory: MemoryClass,
-    lifetime: TensorLifetime,
-    layout: TensorLayout = CONTIGUOUS_LAYOUT,
-    checkpoint_key: str | None = None,
-    reference_key: str | None = None,
-    request_state: bool = False,
-) -> LogicalTensor:
-    if request_state:
-        role = TensorRole.OUTPUT
-        memory = MemoryClass.REQUEST_STATE
-        lifetime = TensorLifetime.REQUEST
-    return LogicalTensor(
-        spec=spec,
-        role=role,
-        memory=memory,
-        lifetime=lifetime,
-        checkpoint_key=checkpoint_key,
-        reference_key=reference_key,
-        layout=layout,
-    )
 
 
 def _bind_tensor(
@@ -123,16 +55,3 @@ def _bind_tensor(
         tensor_name = tensor.name or "<declared>"
         raise ValueError(f"{bound_name} spec {bound.spec} does not match {tensor_name} spec {tensor.spec}")
     return bound
-
-
-def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
-    bind_logical_tensor_alias(src, dst)
-
-
-def _validate_request_state_outputs(
-    request_state_outputs: Collection[str],
-    output_names: frozenset[str],
-) -> None:
-    unknown = frozenset(request_state_outputs) - output_names
-    if unknown:
-        raise ValueError(f"request_state_outputs must name module outputs, got {sorted(unknown)}")

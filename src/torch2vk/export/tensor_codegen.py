@@ -45,11 +45,21 @@ class _TensorMeta:
 
 def render_tensor_module(classes: list[TensorClassContext]) -> str:
     q4_k_m_config = _q4_k_m_config(classes)
+    uses_request_state_outputs = any(
+        bool(cls.get("uses_request_state_outputs", True))
+        for cls in classes
+    )
+    uses_alias_bindings = any(
+        bool(cls.get("alias_binding_lines"))
+        for cls in classes
+    )
     return (
         render_template(
             "tensor_module.py.j2",
             classes=classes,
             q4_k_m_config=q4_k_m_config,
+            uses_request_state_outputs=uses_request_state_outputs,
+            uses_alias_bindings=uses_alias_bindings,
             uses_q4_k_words_layout=q4_k_m_config is not None
             or _uses_layout_source(classes, "q4_k_words_layout"),
             uses_q6_k_halfwords_layout=(
@@ -86,8 +96,8 @@ def render_tensor_class(
     *,
     class_name: str,
     fields,
-    output_const: str,
-    output_name_source: str,
+    output_const: str | None,
+    output_name_source: str | None,
     signature: str,
     tensors,
     alias_ops=(),
@@ -95,6 +105,7 @@ def render_tensor_class(
     extra_initializers=(),
     alias_binding_lines: list[str] | None = None,
     q4_k_m_config: dict[str, tuple[str, ...]] | None = None,
+    uses_request_state_outputs: bool = True,
 ) -> TensorClassContext:
     if alias_binding_lines is None:
         alias_binding_lines = [
@@ -112,6 +123,7 @@ def render_tensor_class(
         "extra_initializers": tuple(extra_initializers),
         "alias_binding_lines": tuple(alias_binding_lines),
         "q4_k_m_config": q4_k_m_config,
+        "uses_request_state_outputs": uses_request_state_outputs,
     }
 
 
@@ -122,6 +134,7 @@ def _tensor_factory_signature(
     fields: tuple[str, ...],
     layered: bool,
     shape_parameters: tuple[str, ...] = (),
+    uses_request_state_outputs: bool = True,
 ) -> str:
     params = ["prefix: str"]
     if layered:
@@ -129,7 +142,8 @@ def _tensor_factory_signature(
     params.append("*")
     params.extend(f"{name}: int" for name in shape_parameters)
     params.extend(f"{field}: LogicalTensor | None = None" for field in fields)
-    params.append("request_state_outputs: Collection[str] = frozenset()")
+    if uses_request_state_outputs:
+        params.append("request_state_outputs: Collection[str] = frozenset()")
     return f"def {function_name}(\n    " + ",\n    ".join(params) + f",\n) -> {class_name}:"
 
 
@@ -251,6 +265,51 @@ def generate_tensor_class_source(
         tensors=tensor_entries,
         alias_ops=alias_ops,
         q4_k_m_config=_q4_k_m_config_from_quantization(weight_quantization),
+    )
+
+
+def generate_weight_tensor_class_source(
+    *,
+    class_name: str,
+    function_name: str,
+    field_name: str,
+    checkpoint_key: str,
+    dtype: str,
+    shape: tuple[int, ...],
+    weight_quantization: Q4KMWeightQuantization | None = None,
+    shape_exprs: Mapping[int, str] | None = None,
+) -> TensorClassContext:
+    """Generate a tensor class for a standalone model weight."""
+    meta = _TensorMeta(
+        shape=shape,
+        dtype=dtype,
+        kind=_TensorKind.PARAMETER,
+    )
+    tensor_entry = _tensor_entry(
+        name=field_name,
+        meta=meta,
+        checkpoint_key=repr(checkpoint_key),
+        checkpoint="None",
+        concrete_checkpoint_key=checkpoint_key,
+        reference_key="None",
+        weight_quantization=weight_quantization,
+        shape_exprs=shape_exprs,
+    )
+    return render_tensor_class(
+        class_name=class_name,
+        fields=(field_name,),
+        output_const=None,
+        output_name_source=None,
+        signature=_tensor_factory_signature(
+            function_name,
+            class_name,
+            fields=(field_name,),
+            layered=False,
+            uses_request_state_outputs=False,
+        ),
+        tensors=(tensor_entry,),
+        q4_k_m_config=_q4_k_m_config_from_quantization(weight_quantization),
+        uses_request_state_outputs=False,
     )
 
 

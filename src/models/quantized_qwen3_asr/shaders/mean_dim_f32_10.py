@@ -68,7 +68,7 @@ void main() {
     if (row >= pc.ROWS) { return; }
     float sum = 0.0;
     for (uint c = lane; c < pc.COLS; c += 64u) {
-        sum += x[row * pc.COLS + c];
+        sum += float(x[row * pc.COLS + c]);
     }
     sum = subgroupAdd(sum);
     if (lane == 0u) { output_values[row] = sum / float(pc.COLS); }

@@ -23,6 +23,9 @@ from torch2vk.export.shaders.layer_norm_f32 import make_layer_norm_variant
 from torch2vk.export.shaders.lm_head_bf16_argmax_partial_f16 import (
     LM_HEAD_BF16_ARGMAX_PARTIAL_F16,
 )
+from torch2vk.export.shaders.lm_head_q6_k_argmax_partial_f32 import (
+    LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32,
+)
 from torch2vk.export.shaders.linear_bias_f32 import make_linear_bias_variant
 from torch2vk.export.shaders.linear_bias_quantized import make_linear_bias_q8_0_variant
 from torch2vk.export.shaders.linear_nobias_f32 import make_linear_nobias_variant
@@ -37,9 +40,6 @@ from torch2vk.export.shaders.mul_f32 import make_mul_variant
 from torch2vk.export.shaders.neg_f32 import make_neg_variant
 from torch2vk.export.shaders.pow_scalar_f32 import make_pow_scalar_variant
 from torch2vk.export.shaders.permute_f32 import make_permute_variant
-from torch2vk.export.shaders.qwen3_asr_token_select_f32 import (
-    QWEN3_ASR_TOKEN_SELECT_GREEDY_F32,
-)
 from torch2vk.export.shaders.qwen3_asr_token_store_f32 import (
     QWEN3_ASR_TOKEN_STORE_EOS_F32,
     QWEN3_ASR_TOKEN_STORE_F32,
@@ -77,6 +77,7 @@ __all__ = [
     "make_index_select_variant",
     "make_layer_norm_variant",
     "LM_HEAD_BF16_ARGMAX_PARTIAL_F16",
+    "LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32",
     "make_linear_bias_q8_0_variant",
     "make_linear_bias_variant",
     "make_linear_nobias_variant",
@@ -89,7 +90,6 @@ __all__ = [
     "make_neg_variant",
     "make_pow_scalar_variant",
     "make_permute_variant",
-    "QWEN3_ASR_TOKEN_SELECT_GREEDY_F32",
     "QWEN3_ASR_TOKEN_STORE_EOS_F32",
     "QWEN3_ASR_TOKEN_STORE_F32",
     "QWEN3_TOKEN_SELECT_REDUCE_CHUNKS_F32",

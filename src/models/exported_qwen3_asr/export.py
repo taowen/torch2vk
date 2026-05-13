@@ -62,6 +62,7 @@ from torch2vk.export.shader_codegen import (
 )
 from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
+    generate_weight_tensor_class_source,
     render_tensor_module,
 )
 from torch2vk.export.codegen_loop import (
@@ -489,12 +490,6 @@ def main() -> int:
                reference_module="thinker.model.norm",
                reference_tensors="model_tensors().text_norm",
                reference_name="spike.text.norm")
-    export_one("run_lm_head", model.thinker.lm_head.float(),
-               args=(torch.zeros(1, 1, hs, device="meta"),),
-               weight_prefix="thinker.lm_head.",
-               reference_module="thinker.lm_head",
-               reference_tensors="model_tensors().lm_head",
-               reference_name="spike.text.lm_head")
 
     # Decode-step exports (seq_len=1)
     export_one("run_decode_embed", model.thinker.model.embed_tokens.float(),
@@ -528,6 +523,17 @@ def main() -> int:
     print(f"\n  {shader_file_count} shader files written")
 
     # Write model-level tensor wiring.
+    lm_head_shape = tuple(int(dim) for dim in model.thinker.lm_head.weight.shape)
+    (tensors_dir / "lm_head.py").write_text(render_tensor_module([
+        generate_weight_tensor_class_source(
+            class_name="LmHeadTensors",
+            function_name="create_lm_head",
+            field_name="p_weight",
+            checkpoint_key="thinker.lm_head.weight",
+            dtype=checkpoint_dtypes["thinker.lm_head.weight"],
+            shape=lm_head_shape,
+        )
+    ]))
     (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))
     (tensors_dir / "model.py").write_text(_render_template("model.py.j2"))
     tensor_file_count = count_python_modules(tensors_dir)

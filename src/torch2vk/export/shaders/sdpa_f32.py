@@ -327,7 +327,6 @@ def make_sdpa_variant(node: Node, activation_dtype: str = "float32") -> ShaderVa
     v_contract = tuple(f"V{i}" for i in range(len(v_shape)))
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
 
-    b = q_shape[0] if len(q_shape) >= 4 else 1
     nh = q_shape[len(q_shape) - 3] if len(q_shape) >= 3 else 1
     nk = k_shape[len(k_shape) - 3] if len(k_shape) >= 3 else 1
     t = q_shape[len(q_shape) - 2] if len(q_shape) >= 2 else 1

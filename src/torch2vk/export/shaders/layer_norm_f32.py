@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 from torch.fx import Node
 
 from torch2vk.export.shaders._factory import (
@@ -83,16 +81,12 @@ def make_layer_norm_variant(node: Node, activation_dtype: str = "float32") -> Sh
     if isinstance(normalized_shape_arg, (list, tuple)):
         normalized_dims = [d for d in normalized_shape_arg if isinstance(d, int)]
         if len(normalized_dims) == len(normalized_shape_arg):
-            cols = math.prod(normalized_dims)
             normalized_rank = len(normalized_dims)
         else:
-            cols = in_shape[-1]
             normalized_rank = 1
     elif isinstance(normalized_shape_arg, int):
-        cols = normalized_shape_arg
         normalized_rank = 1
     else:
-        cols = in_shape[-1]
         normalized_rank = 1
 
     eps_val = 1e-5

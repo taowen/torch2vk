@@ -174,7 +174,6 @@ def create_model_tensors(
     )
     lm_head = create_lm_head(
         "spike.text.lm_head",
-        input=prefill_lm_head_input,
     )
     next_token = _request_output_tensor("int64", (1, 1))
     decode_embed = create_decode_embed(

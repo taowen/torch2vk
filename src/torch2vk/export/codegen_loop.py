@@ -327,11 +327,6 @@ def generate_looped_dispatch_function_source(
         carry_set=carry_set,
         post_carry_targets=post_carry_targets,
     )
-    uses_quantized_linear_dispatch = any(
-        isinstance(op, _DispatchOp) and op.q6_variant is not None
-        for op in analysis.pre_ops + analysis.layer_ops + analysis.post_ops
-    )
-
     def _tensor_ref(tensor_name: str, in_loop: bool) -> str:
         if in_loop and tensor_name in carry_set:
             return "carry"

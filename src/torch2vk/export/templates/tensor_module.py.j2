@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+{% if uses_request_state_outputs %}
 from collections.abc import Collection
+{% endif %}
 from dataclasses import dataclass
 
 from torch2vk.runtime.logical import (
@@ -10,7 +12,9 @@ from torch2vk.runtime.logical import (
     MemoryClass,
     TensorLifetime,
     TensorRole,
+{% if uses_alias_bindings %}
     bind_logical_tensor_alias,
+{% endif %}
     bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import (
@@ -40,11 +44,15 @@ class {{ cls.class_name }}:
 {% endfor %}
 
 
+{% if cls.output_const %}
 {{ cls.output_const }}: str = {{ cls.output_name_source }}
+{% endif %}
 
 
 {{ cls.signature }}
+{% if cls.uses_request_state_outputs %}
     _validate_request_state_outputs(request_state_outputs, frozenset(({{ cls.output_name_source }},)))
+{% endif %}
     tensors = {{ cls.class_name }}(
 {% for tensor in cls.tensors %}
         {{ tensor.name }}=_bind_tensor(
@@ -58,7 +66,7 @@ class {{ cls.class_name }}:
                 role={{ tensor.role }},
                 memory={{ tensor.memory }},
                 lifetime={{ tensor.lifetime }},
-                request_state={{ tensor.name_source }} in request_state_outputs,
+                request_state={% if cls.uses_request_state_outputs %}{{ tensor.name_source }} in request_state_outputs{% else %}False{% endif %},
             ),
         ),
 {% endfor %}
@@ -182,10 +190,13 @@ def _bind_tensor(
     return bound
 
 
+{% if uses_alias_bindings %}
 def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
     bind_logical_tensor_alias(src, dst)
 
 
+{% endif %}
+{% if uses_request_state_outputs %}
 def _validate_request_state_outputs(
     request_state_outputs: Collection[str],
     output_names: frozenset[str],
@@ -193,3 +204,4 @@ def _validate_request_state_outputs(
     unknown = frozenset(request_state_outputs) - output_names
     if unknown:
         raise ValueError(f"request_state_outputs must name module outputs, got {sorted(unknown)}")
+{% endif %}

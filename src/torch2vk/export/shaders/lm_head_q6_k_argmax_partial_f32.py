@@ -1,4 +1,4 @@
-"""Generated shader: lm_head_q6_k_argmax_partial_f32."""
+"""Q6_K lm_head matvec that emits local argmax partials."""
 
 from __future__ import annotations
 
@@ -18,54 +18,55 @@ from torch2vk.vulkan.shader_execution_requirements import (
     ShaderExecutionRequirements,
     SubgroupRequirements,
 )
-from torch2vk.vulkan.types import (
-    q6_k_halfwords_layout,
-)
+from torch2vk.vulkan.types import q6_k_halfwords_layout
 
 
 LM_HEAD_Q6_K_ARGMAX_PARTIAL_F32 = ShaderVariant(
-    name='lm_head_q6_k_argmax_partial_f32',
-    family='qwen3.text',
+    name="lm_head_q6_k_argmax_partial_f32",
+    family="qwen3.text",
     contract=ShaderContract(
-        class_name='LmHeadQ6KArgmaxPartialF32Program',
-        shader_name='lm_head_q6_k_argmax_partial_f32',
+        class_name="LmHeadQ6KArgmaxPartialF32Program",
+        shader_name="lm_head_q6_k_argmax_partial_f32",
         fields=(
             TensorFieldSpec(
-                name='x',
-                io_kind=IOKind.INPUT,
-                role='input',
-                contract=TensorContract(dtype='float32', shape=(1, 1, 'K',)),
+                "x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=(1, 1, "K"))
             ),
             TensorFieldSpec(
-                name='weight',
-                io_kind=IOKind.INPUT,
-                role='weight',
-                contract=TensorContract(dtype='uint16', shape=('N', mul(ceil_div('K', 256), 105),), layout=q6_k_halfwords_layout(logical_k='K', block_size=256, halfwords_per_block=105)),
+                "weight",
+                IOKind.INPUT,
+                "weight",
+                TensorContract(
+                    dtype="uint16",
+                    shape=("N", mul(ceil_div("K", 256), 105)),
+                    layout=q6_k_halfwords_layout(logical_k="K"),
+                ),
             ),
             TensorFieldSpec(
-                name='partial_scores',
-                io_kind=IOKind.OUTPUT,
-                role='partial_scores',
-                contract=TensorContract(dtype='float32', shape=('G',)),
+                "partial_scores",
+                IOKind.OUTPUT,
+                "partial_scores",
+                TensorContract(dtype="float32", shape=("G",)),
             ),
             TensorFieldSpec(
-                name='partial_tokens',
-                io_kind=IOKind.OUTPUT,
-                role='partial_tokens',
-                contract=TensorContract(dtype='uint32', shape=('G',)),
+                "partial_tokens",
+                IOKind.OUTPUT,
+                "partial_tokens",
+                TensorContract(dtype="uint32", shape=("G",)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('K', PushConstantType.UINT32, 0, 'K', dynamic=False),
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 4, 'N', dynamic=False),
+                PushConstantFieldSpec("K", PushConstantType.UINT32, 0, "K"),
+                PushConstantFieldSpec("N", PushConstantType.UINT32, 4, "N"),
             ),
         ),
-        params_buffer=None,
-        dispatch=(ceil_div('N', 4), 1, 1),
+        dispatch=(ceil_div("N", 4), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_storage_buffer_16bit_access=True),
+    execution_requirements=ShaderExecutionRequirements(
+        subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
+        require_storage_buffer_16bit_access=True,
+    ),
     source="""\
 #version 450
 

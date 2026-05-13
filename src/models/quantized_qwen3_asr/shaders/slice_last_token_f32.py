@@ -1,4 +1,4 @@
-"""Copy the last sequence position from a prefill hidden-state tensor."""
+"""Generated shader: slice_last_token_f32."""
 
 from __future__ import annotations
 
@@ -16,32 +16,37 @@ from torch2vk.runtime.shader import (
 
 
 SLICE_LAST_TOKEN_F32 = ShaderVariant(
-    name="slice_last_token_f32",
-    family="quantized_qwen3_asr",
+    name='slice_last_token_f32',
+    family='export',
     contract=ShaderContract(
-        class_name="SliceLastTokenF32Program",
-        shader_name="slice_last_token_f32",
+        class_name='SliceLastTokenF32Program',
+        shader_name='slice_last_token_f32',
         fields=(
             TensorFieldSpec(
-                "x", IOKind.INPUT, "input", TensorContract(dtype="float32", shape=("B", "S", "H"))
+                name='x',
+                io_kind=IOKind.INPUT,
+                role='input',
+                contract=TensorContract(dtype='float32', shape=('B', 'S', 'H',)),
             ),
             TensorFieldSpec(
-                "output",
-                IOKind.OUTPUT,
-                "output",
-                TensorContract(dtype="float32", shape=("B", 1, "H")),
+                name='output',
+                io_kind=IOKind.OUTPUT,
+                role='output',
+                contract=TensorContract(dtype='float32', shape=('B', 1, 'H',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec("B", PushConstantType.UINT32, 0, "B"),
-                PushConstantFieldSpec("S", PushConstantType.UINT32, 4, "S"),
-                PushConstantFieldSpec("H", PushConstantType.UINT32, 8, "H"),
+                PushConstantFieldSpec('B', PushConstantType.UINT32, 0, 'B', dynamic=False),
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 4, 'S', dynamic=False),
+                PushConstantFieldSpec('H', PushConstantType.UINT32, 8, 'H', dynamic=False),
             ),
         ),
-        dispatch=(ceil_div("H", 256), "B", 1),
+        params_buffer=None,
+        dispatch=(ceil_div('H', 256), 'B', 1),
     ),
+    execution_requirements=None,
     source="""\
 #version 450
 

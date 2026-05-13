@@ -15,7 +15,7 @@ from models.quantized_qwen3_asr.shaders.gelu_f32_88 import GELU_F32_88
 from models.quantized_qwen3_asr.shaders.index_select_f32_c6680f8d95 import INDEX_SELECT_F32_C6680F8D95
 from models.quantized_qwen3_asr.shaders.layer_norm_f32w_f32b_f32 import LAYER_NORM_F32W_F32B_F32
 from models.quantized_qwen3_asr.shaders.linear_bias_q8_0w_f32b_f32_act_f32 import LINEAR_BIAS_Q8_0W_F32B_F32_ACT_F32
-from models.quantized_qwen3_asr.shaders.linear_nobias_q8_0_matvec_f32_act_f32 import LINEAR_NOBIAS_Q8_0_MATVEC_F32_ACT_F32
+from models.quantized_qwen3_asr.shaders.linear_nobias_q8_0_f32_act_f32 import LINEAR_NOBIAS_Q8_0_F32_ACT_F32
 from models.quantized_qwen3_asr.shaders.sdpa_masked_f32 import SDPA_MASKED_F32
 from models.quantized_qwen3_asr.shaders.transpose_f32_48d16b9b88 import TRANSPOSE_F32_48D16B9B88
 from models.quantized_qwen3_asr.shaders.transpose_f32_6a3397f037 import TRANSPOSE_F32_6A3397F037
@@ -32,7 +32,7 @@ def _run_audio_encoder_with_tensors(rt: RuntimeSession, tensors: AudioEncoderTen
     CONV2D_Q8_0W_F32B_F32_3(rt, x=tensors.gelu_1, weight=tensors.p_audio_tower_conv2d3_weight, bias=tensors.p_audio_tower_conv2d3_bias, output=tensors.conv2d_2)
     GELU_F32(rt, x=tensors.conv2d_2, output=tensors.gelu_2)
     TRANSPOSE_F32_D95CE920AC(rt, x=tensors.reshape, output=tensors.transpose)
-    LINEAR_NOBIAS_Q8_0_MATVEC_F32_ACT_F32(rt, x=tensors.transpose, weight=tensors.p_audio_tower_conv_out_weight, output=tensors.linear)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.transpose, weight=tensors.p_audio_tower_conv_out_weight, output=tensors.linear)
     ADD_F32(rt, x=tensors.linear, y=tensors.position_embedding, output=tensors.add)
     INDEX_SELECT_F32_C6680F8D95(rt, x=tensors.reshape_1, index=tensors.compact_index, output=tensors.index_select)
     carry = tensors.index_select
