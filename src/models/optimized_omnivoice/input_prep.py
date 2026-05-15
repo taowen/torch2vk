@@ -31,7 +31,7 @@ class _TokenizedText(Protocol):
     input_ids: torch.Tensor
 
 
-class _OmniVoiceTokenizer(Protocol):
+class OmniVoiceTokenizer(Protocol):
     def __call__(self, text: str, *, return_tensors: str) -> _TokenizedText: ...
 
 
@@ -48,7 +48,7 @@ def estimate_target_len(text: str) -> int:
 def prepare_omnivoice_inputs(
     *,
     text: str,
-    tokenizer: _OmniVoiceTokenizer,
+    tokenizer: OmniVoiceTokenizer,
     config: OmniVoiceConfig,
 ) -> PreparedOmniVoiceInputs:
     num_audio_codebook = config.num_audio_codebook

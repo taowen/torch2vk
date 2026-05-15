@@ -9,10 +9,14 @@ Run from project root:
 
 from __future__ import annotations
 
+import atexit
 import json
 import math
 import time
+from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import torch
@@ -23,7 +27,11 @@ from models.optimized_omnivoice.dispatch.audio_decode import run_audio_decode
 from models.optimized_omnivoice.dispatch.audio_head import run_audio_head
 from models.optimized_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.optimized_omnivoice.export_gguf import export_omnivoice_q4_k_m_gguf
-from models.optimized_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
+from models.optimized_omnivoice.input_prep import (
+    DEFAULT_TEXT,
+    OmniVoiceTokenizer,
+    prepare_omnivoice_inputs,
+)
 from models.optimized_omnivoice.shaders.omnivoice_cfg_score_f32 import OMNIVOICE_CFG_SCORE_F32
 from models.optimized_omnivoice.shaders.omnivoice_input_embed_q8_0_f32 import (
     OMNIVOICE_INPUT_EMBED_Q8_0_F32,
@@ -54,6 +62,99 @@ get_shader = make_shader_loader("models.optimized_omnivoice.shaders")
 
 
 _REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
+
+
+@dataclass(slots=True)
+class _RuntimeCache:
+    target_len: int
+    gguf_dir: Path
+    profile_dir: str | None
+    generation_cache_namespace: str
+    audio_decode_cache_namespace: str
+    rt: RuntimeSession
+    generation_replay_plan: ReplayPlan | None = None
+    audio_decode_replay_plan: ReplayPlan | None = None
+
+    def close(self) -> None:
+        self.rt.close()
+
+
+_RUNTIME_CACHE: _RuntimeCache | None = None
+
+
+@lru_cache(maxsize=2)
+def _cached_gguf_path(model_dir: str) -> Path:
+    return export_omnivoice_q4_k_m_gguf(model_dir=Path(model_dir))
+
+
+@lru_cache(maxsize=2)
+def _cached_config(model_dir: str) -> OmniVoiceConfig:
+    config_data = json.loads((Path(model_dir) / "config.json").read_text())
+    return OmniVoiceConfig(**config_data)
+
+
+@lru_cache(maxsize=2)
+def _cached_tokenizer(model_dir: str) -> OmniVoiceTokenizer:
+    return cast(OmniVoiceTokenizer, AutoTokenizer.from_pretrained(Path(model_dir)))
+
+
+def _runtime_for(
+    *,
+    target_len: int,
+    seq_len: int,
+    gguf_path: Path,
+    profile_dir: str | Path | None,
+) -> _RuntimeCache:
+    profile_key = None if profile_dir is None else str(Path(profile_dir).expanduser().resolve())
+    gguf_dir = gguf_path.parent
+
+    global _RUNTIME_CACHE
+    if (
+        profile_key is None
+        and _RUNTIME_CACHE is not None
+        and _RUNTIME_CACHE.target_len == target_len
+        and _RUNTIME_CACHE.gguf_dir == gguf_dir
+    ):
+        return _RUNTIME_CACHE
+
+    if _RUNTIME_CACHE is not None:
+        _RUNTIME_CACHE.close()
+        _RUNTIME_CACHE = None
+
+    create_model_tensors(target_len=target_len)
+    expected_seq_len = model_tensors().batch_input_ids.spec.shape[2]
+    if expected_seq_len != seq_len:
+        raise ValueError(
+            f"optimized OmniVoice seq_len is {expected_seq_len}, "
+            f"but prepared inputs require {seq_len}; regenerate optimized_omnivoice"
+        )
+    runtime = _RuntimeCache(
+        target_len=target_len,
+        gguf_dir=gguf_dir,
+        profile_dir=profile_key,
+        generation_cache_namespace=_generation_replay_cache_namespace(gguf_dir),
+        audio_decode_cache_namespace=_audio_decode_replay_cache_namespace(gguf_dir),
+        rt=RuntimeSession.open(
+            device_index=0,
+            model_dir=gguf_dir,
+            profile_dir=profile_dir,
+            model_tensors=model_tensors(),
+            get_shader=get_shader,
+        ),
+    )
+    if profile_key is None:
+        _RUNTIME_CACHE = runtime
+    return runtime
+
+
+def _close_runtime_cache() -> None:
+    global _RUNTIME_CACHE
+    if _RUNTIME_CACHE is not None:
+        _RUNTIME_CACHE.close()
+        _RUNTIME_CACHE = None
+
+
+atexit.register(_close_runtime_cache)
 
 
 def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float) -> np.ndarray:
@@ -199,14 +300,12 @@ def main(
 ) -> Path:
     output_path = Path(output)
     model_dir = resolve_cached_model(REPO_ID)
-    gguf_path = export_omnivoice_q4_k_m_gguf(model_dir=model_dir)
-    replay_cache_namespace = _generation_replay_cache_namespace(gguf_path.parent)
-    audio_decode_replay_cache_namespace = _audio_decode_replay_cache_namespace(gguf_path.parent)
-    config_data = json.loads((model_dir / "config.json").read_text())
-    config = OmniVoiceConfig(**config_data)
+    model_dir_key = str(model_dir)
+    gguf_path = _cached_gguf_path(model_dir_key)
+    config = _cached_config(model_dir_key)
 
     print("Loading tokenizer...")
-    text_tokenizer = AutoTokenizer.from_pretrained(model_dir)
+    text_tokenizer = _cached_tokenizer(model_dir_key)
 
     audio_mask_id = config.audio_mask_id
 
@@ -233,20 +332,13 @@ def main(
     print("Initializing Vulkan runtime...")
 
     print("Declaring tensors...")
-    create_model_tensors(target_len=target_len)
-    expected_seq_len = model_tensors().batch_input_ids.spec.shape[2]
-    if expected_seq_len != seq_len:
-        raise ValueError(
-            f"optimized OmniVoice seq_len is {expected_seq_len}, "
-            f"but prepared inputs require {seq_len}; regenerate optimized_omnivoice"
-        )
-    rt = RuntimeSession.open(
-        device_index=0,
-        model_dir=gguf_path.parent,
+    runtime = _runtime_for(
+        target_len=target_len,
+        seq_len=seq_len,
+        gguf_path=gguf_path,
         profile_dir=profile_dir,
-        model_tensors=model_tensors(),
-        get_shader=get_shader,
     )
+    rt = runtime.rt
 
     # Iterative decoding
     print(f"\n=== Iterative Decoding ({num_steps} steps) ===")
@@ -290,7 +382,7 @@ def main(
     _run_rope_table(rt, frame_name="omnivoice.rope")
 
     unmasked = 0
-    generation_replay_plan: ReplayPlan | None = None
+    generation_replay_plan = runtime.generation_replay_plan
     generation_start = time.perf_counter()
     for step in range(num_steps):
         k = schedule[step]
@@ -302,16 +394,18 @@ def main(
             rt.register_inputs(step_inputs)
             generation_replay_plan = _cached_generation_replay_plan(
                 rt,
-                cache_namespace=replay_cache_namespace,
+                cache_namespace=runtime.generation_cache_namespace,
             )
             if generation_replay_plan is None:
                 _run_generation_step(rt, step=step)
                 generation_replay_plan = _build_generation_replay_plan(
                     rt,
                     frame=f"omnivoice.step.{step:04d}",
-                    cache_namespace=replay_cache_namespace,
+                    cache_namespace=runtime.generation_cache_namespace,
                 )
+                runtime.generation_replay_plan = generation_replay_plan
             else:
+                runtime.generation_replay_plan = generation_replay_plan
                 stage_replay_step_inputs(
                     rt,
                     plan=generation_replay_plan,
@@ -347,24 +441,30 @@ def main(
     # Decode audio tokens
     print("\nDecoding audio tokens...")
     decode_start = time.perf_counter()
-    audio_decode_replay_plan = _cached_audio_decode_replay_plan(
-        rt,
-        cache_namespace=audio_decode_replay_cache_namespace,
-    )
+    audio_decode_replay_plan = runtime.audio_decode_replay_plan
     if audio_decode_replay_plan is None:
-        with rt.frame("omnivoice.audio_decode"):
-            run_audio_decode(rt)
-        audio_decode_replay_plan = _build_audio_decode_replay_plan(
+        audio_decode_replay_plan = _cached_audio_decode_replay_plan(
             rt,
-            cache_namespace=audio_decode_replay_cache_namespace,
+            cache_namespace=runtime.audio_decode_cache_namespace,
         )
+        if audio_decode_replay_plan is None:
+            with rt.frame("omnivoice.audio_decode"):
+                run_audio_decode(rt)
+            audio_decode_replay_plan = _build_audio_decode_replay_plan(
+                rt,
+                cache_namespace=runtime.audio_decode_cache_namespace,
+            )
+        else:
+            execute_replay(audio_decode_replay_plan)
+        runtime.audio_decode_replay_plan = audio_decode_replay_plan
     else:
         execute_replay(audio_decode_replay_plan)
     waveform = torch.from_numpy(
         np.ascontiguousarray(rt.read_request_state(model_tensors().audio_decode.conv1d_31)[0])
     )
     decode_elapsed = time.perf_counter() - decode_start
-    rt.close()
+    if runtime.profile_dir is not None:
+        runtime.close()
     print(f"  Audio decode: {decode_elapsed:.3f}s")
 
     # Save wav

@@ -8,8 +8,8 @@
 
 ```text
 Vulkan candidate: rt.frame(...) 内按 dispatch 顺序执行 shader。
-PyTorch reference: reference.py 的 run_xxx(...) 首次执行时按需加载当前 PyTorch 模型里的 submodule；不好机械生成的
-reference state 由 run.py 手写推进，再调用生成的 reference.run_xxx(...) 同步执行同粒度 tensor reference。
+PyTorch reference: reference.py 的 run_xxx(...) 首次执行时按需加载当前 PyTorch 模型里的 submodule；
+compare.py 从 Vulkan 当前 tensor/readback 取输入，再调用生成的 reference.run_xxx(...) 执行同粒度 reference。
 绑定关系: reference.py 内联 output_bindings，把 reference output key 映射到 LogicalTensor 字段。
 比较动作: 生成的 reference.py 调用 compare_expected(...)。
 ```
@@ -62,19 +62,20 @@ expected = reference.run_text_norm(
 policy=_policy({"candidate_tokens": "token", "candidate_scores": "tensor"})
 ```
 
-## 有状态 reference
+## 有状态流程
 
-生成式模型必须由调用方显式维护 PyTorch state。例如 Qwen3-ASR decode reference 持有 `DynamicCache`，
-OmniVoice masked decoding reference 持有 `tokens` 和 `batch_input_ids`。Vulkan 每执行一步，PyTorch
-reference 也执行同一步，并用同一个 token/cache 状态推进。
+生成式模型的长流程状态以 Vulkan 侧为 single source of truth。Qwen3-ASR 的 KV cache、generated tokens、
+stopped 标志，OmniVoice 的 masked tokens、batch input ids 等状态都由 Vulkan/request-state tensor 保存。
 
-这能覆盖长流程累计漂移：如果前面某步 token update 出错，下一步 PyTorch reference 会在自己的正确状态上继续，
-后续对拍会在对应子图暴露 mismatch。
+compare.py 在每个子图执行前，从 Vulkan 当前 tensor/readback 读取该子图的 reference 输入，再调用生成的
+`reference.run_xxx(...)`。PyTorch reference 不维护另一份独立 decode state，也不用自己的 token/cache 继续推进。
+这样可以覆盖长流程累计漂移：如果前一步 Vulkan token update 或 cache write 出错，下一步 reference 会收到这个
+错误状态作为输入，并在当前子图的输出比较中暴露差异。
 
 ## 输入与权重
 
-输入应来自同一份业务数据。模型运行代码负责把 numpy/torch 输入同时喂给 Vulkan 和 PyTorch reference。Runtime
-不会接受第二套隐藏输入，也不会在 frame exit 自动调用 PyTorch。
+入口输入应来自同一份业务数据。进入长流程后，PyTorch reference 的中间输入优先来自 Vulkan 当前 tensor/readback，
+而不是维护一套并行状态。Runtime 不会接受第二套隐藏输入，也不会在 frame exit 自动调用 PyTorch。
 
 权重必须对齐到同一 checkpoint 语义：
 

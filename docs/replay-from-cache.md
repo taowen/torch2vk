@@ -150,7 +150,7 @@ descriptor set，但不需要重新 record command buffer。
 不同 wav 长度会改变 prompt length、audio feature length 和 KV capacity。Replay 不应该靠按长度 bucket 规避
 问题，也不应该为每个 exact length record 一条 command buffer。
 
-当前采用的方向是类似 DynamicCache 的连续 KV storage：
+当前采用的方向是连续 KV storage：
 
 ```text
 KV storage capacity belongs to REQUEST_STATE buffer shape
