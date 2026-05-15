@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from models.optimized_omnivoice.input_prep import SEQ_CAPACITY, TARGET_CAPACITY
 from models.optimized_omnivoice.tensors.audio_decode import AudioDecodeTensors, create_audio_decode
 from models.optimized_omnivoice.tensors.audio_head import AudioHeadTensors, create_audio_head
 from models.optimized_omnivoice.tensors.llm_forward import LlmForwardTensors, create_llm_forward
@@ -37,6 +38,8 @@ class QuantizedOmniVoiceTensors:
     rng_seed: LogicalTensor
     step_index: LogicalTensor
     unmask_count: LogicalTensor
+    active_target_len: LogicalTensor
+    cond_target_start: LogicalTensor
     tokens: LogicalTensor
     candidate_tokens: LogicalTensor
     candidate_scores: LogicalTensor
@@ -49,7 +52,7 @@ class QuantizedOmniVoiceTensors:
 _MODEL_TENSORS: QuantizedOmniVoiceTensors | None = None
 
 
-def create_model_tensors(*, target_len: int) -> QuantizedOmniVoiceTensors:
+def create_model_tensors() -> QuantizedOmniVoiceTensors:
     text_embedding_weight = _weight_tensor(
         "float32",
         (151676, 1024),
@@ -62,25 +65,27 @@ def create_model_tensors(*, target_len: int) -> QuantizedOmniVoiceTensors:
         "audio_embeddings.weight",
         quantize_q8_0=True,
     )
-    batch_input_ids = _state_tensor("int64", (2, 8, 85))
-    batch_audio_mask = _state_tensor("uint32", (2, 85))
-    attention_mask = _state_tensor("float16", (2, 1, 85, 85))
+    batch_input_ids = _state_tensor("int64", (2, 8, SEQ_CAPACITY))
+    batch_audio_mask = _state_tensor("uint32", (2, SEQ_CAPACITY))
+    attention_mask = _state_tensor("float16", (2, 1, SEQ_CAPACITY, SEQ_CAPACITY))
     audio_mask_id = _state_tensor("int64", (1,))
     rng_seed = _state_tensor("uint32", (1,))
     step_index = _host_input_tensor("uint32", (1,))
     unmask_count = _host_input_tensor("uint32", (1,))
-    tokens = _state_tensor("int64", (1, 8, target_len))
-    candidate_tokens = _state_tensor("int64", (8, target_len))
-    candidate_scores = _state_tensor("float32", (8, target_len))
+    active_target_len = _state_tensor("uint32", (1,))
+    cond_target_start = _state_tensor("uint32", (1,))
+    tokens = _state_tensor("int64", (1, 8, TARGET_CAPACITY))
+    candidate_tokens = _state_tensor("int64", (8, TARGET_CAPACITY))
+    candidate_scores = _state_tensor("float32", (8, TARGET_CAPACITY))
     rope = declare_rope_table_tensors(
         "omnivoice.rope",
         batch=2,
-        sequence_length=85,
+        sequence_length=SEQ_CAPACITY,
         head_dim=128,
     )
     hidden_states = _activation_tensor(
         "float16",
-        (2, 85, 1024),
+        (2, SEQ_CAPACITY, 1024),
     )
     llm_forward = create_llm_forward(
         "omnivoice.llm",
@@ -95,7 +100,7 @@ def create_model_tensors(*, target_len: int) -> QuantizedOmniVoiceTensors:
     )
     audio_decode = create_audio_decode(
         "omnivoice.audio_decode",
-        target_len=target_len,
+        target_len=TARGET_CAPACITY,
         audio_codes=tokens,
         request_state_outputs=frozenset(("conv1d_31",)),
     )
@@ -111,6 +116,8 @@ def create_model_tensors(*, target_len: int) -> QuantizedOmniVoiceTensors:
         rng_seed=rng_seed,
         step_index=step_index,
         unmask_count=unmask_count,
+        active_target_len=active_target_len,
+        cond_target_start=cond_target_start,
         tokens=tokens,
         candidate_tokens=candidate_tokens,
         candidate_scores=candidate_scores,

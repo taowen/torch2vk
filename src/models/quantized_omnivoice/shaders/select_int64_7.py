@@ -43,8 +43,8 @@ SELECT_INT64_7 = ShaderVariant(
             size=16,
             fields=(
                 PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('O0', 'O1'), dynamic=False),
-                PushConstantFieldSpec('select_dim', PushConstantType.UINT32, 4, 8, dynamic=False),
-                PushConstantFieldSpec('inner', PushConstantType.UINT32, 8, 69, dynamic=False),
+                PushConstantFieldSpec('select_dim', PushConstantType.UINT32, 4, 'I1', dynamic=False),
+                PushConstantFieldSpec('inner', PushConstantType.UINT32, 8, 'I2', dynamic=False),
                 PushConstantFieldSpec('selected', PushConstantType.UINT32, 12, 4, dynamic=False),
             ),
         ),

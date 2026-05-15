@@ -58,16 +58,10 @@ def make_select_variant(node: Node, activation_dtype: str = "float32") -> Shader
     if not (0 <= selected < input_shape[dim]):
         return None
 
-    outer = 1
-    for size in input_shape[:dim]:
-        outer *= size
-    inner = 1
-    for size in input_shape[dim + 1 :]:
-        inner *= size
-
     in_contract = tuple(f"I{i}" for i in range(len(input_shape)))
     out_contract = tuple(f"O{i}" for i in range(len(output_shape)))
     n_expr = product_expr(out_contract)
+    inner_expr = product_expr(in_contract[dim + 1 :])
     return ShaderVariant(
         name=f"select_{dtype}",
         family="export",
@@ -90,9 +84,9 @@ def make_select_variant(node: Node, activation_dtype: str = "float32") -> Shader
                 fields=(
                     PushConstantFieldSpec("N", PushConstantType.UINT32, 0, n_expr),
                     PushConstantFieldSpec(
-                        "select_dim", PushConstantType.UINT32, 4, input_shape[dim]
+                        "select_dim", PushConstantType.UINT32, 4, in_contract[dim]
                     ),
-                    PushConstantFieldSpec("inner", PushConstantType.UINT32, 8, inner),
+                    PushConstantFieldSpec("inner", PushConstantType.UINT32, 8, inner_expr),
                     PushConstantFieldSpec("selected", PushConstantType.UINT32, 12, selected),
                 ),
             ),

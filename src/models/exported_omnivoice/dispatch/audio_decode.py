@@ -6,77 +6,41 @@ from models.exported_omnivoice.tensors.model import model_tensors
 from models.exported_omnivoice.shaders.audio_decode_add_f32 import AUDIO_DECODE_ADD_F32
 from models.exported_omnivoice.shaders.audio_decode_add_scalar import AUDIO_DECODE_ADD_SCALAR
 from models.exported_omnivoice.shaders.audio_decode_mul_broadcast_inner import AUDIO_DECODE_MUL_BROADCAST_INNER
-from models.exported_omnivoice.shaders.audio_decode_pow_scalar_f32 import AUDIO_DECODE_POW_SCALAR_F32
 from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32 import CONV1D_F32W_F32B_F32
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_21 import CONV1D_F32W_F32B_F32_21
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_22 import CONV1D_F32W_F32B_F32_22
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_23 import CONV1D_F32W_F32B_F32_23
 from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_24 import CONV1D_F32W_F32B_F32_24
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_26 import CONV1D_F32W_F32B_F32_26
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_25 import CONV1D_F32W_F32B_F32_25
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_27 import CONV1D_F32W_F32B_F32_27
 from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_28 import CONV1D_F32W_F32B_F32_28
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_29 import CONV1D_F32W_F32B_F32_29
 from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_30 import CONV1D_F32W_F32B_F32_30
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_32 import CONV1D_F32W_F32B_F32_32
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_31 import CONV1D_F32W_F32B_F32_31
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_33 import CONV1D_F32W_F32B_F32_33
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_34 import CONV1D_F32W_F32B_F32_34
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_35 import CONV1D_F32W_F32B_F32_35
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_36 import CONV1D_F32W_F32B_F32_36
 from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_37 import CONV1D_F32W_F32B_F32_37
 from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_39 import CONV1D_F32W_F32B_F32_39
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_40 import CONV1D_F32W_F32B_F32_40
 from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_41 import CONV1D_F32W_F32B_F32_41
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_42 import CONV1D_F32W_F32B_F32_42
 from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_43 import CONV1D_F32W_F32B_F32_43
 from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_45 import CONV1D_F32W_F32B_F32_45
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_50 import CONV1D_F32W_F32B_F32_50
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_52 import CONV1D_F32W_F32B_F32_52
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_54 import CONV1D_F32W_F32B_F32_54
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_56 import CONV1D_F32W_F32B_F32_56
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_58 import CONV1D_F32W_F32B_F32_58
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_63 import CONV1D_F32W_F32B_F32_63
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_65 import CONV1D_F32W_F32B_F32_65
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_67 import CONV1D_F32W_F32B_F32_67
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_69 import CONV1D_F32W_F32B_F32_69
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_71 import CONV1D_F32W_F32B_F32_71
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_76 import CONV1D_F32W_F32B_F32_76
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_78 import CONV1D_F32W_F32B_F32_78
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_80 import CONV1D_F32W_F32B_F32_80
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_82 import CONV1D_F32W_F32B_F32_82
-from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_84 import CONV1D_F32W_F32B_F32_84
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_46 import CONV1D_F32W_F32B_F32_46
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_47 import CONV1D_F32W_F32B_F32_47
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_48 import CONV1D_F32W_F32B_F32_48
+from models.exported_omnivoice.shaders.conv1d_f32w_f32b_f32_49 import CONV1D_F32W_F32B_F32_49
 from models.exported_omnivoice.shaders.conv_transpose1d_f32w_f32b_f32 import CONV_TRANSPOSE1D_F32W_F32B_F32
-from models.exported_omnivoice.shaders.conv_transpose1d_f32w_f32b_f32_34 import CONV_TRANSPOSE1D_F32W_F32B_F32_34
-from models.exported_omnivoice.shaders.conv_transpose1d_f32w_f32b_f32_47 import CONV_TRANSPOSE1D_F32W_F32B_F32_47
-from models.exported_omnivoice.shaders.conv_transpose1d_f32w_f32b_f32_60 import CONV_TRANSPOSE1D_F32W_F32B_F32_60
-from models.exported_omnivoice.shaders.conv_transpose1d_f32w_f32b_f32_73 import CONV_TRANSPOSE1D_F32W_F32B_F32_73
+from models.exported_omnivoice.shaders.conv_transpose1d_f32w_f32b_f32_26 import CONV_TRANSPOSE1D_F32W_F32B_F32_26
+from models.exported_omnivoice.shaders.conv_transpose1d_f32w_f32b_f32_32 import CONV_TRANSPOSE1D_F32W_F32B_F32_32
+from models.exported_omnivoice.shaders.conv_transpose1d_f32w_f32b_f32_38 import CONV_TRANSPOSE1D_F32W_F32B_F32_38
+from models.exported_omnivoice.shaders.conv_transpose1d_f32w_f32b_f32_44 import CONV_TRANSPOSE1D_F32W_F32B_F32_44
 from models.exported_omnivoice.shaders.embedding_f32w_f32 import EMBEDDING_F32W_F32
 from models.exported_omnivoice.shaders.linear_bias_f32w_f32b_f32 import LINEAR_BIAS_F32W_F32B_F32
-from models.exported_omnivoice.shaders.mul_broadcast_inner_20 import MUL_BROADCAST_INNER_20
-from models.exported_omnivoice.shaders.mul_broadcast_inner_22 import MUL_BROADCAST_INNER_22
-from models.exported_omnivoice.shaders.mul_broadcast_inner_23 import MUL_BROADCAST_INNER_23
-from models.exported_omnivoice.shaders.mul_broadcast_inner_25 import MUL_BROADCAST_INNER_25
-from models.exported_omnivoice.shaders.mul_broadcast_inner_27 import MUL_BROADCAST_INNER_27
-from models.exported_omnivoice.shaders.mul_broadcast_inner_29 import MUL_BROADCAST_INNER_29
-from models.exported_omnivoice.shaders.mul_broadcast_inner_31 import MUL_BROADCAST_INNER_31
-from models.exported_omnivoice.shaders.mul_broadcast_inner_33 import MUL_BROADCAST_INNER_33
-from models.exported_omnivoice.shaders.mul_broadcast_inner_35 import MUL_BROADCAST_INNER_35
-from models.exported_omnivoice.shaders.mul_broadcast_inner_36 import MUL_BROADCAST_INNER_36
-from models.exported_omnivoice.shaders.mul_broadcast_inner_38 import MUL_BROADCAST_INNER_38
-from models.exported_omnivoice.shaders.mul_broadcast_inner_40 import MUL_BROADCAST_INNER_40
-from models.exported_omnivoice.shaders.mul_broadcast_inner_42 import MUL_BROADCAST_INNER_42
-from models.exported_omnivoice.shaders.mul_broadcast_inner_44 import MUL_BROADCAST_INNER_44
-from models.exported_omnivoice.shaders.mul_broadcast_inner_46 import MUL_BROADCAST_INNER_46
-from models.exported_omnivoice.shaders.mul_broadcast_inner_48 import MUL_BROADCAST_INNER_48
-from models.exported_omnivoice.shaders.mul_broadcast_inner_49 import MUL_BROADCAST_INNER_49
-from models.exported_omnivoice.shaders.mul_broadcast_inner_51 import MUL_BROADCAST_INNER_51
-from models.exported_omnivoice.shaders.mul_broadcast_inner_53 import MUL_BROADCAST_INNER_53
-from models.exported_omnivoice.shaders.mul_broadcast_inner_55 import MUL_BROADCAST_INNER_55
-from models.exported_omnivoice.shaders.mul_broadcast_inner_57 import MUL_BROADCAST_INNER_57
-from models.exported_omnivoice.shaders.mul_broadcast_inner_59 import MUL_BROADCAST_INNER_59
-from models.exported_omnivoice.shaders.mul_broadcast_inner_61 import MUL_BROADCAST_INNER_61
-from models.exported_omnivoice.shaders.mul_broadcast_inner_62 import MUL_BROADCAST_INNER_62
-from models.exported_omnivoice.shaders.mul_broadcast_inner_64 import MUL_BROADCAST_INNER_64
-from models.exported_omnivoice.shaders.mul_broadcast_inner_66 import MUL_BROADCAST_INNER_66
-from models.exported_omnivoice.shaders.mul_broadcast_inner_68 import MUL_BROADCAST_INNER_68
-from models.exported_omnivoice.shaders.mul_broadcast_inner_70 import MUL_BROADCAST_INNER_70
-from models.exported_omnivoice.shaders.mul_broadcast_inner_72 import MUL_BROADCAST_INNER_72
-from models.exported_omnivoice.shaders.mul_broadcast_inner_74 import MUL_BROADCAST_INNER_74
-from models.exported_omnivoice.shaders.mul_broadcast_inner_75 import MUL_BROADCAST_INNER_75
-from models.exported_omnivoice.shaders.mul_broadcast_inner_77 import MUL_BROADCAST_INNER_77
-from models.exported_omnivoice.shaders.mul_broadcast_inner_79 import MUL_BROADCAST_INNER_79
-from models.exported_omnivoice.shaders.mul_broadcast_inner_81 import MUL_BROADCAST_INNER_81
-from models.exported_omnivoice.shaders.mul_broadcast_inner_83 import MUL_BROADCAST_INNER_83
-from models.exported_omnivoice.shaders.mul_broadcast_inner_85 import MUL_BROADCAST_INNER_85
 from models.exported_omnivoice.shaders.permute_f32_c87693fdcf import PERMUTE_F32_C87693FDCF
+from models.exported_omnivoice.shaders.pow_scalar_f16 import POW_SCALAR_F16
 from models.exported_omnivoice.shaders.reciprocal_f32 import RECIPROCAL_F32
 from models.exported_omnivoice.shaders.select_int64 import SELECT_INT64
 from models.exported_omnivoice.shaders.select_int64_10 import SELECT_INT64_10
@@ -141,303 +105,303 @@ def _run_audio_decode_with_tensors(rt: RuntimeSession, tensors: AudioDecodeTenso
     RECIPROCAL_F32(rt, x=tensors.add_7, output=tensors.reciprocal)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_0_snake1_alpha, y=tensors.reshape, output=tensors.mul)
     SIN_F32(rt, x=tensors.mul, output=tensors.sin)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin, output=tensors.pow_1)
-    MUL_BROADCAST_INNER_20(rt, x=tensors.reciprocal, y=tensors.pow_1, output=tensors.mul_1)
+    POW_SCALAR_F16(rt, x=tensors.sin, output=tensors.pow_1)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal, y=tensors.pow_1, output=tensors.mul_1)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape, y=tensors.mul_1, output=tensors.add_8)
     CONV_TRANSPOSE1D_F32W_F32B_F32(rt, x=tensors.reshape_1, weight=tensors.p_acoustic_decoder_block_0_conv_t1_weight, bias=tensors.p_acoustic_decoder_block_0_conv_t1_bias, output=tensors.conv_transpose1d)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_0_res_unit1_snake1_alpha, output=tensors.add_9)
     RECIPROCAL_F32(rt, x=tensors.add_9, output=tensors.reciprocal_1)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_0_res_unit1_snake1_alpha, y=tensors.reshape_2, output=tensors.mul_2)
     SIN_F32(rt, x=tensors.mul_2, output=tensors.sin_1)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_1, output=tensors.pow_2)
-    MUL_BROADCAST_INNER_22(rt, x=tensors.reciprocal_1, y=tensors.pow_2, output=tensors.mul_3)
+    POW_SCALAR_F16(rt, x=tensors.sin_1, output=tensors.pow_2)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_1, y=tensors.pow_2, output=tensors.mul_3)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_2, y=tensors.mul_3, output=tensors.add_10)
     CONV1D_F32W_F32B_F32(rt, x=tensors.reshape_3, weight=tensors.p_acoustic_decoder_block_0_res_unit1_conv1_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit1_conv1_bias, output=tensors.conv1d_1)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_0_res_unit1_snake2_alpha, output=tensors.add_11)
     RECIPROCAL_F32(rt, x=tensors.add_11, output=tensors.reciprocal_2)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_0_res_unit1_snake2_alpha, y=tensors.reshape_4, output=tensors.mul_4)
     SIN_F32(rt, x=tensors.mul_4, output=tensors.sin_2)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_2, output=tensors.pow_3)
-    MUL_BROADCAST_INNER_23(rt, x=tensors.reciprocal_2, y=tensors.pow_3, output=tensors.mul_5)
+    POW_SCALAR_F16(rt, x=tensors.sin_2, output=tensors.pow_3)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_2, y=tensors.pow_3, output=tensors.mul_5)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_4, y=tensors.mul_5, output=tensors.add_12)
-    CONV1D_F32W_F32B_F32_24(rt, x=tensors.reshape_5, weight=tensors.p_acoustic_decoder_block_0_res_unit1_conv2_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit1_conv2_bias, output=tensors.conv1d_2)
+    CONV1D_F32W_F32B_F32_21(rt, x=tensors.reshape_5, weight=tensors.p_acoustic_decoder_block_0_res_unit1_conv2_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit1_conv2_bias, output=tensors.conv1d_2)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.conv_transpose1d, y=tensors.conv1d_2, output=tensors.add_13)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_0_res_unit2_snake1_alpha, output=tensors.add_14)
     RECIPROCAL_F32(rt, x=tensors.add_14, output=tensors.reciprocal_3)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_0_res_unit2_snake1_alpha, y=tensors.reshape_6, output=tensors.mul_6)
     SIN_F32(rt, x=tensors.mul_6, output=tensors.sin_3)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_3, output=tensors.pow_4)
-    MUL_BROADCAST_INNER_25(rt, x=tensors.reciprocal_3, y=tensors.pow_4, output=tensors.mul_7)
+    POW_SCALAR_F16(rt, x=tensors.sin_3, output=tensors.pow_4)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_3, y=tensors.pow_4, output=tensors.mul_7)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_6, y=tensors.mul_7, output=tensors.add_15)
-    CONV1D_F32W_F32B_F32_26(rt, x=tensors.reshape_7, weight=tensors.p_acoustic_decoder_block_0_res_unit2_conv1_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit2_conv1_bias, output=tensors.conv1d_3)
+    CONV1D_F32W_F32B_F32_22(rt, x=tensors.reshape_7, weight=tensors.p_acoustic_decoder_block_0_res_unit2_conv1_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit2_conv1_bias, output=tensors.conv1d_3)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_0_res_unit2_snake2_alpha, output=tensors.add_16)
     RECIPROCAL_F32(rt, x=tensors.add_16, output=tensors.reciprocal_4)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_0_res_unit2_snake2_alpha, y=tensors.reshape_8, output=tensors.mul_8)
     SIN_F32(rt, x=tensors.mul_8, output=tensors.sin_4)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_4, output=tensors.pow_5)
-    MUL_BROADCAST_INNER_27(rt, x=tensors.reciprocal_4, y=tensors.pow_5, output=tensors.mul_9)
+    POW_SCALAR_F16(rt, x=tensors.sin_4, output=tensors.pow_5)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_4, y=tensors.pow_5, output=tensors.mul_9)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_8, y=tensors.mul_9, output=tensors.add_17)
-    CONV1D_F32W_F32B_F32_28(rt, x=tensors.reshape_9, weight=tensors.p_acoustic_decoder_block_0_res_unit2_conv2_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit2_conv2_bias, output=tensors.conv1d_4)
+    CONV1D_F32W_F32B_F32_23(rt, x=tensors.reshape_9, weight=tensors.p_acoustic_decoder_block_0_res_unit2_conv2_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit2_conv2_bias, output=tensors.conv1d_4)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.add_13, y=tensors.conv1d_4, output=tensors.add_18)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_0_res_unit3_snake1_alpha, output=tensors.add_19)
     RECIPROCAL_F32(rt, x=tensors.add_19, output=tensors.reciprocal_5)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_0_res_unit3_snake1_alpha, y=tensors.reshape_10, output=tensors.mul_10)
     SIN_F32(rt, x=tensors.mul_10, output=tensors.sin_5)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_5, output=tensors.pow_6)
-    MUL_BROADCAST_INNER_29(rt, x=tensors.reciprocal_5, y=tensors.pow_6, output=tensors.mul_11)
+    POW_SCALAR_F16(rt, x=tensors.sin_5, output=tensors.pow_6)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_5, y=tensors.pow_6, output=tensors.mul_11)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_10, y=tensors.mul_11, output=tensors.add_20)
-    CONV1D_F32W_F32B_F32_30(rt, x=tensors.reshape_11, weight=tensors.p_acoustic_decoder_block_0_res_unit3_conv1_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit3_conv1_bias, output=tensors.conv1d_5)
+    CONV1D_F32W_F32B_F32_24(rt, x=tensors.reshape_11, weight=tensors.p_acoustic_decoder_block_0_res_unit3_conv1_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit3_conv1_bias, output=tensors.conv1d_5)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_0_res_unit3_snake2_alpha, output=tensors.add_21)
     RECIPROCAL_F32(rt, x=tensors.add_21, output=tensors.reciprocal_6)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_0_res_unit3_snake2_alpha, y=tensors.reshape_12, output=tensors.mul_12)
     SIN_F32(rt, x=tensors.mul_12, output=tensors.sin_6)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_6, output=tensors.pow_7)
-    MUL_BROADCAST_INNER_31(rt, x=tensors.reciprocal_6, y=tensors.pow_7, output=tensors.mul_13)
+    POW_SCALAR_F16(rt, x=tensors.sin_6, output=tensors.pow_7)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_6, y=tensors.pow_7, output=tensors.mul_13)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_12, y=tensors.mul_13, output=tensors.add_22)
-    CONV1D_F32W_F32B_F32_32(rt, x=tensors.reshape_13, weight=tensors.p_acoustic_decoder_block_0_res_unit3_conv2_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit3_conv2_bias, output=tensors.conv1d_6)
+    CONV1D_F32W_F32B_F32_25(rt, x=tensors.reshape_13, weight=tensors.p_acoustic_decoder_block_0_res_unit3_conv2_weight, bias=tensors.p_acoustic_decoder_block_0_res_unit3_conv2_bias, output=tensors.conv1d_6)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.add_18, y=tensors.conv1d_6, output=tensors.add_23)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_1_snake1_alpha, output=tensors.add_24)
     RECIPROCAL_F32(rt, x=tensors.add_24, output=tensors.reciprocal_7)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_1_snake1_alpha, y=tensors.reshape_14, output=tensors.mul_14)
     SIN_F32(rt, x=tensors.mul_14, output=tensors.sin_7)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_7, output=tensors.pow_8)
-    MUL_BROADCAST_INNER_33(rt, x=tensors.reciprocal_7, y=tensors.pow_8, output=tensors.mul_15)
+    POW_SCALAR_F16(rt, x=tensors.sin_7, output=tensors.pow_8)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_7, y=tensors.pow_8, output=tensors.mul_15)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_14, y=tensors.mul_15, output=tensors.add_25)
-    CONV_TRANSPOSE1D_F32W_F32B_F32_34(rt, x=tensors.reshape_15, weight=tensors.p_acoustic_decoder_block_1_conv_t1_weight, bias=tensors.p_acoustic_decoder_block_1_conv_t1_bias, output=tensors.conv_transpose1d_1)
+    CONV_TRANSPOSE1D_F32W_F32B_F32_26(rt, x=tensors.reshape_15, weight=tensors.p_acoustic_decoder_block_1_conv_t1_weight, bias=tensors.p_acoustic_decoder_block_1_conv_t1_bias, output=tensors.conv_transpose1d_1)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_1_res_unit1_snake1_alpha, output=tensors.add_26)
     RECIPROCAL_F32(rt, x=tensors.add_26, output=tensors.reciprocal_8)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_1_res_unit1_snake1_alpha, y=tensors.reshape_16, output=tensors.mul_16)
     SIN_F32(rt, x=tensors.mul_16, output=tensors.sin_8)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_8, output=tensors.pow_9)
-    MUL_BROADCAST_INNER_35(rt, x=tensors.reciprocal_8, y=tensors.pow_9, output=tensors.mul_17)
+    POW_SCALAR_F16(rt, x=tensors.sin_8, output=tensors.pow_9)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_8, y=tensors.pow_9, output=tensors.mul_17)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_16, y=tensors.mul_17, output=tensors.add_27)
     CONV1D_F32W_F32B_F32(rt, x=tensors.reshape_17, weight=tensors.p_acoustic_decoder_block_1_res_unit1_conv1_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit1_conv1_bias, output=tensors.conv1d_7)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_1_res_unit1_snake2_alpha, output=tensors.add_28)
     RECIPROCAL_F32(rt, x=tensors.add_28, output=tensors.reciprocal_9)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_1_res_unit1_snake2_alpha, y=tensors.reshape_18, output=tensors.mul_18)
     SIN_F32(rt, x=tensors.mul_18, output=tensors.sin_9)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_9, output=tensors.pow_10)
-    MUL_BROADCAST_INNER_36(rt, x=tensors.reciprocal_9, y=tensors.pow_10, output=tensors.mul_19)
+    POW_SCALAR_F16(rt, x=tensors.sin_9, output=tensors.pow_10)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_9, y=tensors.pow_10, output=tensors.mul_19)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_18, y=tensors.mul_19, output=tensors.add_29)
-    CONV1D_F32W_F32B_F32_37(rt, x=tensors.reshape_19, weight=tensors.p_acoustic_decoder_block_1_res_unit1_conv2_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit1_conv2_bias, output=tensors.conv1d_8)
+    CONV1D_F32W_F32B_F32_27(rt, x=tensors.reshape_19, weight=tensors.p_acoustic_decoder_block_1_res_unit1_conv2_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit1_conv2_bias, output=tensors.conv1d_8)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.conv_transpose1d_1, y=tensors.conv1d_8, output=tensors.add_30)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_1_res_unit2_snake1_alpha, output=tensors.add_31)
     RECIPROCAL_F32(rt, x=tensors.add_31, output=tensors.reciprocal_10)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_1_res_unit2_snake1_alpha, y=tensors.reshape_20, output=tensors.mul_20)
     SIN_F32(rt, x=tensors.mul_20, output=tensors.sin_10)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_10, output=tensors.pow_11)
-    MUL_BROADCAST_INNER_38(rt, x=tensors.reciprocal_10, y=tensors.pow_11, output=tensors.mul_21)
+    POW_SCALAR_F16(rt, x=tensors.sin_10, output=tensors.pow_11)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_10, y=tensors.pow_11, output=tensors.mul_21)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_20, y=tensors.mul_21, output=tensors.add_32)
-    CONV1D_F32W_F32B_F32_39(rt, x=tensors.reshape_21, weight=tensors.p_acoustic_decoder_block_1_res_unit2_conv1_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit2_conv1_bias, output=tensors.conv1d_9)
+    CONV1D_F32W_F32B_F32_28(rt, x=tensors.reshape_21, weight=tensors.p_acoustic_decoder_block_1_res_unit2_conv1_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit2_conv1_bias, output=tensors.conv1d_9)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_1_res_unit2_snake2_alpha, output=tensors.add_33)
     RECIPROCAL_F32(rt, x=tensors.add_33, output=tensors.reciprocal_11)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_1_res_unit2_snake2_alpha, y=tensors.reshape_22, output=tensors.mul_22)
     SIN_F32(rt, x=tensors.mul_22, output=tensors.sin_11)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_11, output=tensors.pow_12)
-    MUL_BROADCAST_INNER_40(rt, x=tensors.reciprocal_11, y=tensors.pow_12, output=tensors.mul_23)
+    POW_SCALAR_F16(rt, x=tensors.sin_11, output=tensors.pow_12)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_11, y=tensors.pow_12, output=tensors.mul_23)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_22, y=tensors.mul_23, output=tensors.add_34)
-    CONV1D_F32W_F32B_F32_41(rt, x=tensors.reshape_23, weight=tensors.p_acoustic_decoder_block_1_res_unit2_conv2_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit2_conv2_bias, output=tensors.conv1d_10)
+    CONV1D_F32W_F32B_F32_29(rt, x=tensors.reshape_23, weight=tensors.p_acoustic_decoder_block_1_res_unit2_conv2_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit2_conv2_bias, output=tensors.conv1d_10)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.add_30, y=tensors.conv1d_10, output=tensors.add_35)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_1_res_unit3_snake1_alpha, output=tensors.add_36)
     RECIPROCAL_F32(rt, x=tensors.add_36, output=tensors.reciprocal_12)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_1_res_unit3_snake1_alpha, y=tensors.reshape_24, output=tensors.mul_24)
     SIN_F32(rt, x=tensors.mul_24, output=tensors.sin_12)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_12, output=tensors.pow_13)
-    MUL_BROADCAST_INNER_42(rt, x=tensors.reciprocal_12, y=tensors.pow_13, output=tensors.mul_25)
+    POW_SCALAR_F16(rt, x=tensors.sin_12, output=tensors.pow_13)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_12, y=tensors.pow_13, output=tensors.mul_25)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_24, y=tensors.mul_25, output=tensors.add_37)
-    CONV1D_F32W_F32B_F32_43(rt, x=tensors.reshape_25, weight=tensors.p_acoustic_decoder_block_1_res_unit3_conv1_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit3_conv1_bias, output=tensors.conv1d_11)
+    CONV1D_F32W_F32B_F32_30(rt, x=tensors.reshape_25, weight=tensors.p_acoustic_decoder_block_1_res_unit3_conv1_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit3_conv1_bias, output=tensors.conv1d_11)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_1_res_unit3_snake2_alpha, output=tensors.add_38)
     RECIPROCAL_F32(rt, x=tensors.add_38, output=tensors.reciprocal_13)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_1_res_unit3_snake2_alpha, y=tensors.reshape_26, output=tensors.mul_26)
     SIN_F32(rt, x=tensors.mul_26, output=tensors.sin_13)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_13, output=tensors.pow_14)
-    MUL_BROADCAST_INNER_44(rt, x=tensors.reciprocal_13, y=tensors.pow_14, output=tensors.mul_27)
+    POW_SCALAR_F16(rt, x=tensors.sin_13, output=tensors.pow_14)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_13, y=tensors.pow_14, output=tensors.mul_27)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_26, y=tensors.mul_27, output=tensors.add_39)
-    CONV1D_F32W_F32B_F32_45(rt, x=tensors.reshape_27, weight=tensors.p_acoustic_decoder_block_1_res_unit3_conv2_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit3_conv2_bias, output=tensors.conv1d_12)
+    CONV1D_F32W_F32B_F32_31(rt, x=tensors.reshape_27, weight=tensors.p_acoustic_decoder_block_1_res_unit3_conv2_weight, bias=tensors.p_acoustic_decoder_block_1_res_unit3_conv2_bias, output=tensors.conv1d_12)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.add_35, y=tensors.conv1d_12, output=tensors.add_40)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_2_snake1_alpha, output=tensors.add_41)
     RECIPROCAL_F32(rt, x=tensors.add_41, output=tensors.reciprocal_14)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_2_snake1_alpha, y=tensors.reshape_28, output=tensors.mul_28)
     SIN_F32(rt, x=tensors.mul_28, output=tensors.sin_14)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_14, output=tensors.pow_15)
-    MUL_BROADCAST_INNER_46(rt, x=tensors.reciprocal_14, y=tensors.pow_15, output=tensors.mul_29)
+    POW_SCALAR_F16(rt, x=tensors.sin_14, output=tensors.pow_15)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_14, y=tensors.pow_15, output=tensors.mul_29)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_28, y=tensors.mul_29, output=tensors.add_42)
-    CONV_TRANSPOSE1D_F32W_F32B_F32_47(rt, x=tensors.reshape_29, weight=tensors.p_acoustic_decoder_block_2_conv_t1_weight, bias=tensors.p_acoustic_decoder_block_2_conv_t1_bias, output=tensors.conv_transpose1d_2)
+    CONV_TRANSPOSE1D_F32W_F32B_F32_32(rt, x=tensors.reshape_29, weight=tensors.p_acoustic_decoder_block_2_conv_t1_weight, bias=tensors.p_acoustic_decoder_block_2_conv_t1_bias, output=tensors.conv_transpose1d_2)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_2_res_unit1_snake1_alpha, output=tensors.add_43)
     RECIPROCAL_F32(rt, x=tensors.add_43, output=tensors.reciprocal_15)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_2_res_unit1_snake1_alpha, y=tensors.reshape_30, output=tensors.mul_30)
     SIN_F32(rt, x=tensors.mul_30, output=tensors.sin_15)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_15, output=tensors.pow_16)
-    MUL_BROADCAST_INNER_48(rt, x=tensors.reciprocal_15, y=tensors.pow_16, output=tensors.mul_31)
+    POW_SCALAR_F16(rt, x=tensors.sin_15, output=tensors.pow_16)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_15, y=tensors.pow_16, output=tensors.mul_31)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_30, y=tensors.mul_31, output=tensors.add_44)
     CONV1D_F32W_F32B_F32(rt, x=tensors.reshape_31, weight=tensors.p_acoustic_decoder_block_2_res_unit1_conv1_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit1_conv1_bias, output=tensors.conv1d_13)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_2_res_unit1_snake2_alpha, output=tensors.add_45)
     RECIPROCAL_F32(rt, x=tensors.add_45, output=tensors.reciprocal_16)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_2_res_unit1_snake2_alpha, y=tensors.reshape_32, output=tensors.mul_32)
     SIN_F32(rt, x=tensors.mul_32, output=tensors.sin_16)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_16, output=tensors.pow_17)
-    MUL_BROADCAST_INNER_49(rt, x=tensors.reciprocal_16, y=tensors.pow_17, output=tensors.mul_33)
+    POW_SCALAR_F16(rt, x=tensors.sin_16, output=tensors.pow_17)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_16, y=tensors.pow_17, output=tensors.mul_33)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_32, y=tensors.mul_33, output=tensors.add_46)
-    CONV1D_F32W_F32B_F32_50(rt, x=tensors.reshape_33, weight=tensors.p_acoustic_decoder_block_2_res_unit1_conv2_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit1_conv2_bias, output=tensors.conv1d_14)
+    CONV1D_F32W_F32B_F32_33(rt, x=tensors.reshape_33, weight=tensors.p_acoustic_decoder_block_2_res_unit1_conv2_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit1_conv2_bias, output=tensors.conv1d_14)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.conv_transpose1d_2, y=tensors.conv1d_14, output=tensors.add_47)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_2_res_unit2_snake1_alpha, output=tensors.add_48)
     RECIPROCAL_F32(rt, x=tensors.add_48, output=tensors.reciprocal_17)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_2_res_unit2_snake1_alpha, y=tensors.reshape_34, output=tensors.mul_34)
     SIN_F32(rt, x=tensors.mul_34, output=tensors.sin_17)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_17, output=tensors.pow_18)
-    MUL_BROADCAST_INNER_51(rt, x=tensors.reciprocal_17, y=tensors.pow_18, output=tensors.mul_35)
+    POW_SCALAR_F16(rt, x=tensors.sin_17, output=tensors.pow_18)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_17, y=tensors.pow_18, output=tensors.mul_35)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_34, y=tensors.mul_35, output=tensors.add_49)
-    CONV1D_F32W_F32B_F32_52(rt, x=tensors.reshape_35, weight=tensors.p_acoustic_decoder_block_2_res_unit2_conv1_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit2_conv1_bias, output=tensors.conv1d_15)
+    CONV1D_F32W_F32B_F32_34(rt, x=tensors.reshape_35, weight=tensors.p_acoustic_decoder_block_2_res_unit2_conv1_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit2_conv1_bias, output=tensors.conv1d_15)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_2_res_unit2_snake2_alpha, output=tensors.add_50)
     RECIPROCAL_F32(rt, x=tensors.add_50, output=tensors.reciprocal_18)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_2_res_unit2_snake2_alpha, y=tensors.reshape_36, output=tensors.mul_36)
     SIN_F32(rt, x=tensors.mul_36, output=tensors.sin_18)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_18, output=tensors.pow_19)
-    MUL_BROADCAST_INNER_53(rt, x=tensors.reciprocal_18, y=tensors.pow_19, output=tensors.mul_37)
+    POW_SCALAR_F16(rt, x=tensors.sin_18, output=tensors.pow_19)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_18, y=tensors.pow_19, output=tensors.mul_37)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_36, y=tensors.mul_37, output=tensors.add_51)
-    CONV1D_F32W_F32B_F32_54(rt, x=tensors.reshape_37, weight=tensors.p_acoustic_decoder_block_2_res_unit2_conv2_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit2_conv2_bias, output=tensors.conv1d_16)
+    CONV1D_F32W_F32B_F32_35(rt, x=tensors.reshape_37, weight=tensors.p_acoustic_decoder_block_2_res_unit2_conv2_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit2_conv2_bias, output=tensors.conv1d_16)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.add_47, y=tensors.conv1d_16, output=tensors.add_52)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_2_res_unit3_snake1_alpha, output=tensors.add_53)
     RECIPROCAL_F32(rt, x=tensors.add_53, output=tensors.reciprocal_19)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_2_res_unit3_snake1_alpha, y=tensors.reshape_38, output=tensors.mul_38)
     SIN_F32(rt, x=tensors.mul_38, output=tensors.sin_19)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_19, output=tensors.pow_20)
-    MUL_BROADCAST_INNER_55(rt, x=tensors.reciprocal_19, y=tensors.pow_20, output=tensors.mul_39)
+    POW_SCALAR_F16(rt, x=tensors.sin_19, output=tensors.pow_20)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_19, y=tensors.pow_20, output=tensors.mul_39)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_38, y=tensors.mul_39, output=tensors.add_54)
-    CONV1D_F32W_F32B_F32_56(rt, x=tensors.reshape_39, weight=tensors.p_acoustic_decoder_block_2_res_unit3_conv1_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit3_conv1_bias, output=tensors.conv1d_17)
+    CONV1D_F32W_F32B_F32_36(rt, x=tensors.reshape_39, weight=tensors.p_acoustic_decoder_block_2_res_unit3_conv1_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit3_conv1_bias, output=tensors.conv1d_17)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_2_res_unit3_snake2_alpha, output=tensors.add_55)
     RECIPROCAL_F32(rt, x=tensors.add_55, output=tensors.reciprocal_20)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_2_res_unit3_snake2_alpha, y=tensors.reshape_40, output=tensors.mul_40)
     SIN_F32(rt, x=tensors.mul_40, output=tensors.sin_20)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_20, output=tensors.pow_21)
-    MUL_BROADCAST_INNER_57(rt, x=tensors.reciprocal_20, y=tensors.pow_21, output=tensors.mul_41)
+    POW_SCALAR_F16(rt, x=tensors.sin_20, output=tensors.pow_21)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_20, y=tensors.pow_21, output=tensors.mul_41)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_40, y=tensors.mul_41, output=tensors.add_56)
-    CONV1D_F32W_F32B_F32_58(rt, x=tensors.reshape_41, weight=tensors.p_acoustic_decoder_block_2_res_unit3_conv2_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit3_conv2_bias, output=tensors.conv1d_18)
+    CONV1D_F32W_F32B_F32_37(rt, x=tensors.reshape_41, weight=tensors.p_acoustic_decoder_block_2_res_unit3_conv2_weight, bias=tensors.p_acoustic_decoder_block_2_res_unit3_conv2_bias, output=tensors.conv1d_18)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.add_52, y=tensors.conv1d_18, output=tensors.add_57)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_3_snake1_alpha, output=tensors.add_58)
     RECIPROCAL_F32(rt, x=tensors.add_58, output=tensors.reciprocal_21)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_3_snake1_alpha, y=tensors.reshape_42, output=tensors.mul_42)
     SIN_F32(rt, x=tensors.mul_42, output=tensors.sin_21)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_21, output=tensors.pow_22)
-    MUL_BROADCAST_INNER_59(rt, x=tensors.reciprocal_21, y=tensors.pow_22, output=tensors.mul_43)
+    POW_SCALAR_F16(rt, x=tensors.sin_21, output=tensors.pow_22)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_21, y=tensors.pow_22, output=tensors.mul_43)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_42, y=tensors.mul_43, output=tensors.add_59)
-    CONV_TRANSPOSE1D_F32W_F32B_F32_60(rt, x=tensors.reshape_43, weight=tensors.p_acoustic_decoder_block_3_conv_t1_weight, bias=tensors.p_acoustic_decoder_block_3_conv_t1_bias, output=tensors.conv_transpose1d_3)
+    CONV_TRANSPOSE1D_F32W_F32B_F32_38(rt, x=tensors.reshape_43, weight=tensors.p_acoustic_decoder_block_3_conv_t1_weight, bias=tensors.p_acoustic_decoder_block_3_conv_t1_bias, output=tensors.conv_transpose1d_3)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_3_res_unit1_snake1_alpha, output=tensors.add_60)
     RECIPROCAL_F32(rt, x=tensors.add_60, output=tensors.reciprocal_22)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_3_res_unit1_snake1_alpha, y=tensors.reshape_44, output=tensors.mul_44)
     SIN_F32(rt, x=tensors.mul_44, output=tensors.sin_22)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_22, output=tensors.pow_23)
-    MUL_BROADCAST_INNER_61(rt, x=tensors.reciprocal_22, y=tensors.pow_23, output=tensors.mul_45)
+    POW_SCALAR_F16(rt, x=tensors.sin_22, output=tensors.pow_23)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_22, y=tensors.pow_23, output=tensors.mul_45)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_44, y=tensors.mul_45, output=tensors.add_61)
     CONV1D_F32W_F32B_F32(rt, x=tensors.reshape_45, weight=tensors.p_acoustic_decoder_block_3_res_unit1_conv1_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit1_conv1_bias, output=tensors.conv1d_19)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_3_res_unit1_snake2_alpha, output=tensors.add_62)
     RECIPROCAL_F32(rt, x=tensors.add_62, output=tensors.reciprocal_23)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_3_res_unit1_snake2_alpha, y=tensors.reshape_46, output=tensors.mul_46)
     SIN_F32(rt, x=tensors.mul_46, output=tensors.sin_23)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_23, output=tensors.pow_24)
-    MUL_BROADCAST_INNER_62(rt, x=tensors.reciprocal_23, y=tensors.pow_24, output=tensors.mul_47)
+    POW_SCALAR_F16(rt, x=tensors.sin_23, output=tensors.pow_24)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_23, y=tensors.pow_24, output=tensors.mul_47)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_46, y=tensors.mul_47, output=tensors.add_63)
-    CONV1D_F32W_F32B_F32_63(rt, x=tensors.reshape_47, weight=tensors.p_acoustic_decoder_block_3_res_unit1_conv2_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit1_conv2_bias, output=tensors.conv1d_20)
+    CONV1D_F32W_F32B_F32_39(rt, x=tensors.reshape_47, weight=tensors.p_acoustic_decoder_block_3_res_unit1_conv2_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit1_conv2_bias, output=tensors.conv1d_20)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.conv_transpose1d_3, y=tensors.conv1d_20, output=tensors.add_64)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_3_res_unit2_snake1_alpha, output=tensors.add_65)
     RECIPROCAL_F32(rt, x=tensors.add_65, output=tensors.reciprocal_24)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_3_res_unit2_snake1_alpha, y=tensors.reshape_48, output=tensors.mul_48)
     SIN_F32(rt, x=tensors.mul_48, output=tensors.sin_24)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_24, output=tensors.pow_25)
-    MUL_BROADCAST_INNER_64(rt, x=tensors.reciprocal_24, y=tensors.pow_25, output=tensors.mul_49)
+    POW_SCALAR_F16(rt, x=tensors.sin_24, output=tensors.pow_25)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_24, y=tensors.pow_25, output=tensors.mul_49)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_48, y=tensors.mul_49, output=tensors.add_66)
-    CONV1D_F32W_F32B_F32_65(rt, x=tensors.reshape_49, weight=tensors.p_acoustic_decoder_block_3_res_unit2_conv1_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit2_conv1_bias, output=tensors.conv1d_21)
+    CONV1D_F32W_F32B_F32_40(rt, x=tensors.reshape_49, weight=tensors.p_acoustic_decoder_block_3_res_unit2_conv1_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit2_conv1_bias, output=tensors.conv1d_21)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_3_res_unit2_snake2_alpha, output=tensors.add_67)
     RECIPROCAL_F32(rt, x=tensors.add_67, output=tensors.reciprocal_25)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_3_res_unit2_snake2_alpha, y=tensors.reshape_50, output=tensors.mul_50)
     SIN_F32(rt, x=tensors.mul_50, output=tensors.sin_25)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_25, output=tensors.pow_26)
-    MUL_BROADCAST_INNER_66(rt, x=tensors.reciprocal_25, y=tensors.pow_26, output=tensors.mul_51)
+    POW_SCALAR_F16(rt, x=tensors.sin_25, output=tensors.pow_26)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_25, y=tensors.pow_26, output=tensors.mul_51)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_50, y=tensors.mul_51, output=tensors.add_68)
-    CONV1D_F32W_F32B_F32_67(rt, x=tensors.reshape_51, weight=tensors.p_acoustic_decoder_block_3_res_unit2_conv2_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit2_conv2_bias, output=tensors.conv1d_22)
+    CONV1D_F32W_F32B_F32_41(rt, x=tensors.reshape_51, weight=tensors.p_acoustic_decoder_block_3_res_unit2_conv2_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit2_conv2_bias, output=tensors.conv1d_22)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.add_64, y=tensors.conv1d_22, output=tensors.add_69)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_3_res_unit3_snake1_alpha, output=tensors.add_70)
     RECIPROCAL_F32(rt, x=tensors.add_70, output=tensors.reciprocal_26)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_3_res_unit3_snake1_alpha, y=tensors.reshape_52, output=tensors.mul_52)
     SIN_F32(rt, x=tensors.mul_52, output=tensors.sin_26)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_26, output=tensors.pow_27)
-    MUL_BROADCAST_INNER_68(rt, x=tensors.reciprocal_26, y=tensors.pow_27, output=tensors.mul_53)
+    POW_SCALAR_F16(rt, x=tensors.sin_26, output=tensors.pow_27)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_26, y=tensors.pow_27, output=tensors.mul_53)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_52, y=tensors.mul_53, output=tensors.add_71)
-    CONV1D_F32W_F32B_F32_69(rt, x=tensors.reshape_53, weight=tensors.p_acoustic_decoder_block_3_res_unit3_conv1_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit3_conv1_bias, output=tensors.conv1d_23)
+    CONV1D_F32W_F32B_F32_42(rt, x=tensors.reshape_53, weight=tensors.p_acoustic_decoder_block_3_res_unit3_conv1_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit3_conv1_bias, output=tensors.conv1d_23)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_3_res_unit3_snake2_alpha, output=tensors.add_72)
     RECIPROCAL_F32(rt, x=tensors.add_72, output=tensors.reciprocal_27)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_3_res_unit3_snake2_alpha, y=tensors.reshape_54, output=tensors.mul_54)
     SIN_F32(rt, x=tensors.mul_54, output=tensors.sin_27)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_27, output=tensors.pow_28)
-    MUL_BROADCAST_INNER_70(rt, x=tensors.reciprocal_27, y=tensors.pow_28, output=tensors.mul_55)
+    POW_SCALAR_F16(rt, x=tensors.sin_27, output=tensors.pow_28)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_27, y=tensors.pow_28, output=tensors.mul_55)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_54, y=tensors.mul_55, output=tensors.add_73)
-    CONV1D_F32W_F32B_F32_71(rt, x=tensors.reshape_55, weight=tensors.p_acoustic_decoder_block_3_res_unit3_conv2_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit3_conv2_bias, output=tensors.conv1d_24)
+    CONV1D_F32W_F32B_F32_43(rt, x=tensors.reshape_55, weight=tensors.p_acoustic_decoder_block_3_res_unit3_conv2_weight, bias=tensors.p_acoustic_decoder_block_3_res_unit3_conv2_bias, output=tensors.conv1d_24)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.add_69, y=tensors.conv1d_24, output=tensors.add_74)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_4_snake1_alpha, output=tensors.add_75)
     RECIPROCAL_F32(rt, x=tensors.add_75, output=tensors.reciprocal_28)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_4_snake1_alpha, y=tensors.reshape_56, output=tensors.mul_56)
     SIN_F32(rt, x=tensors.mul_56, output=tensors.sin_28)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_28, output=tensors.pow_29)
-    MUL_BROADCAST_INNER_72(rt, x=tensors.reciprocal_28, y=tensors.pow_29, output=tensors.mul_57)
+    POW_SCALAR_F16(rt, x=tensors.sin_28, output=tensors.pow_29)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_28, y=tensors.pow_29, output=tensors.mul_57)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_56, y=tensors.mul_57, output=tensors.add_76)
-    CONV_TRANSPOSE1D_F32W_F32B_F32_73(rt, x=tensors.reshape_57, weight=tensors.p_acoustic_decoder_block_4_conv_t1_weight, bias=tensors.p_acoustic_decoder_block_4_conv_t1_bias, output=tensors.conv_transpose1d_4)
+    CONV_TRANSPOSE1D_F32W_F32B_F32_44(rt, x=tensors.reshape_57, weight=tensors.p_acoustic_decoder_block_4_conv_t1_weight, bias=tensors.p_acoustic_decoder_block_4_conv_t1_bias, output=tensors.conv_transpose1d_4)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_4_res_unit1_snake1_alpha, output=tensors.add_77)
     RECIPROCAL_F32(rt, x=tensors.add_77, output=tensors.reciprocal_29)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_4_res_unit1_snake1_alpha, y=tensors.reshape_58, output=tensors.mul_58)
     SIN_F32(rt, x=tensors.mul_58, output=tensors.sin_29)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_29, output=tensors.pow_30)
-    MUL_BROADCAST_INNER_74(rt, x=tensors.reciprocal_29, y=tensors.pow_30, output=tensors.mul_59)
+    POW_SCALAR_F16(rt, x=tensors.sin_29, output=tensors.pow_30)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_29, y=tensors.pow_30, output=tensors.mul_59)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_58, y=tensors.mul_59, output=tensors.add_78)
     CONV1D_F32W_F32B_F32(rt, x=tensors.reshape_59, weight=tensors.p_acoustic_decoder_block_4_res_unit1_conv1_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit1_conv1_bias, output=tensors.conv1d_25)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_4_res_unit1_snake2_alpha, output=tensors.add_79)
     RECIPROCAL_F32(rt, x=tensors.add_79, output=tensors.reciprocal_30)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_4_res_unit1_snake2_alpha, y=tensors.reshape_60, output=tensors.mul_60)
     SIN_F32(rt, x=tensors.mul_60, output=tensors.sin_30)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_30, output=tensors.pow_31)
-    MUL_BROADCAST_INNER_75(rt, x=tensors.reciprocal_30, y=tensors.pow_31, output=tensors.mul_61)
+    POW_SCALAR_F16(rt, x=tensors.sin_30, output=tensors.pow_31)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_30, y=tensors.pow_31, output=tensors.mul_61)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_60, y=tensors.mul_61, output=tensors.add_80)
-    CONV1D_F32W_F32B_F32_76(rt, x=tensors.reshape_61, weight=tensors.p_acoustic_decoder_block_4_res_unit1_conv2_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit1_conv2_bias, output=tensors.conv1d_26)
+    CONV1D_F32W_F32B_F32_45(rt, x=tensors.reshape_61, weight=tensors.p_acoustic_decoder_block_4_res_unit1_conv2_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit1_conv2_bias, output=tensors.conv1d_26)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.conv_transpose1d_4, y=tensors.conv1d_26, output=tensors.add_81)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_4_res_unit2_snake1_alpha, output=tensors.add_82)
     RECIPROCAL_F32(rt, x=tensors.add_82, output=tensors.reciprocal_31)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_4_res_unit2_snake1_alpha, y=tensors.reshape_62, output=tensors.mul_62)
     SIN_F32(rt, x=tensors.mul_62, output=tensors.sin_31)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_31, output=tensors.pow_32)
-    MUL_BROADCAST_INNER_77(rt, x=tensors.reciprocal_31, y=tensors.pow_32, output=tensors.mul_63)
+    POW_SCALAR_F16(rt, x=tensors.sin_31, output=tensors.pow_32)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_31, y=tensors.pow_32, output=tensors.mul_63)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_62, y=tensors.mul_63, output=tensors.add_83)
-    CONV1D_F32W_F32B_F32_78(rt, x=tensors.reshape_63, weight=tensors.p_acoustic_decoder_block_4_res_unit2_conv1_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit2_conv1_bias, output=tensors.conv1d_27)
+    CONV1D_F32W_F32B_F32_46(rt, x=tensors.reshape_63, weight=tensors.p_acoustic_decoder_block_4_res_unit2_conv1_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit2_conv1_bias, output=tensors.conv1d_27)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_4_res_unit2_snake2_alpha, output=tensors.add_84)
     RECIPROCAL_F32(rt, x=tensors.add_84, output=tensors.reciprocal_32)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_4_res_unit2_snake2_alpha, y=tensors.reshape_64, output=tensors.mul_64)
     SIN_F32(rt, x=tensors.mul_64, output=tensors.sin_32)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_32, output=tensors.pow_33)
-    MUL_BROADCAST_INNER_79(rt, x=tensors.reciprocal_32, y=tensors.pow_33, output=tensors.mul_65)
+    POW_SCALAR_F16(rt, x=tensors.sin_32, output=tensors.pow_33)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_32, y=tensors.pow_33, output=tensors.mul_65)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_64, y=tensors.mul_65, output=tensors.add_85)
-    CONV1D_F32W_F32B_F32_80(rt, x=tensors.reshape_65, weight=tensors.p_acoustic_decoder_block_4_res_unit2_conv2_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit2_conv2_bias, output=tensors.conv1d_28)
+    CONV1D_F32W_F32B_F32_47(rt, x=tensors.reshape_65, weight=tensors.p_acoustic_decoder_block_4_res_unit2_conv2_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit2_conv2_bias, output=tensors.conv1d_28)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.add_81, y=tensors.conv1d_28, output=tensors.add_86)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_4_res_unit3_snake1_alpha, output=tensors.add_87)
     RECIPROCAL_F32(rt, x=tensors.add_87, output=tensors.reciprocal_33)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_4_res_unit3_snake1_alpha, y=tensors.reshape_66, output=tensors.mul_66)
     SIN_F32(rt, x=tensors.mul_66, output=tensors.sin_33)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_33, output=tensors.pow_34)
-    MUL_BROADCAST_INNER_81(rt, x=tensors.reciprocal_33, y=tensors.pow_34, output=tensors.mul_67)
+    POW_SCALAR_F16(rt, x=tensors.sin_33, output=tensors.pow_34)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_33, y=tensors.pow_34, output=tensors.mul_67)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_66, y=tensors.mul_67, output=tensors.add_88)
-    CONV1D_F32W_F32B_F32_82(rt, x=tensors.reshape_67, weight=tensors.p_acoustic_decoder_block_4_res_unit3_conv1_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit3_conv1_bias, output=tensors.conv1d_29)
+    CONV1D_F32W_F32B_F32_48(rt, x=tensors.reshape_67, weight=tensors.p_acoustic_decoder_block_4_res_unit3_conv1_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit3_conv1_bias, output=tensors.conv1d_29)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_block_4_res_unit3_snake2_alpha, output=tensors.add_89)
     RECIPROCAL_F32(rt, x=tensors.add_89, output=tensors.reciprocal_34)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_block_4_res_unit3_snake2_alpha, y=tensors.reshape_68, output=tensors.mul_68)
     SIN_F32(rt, x=tensors.mul_68, output=tensors.sin_34)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_34, output=tensors.pow_35)
-    MUL_BROADCAST_INNER_83(rt, x=tensors.reciprocal_34, y=tensors.pow_35, output=tensors.mul_69)
+    POW_SCALAR_F16(rt, x=tensors.sin_34, output=tensors.pow_35)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_34, y=tensors.pow_35, output=tensors.mul_69)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_68, y=tensors.mul_69, output=tensors.add_90)
-    CONV1D_F32W_F32B_F32_84(rt, x=tensors.reshape_69, weight=tensors.p_acoustic_decoder_block_4_res_unit3_conv2_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit3_conv2_bias, output=tensors.conv1d_30)
+    CONV1D_F32W_F32B_F32_49(rt, x=tensors.reshape_69, weight=tensors.p_acoustic_decoder_block_4_res_unit3_conv2_weight, bias=tensors.p_acoustic_decoder_block_4_res_unit3_conv2_bias, output=tensors.conv1d_30)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.add_86, y=tensors.conv1d_30, output=tensors.add_91)
     AUDIO_DECODE_ADD_SCALAR(rt, x=tensors.p_acoustic_decoder_snake1_alpha, output=tensors.add_92)
     RECIPROCAL_F32(rt, x=tensors.add_92, output=tensors.reciprocal_35)
     AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.p_acoustic_decoder_snake1_alpha, y=tensors.reshape_70, output=tensors.mul_70)
     SIN_F32(rt, x=tensors.mul_70, output=tensors.sin_35)
-    AUDIO_DECODE_POW_SCALAR_F32(rt, x=tensors.sin_35, output=tensors.pow_36)
-    MUL_BROADCAST_INNER_85(rt, x=tensors.reciprocal_35, y=tensors.pow_36, output=tensors.mul_71)
+    POW_SCALAR_F16(rt, x=tensors.sin_35, output=tensors.pow_36)
+    AUDIO_DECODE_MUL_BROADCAST_INNER(rt, x=tensors.reciprocal_35, y=tensors.pow_36, output=tensors.mul_71)
     AUDIO_DECODE_ADD_F32(rt, x=tensors.reshape_70, y=tensors.mul_71, output=tensors.add_93)
     CONV1D_F32W_F32B_F32(rt, x=tensors.reshape_71, weight=tensors.p_acoustic_decoder_conv2_weight, bias=tensors.p_acoustic_decoder_conv2_bias, output=tensors.conv1d_31)
 

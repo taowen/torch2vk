@@ -57,6 +57,18 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
                 contract=TensorContract(dtype='uint32', shape=(1,)),
             ),
             TensorFieldSpec(
+                name='active_target_len',
+                io_kind=IOKind.INPUT,
+                role='active_target_len',
+                contract=TensorContract(dtype='uint32', shape=(1,)),
+            ),
+            TensorFieldSpec(
+                name='cond_target_start',
+                io_kind=IOKind.INPUT,
+                role='cond_target_start',
+                contract=TensorContract(dtype='uint32', shape=(1,)),
+            ),
+            TensorFieldSpec(
                 name='candidate_tokens',
                 io_kind=IOKind.OUTPUT,
                 role='candidate_tokens',
@@ -114,11 +126,19 @@ layout(set = 0, binding = 4) buffer restrict readonly StepIndexBuffer {
     uint step_index[];
 };
 
-layout(set = 0, binding = 5) buffer restrict writeonly CandidateTokensBuffer {
+layout(set = 0, binding = 5) buffer restrict readonly ActiveTargetLenBuffer {
+    uint active_target_len[];
+};
+
+layout(set = 0, binding = 6) buffer restrict readonly CondTargetStartBuffer {
+    uint cond_target_start[];
+};
+
+layout(set = 0, binding = 7) buffer restrict writeonly CandidateTokensBuffer {
     int64_t candidate_tokens[];
 };
 
-layout(set = 0, binding = 6) buffer restrict writeonly CandidateScoresBuffer {
+layout(set = 0, binding = 8) buffer restrict writeonly CandidateScoresBuffer {
     float candidate_scores[];
 };
 
@@ -175,10 +195,15 @@ void main() {
 
     const uint codebook = flat_pos / pc.T;
     const uint target = flat_pos - codebook * pc.T;
-    const uint cond_seq = pc.S - pc.T + target;
+    const uint mask_token = uint(audio_mask_id[0]);
+    if (target >= active_target_len[0]) {
+        candidate_tokens[flat_pos] = int64_t(mask_token);
+        candidate_scores[flat_pos] = -3.4028234663852886e+38;
+        return;
+    }
+    const uint cond_seq = cond_target_start[0] + target;
     const uint uncond_seq = target;
     const uint vocab_offset = codebook * pc.V;
-    const uint mask_token = uint(audio_mask_id[0]);
 
     float c_max = -3.4028234663852886e+38;
     float u_max = -3.4028234663852886e+38;
@@ -219,7 +244,8 @@ void main() {
     float confidence = best_score - guided_max - log(guided_sum);
     confidence -= float(codebook) * pc.layer_penalty;
     if (pc.position_temperature > 0.0) {
-        confidence = confidence / pc.position_temperature + gumbel_noise(flat_pos);
+        const uint active_flat_pos = codebook * active_target_len[0] + target;
+        confidence = confidence / pc.position_temperature + gumbel_noise(active_flat_pos);
     }
     if (tokens[flat_pos] != audio_mask_id[0]) {
         confidence = -3.4028234663852886e+38;

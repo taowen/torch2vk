@@ -45,6 +45,18 @@ OMNIVOICE_TOKEN_UPDATE_TOPK_F32 = ShaderVariant(
                 contract=TensorContract(dtype='uint32', shape=(1,)),
             ),
             TensorFieldSpec(
+                name='active_target_len',
+                io_kind=IOKind.INPUT,
+                role='active_target_len',
+                contract=TensorContract(dtype='uint32', shape=(1,)),
+            ),
+            TensorFieldSpec(
+                name='cond_target_start',
+                io_kind=IOKind.INPUT,
+                role='cond_target_start',
+                contract=TensorContract(dtype='uint32', shape=(1,)),
+            ),
+            TensorFieldSpec(
                 name='tokens',
                 io_kind=IOKind.INOUT,
                 role='tokens',
@@ -88,11 +100,19 @@ layout(set = 0, binding = 2) buffer restrict readonly UnmaskCountBuffer {
     uint unmask_count[];
 };
 
-layout(set = 0, binding = 3) buffer restrict TokensBuffer {
+layout(set = 0, binding = 3) buffer restrict readonly ActiveTargetLenBuffer {
+    uint active_target_len[];
+};
+
+layout(set = 0, binding = 4) buffer restrict readonly CondTargetStartBuffer {
+    uint cond_target_start[];
+};
+
+layout(set = 0, binding = 5) buffer restrict TokensBuffer {
     int64_t tokens[];
 };
 
-layout(set = 0, binding = 4) buffer restrict BatchInputIdsBuffer {
+layout(set = 0, binding = 6) buffer restrict BatchInputIdsBuffer {
     int64_t batch_input_ids[];
 };
 
@@ -110,26 +130,34 @@ bool better_pair(float lhs_score, uint lhs_index, float rhs_score, uint rhs_inde
 
 void main() {
     const uint index = gl_GlobalInvocationID.x;
-    const uint total = pc.C * pc.T;
+    const uint active_t = active_target_len[0];
+    const uint total = pc.C * active_t;
     const uint limit = min(unmask_count[0], total);
-    if (index >= total) {
+    if (index >= pc.C * pc.T) {
+        return;
+    }
+    const uint codebook = index / pc.T;
+    const uint target = index - codebook * pc.T;
+    if (target >= active_t) {
         return;
     }
 
     const float score = candidate_scores[index];
+    const uint active_index = codebook * active_t + target;
     uint rank = 0u;
     for (uint other = 0u; other < total; ++other) {
-        if (better_pair(candidate_scores[other], other, score, index)) {
+        const uint other_codebook = other / active_t;
+        const uint other_target = other - other_codebook * active_t;
+        const uint other_index = other_codebook * pc.T + other_target;
+        if (better_pair(candidate_scores[other_index], other, score, active_index)) {
             ++rank;
         }
     }
 
     if (rank < limit) {
-        const uint codebook = index / pc.T;
-        const uint target = index - codebook * pc.T;
         const int64_t token = candidate_tokens[index];
         tokens[index] = token;
-        batch_input_ids[(0u * pc.C + codebook) * pc.S + (pc.S - pc.T + target)] = token;
+        batch_input_ids[(0u * pc.C + codebook) * pc.S + (cond_target_start[0] + target)] = token;
         batch_input_ids[(1u * pc.C + codebook) * pc.S + target] = token;
     }
 }

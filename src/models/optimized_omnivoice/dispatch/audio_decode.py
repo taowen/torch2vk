@@ -191,5 +191,9 @@ def _run_audio_decode_with_tensors(rt: RuntimeSession, tensors: AudioDecodeTenso
     CONV1D_Q8_0W_F32B_F32_54(rt, x=tensors.reshape_71, weight=tensors.p_acoustic_decoder_conv2_weight, bias=tensors.p_acoustic_decoder_conv2_bias, output=tensors.conv1d_31)
 
 
+def run_audio_decode_with_tensors(rt: RuntimeSession, tensors: AudioDecodeTensors) -> None:
+    _run_audio_decode_with_tensors(rt, tensors)
+
+
 def run_audio_decode(rt: RuntimeSession) -> None:
     _run_audio_decode_with_tensors(rt, model_tensors().audio_decode)

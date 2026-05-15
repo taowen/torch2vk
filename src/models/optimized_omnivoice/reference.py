@@ -167,6 +167,8 @@ def run_token_score(
     audio_mask_id: ReferenceInput,
     rng_seed: ReferenceInput,
     step_index: ReferenceInput,
+    active_target_len: ReferenceInput,
+    cond_target_start: ReferenceInput,
 ) -> ReferenceExpected:
     return _execute_and_compare(
         rt,
@@ -181,6 +183,8 @@ def run_token_score(
             "audio_mask_id": audio_mask_id,
             "rng_seed": rng_seed,
             "step_index": step_index,
+            "active_target_len": active_target_len,
+            "cond_target_start": cond_target_start,
         },
     )
 
@@ -194,6 +198,8 @@ def run_token_update(
     candidate_tokens: ReferenceInput,
     candidate_scores: ReferenceInput,
     unmask_count: ReferenceInput,
+    active_target_len: ReferenceInput,
+    cond_target_start: ReferenceInput,
 ) -> ReferenceExpected:
     return _execute_and_compare(
         rt,
@@ -208,6 +214,8 @@ def run_token_update(
             "candidate_tokens": candidate_tokens,
             "candidate_scores": candidate_scores,
             "unmask_count": unmask_count,
+            "active_target_len": active_target_len,
+            "cond_target_start": cond_target_start,
         },
     )
 
