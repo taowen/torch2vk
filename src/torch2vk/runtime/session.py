@@ -142,7 +142,10 @@ class RuntimeSession:
                     f"register_session_tensors key must be LogicalTensor, got {type(tensor).__name__}"
                 )
             tensor.validate_declaration()
-            if tensor.role is not TensorRole.INPUT or tensor.memory is not MemoryClass.SESSION_TENSOR:
+            if (
+                tensor.role is not TensorRole.INPUT
+                or tensor.memory is not MemoryClass.SESSION_TENSOR
+            ):
                 raise ValueError(f"{tensor.name} is not a session tensor input")
             if tensor.buffer is not None or tensor.descriptor_nbytes is not None:
                 raise RuntimeError(f"{tensor.name} session tensor is already registered")
@@ -333,16 +336,12 @@ class RuntimeSession:
 
     def _named_model_tensors(self) -> dict[str, LogicalTensor]:
         if self._model_tensors is None:
-            raise RuntimeError(
-                "Replay requires RuntimeSession.open(..., model_tensors=...)"
-            )
+            raise RuntimeError("Replay requires RuntimeSession.open(..., model_tensors=...)")
         return collect_named_logical_tensors(self._model_tensors)
 
     def _model_shader(self, name: str) -> ShaderVariant:
         if self._get_shader is None:
-            raise RuntimeError(
-                "Replay requires RuntimeSession.open(..., get_shader=...)"
-            )
+            raise RuntimeError("Replay requires RuntimeSession.open(..., get_shader=...)")
         return self._get_shader(name)
 
     def _bind_shape_symbols(
@@ -398,10 +397,17 @@ class RuntimeSession:
         *,
         tensors: Mapping[str, LogicalTensor],
         symbols: Mapping[str, int],
+        push_constant_inputs: Mapping[str, object] | None = None,
     ) -> tuple[bytes | None, dict[str, int | float]]:
         from torch2vk.runtime.materialization import pack_push_constants
 
-        return pack_push_constants(self, spec, tensors=tensors, symbols=symbols)
+        return pack_push_constants(
+            self,
+            spec,
+            tensors=tensors,
+            symbols=symbols,
+            push_constant_inputs=push_constant_inputs,
+        )
 
     def _materialize_params_buffer(
         self,

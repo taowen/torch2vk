@@ -11,7 +11,12 @@ from torch2vk.runtime.materialization import (
     record_descriptor_view,
     record_tensor_snapshot,
 )
-from torch2vk.runtime.shader import DispatchRecord, ShaderVariant, eval_expr
+from torch2vk.runtime.shader import (
+    DispatchRecord,
+    PushConstantInput,
+    ShaderVariant,
+    eval_expr,
+)
 from torch2vk.vulkan.allocation import BufferAllocation, BufferSlice
 from torch2vk.vulkan.compute_pipeline import DescriptorBufferBinding
 
@@ -24,14 +29,20 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
     frame = rt._current_frame()
     contract = variant.contract
     expected = {field.name for field in contract.fields}
+    push_constant_inputs = _push_constant_input_names(variant)
     provided = set(arguments)
     if missing := expected - provided:
         raise ValueError(f"{variant.name} missing tensor fields: {sorted(missing)}")
-    if extra := provided - expected:
+    if missing_push_inputs := push_constant_inputs - provided:
+        raise ValueError(
+            f"{variant.name} missing push constant inputs: {sorted(missing_push_inputs)}"
+        )
+    if extra := provided - expected - push_constant_inputs:
         raise ValueError(f"{variant.name} got unexpected fields: {sorted(extra)}")
 
     tensors: dict[str, LogicalTensor] = {}
-    for name, argument in arguments.items():
+    for name in expected:
+        argument = arguments[name]
         if not isinstance(argument, LogicalTensor):
             raise TypeError(
                 f"{variant.name}.{name} expects LogicalTensor, got {type(argument).__name__}"
@@ -71,6 +82,7 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
         contract.push_constants,
         tensors=tensors,
         symbols=symbols,
+        push_constant_inputs={name: arguments[name] for name in push_constant_inputs},
     )
     dispatch_size = (
         eval_expr(contract.dispatch[0], symbols),
@@ -140,3 +152,10 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
                 dispatch_index=index,
             )
         frame.written_tensors.append(tensor)
+
+
+def _push_constant_input_names(variant: ShaderVariant) -> set[str]:
+    spec = variant.contract.push_constants
+    if spec is None:
+        return set()
+    return {field.value.name for field in spec.fields if isinstance(field.value, PushConstantInput)}

@@ -54,6 +54,7 @@ _WAIT_TIMEOUT_NS = 30_000_000_000
 @dataclass(slots=True)
 class ReplayReadbackSlot:
     """Host-visible buffer for reading GPU output after fence wait."""
+
     name: str
     allocation: BufferAllocation
     nbytes: int
@@ -62,6 +63,7 @@ class ReplayReadbackSlot:
 @dataclass(slots=True)
 class ReplayDispatchEntry:
     """Pre-resolved dispatch metadata for one shader in the replay sequence."""
+
     pipeline: ComputePipeline
     binding: BoundComputeBinding
     descriptors: tuple["ReplayDescriptorBinding", ...]
@@ -89,6 +91,7 @@ class ReplayDispatchTemplate:
     logical_writes: tuple[tuple[str, str], ...]
     symbols: tuple[tuple[str, int], ...]
     dispatch_size: tuple[int, int, int]
+    push_constant_values: tuple[tuple[str, int | float], ...]
     dynamic_symbol_names: tuple[str, ...]
     source_dispatch_index: int | None = None
     source_frame: str | None = None
@@ -258,7 +261,8 @@ def execute_replay(
         results: dict[str, bytes] = {}
         for name, slot in plan.readback_slots.items():
             plan.device.memory_manager.host_upload_ring.invalidate(
-                allocation=slot.allocation, size=slot.nbytes,
+                allocation=slot.allocation,
+                size=slot.nbytes,
             )
             results[name] = slot.allocation.buffer.read_bytes_at(
                 slot.allocation.offset, slot.nbytes
@@ -341,18 +345,14 @@ def _write_tensor_buffer(
             f"{tensor.name} replay write has {raw_bytes.nbytes} bytes, "
             f"buffer only has {tensor.buffer.nbytes}"
         )
-    tensor.buffer.allocation.buffer.write_bytes_at(
-        tensor.buffer.offset, raw_bytes
-    )
+    tensor.buffer.allocation.buffer.write_bytes_at(tensor.buffer.offset, raw_bytes)
     rt.device.memory_manager.host_upload_ring.flush(
         allocation=tensor.buffer.allocation,
         size=raw_bytes.nbytes,
     )
 
 
-def _write_indirect_dispatch_buffer(
-    plan: ReplayPlan, dynamic_symbols: Mapping[str, int]
-) -> None:
+def _write_indirect_dispatch_buffer(plan: ReplayPlan, dynamic_symbols: Mapping[str, int]) -> None:
     assert plan.indirect_buffer is not None
     data = bytearray(plan.num_dispatches * 12)
     for entry in plan.dispatch_entries:
@@ -364,9 +364,7 @@ def _write_indirect_dispatch_buffer(
         z = eval_expr(entry.dispatch_formula[2], symbols)
         offset = entry.indirect_offset
         struct.pack_into("<III", data, offset, x, y, z)
-    plan.indirect_buffer.buffer.write_bytes_at(
-        plan.indirect_buffer.offset, bytes(data)
-    )
+    plan.indirect_buffer.buffer.write_bytes_at(plan.indirect_buffer.offset, bytes(data))
     plan.device.memory_manager.host_upload_ring.flush(allocation=plan.indirect_buffer)
 
 
@@ -379,7 +377,9 @@ def _write_params_buffers(plan: ReplayPlan, dynamic_symbols: Mapping[str, int]) 
         for field in entry.params_layout.fields:
             raw = field.value
             if isinstance(raw, PushConstantInput):
-                raise ValueError(f"PushConstantInput {raw.name!r} is not supported by replay params")
+                raise ValueError(
+                    f"PushConstantInput {raw.name!r} is not supported by replay params"
+                )
             if callable(raw):
                 raise ValueError(f"Callable replay param {field.name!r} is not supported")
             if isinstance(raw, str):

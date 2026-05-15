@@ -18,7 +18,10 @@ from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3.dispatch.decode_embed import run_decode_embed
 from models.optimized_qwen3.dispatch.decode_layer import run_decode_layer
 from models.optimized_qwen3.dispatch.decode_norm import run_decode_norm
-from models.optimized_qwen3.dispatch.embed_tokens import run_prefill_full_embed, run_prefill_tail_embed
+from models.optimized_qwen3.dispatch.embed_tokens import (
+    run_prefill_full_embed,
+    run_prefill_tail_embed,
+)
 from models.optimized_qwen3.dispatch.text_layer import (
     run_prefill_full_mask_opt,
     run_prefill_full_layer,
@@ -136,13 +139,13 @@ def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
     )
 
 
-def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
+def _run_decode_step(rt: RuntimeSession, *, rope_theta: float, step: int) -> int:
     tensors = model_tensors()
     with rt.frame(f"qwen3.decode.{step:04d}"):
         ROPE_TABLE_F32(
             rt,
             start_position=tensors.decode_rope.start_position,
-            theta=tensors.decode_rope.theta,
+            theta=rope_theta,
             cos=tensors.decode_rope.cos,
             sin=tensors.decode_rope.sin,
         )
@@ -166,13 +169,11 @@ def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
 def _decode_step_inputs(
     *,
     cache_position: int,
-    rope_theta: float,
     token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
     return {
         tensors.decode_rope.start_position: np.array([cache_position], dtype=np.int64),
-        tensors.decode_rope.theta: np.array([rope_theta], dtype=np.float32),
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
         tensors.token_index: np.array([token_index_value], dtype=np.int64),
     }
@@ -246,7 +247,9 @@ def _prefill_full_replay_cache_namespace(model_dir: Path) -> str:
     )
 
 
-def _prefill_tail_replay_cache_namespace(model_dir: Path, tail_length: int, attention_length: int) -> str:
+def _prefill_tail_replay_cache_namespace(
+    model_dir: Path, tail_length: int, attention_length: int
+) -> str:
     return replay_cache_namespace(
         name=PREFILL_TAIL_REPLAY_CACHE,
         source_digest=_REPLAY_SOURCE_DIGEST,
@@ -334,7 +337,8 @@ def main(
     rt.initialize_request_state(
         {
             cache: zero_full_flash_cache
-            for cache in model_tensors().prefill_full_key_caches + model_tensors().prefill_full_value_caches
+            for cache in model_tensors().prefill_full_key_caches
+            + model_tensors().prefill_full_value_caches
         }
     )
     rt.initialize_request_state(
@@ -371,8 +375,9 @@ def main(
             prompt_length,
             dtype=np.int64,
         ),
-        model_tensors().prefill_tail_rope.start_position: np.array([fixed_prefill_length], dtype=np.int64),
-        model_tensors().prefill_tail_rope.theta: np.array([rope_theta], dtype=np.float32),
+        model_tensors().prefill_tail_rope.start_position: np.array(
+            [fixed_prefill_length], dtype=np.int64
+        ),
         model_tensors().token_index: np.array([0], dtype=np.int64),
     }
     full_inputs: dict[LogicalTensor, np.ndarray] = {}
@@ -389,7 +394,6 @@ def main(
                 dtype=np.int64,
             ),
             model_tensors().prefill_full_rope.start_position: np.array([0], dtype=np.int64),
-            model_tensors().prefill_full_rope.theta: np.array([rope_theta], dtype=np.float32),
         }
     full_prefill_replay_plan = (
         _cached_prefill_replay_plan(rt, cache_namespace=prefill_full_cache_namespace)
@@ -408,7 +412,7 @@ def main(
                 ROPE_TABLE_F32(
                     rt,
                     start_position=model_tensors().prefill_full_rope.start_position,
-                    theta=model_tensors().prefill_full_rope.theta,
+                    theta=rope_theta,
                     cos=model_tensors().prefill_full_rope.cos,
                     sin=model_tensors().prefill_full_rope.sin,
                 )
@@ -437,7 +441,7 @@ def main(
             ROPE_TABLE_F32(
                 rt,
                 start_position=model_tensors().prefill_tail_rope.start_position,
-                theta=model_tensors().prefill_tail_rope.theta,
+                theta=rope_theta,
                 cos=model_tensors().prefill_tail_rope.cos,
                 sin=model_tensors().prefill_tail_rope.sin,
             )
@@ -488,7 +492,6 @@ def main(
         cache_pos = prompt_length + step
         decode_step_inputs = _decode_step_inputs(
             cache_position=cache_pos,
-            rope_theta=rope_theta,
             token_index_value=step + 1,
         )
         if decode_replay_plan is None:
@@ -498,7 +501,7 @@ def main(
                 cache_namespace=replay_cache_namespace,
             )
             if decode_replay_plan is None:
-                _run_decode_step(rt, step=step)
+                _run_decode_step(rt, rope_theta=rope_theta, step=step)
                 decode_replay_plan = _build_decode_replay_plan(
                     rt,
                     frame=f"qwen3.decode.{step:04d}",
@@ -530,7 +533,9 @@ def main(
 
     decode_elapsed = time.perf_counter() - decode_start
     generated_length = int(rt.read_request_state(model_tensors().generated_length).reshape(-1)[0])
-    generated_tokens = rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[:generated_length]
+    generated_tokens = rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[
+        :generated_length
+    ]
     text = tokenizer.batch_decode(
         np.array([generated_tokens], dtype=np.int64),
         skip_special_tokens=True,

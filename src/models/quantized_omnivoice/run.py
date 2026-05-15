@@ -24,7 +24,9 @@ from models.quantized_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.quantized_omnivoice.export_gguf import export_omnivoice_q4_k_m_gguf
 from models.quantized_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
 from models.quantized_omnivoice.shaders.omnivoice_cfg_score_f32 import OMNIVOICE_CFG_SCORE_F32
-from models.quantized_omnivoice.shaders.omnivoice_input_embed_q8_0_f32 import OMNIVOICE_INPUT_EMBED_Q8_0_F32
+from models.quantized_omnivoice.shaders.omnivoice_input_embed_q8_0_f32 import (
+    OMNIVOICE_INPUT_EMBED_Q8_0_F32,
+)
 from models.quantized_omnivoice.shaders.omnivoice_token_update_topk_f32 import (
     OMNIVOICE_TOKEN_UPDATE_TOPK_F32,
 )
@@ -58,13 +60,12 @@ def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float)
     return t.astype(np.float32)
 
 
-
 def _run_rope_table(rt: RuntimeSession, *, frame_name: str) -> None:
     rope_t = model_tensors().rope
     run_rope_table_f32(
         rt,
         start_position=rope_t.start_position,
-        theta=rope_t.theta,
+        theta=1_000_000.0,
         cos=rope_t.cos,
         sin=rope_t.sin,
         frame_name=frame_name,
@@ -189,7 +190,9 @@ def main(
     batch_audio_mask = prepared.batch_audio_mask
     attn_mask_np = as_float16_attention_mask(prepared.attention_mask)
 
-    print(f"  seq_len={seq_len}, target_len={target_len}, cond_audio_start={prepared.cond_audio_start}")
+    print(
+        f"  seq_len={seq_len}, target_len={target_len}, cond_audio_start={prepared.cond_audio_start}"
+    )
 
     # Create runtime and tensors
     print("Initializing Vulkan runtime...")
@@ -242,10 +245,11 @@ def main(
     )
 
     # Compute RoPE once on GPU (positions are fixed for masked decoding)
-    rt.register_inputs({
-        model_tensors().rope.start_position: np.array([0], dtype=np.int64),
-        model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
-    })
+    rt.register_inputs(
+        {
+            model_tensors().rope.start_position: np.array([0], dtype=np.int64),
+        }
+    )
     _run_rope_table(rt, frame_name="omnivoice.rope")
 
     unmasked = 0
@@ -295,7 +299,7 @@ def main(
 
         if step % 8 == 0 or step == num_steps - 1:
             total = num_audio_codebook * target_len
-            print(f"  Step {step}: unmasked {unmasked}/{total} ({100*unmasked/total:.0f}%)")
+            print(f"  Step {step}: unmasked {unmasked}/{total} ({100 * unmasked / total:.0f}%)")
 
     # Decode audio tokens
     print("\nDecoding audio tokens...")

@@ -128,11 +128,7 @@ def _runtime_for(
     gguf_dir = gguf_path.parent
 
     global _RUNTIME_CACHE
-    if (
-        profile_key is None
-        and _RUNTIME_CACHE is not None
-        and _RUNTIME_CACHE.gguf_dir == gguf_dir
-    ):
+    if profile_key is None and _RUNTIME_CACHE is not None and _RUNTIME_CACHE.gguf_dir == gguf_dir:
         return _RUNTIME_CACHE
 
     if _RUNTIME_CACHE is not None:
@@ -175,13 +171,12 @@ def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float)
     return t.astype(np.float32)
 
 
-
 def _run_rope_table(rt: RuntimeSession, *, frame_name: str) -> None:
     rope_t = model_tensors().rope
     run_rope_table_f32(
         rt,
         start_position=rope_t.start_position,
-        theta=rope_t.theta,
+        theta=1_000_000.0,
         cos=rope_t.cos,
         sin=rope_t.sin,
         frame_name=frame_name,
@@ -291,6 +286,7 @@ def _generation_replay_cache_namespace(model_dir: Path) -> str:
         model_dir=model_dir,
     )
 
+
 def _generation_schedule(
     *,
     target_len: int,
@@ -369,9 +365,7 @@ def _decode_current_audio(
         replay_plans[active_target_len] = audio_decode_replay_plan
     else:
         execute_replay(audio_decode_replay_plan)
-    waveform = np.ascontiguousarray(
-        rt.read_request_state(topology.tensors.conv1d_31)[0]
-    )
+    waveform = np.ascontiguousarray(rt.read_request_state(topology.tensors.conv1d_31)[0])
     return waveform
 
 
@@ -527,7 +521,6 @@ def main(
     rt.register_inputs(
         {
             model_tensors().rope.start_position: np.array([0], dtype=np.int64),
-            model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
         }
     )
     _run_rope_table(rt, frame_name="omnivoice.rope")

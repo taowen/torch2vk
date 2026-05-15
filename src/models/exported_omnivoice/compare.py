@@ -53,7 +53,6 @@ class _OmniVoiceCompareState:
     audio_decode: AudioDecodeReference
 
 
-
 def _build_compare_references(
     model: OmniVoice,
     *,
@@ -216,7 +215,6 @@ def compare_generation_steps(
         rt.register_inputs(
             {
                 model_tensors().rope.start_position: np.array([0], dtype=np.int64),
-                model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
             }
         )
         _run_rope_table(rt, frame_name="omnivoice.rope")

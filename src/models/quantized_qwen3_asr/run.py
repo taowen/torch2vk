@@ -70,7 +70,6 @@ def _require_gpu_output(tensor: LogicalTensor) -> None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
 
 
-
 def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
     tensors = model_tensors()
     LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16(
@@ -155,6 +154,7 @@ def _run_rope_table(
     rt: RuntimeSession,
     *,
     phase: str,
+    rope_theta: float,
     frame_name: str,
 ) -> None:
     tensors = model_tensors()
@@ -167,7 +167,7 @@ def _run_rope_table(
     run_rope_table_f32(
         rt,
         start_position=rope_t.start_position,
-        theta=rope_t.theta,
+        theta=rope_theta,
         cos=rope_t.cos,
         sin=rope_t.sin,
         frame_name=frame_name,
@@ -231,6 +231,7 @@ def _decode_replay_cache_namespace(model_dir: Path) -> str:
 # ==============================================================
 # Main pipeline
 # ==============================================================
+
 
 def main(
     *,
@@ -359,12 +360,12 @@ def main(
     rt.register_inputs(
         {
             model_tensors().prefill_rope.start_position: np.array([0], dtype=np.int64),
-            model_tensors().prefill_rope.theta: np.array([rope_theta], dtype=np.float32),
         }
     )
     _run_rope_table(
         rt,
         phase="prefill",
+        rope_theta=rope_theta,
         frame_name="spike.text.prefill_rope",
     )
 
@@ -438,8 +439,10 @@ def main(
     # Memory sampling
     memory_trace: list[tuple[int, float, float, float]] = []
     baseline_stats = rt.device.allocation_stats()
-    print(f"  Baseline GPU memory: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
-          f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB")
+    print(
+        f"  Baseline GPU memory: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
+        f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB"
+    )
 
     decode_start = time.perf_counter()
     for step in range(max_new_tokens - 1):
@@ -455,15 +458,12 @@ def main(
                     [cache_pos],
                     dtype=np.int64,
                 ),
-                model_tensors().decode_rope.theta: np.array(
-                    [rope_theta],
-                    dtype=np.float32,
-                ),
             }
         )
         _run_rope_table(
             rt,
             phase="decode",
+            rope_theta=rope_theta,
             frame_name=f"spike.decode.rope.{step:04d}",
         )
 
@@ -529,23 +529,38 @@ def main(
 
     decode_elapsed = time.perf_counter() - decode_start
     decode_steps = len(memory_trace)
-    print(f"\n  Decode: {decode_steps} steps in {decode_elapsed:.3f}s "
-          f"({decode_elapsed / decode_steps * 1000:.1f} ms/token)" if decode_steps > 0 else "")
+    print(
+        f"\n  Decode: {decode_steps} steps in {decode_elapsed:.3f}s "
+        f"({decode_elapsed / decode_steps * 1000:.1f} ms/token)"
+        if decode_steps > 0
+        else ""
+    )
 
     # Memory summary
     print("\n=== GPU Memory Trace ===")
     if memory_trace:
         final_stats = rt.device.allocation_stats()
-        print(f"  Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB")
-        print(f"  Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB")
+        print(
+            f"  Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB"
+        )
+        print(
+            f"  Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB"
+        )
         print(f"  Final device_local live: {final_stats.device_local_live_bytes / 1024**2:.1f} MB")
         print(f"  Steps sampled: {len(memory_trace)}")
         print()
         print("  Step | GPU Live (MB) | GPU Reserved (MB) | Host Upload (MB)")
         print("  -----|---------------|-------------------|------------------")
-        for step, device_local_live_mb, device_local_reserved_mb, host_upload_live_mb in memory_trace:
-            print(f"  {step:4d} | {device_local_live_mb:13.1f} | "
-                  f"{device_local_reserved_mb:17.1f} | {host_upload_live_mb:.1f}")
+        for (
+            step,
+            device_local_live_mb,
+            device_local_reserved_mb,
+            host_upload_live_mb,
+        ) in memory_trace:
+            print(
+                f"  {step:4d} | {device_local_live_mb:13.1f} | "
+                f"{device_local_reserved_mb:17.1f} | {host_upload_live_mb:.1f}"
+            )
 
     # Decode text
     print("\n=== Result ===")

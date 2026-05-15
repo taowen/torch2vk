@@ -73,7 +73,7 @@ if TYPE_CHECKING:
 
 
 _REPLAY_TEMPLATE_CACHE: dict[str, list[ReplayPlanTemplate]] = {}
-_REPLAY_TEMPLATE_CACHE_DIR = "replay_templates"
+_REPLAY_TEMPLATE_CACHE_DIR = "replay_templates_v2"
 
 
 def build_replay_plan(
@@ -120,13 +120,7 @@ def _build_replay_template_from_records(
         for record in frame_dispatch_records
     )
     dynamic_symbol_names = tuple(
-        sorted(
-            {
-                symbol
-                for entry_symbols in entry_dynamic_symbol_names
-                for symbol in entry_symbols
-            }
-        )
+        sorted({symbol for entry_symbols in entry_dynamic_symbol_names for symbol in entry_symbols})
     )
     entries = tuple(
         ReplayDispatchTemplate(
@@ -135,6 +129,7 @@ def _build_replay_template_from_records(
             logical_writes=tuple(record.logical_writes),
             symbols=tuple(record.symbols),
             dispatch_size=record.dispatch_size,
+            push_constant_values=record.push_constant_values,
             dynamic_symbol_names=entry_dynamic_symbol_names[i],
             source_dispatch_index=record.index,
             source_frame=record.frame,
@@ -187,8 +182,7 @@ def _instantiate_replay_template(
         logical_by_field = dict(template_entry.logical_reads)
         logical_by_field.update(template_entry.logical_writes)
         tensors = {
-            field.name: logical_tensors[logical_by_field[field.name]]
-            for field in contract.fields
+            field.name: logical_tensors[logical_by_field[field.name]] for field in contract.fields
         }
 
         buffer_views: list[DescriptorBufferBinding] = []
@@ -264,6 +258,7 @@ def _instantiate_replay_template(
             contract.push_constants,
             tensors=tensors,
             symbols=record_symbols,
+            push_constant_inputs=dict(template_entry.push_constant_values),
         )
 
         entry = ReplayDispatchEntry(
@@ -343,7 +338,9 @@ def _instantiate_replay_template(
             )
         else:
             if entry.indirect_offset is None:
-                raise RuntimeError(f"Replay entry for {entry.pipeline.debug_name} has no indirect offset")
+                raise RuntimeError(
+                    f"Replay entry for {entry.pipeline.debug_name} has no indirect offset"
+                )
             entry.pipeline.record_indirect_dispatch(
                 command_buffer=command_buffer,
                 binding=entry.binding,
@@ -454,7 +451,7 @@ def _frame_dispatch_records(
             f"Replay frame {frame!r} has invalid dispatch range "
             f"{context.start_dispatch_index}:{context.end_dispatch_index}"
         )
-    return rt.dispatch_records[context.start_dispatch_index:context.end_dispatch_index]
+    return rt.dispatch_records[context.start_dispatch_index : context.end_dispatch_index]
 
 
 def _entry_dynamic_symbol_names(
@@ -734,9 +731,7 @@ def rebind_replay_plan(rt: RuntimeSession, plan: ReplayPlan) -> None:
     if plan.device is not rt.device:
         raise ValueError("ReplayPlan belongs to a different RuntimeSession device")
     if plan.readback_slots:
-        raise RuntimeError(
-            "Replay plans with baked readback copy commands cannot be rebound"
-        )
+        raise RuntimeError("Replay plans with baked readback copy commands cannot be rebound")
 
     logical_tensors = rt._named_model_tensors()
     for entry in plan.dispatch_entries:
@@ -751,8 +746,7 @@ def rebind_replay_plan(rt: RuntimeSession, plan: ReplayPlan) -> None:
                 tensor = logical_tensors[descriptor.tensor_name]
             except KeyError as exc:
                 raise KeyError(
-                    f"ReplayPlan {plan.name!r} rebind is missing tensor "
-                    f"{descriptor.tensor_name!r}"
+                    f"ReplayPlan {plan.name!r} rebind is missing tensor {descriptor.tensor_name!r}"
                 ) from exc
             _materialize_replay_rebind_tensor(rt, tensor, field=descriptor.field)
             if tensor.buffer is None:
@@ -841,11 +835,7 @@ def replay_plan_compatible(rt: RuntimeSession, plan: ReplayPlan) -> bool:
 def cached_replay_plans(rt: RuntimeSession, namespace: str) -> tuple[ReplayPlan, ...]:
     rt._require_open()
     plans = rt._replay_plan_cache.get(namespace, [])
-    live_plans = [
-        plan
-        for plan in plans
-        if not plan._closed and replay_plan_compatible(rt, plan)
-    ]
+    live_plans = [plan for plan in plans if not plan._closed and replay_plan_compatible(rt, plan)]
     templates = _cached_replay_templates(rt, namespace)
     for template in templates:
         if any(plan.template == template for plan in live_plans):
@@ -860,9 +850,7 @@ def cached_replay_plans(rt: RuntimeSession, namespace: str) -> tuple[ReplayPlan,
             )
         )
     rt._replay_plan_cache[namespace] = live_plans
-    if not live_plans and (
-        any(not plan._closed for plan in plans) or templates
-    ):
+    if not live_plans and (any(not plan._closed for plan in plans) or templates):
         raise RuntimeError(
             f"Replay cache {namespace!r} exists but is incompatible with current model tensors"
         )
@@ -946,17 +934,12 @@ def _replay_template_compatible(rt: RuntimeSession, template: ReplayPlanTemplate
                 tensor=tensor,
                 logical_tensors=logical_tensors,
             )
-            if (
-                _replay_descriptor_rebindable(descriptor_tensor)
-                and descriptor_tensor is tensor
-            ):
+            if _replay_descriptor_rebindable(descriptor_tensor) and descriptor_tensor is tensor:
                 field_tensors[field.name] = tensor
         try:
             rebound_symbols = rt._bind_shape_symbols(
                 tuple(
-                    field
-                    for field in source_variant.contract.fields
-                    if field.name in field_tensors
+                    field for field in source_variant.contract.fields if field.name in field_tensors
                 ),
                 field_tensors,
             )
@@ -1020,8 +1003,7 @@ def _allocate_replay_descriptor_tensor(
         )
 
     raise RuntimeError(
-        f"{descriptor_tensor.name} is not materialized and cannot be "
-        "allocated as replay workspace"
+        f"{descriptor_tensor.name} is not materialized and cannot be allocated as replay workspace"
     )
 
 

@@ -52,13 +52,12 @@ def _get_time_steps(t_start: float, t_end: float, num_step: int, t_shift: float)
     return t.astype(np.float32)
 
 
-
 def _run_rope_table(rt: RuntimeSession, *, frame_name: str) -> None:
     rope_t = model_tensors().rope
     run_rope_table_f32(
         rt,
         start_position=rope_t.start_position,
-        theta=rope_t.theta,
+        theta=1_000_000.0,
         cos=rope_t.cos,
         sin=rope_t.sin,
         frame_name=frame_name,
@@ -239,7 +238,6 @@ def main(
     rt.register_inputs(
         {
             model_tensors().rope.start_position: np.array([0], dtype=np.int64),
-            model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
         }
     )
     _run_rope_table(rt, frame_name="omnivoice.rope")

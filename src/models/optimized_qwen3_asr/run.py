@@ -71,7 +71,6 @@ def _require_gpu_output(tensor: LogicalTensor) -> None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
 
 
-
 def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
     tensors = model_tensors()
     LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16(
@@ -98,7 +97,7 @@ def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
     )
 
 
-def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
+def _run_decode_step(rt: RuntimeSession, *, rope_theta: float, step: int) -> int:
     tensors = model_tensors()
     if not tensors.decode_layers:
         raise ValueError("decode_layers must not be empty")
@@ -106,7 +105,7 @@ def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
         ROPE_TABLE_F32(
             rt,
             start_position=tensors.decode_rope.start_position,
-            theta=tensors.decode_rope.theta,
+            theta=rope_theta,
             cos=tensors.decode_rope.cos,
             sin=tensors.decode_rope.sin,
         )
@@ -131,6 +130,7 @@ def _run_rope_table(
     rt: RuntimeSession,
     *,
     phase: str,
+    rope_theta: float,
     frame_name: str,
 ) -> None:
     tensors = model_tensors()
@@ -143,7 +143,7 @@ def _run_rope_table(
     run_rope_table_f32(
         rt,
         start_position=rope_t.start_position,
-        theta=rope_t.theta,
+        theta=rope_theta,
         cos=rope_t.cos,
         sin=rope_t.sin,
         frame_name=frame_name,
@@ -153,7 +153,6 @@ def _run_rope_table(
 def _decode_step_inputs(
     *,
     cache_position: int,
-    rope_theta: float,
     token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
@@ -161,7 +160,6 @@ def _decode_step_inputs(
         raise ValueError("decode_layers must not be empty")
     return {
         tensors.decode_rope.start_position: np.array([cache_position], dtype=np.int64),
-        tensors.decode_rope.theta: np.array([rope_theta], dtype=np.float32),
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
         tensors.token_index: np.array([token_index_value], dtype=np.int64),
     }
@@ -344,12 +342,12 @@ def main(
     rt.register_inputs(
         {
             model_tensors().prefill_rope.start_position: np.array([0], dtype=np.int64),
-            model_tensors().prefill_rope.theta: np.array([rope_theta], dtype=np.float32),
         }
     )
     _run_rope_table(
         rt,
         phase="prefill",
+        rope_theta=rope_theta,
         frame_name="spike.text.prefill_rope",
     )
 
@@ -434,7 +432,6 @@ def main(
 
             decode_step_inputs = _decode_step_inputs(
                 cache_position=cache_pos,
-                rope_theta=rope_theta,
                 token_index_value=step + 1,
             )
             if decode_replay_plan is None:
@@ -446,6 +443,7 @@ def main(
                 if decode_replay_plan is None:
                     _run_decode_step(
                         rt,
+                        rope_theta=rope_theta,
                         step=step,
                     )
                     decode_replay_plan = _build_decode_replay_plan(
@@ -460,7 +458,6 @@ def main(
                         inputs=decode_step_inputs,
                         write_through=(
                             model_tensors().decode_rope.start_position,
-                            model_tensors().decode_rope.theta,
                             model_tensors().decode_layers[0].cache_position,
                             model_tensors().token_index,
                         ),
@@ -473,7 +470,6 @@ def main(
                     inputs=decode_step_inputs,
                     write_through=(
                         model_tensors().decode_rope.start_position,
-                        model_tensors().decode_rope.theta,
                         model_tensors().decode_layers[0].cache_position,
                         model_tensors().token_index,
                     ),

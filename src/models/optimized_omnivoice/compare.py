@@ -25,7 +25,11 @@ from models.optimized_omnivoice.dispatch.audio_decode import run_audio_decode_wi
 from models.optimized_omnivoice.dispatch.audio_head import run_audio_head
 from models.optimized_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.optimized_omnivoice.export_gguf import export_omnivoice_q4_k_m_gguf
-from models.optimized_omnivoice.input_prep import DEFAULT_TEXT, TARGET_CAPACITY, prepare_omnivoice_inputs
+from models.optimized_omnivoice.input_prep import (
+    DEFAULT_TEXT,
+    TARGET_CAPACITY,
+    prepare_omnivoice_inputs,
+)
 from models.optimized_omnivoice.run import (
     _audio_decode_topology,
     _generation_step_inputs,
@@ -80,7 +84,9 @@ class _ActiveTokenScoreReference:
 
         seq_len = logits.shape[1]
         logits = logits.view(2, seq_len, self.num_audio_codebook, self.audio_vocab_size)
-        cond_logits = logits[0:1, cond_target_start : cond_target_start + target_len].permute(0, 2, 1, 3)
+        cond_logits = logits[0:1, cond_target_start : cond_target_start + target_len].permute(
+            0, 2, 1, 3
+        )
         uncond_logits = logits[1:2, :target_len].permute(0, 2, 1, 3)
         cond_log_probs = F.log_softmax(cond_logits, dim=-1)
         uncond_log_probs = F.log_softmax(uncond_logits, dim=-1)
@@ -176,10 +182,11 @@ class _ActiveTokenUpdateReference:
         updated_tokens = tokens.clone()
         updated_tokens[:, :, :target_len] = updated_active
         updated_batch_input_ids = batch_input_ids.clone()
-        updated_batch_input_ids[0:1, :, cond_target_start : cond_target_start + target_len] = updated_active
+        updated_batch_input_ids[0:1, :, cond_target_start : cond_target_start + target_len] = (
+            updated_active
+        )
         updated_batch_input_ids[1:2, :, :target_len] = updated_active
         return {"tokens": updated_tokens, "batch_input_ids": updated_batch_input_ids}
-
 
 
 def _build_compare_references(
@@ -365,10 +372,11 @@ def compare_generation_steps(
                 model_tensors().tokens: tokens,
             }
         )
-        rt.register_inputs({
-            model_tensors().rope.start_position: np.array([0], dtype=np.int64),
-            model_tensors().rope.theta: np.array([1_000_000.0], dtype=np.float32),
-        })
+        rt.register_inputs(
+            {
+                model_tensors().rope.start_position: np.array([0], dtype=np.int64),
+            }
+        )
         _run_rope_table(rt, frame_name="omnivoice.rope")
 
         timesteps = _get_time_steps(0.0, 1.0, num_steps, t_shift=0.1)

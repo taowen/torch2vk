@@ -81,7 +81,6 @@ def _require_gpu_output(tensor: LogicalTensor) -> None:
         raise RuntimeError(f"{tensor.name} did not produce a GPU buffer")
 
 
-
 def _vulkan_input(rt: RuntimeSession, tensor: LogicalTensor) -> reference.ReferenceInput:
     return np.ascontiguousarray(rt.readback(tensor))
 
@@ -91,7 +90,9 @@ def _vulkan_request_state(rt: RuntimeSession, tensor: LogicalTensor) -> np.ndarr
     return np.ascontiguousarray(rt.read_request_state(tensor))
 
 
-def _reference_lm_head_logits(lm_head: nn.Module, hidden_states: reference.ReferenceInput) -> np.ndarray:
+def _reference_lm_head_logits(
+    lm_head: nn.Module, hidden_states: reference.ReferenceInput
+) -> np.ndarray:
     hidden = torch.from_numpy(np.ascontiguousarray(hidden_states)).cuda().float()
     with torch.no_grad():
         logits = lm_head(hidden)
@@ -151,6 +152,7 @@ def _run_rope_table(
     rt: RuntimeSession,
     *,
     phase: str,
+    rope_theta: float,
     frame_name: str,
 ) -> None:
     tensors = model_tensors()
@@ -163,7 +165,7 @@ def _run_rope_table(
     run_rope_table_f32(
         rt,
         start_position=rope_t.start_position,
-        theta=rope_t.theta,
+        theta=rope_theta,
         cos=rope_t.cos,
         sin=rope_t.sin,
         frame_name=frame_name,
@@ -438,9 +440,7 @@ def compare_decode_steps(
     )
     rt.register_session_tensors({model_tensors().eos_token_ids: eos_token_array})
     print("Loading PyTorch reference for compare...")
-    compare_refs = _build_compare_references(
-        _load_qwen_reference_model(Path(model_dir))
-    )
+    compare_refs = _build_compare_references(_load_qwen_reference_model(Path(model_dir)))
 
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
@@ -493,12 +493,12 @@ def compare_decode_steps(
     rt.register_inputs(
         {
             model_tensors().prefill_rope.start_position: np.array([0], dtype=np.int64),
-            model_tensors().prefill_rope.theta: np.array([rope_theta], dtype=np.float32),
         }
     )
     _run_rope_table(
         rt,
         phase="prefill",
+        rope_theta=rope_theta,
         frame_name="spike.text.prefill_rope",
     )
 
@@ -640,15 +640,12 @@ def compare_decode_steps(
                     [cache_pos],
                     dtype=np.int64,
                 ),
-                model_tensors().decode_rope.theta: np.array(
-                    [rope_theta],
-                    dtype=np.float32,
-                ),
             }
         )
         _run_rope_table(
             rt,
             phase="decode",
+            rope_theta=rope_theta,
             frame_name=f"spike.decode.rope.{step:04d}",
         )
 

@@ -119,13 +119,13 @@ def _run_lm_head_select(rt: RuntimeSession, *, x: LogicalTensor) -> None:
     )
 
 
-def _run_prefill(rt: RuntimeSession) -> None:
+def _run_prefill(rt: RuntimeSession, *, rope_theta: float) -> None:
     tensors = model_tensors()
     with rt.frame("qwen3.prefill"):
         ROPE_TABLE_F32(
             rt,
             start_position=tensors.prefill_rope.start_position,
-            theta=tensors.prefill_rope.theta,
+            theta=rope_theta,
             cos=tensors.prefill_rope.cos,
             sin=tensors.prefill_rope.sin,
         )
@@ -150,13 +150,13 @@ def _run_prefill(rt: RuntimeSession) -> None:
         )
 
 
-def _run_decode_step(rt: RuntimeSession, *, step: int) -> None:
+def _run_decode_step(rt: RuntimeSession, *, rope_theta: float, step: int) -> None:
     tensors = model_tensors()
     with rt.frame(f"qwen3.decode.{step:04d}"):
         ROPE_TABLE_F32(
             rt,
             start_position=tensors.decode_rope.start_position,
-            theta=tensors.decode_rope.theta,
+            theta=rope_theta,
             cos=tensors.decode_rope.cos,
             sin=tensors.decode_rope.sin,
         )
@@ -180,14 +180,12 @@ def _prefill_inputs(
     *,
     input_ids: np.ndarray,
     prompt_length: int,
-    rope_theta: float,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
     return {
         tensors.input_ids: input_ids,
         tensors.text_layers[0].cache_position: np.arange(prompt_length, dtype=np.int64),
         tensors.prefill_rope.start_position: np.array([0], dtype=np.int64),
-        tensors.prefill_rope.theta: np.array([rope_theta], dtype=np.float32),
         tensors.token_index: np.array([0], dtype=np.int64),
     }
 
@@ -195,13 +193,11 @@ def _prefill_inputs(
 def _decode_step_inputs(
     *,
     cache_position: int,
-    rope_theta: float,
     token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
     return {
         tensors.decode_rope.start_position: np.array([cache_position], dtype=np.int64),
-        tensors.decode_rope.theta: np.array([rope_theta], dtype=np.float32),
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
         tensors.token_index: np.array([token_index_value], dtype=np.int64),
     }
@@ -338,12 +334,11 @@ def main(
     prefill_inputs = _prefill_inputs(
         input_ids=prepared.input_ids,
         prompt_length=prompt_length,
-        rope_theta=rope_theta,
     )
     prefill_start = time.perf_counter()
     if prefill_replay_plan is None:
         rt.register_inputs(prefill_inputs)
-        _run_prefill(rt)
+        _run_prefill(rt, rope_theta=rope_theta)
         prefill_replay_plan = _build_replay_plan(
             rt,
             name="quantized_qwen3_prefill",
@@ -372,12 +367,11 @@ def main(
         cache_pos = prompt_length + step
         decode_inputs = _decode_step_inputs(
             cache_position=cache_pos,
-            rope_theta=rope_theta,
             token_index_value=step + 1,
         )
         if decode_replay_plan is None:
             rt.register_inputs(decode_inputs)
-            _run_decode_step(rt, step=step)
+            _run_decode_step(rt, rope_theta=rope_theta, step=step)
             decode_replay_plan = _build_replay_plan(
                 rt,
                 name="quantized_qwen3_decode_step",
@@ -399,7 +393,9 @@ def main(
 
     decode_elapsed = time.perf_counter() - decode_start
     generated_length = int(rt.read_request_state(model_tensors().generated_length).reshape(-1)[0])
-    generated_tokens = rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[:generated_length]
+    generated_tokens = rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[
+        :generated_length
+    ]
     text = tokenizer.batch_decode(
         np.array([generated_tokens], dtype=np.int64),
         skip_special_tokens=True,

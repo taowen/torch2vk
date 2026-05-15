@@ -48,9 +48,7 @@ def bind_shape_symbols(
         dtype = contract.dtype
         if isinstance(dtype, DTypeReference):
             if dtype.field_name not in dtype_by_field:
-                raise ValueError(
-                    f"{field.name} references unknown dtype field {dtype.field_name}"
-                )
+                raise ValueError(f"{field.name} references unknown dtype field {dtype.field_name}")
             expected_dtypes = (dtype_by_field[dtype.field_name],)
         elif isinstance(dtype, tuple):
             expected_dtypes = dtype
@@ -116,7 +114,9 @@ def materialize_read(rt: RuntimeSession, tensor: LogicalTensor) -> None:
 
 def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOKind) -> None:
     if tensor.alias_source is not None:
-        raise RuntimeError(f"{tensor.name} is an alias of {tensor.alias_source.name} and cannot be written")
+        raise RuntimeError(
+            f"{tensor.name} is an alias of {tensor.alias_source.name} and cannot be written"
+        )
     if io_kind is IOKind.INOUT and tensor.buffer is not None:
         return
     if (
@@ -149,7 +149,9 @@ def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOK
         )
         rt._request_allocations.append(allocation)
     else:
-        raise ValueError(f"{tensor.name} cannot be materialized for write with memory={tensor.memory}")
+        raise ValueError(
+            f"{tensor.name} cannot be materialized for write with memory={tensor.memory}"
+        )
     with tensor.runtime_write_scope():
         tensor.buffer = (
             materialized_slice
@@ -205,15 +207,17 @@ def resolve_weight_checkpoint(rt: RuntimeSession, tensor: LogicalTensor) -> Path
     gguf = rt.model_dir / "model.gguf"
     if gguf.is_file():
         return gguf
-    candidates = sorted(rt.model_dir.glob("*.safetensors")) + sorted(
-        rt.model_dir.glob("*.safetensors.index.json")
-    ) + sorted(
-        rt.model_dir.glob("*.gguf")
+    candidates = (
+        sorted(rt.model_dir.glob("*.safetensors"))
+        + sorted(rt.model_dir.glob("*.safetensors.index.json"))
+        + sorted(rt.model_dir.glob("*.gguf"))
     )
     if len(candidates) == 1:
         return candidates[0]
     if not candidates:
-        raise RuntimeError(f"{tensor.name} could not find a safetensors checkpoint in {rt.model_dir}")
+        raise RuntimeError(
+            f"{tensor.name} could not find a safetensors checkpoint in {rt.model_dir}"
+        )
     raise RuntimeError(
         f"{tensor.name} found multiple safetensors checkpoints in {rt.model_dir}; "
         "use model.safetensors or model.safetensors.index.json as the canonical checkpoint"
@@ -243,7 +247,9 @@ def materialize_input(rt: RuntimeSession, tensor: LogicalTensor) -> None:
         rt._request_allocations.append(allocation)
         return
     with tensor.runtime_write_scope():
-        tensor.buffer = BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=expected)
+        tensor.buffer = BufferSlice(
+            allocation=allocation, offset=allocation.offset, nbytes=expected
+        )
         tensor.descriptor_nbytes = expected
         tensor.alias_source = None
     if tensor.lifetime in {TensorLifetime.FRAME, TensorLifetime.OP}:
@@ -256,16 +262,18 @@ def pack_push_constants(
     *,
     tensors: Mapping[str, LogicalTensor],
     symbols: Mapping[str, int],
+    push_constant_inputs: Mapping[str, object] | None = None,
 ) -> tuple[bytes | None, dict[str, int | float]]:
     if spec is None:
         return None, {}
+    inputs = {} if push_constant_inputs is None else push_constant_inputs
     data = bytearray(spec.size)
     values: dict[str, int | float] = {}
     for field in spec.fields:
         raw = field.value
         if isinstance(raw, PushConstantInput):
-            raise ValueError(f"PushConstantInput {raw.name!r} is not supported by this MVP")
-        if callable(raw):
+            value = _push_constant_input_value(field.name, raw.name, inputs)
+        elif callable(raw):
             value = raw(tensors, symbols)
         elif isinstance(raw, str):
             value = symbols[raw]
@@ -278,6 +286,30 @@ def pack_push_constants(
             field.dtype, value
         )
     return bytes(data), values
+
+
+def _push_constant_input_value(
+    field_name: str,
+    input_name: str,
+    inputs: Mapping[str, object],
+) -> int | float:
+    if input_name not in inputs:
+        raise ValueError(f"Push constant {field_name!r} is missing input {input_name!r}")
+    value = inputs[input_name]
+    if isinstance(value, bool):
+        raise TypeError(f"Push constant {field_name!r} cannot be bool")
+    if isinstance(value, int | float):
+        return value
+    item = getattr(value, "item", None)
+    if callable(item):
+        scalar = item()
+        if isinstance(scalar, bool):
+            raise TypeError(f"Push constant {field_name!r} cannot be bool")
+        if isinstance(scalar, int | float):
+            return scalar
+    raise TypeError(
+        f"Push constant {field_name!r} expects a scalar int or float, got {type(value).__name__}"
+    )
 
 
 def materialize_params_buffer(
