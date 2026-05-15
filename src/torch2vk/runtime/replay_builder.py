@@ -203,6 +203,11 @@ def _instantiate_replay_template(
             if not _has_live_buffer(descriptor_tensor):
                 if descriptor_tensor.memory is MemoryClass.MODEL_WEIGHT:
                     rt._materialize_weight(descriptor_tensor)
+                elif descriptor_tensor.memory is MemoryClass.SESSION_TENSOR:
+                    raise RuntimeError(
+                        f"{descriptor_tensor.name} requires register_session_tensors(...) "
+                        "before building or instantiating replay"
+                    )
                 else:
                     alloc = _allocate_replay_descriptor_tensor(
                         rt,
@@ -994,6 +999,10 @@ def _allocate_replay_descriptor_tensor(
             alloc.buffer.write_bytes_at(alloc.offset, memoryview(array).cast("B"))
             rt.device.memory_manager.host_upload_ring.flush(allocation=alloc, size=nbytes)
         return alloc
+    if descriptor_tensor.memory is MemoryClass.SESSION_TENSOR:
+        raise RuntimeError(
+            f"{descriptor_tensor.name} requires register_session_tensors(...) before replay"
+        )
 
     if descriptor_tensor.memory in {
         MemoryClass.FRAME_WORKSPACE,
@@ -1061,6 +1070,7 @@ def _replay_descriptor_rebindable(tensor: LogicalTensor) -> bool:
     return tensor.memory not in {
         MemoryClass.FRAME_WORKSPACE,
         MemoryClass.MODEL_WEIGHT,
+        MemoryClass.SESSION_TENSOR,
         MemoryClass.OP_SCRATCH,
     }
 

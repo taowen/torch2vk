@@ -14,8 +14,10 @@ from torch2vk.checkpoints.gguf import GGUFMmap, open_gguf_mmap
 from torch2vk.checkpoints.safetensors import SafetensorsMmap, open_safetensors_mmap
 from torch2vk.runtime.compare import TensorCompareResult
 from torch2vk.runtime.frame import FrameContext
+from torch2vk.runtime.host_array import prepare_host_array
 from torch2vk.runtime.logical import (
     LogicalTensor,
+    MemoryClass,
     TensorRole,
     collect_named_logical_tensors,
 )
@@ -124,9 +126,46 @@ class RuntimeSession:
             tensor.validate_declaration()
             if tensor.role is not TensorRole.INPUT:
                 raise ValueError(f"{tensor.name} is not an input tensor")
+            if tensor.memory is MemoryClass.SESSION_TENSOR:
+                raise ValueError(
+                    f"{tensor.name} is a session tensor; use register_session_tensors(...)"
+                )
             self._inputs[tensor] = value
             self._invalidate_input_materialization(tensor)
             self._record_frame_input(tensor)
+
+    def register_session_tensors(self, tensors: Mapping[LogicalTensor, object]) -> None:
+        self._require_open()
+        for tensor, value in tensors.items():
+            if not isinstance(tensor, LogicalTensor):
+                raise TypeError(
+                    f"register_session_tensors key must be LogicalTensor, got {type(tensor).__name__}"
+                )
+            tensor.validate_declaration()
+            if tensor.role is not TensorRole.INPUT or tensor.memory is not MemoryClass.SESSION_TENSOR:
+                raise ValueError(f"{tensor.name} is not a session tensor input")
+            if tensor.buffer is not None or tensor.descriptor_nbytes is not None:
+                raise RuntimeError(f"{tensor.name} session tensor is already registered")
+            array = prepare_host_array(tensor, value, context="session tensor")
+            expected = tensor_nbytes(tensor.spec)
+            if array.nbytes != expected:
+                raise ValueError(
+                    f"{tensor.name} session tensor has {array.nbytes} bytes, expected {expected}"
+                )
+            if expected == 0:
+                with tensor.runtime_write_scope():
+                    tensor.buffer = None
+                    tensor.descriptor_nbytes = 0
+                    tensor.alias_source = None
+                continue
+            ((slice_, allocation),) = self.device.upload_numpy_arrays_with_allocations(
+                [(tensor.name, array)]
+            )
+            with tensor.runtime_write_scope():
+                tensor.buffer = slice_
+                tensor.descriptor_nbytes = slice_.nbytes
+                tensor.alias_source = None
+            self._model_allocations.append(allocation)
 
     def initialize_request_state(self, states: Mapping[LogicalTensor, object]) -> None:
         from torch2vk.runtime.request_state import initialize_request_state

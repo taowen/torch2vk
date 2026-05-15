@@ -106,6 +106,8 @@ def materialize_read(rt: RuntimeSession, tensor: LogicalTensor) -> None:
     if tensor.role is TensorRole.WEIGHT:
         materialize_weight(rt, tensor)
         return
+    if tensor.memory is MemoryClass.SESSION_TENSOR:
+        raise RuntimeError(f"{tensor.name} requires register_session_tensors(...) before use")
     if tensor.role is TensorRole.INPUT:
         materialize_input(rt, tensor)
         return

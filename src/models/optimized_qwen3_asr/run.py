@@ -154,7 +154,6 @@ def _decode_step_inputs(
     *,
     cache_position: int,
     rope_theta: float,
-    eos_token_array: np.ndarray,
     token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
@@ -164,7 +163,6 @@ def _decode_step_inputs(
         tensors.decode_rope.start_position: np.array([cache_position], dtype=np.int64),
         tensors.decode_rope.theta: np.array([rope_theta], dtype=np.float32),
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
-        tensors.eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
         tensors.token_index: np.array([token_index_value], dtype=np.int64),
     }
 
@@ -276,6 +274,7 @@ def main(
     # === Create all tensor objects upfront ===
     print("Declaring tensors...")
     eos_token_ids = (151645, 151643)
+    eos_token_array = np.array(eos_token_ids, dtype=np.int64)
     create_model_tensors(
         input_ids_shape=tuple(int(dim) for dim in prepared.input_ids.shape),
         attention_mask_shape=tuple(int(dim) for dim in prepared.attention_mask.shape),
@@ -301,6 +300,7 @@ def main(
         model_tensors=model_tensors(),
         get_shader=get_shader,
     )
+    rt.register_session_tensors({model_tensors().eos_token_ids: eos_token_array})
 
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
@@ -360,7 +360,6 @@ def main(
         (3, 1, prompt_length),
     ).copy()
     prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
-    eos_token_array = np.array(eos_token_ids, dtype=np.int64)
     rt.initialize_request_state(
         {
             model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
@@ -390,7 +389,6 @@ def main(
                 model_tensors().position_ids: prefill_position_ids,
                 model_tensors().audio_inject.audio_positions: preprocessed["audio_positions"],
                 model_tensors().text_layers[0].cache_position: prefill_cache_position,
-                model_tensors().eos_token_ids: eos_token_array,
                 model_tensors().token_index: np.array([0], dtype=np.int64),
             }
         )
@@ -437,7 +435,6 @@ def main(
             decode_step_inputs = _decode_step_inputs(
                 cache_position=cache_pos,
                 rope_theta=rope_theta,
-                eos_token_array=eos_token_array,
                 token_index_value=step + 1,
             )
             if decode_replay_plan is None:

@@ -43,6 +43,7 @@ class TensorSemantic(StrEnum):
 class MemoryClass(StrEnum):
     MISSING_VALUE = "missing_value"
     MODEL_WEIGHT = "model_weight"
+    SESSION_TENSOR = "session_tensor"
     REQUEST_STATE = "request_state"
     FRAME_WORKSPACE = "frame_workspace"
     OP_SCRATCH = "op_scratch"
@@ -329,6 +330,10 @@ def _validate_role_memory_lifetime(tensor: LogicalTensor) -> None:
         if lifetime not in {TensorLifetime.FRAME, TensorLifetime.REQUEST}:
             raise ValueError(f"{tensor.name} output cannot use lifetime={lifetime}")
     if role is TensorRole.INPUT:
+        if memory is MemoryClass.SESSION_TENSOR:
+            if lifetime is not TensorLifetime.MODEL:
+                raise ValueError(f"{tensor.name} session tensor input must use MODEL lifetime")
+            return
         if memory not in {MemoryClass.HOST_INPUT, MemoryClass.REQUEST_STATE}:
             raise ValueError(f"{tensor.name} input cannot use memory={memory}")
         if lifetime not in {TensorLifetime.FRAME, TensorLifetime.REQUEST}:
