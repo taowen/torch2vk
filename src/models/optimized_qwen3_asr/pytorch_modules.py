@@ -6,8 +6,11 @@ from typing import cast
 
 import numpy as np
 import torch
+from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (
+    apply_rotary_pos_emb,
+    eager_attention_forward,
+)
 from transformers.modeling_outputs import BaseModelOutput
-from transformers.cache_utils import DynamicCache
 
 
 class AudioInjectModule(torch.nn.Module):
@@ -270,7 +273,6 @@ class TextReferenceState:
         self.text_model = cast(torch.nn.Module, thinker.get_submodule("model"))
         layers = cast(torch.nn.ModuleList, self.text_model.get_submodule("layers"))
         self.layers = tuple(cast(torch.nn.Module, layer) for layer in layers)
-        self.cache = DynamicCache(config=getattr(self.text_model, "config"))
 
 
 class TextLayerReference:
@@ -284,17 +286,23 @@ class TextLayerReference:
         cos = torch_tensor(inputs, "position_embeddings_0").float()
         sin = torch_tensor(inputs, "position_embeddings_1").float()
         cache_position = torch_tensor(inputs, "cache_position").long()
-        attention_mask = _causal_attention_mask(hidden) if self.prefill else None
+        key_cache = torch_tensor(inputs, "key_cache")
+        value_cache = torch_tensor(inputs, "value_cache")
         with torch.no_grad():
-            output = self.layer(
+            output, updated_key_cache, updated_value_cache = _run_text_layer_with_explicit_cache(
+                self.layer,
                 hidden_states=hidden,
                 position_embeddings=(cos, sin),
-                attention_mask=attention_mask,
-                past_key_values=self.state.cache,
-                use_cache=True,
+                key_cache=key_cache,
+                value_cache=value_cache,
                 cache_position=cache_position,
+                prefill=self.prefill,
             )
-        return {"add_7": output}
+        return {
+            "add_7": output,
+            "index_copy": updated_key_cache,
+            "index_copy_1": updated_value_cache,
+        }
 
 
 class TokenSelectReference:
@@ -309,22 +317,20 @@ class TokenSelectReference:
 
 
 class TokenStoreReference:
-    def __init__(self, max_new_tokens: int) -> None:
-        self.generated_tokens = np.zeros((1, max_new_tokens), dtype=np.int64)
-        self.generated_length = np.zeros((1,), dtype=np.uint32)
-        self.stopped = np.zeros((1,), dtype=np.uint32)
-
     def execute(self, inputs: dict[str, np.ndarray]) -> dict[str, object]:
+        generated_tokens = np.asarray(inputs["generated_tokens"]).copy()
+        generated_length = np.asarray(inputs["generated_length"]).copy()
+        stopped = np.asarray(inputs["stopped"]).copy()
         index = int(np.asarray(inputs["token_index"]).reshape(-1)[0])
-        if index < self.generated_tokens.shape[1] and int(self.stopped[0]) == 0:
-            self.generated_tokens[0, index] = int(np.asarray(inputs["next_token"]).reshape(-1)[0])
-            self.generated_length[0] = index + 1
+        if index < generated_tokens.shape[1] and int(stopped[0]) == 0:
+            generated_tokens[0, index] = int(np.asarray(inputs["next_token"]).reshape(-1)[0])
+            generated_length[0] = index + 1
             if int(np.asarray(inputs["done"]).reshape(-1)[0]) != 0:
-                self.stopped[0] = 1
+                stopped[0] = 1
         return {
-            "generated_tokens": self.generated_tokens.copy(),
-            "generated_length": self.generated_length.copy(),
-            "stopped": self.stopped.copy(),
+            "generated_tokens": generated_tokens,
+            "generated_length": generated_length,
+            "stopped": stopped,
         }
 
 
@@ -340,6 +346,89 @@ def _causal_attention_mask(hidden: torch.Tensor) -> torch.Tensor:
         ),
         diagonal=1,
     )
+
+
+def _run_text_layer_with_explicit_cache(
+    layer: torch.nn.Module,
+    *,
+    hidden_states: torch.Tensor,
+    position_embeddings: tuple[torch.Tensor, torch.Tensor],
+    key_cache: torch.Tensor,
+    value_cache: torch.Tensor,
+    cache_position: torch.Tensor,
+    prefill: bool,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    residual = hidden_states
+    normed = layer.get_submodule("input_layernorm")(hidden_states)
+    attention_output, updated_key_cache, updated_value_cache = _run_text_attention_with_explicit_cache(
+        layer.get_submodule("self_attn"),
+        hidden_states=normed,
+        position_embeddings=position_embeddings,
+        key_cache=key_cache,
+        value_cache=value_cache,
+        cache_position=cache_position,
+        prefill=prefill,
+    )
+    hidden_states = residual + attention_output
+
+    residual = hidden_states
+    hidden_states = layer.get_submodule("post_attention_layernorm")(hidden_states)
+    hidden_states = layer.get_submodule("mlp")(hidden_states)
+    hidden_states = residual + hidden_states
+    return hidden_states, updated_key_cache, updated_value_cache
+
+
+def _run_text_attention_with_explicit_cache(
+    attention: torch.nn.Module,
+    *,
+    hidden_states: torch.Tensor,
+    position_embeddings: tuple[torch.Tensor, torch.Tensor],
+    key_cache: torch.Tensor,
+    value_cache: torch.Tensor,
+    cache_position: torch.Tensor,
+    prefill: bool,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    input_shape = hidden_states.shape[:-1]
+    head_dim = int(getattr(attention, "head_dim"))
+    hidden_shape = (*input_shape, -1, head_dim)
+
+    query_states = attention.get_submodule("q_proj")(hidden_states).view(hidden_shape)
+    query_states = attention.get_submodule("q_norm")(query_states).transpose(1, 2)
+    key_states = attention.get_submodule("k_proj")(hidden_states).view(hidden_shape)
+    key_states = attention.get_submodule("k_norm")(key_states).transpose(1, 2)
+    value_states = attention.get_submodule("v_proj")(hidden_states).view(hidden_shape).transpose(1, 2)
+
+    cos, sin = position_embeddings
+    query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
+
+    updated_key_cache = key_cache.clone()
+    updated_value_cache = value_cache.clone()
+    positions = cache_position.to(device=updated_key_cache.device)
+    updated_key_cache.index_copy_(2, positions, key_states.to(dtype=updated_key_cache.dtype))
+    updated_value_cache.index_copy_(2, positions, value_states.to(dtype=updated_value_cache.dtype))
+
+    if prefill:
+        attention_key = key_states
+        attention_value = value_states
+        attention_mask = _causal_attention_mask(hidden_states)
+    else:
+        cache_length = int(positions.max().item()) + 1
+        attention_key = updated_key_cache[:, :, :cache_length, :].to(dtype=query_states.dtype)
+        attention_value = updated_value_cache[:, :, :cache_length, :].to(dtype=query_states.dtype)
+        attention_mask = None
+
+    attention_output, _ = eager_attention_forward(
+        attention,
+        query_states,
+        attention_key,
+        attention_value,
+        attention_mask,
+        dropout=0.0,
+        scaling=float(getattr(attention, "scaling")),
+    )
+    attention_output = attention_output.reshape(*input_shape, -1).contiguous()
+    attention_output = attention.get_submodule("o_proj")(attention_output)
+    return attention_output, updated_key_cache, updated_value_cache
 
 
 def _require_tensor(value: torch.Tensor | None, name: str) -> torch.Tensor:

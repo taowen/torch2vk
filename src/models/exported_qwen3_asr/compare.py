@@ -66,7 +66,6 @@ get_shader = make_shader_loader("models.exported_qwen3_asr.shaders")
 
 @dataclass(slots=True)
 class _QwenCompareReferences:
-    text_state: TextReferenceState
     audio_encoder: AudioEncoderReference
     audio_inject: AudioInjectReference
     lm_head: nn.Module
@@ -74,8 +73,6 @@ class _QwenCompareReferences:
     decode_layers: tuple[TextLayerReference, ...]
     token_select: TokenSelectReference
     token_store: TokenStoreReference
-    next_token: np.ndarray | None = None
-    done: np.ndarray | None = None
 
 
 def _require_gpu_output(tensor: LogicalTensor) -> None:
@@ -215,8 +212,6 @@ def _load_qwen_reference_model(model_dir: Path) -> Qwen3ASRForConditionalGenerat
 
 def _build_compare_references(
     model: Qwen3ASRForConditionalGeneration,
-    *,
-    max_new_tokens: int,
 ) -> _QwenCompareReferences:
     thinker = cast(nn.Module, getattr(model, "thinker"))
     reference.set_model(model)
@@ -225,7 +220,6 @@ def _build_compare_references(
     audio_tower = cast(nn.Module, thinker.get_submodule("audio_tower"))
     lm_head = cast(nn.Module, thinker.get_submodule("lm_head"))
     return _QwenCompareReferences(
-        text_state=text_state,
         audio_encoder=AudioEncoderReference(audio_tower),
         audio_inject=AudioInjectReference(),
         lm_head=lm_head,
@@ -238,7 +232,7 @@ def _build_compare_references(
             for layer_idx in range(len(decode_state.layers))
         ),
         token_select=TokenSelectReference(),
-        token_store=TokenStoreReference(max_new_tokens),
+        token_store=TokenStoreReference(),
     )
 
 
@@ -248,8 +242,6 @@ def _compare_token_select(
     frame_name: str,
     logits: reference.ReferenceInput,
     eos_token_ids: np.ndarray,
-    next_token: LogicalTensor,
-    done: LogicalTensor,
     refs: _QwenCompareReferences,
 ) -> None:
     reference.run_token_select(
@@ -259,8 +251,6 @@ def _compare_token_select(
         logits=logits,
         eos_token_ids=eos_token_ids,
     )
-    refs.next_token = _vulkan_request_state(rt, next_token).astype(np.int64, copy=False)
-    refs.done = _vulkan_request_state(rt, done).astype(np.uint32, copy=False)
 
 
 def _compare_token_store(
@@ -271,6 +261,9 @@ def _compare_token_store(
     next_token: reference.ReferenceInput,
     token_index: reference.ReferenceInput,
     done: reference.ReferenceInput,
+    generated_tokens: reference.ReferenceInput,
+    generated_length: reference.ReferenceInput,
+    stopped: reference.ReferenceInput,
 ) -> None:
     reference.run_token_store(
         rt,
@@ -279,6 +272,9 @@ def _compare_token_store(
         next_token=next_token,
         token_index=token_index,
         done=done,
+        generated_tokens=generated_tokens,
+        generated_length=generated_length,
+        stopped=stopped,
     )
 
 
@@ -292,19 +288,20 @@ def _run_decode_step_with_compare(
     refs: _QwenCompareReferences,
 ) -> int:
     tensors = model_tensors()
-    if refs.next_token is None:
-        raise RuntimeError("decode compare requires a reference next_token from prefill")
+    decode_input = _vulkan_request_state(rt, tensors.next_token).astype(np.int64, copy=False)
     with rt.frame(f"spike.decode.{step:04d}"):
         run_decode_embed(rt)
         reference.run_decode_embed(
             rt,
             step=step,
-            input=refs.next_token,
+            input=decode_input,
         )
         ref_hidden = _vulkan_input(rt, tensors.decode_embed.embedding)
         cos = _vulkan_input(rt, tensors.decode_rope.cos)
         sin = _vulkan_input(rt, tensors.decode_rope.sin)
         for layer_idx in range(len(tensors.decode_layers)):
+            key_cache_before = _vulkan_request_state(rt, tensors.key_caches[layer_idx])
+            value_cache_before = _vulkan_request_state(rt, tensors.value_caches[layer_idx])
             run_decode_layer(rt, layer_idx)
             reference.run_decode_layer(
                 rt,
@@ -315,6 +312,8 @@ def _run_decode_step_with_compare(
                 position_embeddings_0=cos,
                 position_embeddings_1=sin,
                 cache_position=cache_position,
+                key_cache=key_cache_before,
+                value_cache=value_cache_before,
             )
             ref_hidden = _vulkan_input(rt, tensors.decode_layers[layer_idx].add_7)
         run_decode_norm(rt)
@@ -330,10 +329,11 @@ def _run_decode_step_with_compare(
             frame_name=f"spike.decode.{step:04d}.token_select",
             logits=_reference_lm_head_logits(refs.lm_head, ref_hidden),
             eos_token_ids=eos_token_ids,
-            next_token=tensors.next_token,
-            done=tensors.done,
             refs=refs,
         )
+        generated_tokens_before = _vulkan_request_state(rt, tensors.generated_tokens)
+        generated_length_before = _vulkan_request_state(rt, tensors.generated_length)
+        stopped_before = _vulkan_request_state(rt, tensors.stopped)
         QWEN3_ASR_TOKEN_STORE_EOS(
             rt,
             next_token=tensors.next_token,
@@ -350,6 +350,9 @@ def _run_decode_step_with_compare(
             next_token=_vulkan_request_state(rt, tensors.next_token),
             token_index=token_index,
             done=_vulkan_request_state(rt, tensors.done),
+            generated_tokens=generated_tokens_before,
+            generated_length=generated_length_before,
+            stopped=stopped_before,
         )
     return int(_vulkan_request_state(rt, tensors.next_token).reshape(-1)[0])
 
@@ -419,8 +422,7 @@ def compare_decode_steps(
     )
     print("Loading PyTorch reference for compare...")
     compare_refs = _build_compare_references(
-        _load_qwen_reference_model(Path(model_dir)),
-        max_new_tokens=max_new_tokens,
+        _load_qwen_reference_model(Path(model_dir))
     )
 
     zero_cache = np.zeros(
@@ -550,6 +552,8 @@ def compare_decode_steps(
         ref_cos = _vulkan_input(rt, model_tensors().prefill_rope.cos)
         ref_sin = _vulkan_input(rt, model_tensors().prefill_rope.sin)
         for layer_idx in range(len(model_tensors().text_layers)):
+            key_cache_before = _vulkan_request_state(rt, model_tensors().key_caches[layer_idx])
+            value_cache_before = _vulkan_request_state(rt, model_tensors().value_caches[layer_idx])
             run_text_layer(rt, layer_idx)
             reference.run_text_layer(
                 rt,
@@ -559,6 +563,8 @@ def compare_decode_steps(
                 position_embeddings_0=ref_cos,
                 position_embeddings_1=ref_sin,
                 cache_position=prefill_cache_position,
+                key_cache=key_cache_before,
+                value_cache=value_cache_before,
             )
             ref_hidden = _vulkan_input(rt, model_tensors().text_layers[layer_idx].add_7)
             if layer_idx % 7 == 6:
@@ -579,13 +585,14 @@ def compare_decode_steps(
                 _vulkan_input(rt, model_tensors().prefill_lm_head_input),
             ),
             eos_token_ids=eos_token_array,
-            next_token=model_tensors().next_token,
-            done=model_tensors().done,
             refs=compare_refs,
         )
 
     print("  lm_head + token_select...")
     rt.register_inputs({model_tensors().token_index: np.array([0], dtype=np.int64)})
+    generated_tokens_before = _vulkan_request_state(rt, model_tensors().generated_tokens)
+    generated_length_before = _vulkan_request_state(rt, model_tensors().generated_length)
+    stopped_before = _vulkan_request_state(rt, model_tensors().stopped)
     _run_token_store(
         rt,
         next_token=model_tensors().next_token,
@@ -603,6 +610,9 @@ def compare_decode_steps(
         next_token=_vulkan_request_state(rt, model_tensors().next_token),
         token_index=np.array([0], dtype=np.int64),
         done=_vulkan_request_state(rt, model_tensors().done),
+        generated_tokens=generated_tokens_before,
+        generated_length=generated_length_before,
+        stopped=stopped_before,
     )
     first_token = _read_selected_token(rt, model_tensors().next_token)
     print(f"  First token: {first_token}")

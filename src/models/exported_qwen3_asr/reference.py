@@ -197,6 +197,9 @@ def run_token_store(
     next_token: ReferenceInput,
     token_index: ReferenceInput,
     done: ReferenceInput,
+    generated_tokens: ReferenceInput,
+    generated_length: ReferenceInput,
+    stopped: ReferenceInput,
 ) -> ReferenceExpected:
     return _execute_and_compare(
         rt,
@@ -209,6 +212,9 @@ def run_token_store(
             "next_token": next_token,
             "token_index": token_index,
             "done": done,
+            "generated_tokens": generated_tokens,
+            "generated_length": generated_length,
+            "stopped": stopped,
         },
     )
 
@@ -284,19 +290,23 @@ def run_text_layer(
     position_embeddings_0: ReferenceInput,
     position_embeddings_1: ReferenceInput,
     cache_position: ReferenceInput,
+    key_cache: ReferenceInput,
+    value_cache: ReferenceInput,
 ) -> ReferenceExpected:
     return _execute_and_compare(
         rt,
         name=f'spike.text.layer.{layer_idx}',
         reference=reference,
         tensors=model_tensors().text_layers[layer_idx],
-        output_bindings={'add_7': 'add_7'},
+        output_bindings={'add_7': 'add_7', 'index_copy': 'index_copy', 'index_copy_1': 'index_copy_1'},
         policy=_policy('tensor'),
         inputs={
             "hidden_states": hidden_states,
             "position_embeddings_0": position_embeddings_0,
             "position_embeddings_1": position_embeddings_1,
             "cache_position": cache_position,
+            "key_cache": key_cache,
+            "value_cache": value_cache,
         },
     )
 
@@ -345,19 +355,23 @@ def run_decode_layer(
     position_embeddings_0: ReferenceInput,
     position_embeddings_1: ReferenceInput,
     cache_position: ReferenceInput,
+    key_cache: ReferenceInput,
+    value_cache: ReferenceInput,
 ) -> ReferenceExpected:
     return _execute_and_compare(
         rt,
         name=f'spike.decode.{step:04d}.layer.{layer_idx}',
         reference=reference,
         tensors=model_tensors().decode_layers[layer_idx],
-        output_bindings={'add_7': 'add_7'},
+        output_bindings={'add_7': 'add_7', 'index_copy': 'index_copy', 'index_copy_1': 'index_copy_1'},
         policy=_policy('tensor'),
         inputs={
             "hidden_states": hidden_states,
             "position_embeddings_0": position_embeddings_0,
             "position_embeddings_1": position_embeddings_1,
             "cache_position": cache_position,
+            "key_cache": key_cache,
+            "value_cache": value_cache,
         },
     )
 

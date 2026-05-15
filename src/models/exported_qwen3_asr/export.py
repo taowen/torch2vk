@@ -270,6 +270,9 @@ def main() -> int:
             "next_token": "next_token",
             "token_index": "token_index",
             "done": "done",
+            "generated_tokens": "generated_tokens",
+            "generated_length": "generated_length",
+            "stopped": "stopped",
         },
         output_bindings={
             "generated_tokens": "generated_tokens",
@@ -480,8 +483,14 @@ def main() -> int:
                    "position_embeddings_0": "position_embeddings_0",
                    "position_embeddings_1": "position_embeddings_1",
                    "cache_position": "cache_position",
+                   "key_cache": "index_copy",
+                   "value_cache": "index_copy_1",
                },
-               reference_output_bindings={"add_7": "add_7"},
+               reference_output_bindings={
+                   "add_7": "add_7",
+                   "index_copy": "index_copy",
+                   "index_copy_1": "index_copy_1",
+               },
                reference_tensors="model_tensors().text_layers[layer_idx]",
                reference_name="spike.text.layer.{layer_idx}")
     export_one("run_text_norm", model.thinker.model.norm.float(),
@@ -510,8 +519,14 @@ def main() -> int:
                    "position_embeddings_0": "position_embeddings_0",
                    "position_embeddings_1": "position_embeddings_1",
                    "cache_position": "cache_position",
+                   "key_cache": "index_copy",
+                   "value_cache": "index_copy_1",
                },
-               reference_output_bindings={"add_7": "add_7"},
+               reference_output_bindings={
+                   "add_7": "add_7",
+                   "index_copy": "index_copy",
+                   "index_copy_1": "index_copy_1",
+               },
                reference_tensors="model_tensors().decode_layers[layer_idx]",
                reference_name="spike.decode.{step:04d}.layer.{layer_idx}")
     export_one("run_decode_norm", model.thinker.model.norm.float(),
