@@ -181,7 +181,6 @@ def _run_rope_table(
 def _decode_step_inputs(
     *,
     cache_position: int,
-    eos_token_array: np.ndarray,
     token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
@@ -189,7 +188,6 @@ def _decode_step_inputs(
         raise ValueError("decode_layers must not be empty")
     return {
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
-        tensors.eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
         tensors.token_index: np.array([token_index_value], dtype=np.int64),
     }
 
@@ -398,6 +396,7 @@ def compare_decode_steps(
     # === Create all tensor objects upfront ===
     print("Declaring tensors...")
     eos_token_ids = (151645, 151643)
+    eos_token_array = np.array(eos_token_ids, dtype=np.int64)
     create_model_tensors(
         input_ids_shape=tuple(int(dim) for dim in prepared.input_ids.shape),
         attention_mask_shape=tuple(int(dim) for dim in prepared.attention_mask.shape),
@@ -420,6 +419,7 @@ def compare_decode_steps(
         model_tensors=model_tensors(),
         get_shader=get_shader,
     )
+    rt.register_session_tensors({model_tensors().eos_token_ids: eos_token_array})
     print("Loading PyTorch reference for compare...")
     compare_refs = _build_compare_references(
         _load_qwen_reference_model(Path(model_dir))
@@ -501,7 +501,6 @@ def compare_decode_steps(
         (3, 1, prompt_length),
     ).copy()
     prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
-    eos_token_array = np.array(eos_token_ids, dtype=np.int64)
     rt.initialize_request_state(
         {
             model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
@@ -531,7 +530,6 @@ def compare_decode_steps(
                 model_tensors().position_ids: prefill_position_ids,
                 model_tensors().audio_inject.audio_positions: preprocessed["audio_positions"],
                 model_tensors().text_layers[0].cache_position: prefill_cache_position,
-                model_tensors().eos_token_ids: eos_token_array,
             }
         )
         run_embed_tokens(rt)
@@ -649,7 +647,6 @@ def compare_decode_steps(
 
         decode_step_inputs = _decode_step_inputs(
             cache_position=cache_pos,
-            eos_token_array=eos_token_array,
             token_index_value=step + 1,
         )
         rt.register_inputs(decode_step_inputs)

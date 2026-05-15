@@ -181,7 +181,6 @@ def _prefill_inputs(
     input_ids: np.ndarray,
     prompt_length: int,
     rope_theta: float,
-    eos_token_array: np.ndarray,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
     return {
@@ -189,7 +188,6 @@ def _prefill_inputs(
         tensors.text_layers[0].cache_position: np.arange(prompt_length, dtype=np.int64),
         tensors.prefill_rope.start_position: np.array([0], dtype=np.int64),
         tensors.prefill_rope.theta: np.array([rope_theta], dtype=np.float32),
-        tensors.eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
         tensors.token_index: np.array([0], dtype=np.int64),
     }
 
@@ -198,7 +196,6 @@ def _decode_step_inputs(
     *,
     cache_position: int,
     rope_theta: float,
-    eos_token_array: np.ndarray,
     token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
@@ -206,7 +203,6 @@ def _decode_step_inputs(
         tensors.decode_rope.start_position: np.array([cache_position], dtype=np.int64),
         tensors.decode_rope.theta: np.array([rope_theta], dtype=np.float32),
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
-        tensors.eos_token_ids: np.ascontiguousarray(eos_token_array, dtype=np.int64),
         tensors.token_index: np.array([token_index_value], dtype=np.int64),
     }
 
@@ -314,6 +310,7 @@ def main(
         model_tensors=model_tensors(),
         get_shader=get_shader,
     )
+    rt.register_session_tensors({model_tensors().eos_token_ids: eos_token_array})
 
     zero_cache = np.zeros(
         (
@@ -342,7 +339,6 @@ def main(
         input_ids=prepared.input_ids,
         prompt_length=prompt_length,
         rope_theta=rope_theta,
-        eos_token_array=eos_token_array,
     )
     prefill_start = time.perf_counter()
     if prefill_replay_plan is None:
@@ -377,7 +373,6 @@ def main(
         decode_inputs = _decode_step_inputs(
             cache_position=cache_pos,
             rope_theta=rope_theta,
-            eos_token_array=eos_token_array,
             token_index_value=step + 1,
         )
         if decode_replay_plan is None:

@@ -229,7 +229,7 @@ def create_model_tensors(
         hidden_states=decode_layers[-1].add_7,
     )
 
-    eos_token_ids = _host_input_tensor("int64", (eos_token_count,))
+    eos_token_ids = _session_tensor("int64", (eos_token_count,))
     lm_head_partial_count = (vocab_size + 3) // 4
     lm_head_chunk_count = (lm_head_partial_count + 1023) // 1024
     lm_head_partial_scores = _activation_tensor("float32", (lm_head_partial_count,))
@@ -303,6 +303,15 @@ def _host_input_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
         role=TensorRole.INPUT,
         memory=MemoryClass.HOST_INPUT,
         lifetime=TensorLifetime.FRAME,
+    )
+
+
+def _session_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        spec=TensorSpec(dtype=dtype, shape=shape),
+        role=TensorRole.INPUT,
+        memory=MemoryClass.SESSION_TENSOR,
+        lifetime=TensorLifetime.MODEL,
     )
 
 
