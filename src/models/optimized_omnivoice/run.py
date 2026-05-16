@@ -64,7 +64,7 @@ from torch2vk.runtime.shader_loader import make_shader_loader
 from torch2vk.vulkan.types import TensorSpec
 
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_optimized.wav")
-_GENERATION_REPLAY_CACHE = "optimized_omnivoice_generation_step:v11"
+_GENERATION_REPLAY_CACHE = "optimized_omnivoice_generation_step:v12"
 get_shader = make_shader_loader("models.optimized_omnivoice.shaders")
 
 
@@ -196,7 +196,13 @@ def _run_input_embed(rt: RuntimeSession) -> None:
 
 
 def _run_token_score(
-    rt: RuntimeSession, *, step: int, rng_seed: int, audio_mask_id: int
+    rt: RuntimeSession,
+    *,
+    step: int,
+    rng_seed: int,
+    audio_mask_id: int,
+    active_target_len: int,
+    cond_target_start: int,
 ) -> None:
     tensors = model_tensors()
     OMNIVOICE_CFG_SCORE_F32(
@@ -206,22 +212,28 @@ def _run_token_score(
         step_index=step,
         rng_seed=rng_seed,
         audio_mask_id=audio_mask_id,
-        active_target_len=tensors.active_target_len,
-        cond_target_start=tensors.cond_target_start,
+        active_target_len=active_target_len,
+        cond_target_start=cond_target_start,
         candidate_tokens=tensors.candidate_tokens,
         candidate_scores=tensors.candidate_scores,
     )
 
 
-def _run_token_update(rt: RuntimeSession, *, unmask_count: int) -> None:
+def _run_token_update(
+    rt: RuntimeSession,
+    *,
+    unmask_count: int,
+    active_target_len: int,
+    cond_target_start: int,
+) -> None:
     tensors = model_tensors()
     OMNIVOICE_TOKEN_UPDATE_TOPK_F32(
         rt,
         candidate_tokens=tensors.candidate_tokens,
         candidate_scores=tensors.candidate_scores,
         unmask_count=unmask_count,
-        active_target_len=tensors.active_target_len,
-        cond_target_start=tensors.cond_target_start,
+        active_target_len=active_target_len,
+        cond_target_start=cond_target_start,
         tokens=tensors.tokens,
         batch_input_ids=tensors.batch_input_ids,
     )
@@ -234,13 +246,27 @@ def _run_generation_step(
     unmask_count: int,
     rng_seed: int,
     audio_mask_id: int,
+    active_target_len: int,
+    cond_target_start: int,
 ) -> None:
     with rt.frame(f"omnivoice.step.{step:04d}"):
         _run_input_embed(rt)
         run_llm_forward(rt)
         run_audio_head(rt)
-        _run_token_score(rt, step=step, rng_seed=rng_seed, audio_mask_id=audio_mask_id)
-        _run_token_update(rt, unmask_count=unmask_count)
+        _run_token_score(
+            rt,
+            step=step,
+            rng_seed=rng_seed,
+            audio_mask_id=audio_mask_id,
+            active_target_len=active_target_len,
+            cond_target_start=cond_target_start,
+        )
+        _run_token_update(
+            rt,
+            unmask_count=unmask_count,
+            active_target_len=active_target_len,
+            cond_target_start=cond_target_start,
+        )
 
 
 def _build_generation_replay_plan(
@@ -401,11 +427,6 @@ def _run_prepared_chunk(
             model_tensors().batch_input_ids: prepared.batch_input_ids,
             model_tensors().batch_audio_mask: prepared.batch_audio_mask,
             model_tensors().attention_mask: as_float16_attention_mask(prepared.attention_mask),
-            model_tensors().active_target_len: np.array([target_len], dtype=np.uint32),
-            model_tensors().cond_target_start: np.array(
-                [prepared.cond_target_start],
-                dtype=np.uint32,
-            ),
             model_tensors().tokens: tokens,
         }
     )
@@ -434,6 +455,8 @@ def _run_prepared_chunk(
                     unmask_count=unmask_count,
                     rng_seed=rng_seed,
                     audio_mask_id=audio_mask_id,
+                    active_target_len=target_len,
+                    cond_target_start=prepared.cond_target_start,
                 )
                 generation_replay_plan = _build_generation_replay_plan(
                     rt,
@@ -449,6 +472,8 @@ def _run_prepared_chunk(
                         "unmask_count": unmask_count,
                         "rng_seed": rng_seed,
                         "audio_mask_id": audio_mask_id,
+                        "active_target_len": target_len,
+                        "cond_target_start": prepared.cond_target_start,
                     },
                 )
             runtime.generation_replay_plan = generation_replay_plan
@@ -460,6 +485,8 @@ def _run_prepared_chunk(
                     "unmask_count": unmask_count,
                     "rng_seed": rng_seed,
                     "audio_mask_id": audio_mask_id,
+                    "active_target_len": target_len,
+                    "cond_target_start": prepared.cond_target_start,
                 },
             )
         unmasked += unmask_count

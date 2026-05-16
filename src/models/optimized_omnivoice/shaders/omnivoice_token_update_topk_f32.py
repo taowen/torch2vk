@@ -52,18 +52,6 @@ OMNIVOICE_TOKEN_UPDATE_TOPK_F32 = ShaderVariant(
                 ),
             ),
             TensorFieldSpec(
-                name="active_target_len",
-                io_kind=IOKind.INPUT,
-                role="active_target_len",
-                contract=TensorContract(dtype="uint32", shape=(1,)),
-            ),
-            TensorFieldSpec(
-                name="cond_target_start",
-                io_kind=IOKind.INPUT,
-                role="cond_target_start",
-                contract=TensorContract(dtype="uint32", shape=(1,)),
-            ),
-            TensorFieldSpec(
                 name="tokens",
                 io_kind=IOKind.INOUT,
                 role="tokens",
@@ -91,7 +79,7 @@ OMNIVOICE_TOKEN_UPDATE_TOPK_F32 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=16,
+            size=24,
             fields=(
                 PushConstantFieldSpec("C", PushConstantType.UINT32, 0, "C", dynamic=False),
                 PushConstantFieldSpec("T", PushConstantType.UINT32, 4, "T", dynamic=False),
@@ -101,6 +89,20 @@ OMNIVOICE_TOKEN_UPDATE_TOPK_F32 = ShaderVariant(
                     PushConstantType.UINT32,
                     12,
                     PushConstantInput("unmask_count"),
+                    dynamic=False,
+                ),
+                PushConstantFieldSpec(
+                    "active_target_len",
+                    PushConstantType.UINT32,
+                    16,
+                    PushConstantInput("active_target_len"),
+                    dynamic=False,
+                ),
+                PushConstantFieldSpec(
+                    "cond_target_start",
+                    PushConstantType.UINT32,
+                    20,
+                    PushConstantInput("cond_target_start"),
                     dynamic=False,
                 ),
             ),
@@ -124,19 +126,11 @@ layout(set = 0, binding = 1) buffer restrict readonly CandidateScoresBuffer {
     float candidate_scores[];
 };
 
-layout(set = 0, binding = 2) buffer restrict readonly ActiveTargetLenBuffer {
-    uint active_target_len[];
-};
-
-layout(set = 0, binding = 3) buffer restrict readonly CondTargetStartBuffer {
-    uint cond_target_start[];
-};
-
-layout(set = 0, binding = 4) buffer restrict TokensBuffer {
+layout(set = 0, binding = 2) buffer restrict TokensBuffer {
     int64_t tokens[];
 };
 
-layout(set = 0, binding = 5) buffer restrict BatchInputIdsBuffer {
+layout(set = 0, binding = 3) buffer restrict BatchInputIdsBuffer {
     int64_t batch_input_ids[];
 };
 
@@ -145,6 +139,8 @@ layout(push_constant) uniform PushConstants {
     uint T;
     uint S;
     uint unmask_count;
+    uint active_target_len;
+    uint cond_target_start;
 } pc;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -155,7 +151,7 @@ bool better_pair(float lhs_score, uint lhs_index, float rhs_score, uint rhs_inde
 
 void main() {
     const uint index = gl_GlobalInvocationID.x;
-    const uint active_t = active_target_len[0];
+    const uint active_t = pc.active_target_len;
     const uint total = pc.C * active_t;
     const uint limit = min(pc.unmask_count, total);
     if (index >= pc.C * pc.T) {
@@ -182,7 +178,7 @@ void main() {
     if (rank < limit) {
         const int64_t token = candidate_tokens[index];
         tokens[index] = token;
-        batch_input_ids[(0u * pc.C + codebook) * pc.S + (cond_target_start[0] + target)] = token;
+        batch_input_ids[(0u * pc.C + codebook) * pc.S + (pc.cond_target_start + target)] = token;
         batch_input_ids[(1u * pc.C + codebook) * pc.S + target] = token;
     }
 }
