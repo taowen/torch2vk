@@ -26,7 +26,6 @@ class ExportedOmniVoiceTensors:
     batch_audio_mask: LogicalTensor
     attention_mask: LogicalTensor
     audio_mask_id: LogicalTensor
-    rng_seed: LogicalTensor
     tokens: LogicalTensor
     candidate_tokens: LogicalTensor
     candidate_scores: LogicalTensor
@@ -54,7 +53,6 @@ def create_model_tensors(*, target_len: int) -> ExportedOmniVoiceTensors:
     batch_audio_mask = _state_tensor("uint32", (2, 85))
     attention_mask = _state_tensor("float16", (2, 1, 85, 85))
     audio_mask_id = _state_tensor("int64", (1,))
-    rng_seed = _state_tensor("uint32", (1,))
     tokens = _state_tensor("int64", (1, 8, target_len))
     candidate_tokens = _state_tensor("int64", (8, target_len))
     candidate_scores = _state_tensor("float32", (8, target_len))
@@ -94,7 +92,6 @@ def create_model_tensors(*, target_len: int) -> ExportedOmniVoiceTensors:
         batch_audio_mask=batch_audio_mask,
         attention_mask=attention_mask,
         audio_mask_id=audio_mask_id,
-        rng_seed=rng_seed,
         tokens=tokens,
         candidate_tokens=candidate_tokens,
         candidate_scores=candidate_scores,

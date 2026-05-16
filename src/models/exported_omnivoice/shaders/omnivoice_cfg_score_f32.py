@@ -21,106 +21,61 @@ from torch2vk.vulkan.shader_execution_requirements import (
 
 
 OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
-    name="omnivoice_cfg_score_f32",
-    family="omnivoice",
+    name='omnivoice_cfg_score_f32',
+    family='omnivoice',
     contract=ShaderContract(
-        class_name="OmniVoiceCfgScoreF32Program",
-        shader_name="omnivoice_cfg_score_f32",
+        class_name='OmniVoiceCfgScoreF32Program',
+        shader_name='omnivoice_cfg_score_f32',
         fields=(
             TensorFieldSpec(
-                name="logits",
+                name='logits',
                 io_kind=IOKind.INPUT,
-                role="logits",
-                contract=TensorContract(
-                    dtype="float16",
-                    shape=(
-                        2,
-                        "S",
-                        "CV",
-                    ),
-                ),
+                role='logits',
+                contract=TensorContract(dtype='float16', shape=(2, 'S', 'CV',)),
             ),
             TensorFieldSpec(
-                name="tokens",
+                name='tokens',
                 io_kind=IOKind.INPUT,
-                role="tokens",
-                contract=TensorContract(
-                    dtype="int64",
-                    shape=(
-                        1,
-                        "C",
-                        "T",
-                    ),
-                ),
+                role='tokens',
+                contract=TensorContract(dtype='int64', shape=(1, 'C', 'T',)),
             ),
             TensorFieldSpec(
-                name="audio_mask_id",
+                name='audio_mask_id',
                 io_kind=IOKind.INPUT,
-                role="mask_id",
-                contract=TensorContract(dtype="int64", shape=(1,)),
+                role='mask_id',
+                contract=TensorContract(dtype='int64', shape=(1,)),
             ),
             TensorFieldSpec(
-                name="rng_seed",
-                io_kind=IOKind.INPUT,
-                role="seed",
-                contract=TensorContract(dtype="uint32", shape=(1,)),
-            ),
-            TensorFieldSpec(
-                name="candidate_tokens",
+                name='candidate_tokens',
                 io_kind=IOKind.OUTPUT,
-                role="candidate_tokens",
-                contract=TensorContract(
-                    dtype="int64",
-                    shape=(
-                        "C",
-                        "T",
-                    ),
-                ),
+                role='candidate_tokens',
+                contract=TensorContract(dtype='int64', shape=('C', 'T',)),
             ),
             TensorFieldSpec(
-                name="candidate_scores",
+                name='candidate_scores',
                 io_kind=IOKind.OUTPUT,
-                role="candidate_scores",
-                contract=TensorContract(
-                    dtype="float32",
-                    shape=(
-                        "C",
-                        "T",
-                    ),
-                ),
+                role='candidate_scores',
+                contract=TensorContract(dtype='float32', shape=('C', 'T',)),
             ),
         ),
         push_constants=PushConstantSpec(
-            size=32,
+            size=36,
             fields=(
-                PushConstantFieldSpec("S", PushConstantType.UINT32, 0, "S", dynamic=False),
-                PushConstantFieldSpec("C", PushConstantType.UINT32, 4, "C", dynamic=False),
-                PushConstantFieldSpec("T", PushConstantType.UINT32, 8, "T", dynamic=False),
-                PushConstantFieldSpec("V", PushConstantType.UINT32, 12, 1025, dynamic=False),
-                PushConstantFieldSpec(
-                    "guidance_scale", PushConstantType.FLOAT32, 16, 2.0, dynamic=False
-                ),
-                PushConstantFieldSpec(
-                    "layer_penalty", PushConstantType.FLOAT32, 20, 5.0, dynamic=False
-                ),
-                PushConstantFieldSpec(
-                    "position_temperature", PushConstantType.FLOAT32, 24, 5.0, dynamic=False
-                ),
-                PushConstantFieldSpec(
-                    "step_index",
-                    PushConstantType.UINT32,
-                    28,
-                    PushConstantInput("step_index"),
-                    dynamic=False,
-                ),
+                PushConstantFieldSpec('S', PushConstantType.UINT32, 0, 'S', dynamic=False),
+                PushConstantFieldSpec('C', PushConstantType.UINT32, 4, 'C', dynamic=False),
+                PushConstantFieldSpec('T', PushConstantType.UINT32, 8, 'T', dynamic=False),
+                PushConstantFieldSpec('V', PushConstantType.UINT32, 12, 1025, dynamic=False),
+                PushConstantFieldSpec('guidance_scale', PushConstantType.FLOAT32, 16, 2.0, dynamic=False),
+                PushConstantFieldSpec('layer_penalty', PushConstantType.FLOAT32, 20, 5.0, dynamic=False),
+                PushConstantFieldSpec('position_temperature', PushConstantType.FLOAT32, 24, 5.0, dynamic=False),
+                PushConstantFieldSpec('step_index', PushConstantType.UINT32, 28, PushConstantInput('step_index'), dynamic=False),
+                PushConstantFieldSpec('rng_seed', PushConstantType.UINT32, 32, PushConstantInput('rng_seed'), dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(mul("C", "T"), 256), 1, 1),
+        dispatch=(ceil_div(mul('C', 'T'), 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(
-        require_shader_int64=True, require_storage_buffer_16bit_access=True
-    ),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True, require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 
@@ -142,15 +97,11 @@ layout(set = 0, binding = 2) buffer restrict readonly AudioMaskIdBuffer {
     int64_t audio_mask_id[];
 };
 
-layout(set = 0, binding = 3) buffer restrict readonly RngSeedBuffer {
-    uint rng_seed[];
-};
-
-layout(set = 0, binding = 4) buffer restrict writeonly CandidateTokensBuffer {
+layout(set = 0, binding = 3) buffer restrict writeonly CandidateTokensBuffer {
     int64_t candidate_tokens[];
 };
 
-layout(set = 0, binding = 5) buffer restrict writeonly CandidateScoresBuffer {
+layout(set = 0, binding = 4) buffer restrict writeonly CandidateScoresBuffer {
     float candidate_scores[];
 };
 
@@ -163,6 +114,7 @@ layout(push_constant) uniform PushConstants {
     float layer_penalty;
     float position_temperature;
     uint step_index;
+    uint rng_seed;
 } pc;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -185,7 +137,7 @@ float uniform01(uint x) {
 }
 
 float gumbel_noise(uint flat_pos) {
-    uint x = rng_seed[0] ^ (pc.step_index * 0x9e3779b9u) ^ (flat_pos * 0x85ebca6bu);
+    uint x = pc.rng_seed ^ (pc.step_index * 0x9e3779b9u) ^ (flat_pos * 0x85ebca6bu);
     const float u = clamp(uniform01(x), 1.0e-7, 1.0 - 1.0e-7);
     return -log(-log(u));
 }

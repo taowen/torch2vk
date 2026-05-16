@@ -172,12 +172,6 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
                 TensorContract(dtype="int64", shape=(1,)),
             ),
             TensorFieldSpec(
-                "rng_seed",
-                IOKind.INPUT,
-                "seed",
-                TensorContract(dtype="uint32", shape=(1,)),
-            ),
-            TensorFieldSpec(
                 "candidate_tokens",
                 IOKind.OUTPUT,
                 "candidate_tokens",
@@ -191,7 +185,7 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=32,
+            size=36,
             fields=(
                 PushConstantFieldSpec("S", PushConstantType.UINT32, 0, "S"),
                 PushConstantFieldSpec("C", PushConstantType.UINT32, 4, "C"),
@@ -202,6 +196,9 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
                 PushConstantFieldSpec("position_temperature", PushConstantType.FLOAT32, 24, 5.0),
                 PushConstantFieldSpec(
                     "step_index", PushConstantType.UINT32, 28, PushConstantInput("step_index")
+                ),
+                PushConstantFieldSpec(
+                    "rng_seed", PushConstantType.UINT32, 32, PushConstantInput("rng_seed")
                 ),
             ),
         ),
@@ -232,15 +229,11 @@ layout(set = 0, binding = 2) buffer restrict readonly AudioMaskIdBuffer {
     int64_t audio_mask_id[];
 };
 
-layout(set = 0, binding = 3) buffer restrict readonly RngSeedBuffer {
-    uint rng_seed[];
-};
-
-layout(set = 0, binding = 4) buffer restrict writeonly CandidateTokensBuffer {
+layout(set = 0, binding = 3) buffer restrict writeonly CandidateTokensBuffer {
     int64_t candidate_tokens[];
 };
 
-layout(set = 0, binding = 5) buffer restrict writeonly CandidateScoresBuffer {
+layout(set = 0, binding = 4) buffer restrict writeonly CandidateScoresBuffer {
     float candidate_scores[];
 };
 
@@ -253,6 +246,7 @@ layout(push_constant) uniform PushConstants {
     float layer_penalty;
     float position_temperature;
     uint step_index;
+    uint rng_seed;
 } pc;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -275,7 +269,7 @@ float uniform01(uint x) {
 }
 
 float gumbel_noise(uint flat_pos) {
-    uint x = rng_seed[0] ^ (pc.step_index * 0x9e3779b9u) ^ (flat_pos * 0x85ebca6bu);
+    uint x = pc.rng_seed ^ (pc.step_index * 0x9e3779b9u) ^ (flat_pos * 0x85ebca6bu);
     const float u = clamp(uniform01(x), 1.0e-7, 1.0 - 1.0e-7);
     return -log(-log(u));
 }

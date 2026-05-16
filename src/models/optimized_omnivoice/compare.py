@@ -219,6 +219,7 @@ def _run_generation_step_with_compare(
     *,
     step: int,
     unmask_count: int,
+    rng_seed: int,
     refs: _OmniVoiceCompareState,
 ) -> None:
     with rt.frame(f"omnivoice.step.{step:04d}"):
@@ -264,7 +265,7 @@ def _run_generation_step_with_compare(
         tokens = _vulkan_tensor(rt, model_tensors().tokens).long()
         active_target_len = _vulkan_tensor(rt, model_tensors().active_target_len).long()
         cond_target_start = _vulkan_tensor(rt, model_tensors().cond_target_start).long()
-        _run_token_score(rt, step=step)
+        _run_token_score(rt, step=step, rng_seed=rng_seed)
         _run_rocm_reference(
             rt,
             reference.run_token_score,
@@ -274,7 +275,7 @@ def _run_generation_step_with_compare(
             logits=logits,
             tokens=tokens,
             audio_mask_id=_vulkan_tensor(rt, model_tensors().audio_mask_id).long(),
-            rng_seed=_vulkan_tensor(rt, model_tensors().rng_seed).long(),
+            rng_seed=np.array([rng_seed], dtype=np.uint32),
             step_index=step_index,
             active_target_len=active_target_len,
             cond_target_start=cond_target_start,
@@ -362,7 +363,6 @@ def compare_generation_steps(
                 model_tensors().batch_audio_mask: prepared.batch_audio_mask,
                 model_tensors().attention_mask: attention_mask,
                 model_tensors().audio_mask_id: np.array([config.audio_mask_id], dtype=np.int64),
-                model_tensors().rng_seed: np.array([rng_seed], dtype=np.uint32),
                 model_tensors().active_target_len: np.array([prepared.target_len], dtype=np.uint32),
                 model_tensors().cond_target_start: np.array(
                     [prepared.cond_target_start],
@@ -391,6 +391,7 @@ def compare_generation_steps(
                 rt,
                 step=step,
                 unmask_count=int(unmask_count),
+                rng_seed=rng_seed,
                 refs=refs,
             )
         generated_tokens = np.ascontiguousarray(

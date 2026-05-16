@@ -83,15 +83,15 @@ def _run_input_embed(rt: RuntimeSession) -> None:
     )
 
 
-def _run_token_score(rt: RuntimeSession, *, step: int) -> None:
+def _run_token_score(rt: RuntimeSession, *, step: int, rng_seed: int) -> None:
     tensors = model_tensors()
     OMNIVOICE_CFG_SCORE_F32(
         rt,
         logits=tensors.audio_head.linear,
         tokens=tensors.tokens,
         audio_mask_id=tensors.audio_mask_id,
-        rng_seed=tensors.rng_seed,
         step_index=step,
+        rng_seed=rng_seed,
         candidate_tokens=tensors.candidate_tokens,
         candidate_scores=tensors.candidate_scores,
     )
@@ -109,12 +109,14 @@ def _run_token_update(rt: RuntimeSession, *, unmask_count: int) -> None:
     )
 
 
-def _run_generation_step(rt: RuntimeSession, *, step: int, unmask_count: int) -> None:
+def _run_generation_step(
+    rt: RuntimeSession, *, step: int, unmask_count: int, rng_seed: int
+) -> None:
     with rt.frame(f"omnivoice.step.{step:04d}"):
         _run_input_embed(rt)
         run_llm_forward(rt)
         run_audio_head(rt)
-        _run_token_score(rt, step=step)
+        _run_token_score(rt, step=step, rng_seed=rng_seed)
         _run_token_update(rt, unmask_count=unmask_count)
 
 
@@ -231,7 +233,6 @@ def main(
             model_tensors().batch_audio_mask: batch_audio_mask,
             model_tensors().attention_mask: attn_mask_np,
             model_tensors().audio_mask_id: np.array([audio_mask_id], dtype=np.int64),
-            model_tensors().rng_seed: np.array([rng_seed], dtype=np.uint32),
             model_tensors().tokens: tokens,
         }
     )
@@ -252,7 +253,7 @@ def main(
                 cache_namespace=replay_cache_namespace,
             )
             if generation_replay_plan is None:
-                _run_generation_step(rt, step=step, unmask_count=k)
+                _run_generation_step(rt, step=step, unmask_count=k, rng_seed=rng_seed)
                 generation_replay_plan = _build_generation_replay_plan(
                     rt,
                     frame=f"omnivoice.step.{step:04d}",
@@ -261,12 +262,20 @@ def main(
             else:
                 execute_replay(
                     generation_replay_plan,
-                    dynamic_push_constants={"step_index": step, "unmask_count": k},
+                    dynamic_push_constants={
+                        "step_index": step,
+                        "unmask_count": k,
+                        "rng_seed": rng_seed,
+                    },
                 )
         else:
             execute_replay(
                 generation_replay_plan,
-                dynamic_push_constants={"step_index": step, "unmask_count": k},
+                dynamic_push_constants={
+                    "step_index": step,
+                    "unmask_count": k,
+                    "rng_seed": rng_seed,
+                },
             )
         unmasked += k
 

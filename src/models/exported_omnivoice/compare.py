@@ -76,6 +76,7 @@ def _run_generation_step_with_compare(
     *,
     step: int,
     unmask_count: int,
+    rng_seed: int,
     refs: _OmniVoiceCompareState,
 ) -> None:
     with rt.frame(f"omnivoice.step.{step:04d}"):
@@ -113,7 +114,7 @@ def _run_generation_step_with_compare(
 
         step_index = torch.tensor([step], dtype=torch.int64, device="cuda")
         tokens = _vulkan_tensor(rt, model_tensors().tokens).long()
-        _run_token_score(rt, step=step)
+        _run_token_score(rt, step=step, rng_seed=rng_seed)
         reference.run_token_score(
             rt,
             refs.token_score,
@@ -121,7 +122,7 @@ def _run_generation_step_with_compare(
             logits=logits,
             tokens=tokens,
             audio_mask_id=_vulkan_tensor(rt, model_tensors().audio_mask_id).long(),
-            rng_seed=_vulkan_tensor(rt, model_tensors().rng_seed).long(),
+            rng_seed=np.array([rng_seed], dtype=np.uint32),
             step_index=step_index,
         )
         candidate_tokens = _vulkan_tensor(rt, model_tensors().candidate_tokens).long()
@@ -207,7 +208,6 @@ def compare_generation_steps(
                 model_tensors().batch_audio_mask: prepared.batch_audio_mask,
                 model_tensors().attention_mask: attention_mask,
                 model_tensors().audio_mask_id: np.array([config.audio_mask_id], dtype=np.int64),
-                model_tensors().rng_seed: np.array([rng_seed], dtype=np.uint32),
                 model_tensors().tokens: tokens,
             }
         )
@@ -231,6 +231,7 @@ def compare_generation_steps(
                 rt,
                 step=step,
                 unmask_count=int(unmask_count),
+                rng_seed=rng_seed,
                 refs=refs,
             )
         with rt.frame("omnivoice.audio_decode"):
