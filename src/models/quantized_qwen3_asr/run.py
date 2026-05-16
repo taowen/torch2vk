@@ -301,9 +301,9 @@ def main(
         model_dir=gguf_path.parent,
         profile_dir=profile_dir,
         model_tensors=model_tensors(),
+        session_tensors={model_tensors().eos_token_ids: eos_token_array},
         get_shader=get_shader,
     )
-    rt.register_session_tensors({model_tensors().eos_token_ids: eos_token_array})
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
         dtype=np.float16,

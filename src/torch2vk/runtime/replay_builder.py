@@ -214,7 +214,7 @@ def _instantiate_replay_template(
                     rt._materialize_weight(descriptor_tensor)
                 elif descriptor_tensor.memory is MemoryClass.SESSION_TENSOR:
                     raise RuntimeError(
-                        f"{descriptor_tensor.name} requires register_session_tensors(...) "
+                        f"{descriptor_tensor.name} requires initialize_session_tensors(...) "
                         "before building or instantiating replay"
                     )
                 else:
@@ -1017,7 +1017,7 @@ def _allocate_replay_descriptor_tensor(
         return alloc
     if descriptor_tensor.memory is MemoryClass.SESSION_TENSOR:
         raise RuntimeError(
-            f"{descriptor_tensor.name} requires register_session_tensors(...) before replay"
+            f"{descriptor_tensor.name} requires initialize_session_tensors(...) before replay"
         )
 
     if descriptor_tensor.memory in {

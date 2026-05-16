@@ -70,6 +70,7 @@ class RuntimeSession:
         model_dir: str | Path | None = None,
         profile_dir: str | Path | None = None,
         model_tensors: object | None = None,
+        session_tensors: Mapping[LogicalTensor, object] | None = None,
         get_shader: Callable[[str], ShaderVariant] | None = None,
     ) -> None:
         from torch2vk.runtime.profile import RuntimeProfiler
@@ -101,6 +102,8 @@ class RuntimeSession:
         self._request_tensors: set[LogicalTensor] = set()
         self._frame_allocations: list[tuple[LogicalTensor, BufferAllocation]] = []
         self._closed = False
+        if session_tensors:
+            self.initialize_session_tensors(session_tensors)
 
     @classmethod
     def open(
@@ -111,6 +114,7 @@ class RuntimeSession:
         model_dir: str | Path | None = None,
         profile_dir: str | Path | None = None,
         model_tensors: object | None = None,
+        session_tensors: Mapping[LogicalTensor, object] | None = None,
         get_shader: Callable[[str], ShaderVariant] | None = None,
     ) -> "RuntimeSession":
         return cls(
@@ -120,6 +124,7 @@ class RuntimeSession:
             profile_dir=profile_dir,
             get_shader=get_shader,
             model_tensors=model_tensors,
+            session_tensors=session_tensors,
         )
 
     def __enter__(self) -> "RuntimeSession":
@@ -141,6 +146,10 @@ class RuntimeSession:
     def compare_results(self) -> tuple[TensorCompareResult, ...]:
         return tuple(self._compare_results)
 
+    @property
+    def model_tensors(self) -> object | None:
+        return self._model_tensors
+
     def register_host_inputs(self, inputs: Mapping[LogicalTensor, object]) -> None:
         for tensor, value in inputs.items():
             if not isinstance(tensor, LogicalTensor):
@@ -152,7 +161,7 @@ class RuntimeSession:
                 raise ValueError(f"{tensor.name} is not an input tensor")
             if tensor.memory is MemoryClass.SESSION_TENSOR:
                 raise ValueError(
-                    f"{tensor.name} is a session tensor; use register_session_tensors(...)"
+                    f"{tensor.name} is a session tensor; use initialize_session_tensors(...)"
                 )
             self._inputs[tensor] = value
             self._invalidate_input_materialization(tensor)
@@ -190,12 +199,12 @@ class RuntimeSession:
             finally:
                 self._request_active = False
 
-    def register_session_tensors(self, tensors: Mapping[LogicalTensor, object]) -> None:
+    def initialize_session_tensors(self, tensors: Mapping[LogicalTensor, object]) -> None:
         self._require_open()
         for tensor, value in tensors.items():
             if not isinstance(tensor, LogicalTensor):
                 raise TypeError(
-                    f"register_session_tensors key must be LogicalTensor, got {type(tensor).__name__}"
+                    f"initialize_session_tensors key must be LogicalTensor, got {type(tensor).__name__}"
                 )
             tensor.validate_declaration()
             if (
@@ -232,17 +241,8 @@ class RuntimeSession:
             raise RuntimeError("RuntimeSession.bind_model_tensors cannot run inside rt.request(...)")
         if model_tensors is self._model_tensors:
             return
-        self._close_replay_plan_cache()
         if self._model_tensors is not None:
-            for tensor in collect_named_logical_tensors(self._model_tensors).values():
-                if tensor.memory in {MemoryClass.MODEL_WEIGHT, MemoryClass.SESSION_TENSOR}:
-                    if tensor.memory is MemoryClass.SESSION_TENSOR and tensor.buffer is not None:
-                        tensor.buffer.allocation.close()
-                    with tensor.runtime_write_scope():
-                        tensor.buffer = None
-                        tensor.descriptor_nbytes = None
-                        tensor.writer = None
-                        tensor.alias_source = None
+            raise RuntimeError("RuntimeSession model_tensors are already bound")
         collect_named_logical_tensors(model_tensors)
         self._model_tensors = model_tensors
 
@@ -355,6 +355,7 @@ class RuntimeSession:
             pipeline.close()
         self._pipeline_cache.clear()
         request_state._clear_request_state(self)
+        self._clear_model_resident_tensors()
         for allocation in reversed(self._model_allocations):
             allocation.close()
         self._model_allocations.clear()
@@ -391,6 +392,17 @@ class RuntimeSession:
             tensor.buffer = None
             tensor.descriptor_nbytes = None
             tensor.alias_source = None
+
+    def _clear_model_resident_tensors(self) -> None:
+        if self._model_tensors is None:
+            return
+        for tensor in collect_named_logical_tensors(self._model_tensors).values():
+            if tensor.memory not in {MemoryClass.MODEL_WEIGHT, MemoryClass.SESSION_TENSOR}:
+                continue
+            with tensor.runtime_write_scope():
+                tensor.buffer = None
+                tensor.descriptor_nbytes = None
+                tensor.writer = None
 
     def _named_model_tensors(self) -> dict[str, LogicalTensor]:
         if self._model_tensors is None:

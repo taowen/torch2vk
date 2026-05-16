@@ -21,7 +21,7 @@ _EXPECTED_ASKNOT_TEXT = (
 _EXPECTED_ZH_TEXT = "甚至出现交易几乎停滞的情况。"
 
 
-def test_optimized_qwen3_asr_transcribes_fixtures_with_shared_runtime() -> None:
+def test_optimized_qwen3_asr_transcribes_fixtures() -> None:
     model_dir = resolve_cached_model(REPO_ID)
     gguf_path = export_qwen3_asr_q4_k_m_gguf(model_dir=model_dir)
     with RuntimeSession.open(
@@ -33,6 +33,12 @@ def test_optimized_qwen3_asr_transcribes_fixtures_with_shared_runtime() -> None:
             transcribe_qwen3_asr(wav_path=_ASKNOT_WAV, language="English", rt=rt)
             == _EXPECTED_ASKNOT_TEXT
         )
+
+    with RuntimeSession.open(
+        device_index=0,
+        model_dir=gguf_path.parent,
+        get_shader=get_shader,
+    ) as rt:
         assert (
             transcribe_qwen3_asr(wav_path=_ZH_WAV, language="Chinese", rt=rt)
             == _EXPECTED_ZH_TEXT
