@@ -21,6 +21,7 @@ from torch2vk.runtime.logical import (
     TensorRole,
     collect_named_logical_tensors,
 )
+from torch2vk.runtime import request_state
 from torch2vk.runtime.shader import (
     DispatchRecord,
     IOKind,
@@ -129,11 +130,11 @@ class RuntimeSession:
     def compare_results(self) -> tuple[TensorCompareResult, ...]:
         return tuple(self._compare_results)
 
-    def register_inputs(self, inputs: Mapping[LogicalTensor, object]) -> None:
+    def register_host_inputs(self, inputs: Mapping[LogicalTensor, object]) -> None:
         for tensor, value in inputs.items():
             if not isinstance(tensor, LogicalTensor):
                 raise TypeError(
-                    f"register_inputs key must be LogicalTensor, got {type(tensor).__name__}"
+                    f"register_host_inputs key must be LogicalTensor, got {type(tensor).__name__}"
                 )
             tensor.validate_declaration()
             if tensor.role is not TensorRole.INPUT:
@@ -161,19 +162,19 @@ class RuntimeSession:
         try:
             if inputs:
                 tensors = self._named_model_tensors()
-                self.register_inputs(
+                self.register_host_inputs(
                     {
                         _request_input_tensor(tensors, name): value
                         for name, value in inputs.items()
                     }
                 )
             if state:
-                self.initialize_request_state(state)
+                request_state._initialize_request_state(self, state)
             yield self
         finally:
             try:
                 self._close_replay_plan_cache()
-                self._clear_request_state()
+                request_state._clear_request_state(self)
                 self._inputs.clear()
             finally:
                 self._request_active = False
@@ -214,15 +215,27 @@ class RuntimeSession:
                 tensor.alias_source = None
             self._model_allocations.append(allocation)
 
-    def initialize_request_state(self, states: Mapping[LogicalTensor, object]) -> None:
-        from torch2vk.runtime.request_state import initialize_request_state
-
-        initialize_request_state(self, states)
+    def bind_model_tensors(self, model_tensors: object) -> None:
+        self._require_open()
+        if self._request_active:
+            raise RuntimeError("RuntimeSession.bind_model_tensors cannot run inside rt.request(...)")
+        self._close_replay_plan_cache()
+        if self._model_tensors is not None:
+            for tensor in collect_named_logical_tensors(self._model_tensors).values():
+                if tensor.memory in {MemoryClass.MODEL_WEIGHT, MemoryClass.SESSION_TENSOR}:
+                    with tensor.runtime_write_scope():
+                        tensor.buffer = None
+                        tensor.descriptor_nbytes = None
+                        tensor.writer = None
+                        tensor.alias_source = None
+        for allocation in reversed(self._model_allocations):
+            allocation.close()
+        self._model_allocations.clear()
+        collect_named_logical_tensors(model_tensors)
+        self._model_tensors = model_tensors
 
     def read_request_state(self, tensor: LogicalTensor) -> np.ndarray:
-        from torch2vk.runtime.request_state import read_request_state
-
-        return read_request_state(self, tensor)
+        return request_state.read_request_state(self, tensor)
 
     def grow_request_state(
         self,
@@ -231,9 +244,7 @@ class RuntimeSession:
         *,
         growth: str = "geometric",
     ) -> None:
-        from torch2vk.runtime.request_state import grow_request_state
-
-        grow_request_state(self, tensor, new_shape, growth=growth)
+        request_state.grow_request_state(self, tensor, new_shape, growth=growth)
 
     @contextmanager
     def frame(self, name: str):
@@ -331,7 +342,7 @@ class RuntimeSession:
         for pipeline in self._pipeline_cache.values():
             pipeline.close()
         self._pipeline_cache.clear()
-        self._clear_request_state()
+        request_state._clear_request_state(self)
         for allocation in reversed(self._model_allocations):
             allocation.close()
         self._model_allocations.clear()
@@ -475,11 +486,6 @@ class RuntimeSession:
         from torch2vk.runtime.materialization import release_frame_allocations
 
         release_frame_allocations(self)
-
-    def _clear_request_state(self) -> None:
-        from torch2vk.runtime.request_state import _clear_request_state
-
-        _clear_request_state(self)
 
     def _close_replay_plan_cache(self) -> None:
         for plans in self._replay_plan_cache.values():

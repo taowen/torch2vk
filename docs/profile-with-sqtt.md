@@ -67,7 +67,7 @@ scripts/profile-sqtt.sh \
   --root .cache/torch2vk/sqtt/qwen3-decode-linear \
   --capture-filter 'frame=qwen3_asr.text_decode.0000;shader=qwen3_asr_text_linear_nobias_t1_f32;dispatch=123' \
   -- \
-  uv run pytest tests/test_qwen3_asr.py::test_qwen3_asr_record_decode_one_step_for_sqtt -s
+  uv run pytest tests/test_optimized_qwen3_asr.py::test_optimized_qwen3_asr_transcribes_fixture -s
 ```
 
 这个脚本负责：

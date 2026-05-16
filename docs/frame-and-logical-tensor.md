@@ -372,7 +372,7 @@ checkpoint     = RuntimeSession.model_dir 下的 canonical safetensors
 输入 tensor 不需要额外 metadata。`role == INPUT` 的 `LogicalTensor` 直接作为运行时输入 key：
 
 ```python
-rt.register_inputs({input_tensor: input_array})
+rt.register_host_inputs({input_tensor: input_array})
 ```
 
 实际打开 checkpoint、上传权重、查找输入、分配 buffer 都由 RuntimeSession 完成。

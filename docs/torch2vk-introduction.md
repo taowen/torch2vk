@@ -453,7 +453,7 @@ with rt.frame("qwen3.decode.0042"):
 
 **权重（WEIGHT）**：第一次用到时从 checkpoint 文件（safetensors 或 GGUF）读取并上传到 GPU。之后常驻 MODEL_WEIGHT 显存池，不再重复加载。
 
-**输入（INPUT）**：从用户通过 `rt.register_inputs()` 提供的 numpy 数组上传。每次新的输入数据都需要重新上传。
+**输入（INPUT）**：从用户通过 `rt.request(inputs=...)` 或 `rt.register_host_inputs()` 提供的 numpy 数组上传。每次新的输入数据都需要重新上传。
 
 **中间激活（ACTIVATION）**：从 FRAME_WORKSPACE 池分配一块临时 buffer。Frame 结束后这块 buffer 会被回收到 TemporaryTensorPool，下一个 Frame 的同形状张量可以直接复用它。
 
@@ -1097,7 +1097,7 @@ shaders/  +  tensors/  +  dispatch/  （生成的 Python 源文件）
   ↓ run.py（每次推理运行）
 RuntimeSession.open()
   ↓ 加载 checkpoint → materialize 权重 → 上传到 GPU
-  ↓ 注册输入 → register_inputs()
+  ↓ 注册输入 → register_host_inputs()
   ↓ 执行 prefill frame → 录制 → 构建 replay plan
   ↓ 执行 decode loop → replay cached command buffer
   ↓ 读回输出 → read_request_state()

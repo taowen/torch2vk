@@ -276,6 +276,20 @@ def main(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
         dtype=np.float16,
     )
+    preprocessed = preprocess_audio_inputs(
+        prepared.input_ids,
+        prepared.input_features,
+        prepared.feature_attention_mask,
+        position_embedding_shape=tuple(
+            int(dim) for dim in model_tensors().audio_encoder.position_embedding.spec.shape
+        ),
+        d_model=ac.d_model,
+    )
+    prefill_position_ids = np.broadcast_to(
+        np.arange(prompt_length, dtype=np.int64)[None, None, :],
+        (3, 1, prompt_length),
+    ).copy()
+    prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
     with rt.request(
         inputs={
             "input_ids": np.ascontiguousarray(prepared.input_ids, dtype=np.int64),
@@ -285,6 +299,17 @@ def main(
                 prepared.feature_attention_mask,
                 dtype=np.int64,
             ),
+            model_tensors().audio_encoder.x.name: as_float16_array(preprocessed["padded_feature"]),
+            model_tensors().audio_encoder.position_embedding.name: as_float16_array(
+                preprocessed["position_embedding"]
+            ),
+            model_tensors().audio_encoder.compact_index.name: preprocessed["compact_index"],
+            model_tensors().audio_encoder.attention_mask.name: as_float16_attention_mask(
+                preprocessed["audio_attention_mask"]
+            ),
+            model_tensors().position_ids.name: prefill_position_ids,
+            model_tensors().audio_inject.audio_positions.name: preprocessed["audio_positions"],
+            model_tensors().text_layers[0].cache_position.name: prefill_cache_position,
         },
         state={
             **{
@@ -299,29 +324,8 @@ def main(
 
         # === Audio Tower ===
         print("\n=== Phase 1: Audio Tower ===")
-        preprocessed = preprocess_audio_inputs(
-            prepared.input_ids,
-            prepared.input_features,
-            prepared.feature_attention_mask,
-            position_embedding_shape=tuple(
-                int(dim) for dim in model_tensors().audio_encoder.position_embedding.spec.shape
-            ),
-            d_model=ac.d_model,
-        )
         print(f"  hidden_states after compact: {model_tensors().audio_encoder.index_select.spec.shape}")
         print(f"  audio encoder ({model_tensors().audio_encoder.x.spec.shape})...")
-        rt.register_inputs(
-            {
-                model_tensors().audio_encoder.x: as_float16_array(preprocessed["padded_feature"]),
-                model_tensors().audio_encoder.position_embedding: as_float16_array(
-                    preprocessed["position_embedding"]
-                ),
-                model_tensors().audio_encoder.compact_index: preprocessed["compact_index"],
-                model_tensors().audio_encoder.attention_mask: as_float16_attention_mask(
-                    preprocessed["audio_attention_mask"]
-                ),
-            }
-        )
         with rt.frame("spike.audio"):
             run_audio_encoder(rt)
         _require_gpu_output(model_tensors().audio_encoder.linear_110)
@@ -347,19 +351,7 @@ def main(
 
         # Embedding, audio injection, and decoder layers stay on GPU.
         print(f"  embed + audio inject + decoder layers x {tc.num_hidden_layers}...")
-        prefill_position_ids = np.broadcast_to(
-            np.arange(prompt_length, dtype=np.int64)[None, None, :],
-            (3, 1, prompt_length),
-        ).copy()
-        prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
         with rt.frame("spike.text.prefill"):
-            rt.register_inputs(
-                {
-                    model_tensors().position_ids: prefill_position_ids,
-                    model_tensors().audio_inject.audio_positions: preprocessed["audio_positions"],
-                    model_tensors().text_layers[0].cache_position: prefill_cache_position,
-                }
-            )
             run_embed_tokens(rt)
             run_audio_inject(rt)
             for layer_idx in range(len(model_tensors().text_layers)):

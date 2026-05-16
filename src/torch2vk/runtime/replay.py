@@ -328,7 +328,7 @@ def stage_replay_step_inputs(
                 plan.in_place_staging_rebound = True
             return
 
-        rt.register_inputs(inputs)
+        rt.register_host_inputs(inputs)
         for tensor in write_through:
             value = inputs.get(tensor)
             if value is None:

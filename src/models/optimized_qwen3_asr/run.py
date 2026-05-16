@@ -208,6 +208,7 @@ def main(
     wav_path: str | Path | np.ndarray = Path("tests/fixtures/qwen3_asr_asknot.wav"),
     language: str | None = "English",
     profile_dir: str | Path | None = None,
+    rt: RuntimeSession | None = None,
 ) -> str:
     if max_new_tokens != _MAX_NEW_TOKENS:
         raise ValueError(f"optimized_qwen3_asr is generated for max_new_tokens={_MAX_NEW_TOKENS}")
@@ -283,18 +284,32 @@ def main(
         eos_token_count=len(eos_token_ids),
         vocab_size=int(tc.vocab_size),
     )
-    rt = RuntimeSession.open(
-        device_index=0,
-        model_dir=gguf_path.parent,
-        profile_dir=profile_dir,
-        model_tensors=model_tensors(),
-        get_shader=get_shader,
-    )
+    owns_runtime = rt is None
+    if rt is None:
+        rt = RuntimeSession.open(
+            device_index=0,
+            model_dir=gguf_path.parent,
+            profile_dir=profile_dir,
+            model_tensors=model_tensors(),
+            get_shader=get_shader,
+        )
+    else:
+        if rt.model_dir != gguf_path.parent.resolve():
+            raise ValueError(
+                f"provided RuntimeSession model_dir must be {gguf_path.parent.resolve()}, "
+                f"got {rt.model_dir}"
+            )
+        rt.bind_model_tensors(model_tensors())
     rt.register_session_tensors({model_tensors().eos_token_ids: eos_token_array})
     zero_cache = np.zeros(
         (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
         dtype=np.float16,
     )
+    prefill_position_ids = np.broadcast_to(
+        np.arange(prompt_length, dtype=np.int64)[None, None, :],
+        (3, 1, prompt_length),
+    ).copy()
+    prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
     with rt.request(
         inputs={
             "input_ids": np.ascontiguousarray(prepared.input_ids, dtype=np.int64),
@@ -304,6 +319,17 @@ def main(
                 prepared.feature_attention_mask,
                 dtype=np.int64,
             ),
+            model_tensors().audio_encoder.x.name: as_float16_array(preprocessed["padded_feature"]),
+            model_tensors().audio_encoder.position_embedding.name: as_float16_array(
+                preprocessed["position_embedding"]
+            ),
+            model_tensors().audio_encoder.compact_index.name: preprocessed["compact_index"],
+            model_tensors().audio_encoder.attention_mask.name: as_float16_attention_mask(
+                preprocessed["audio_attention_mask"]
+            ),
+            model_tensors().position_ids.name: prefill_position_ids,
+            model_tensors().audio_inject.audio_positions.name: preprocessed["audio_positions"],
+            model_tensors().text_layers[0].cache_position.name: prefill_cache_position,
         },
         state={
             **{
@@ -320,18 +346,6 @@ def main(
         print("\n=== Phase 1: Audio Tower ===")
         print(f"  hidden_states after compact: {model_tensors().audio_encoder.index_select.spec.shape}")
         print(f"  audio encoder ({model_tensors().audio_encoder.x.spec.shape})...")
-        rt.register_inputs(
-            {
-                model_tensors().audio_encoder.x: as_float16_array(preprocessed["padded_feature"]),
-                model_tensors().audio_encoder.position_embedding: as_float16_array(
-                    preprocessed["position_embedding"]
-                ),
-                model_tensors().audio_encoder.compact_index: preprocessed["compact_index"],
-                model_tensors().audio_encoder.attention_mask: as_float16_attention_mask(
-                    preprocessed["audio_attention_mask"]
-                ),
-            }
-        )
         with rt.frame("spike.audio"):
             run_audio_encoder(rt)
         _require_gpu_output(model_tensors().audio_encoder.linear_110)
@@ -357,19 +371,7 @@ def main(
 
         # Embedding, audio injection, and decoder layers stay on GPU.
         print(f"  embed + audio inject + decoder layers x {tc.num_hidden_layers}...")
-        prefill_position_ids = np.broadcast_to(
-            np.arange(prompt_length, dtype=np.int64)[None, None, :],
-            (3, 1, prompt_length),
-        ).copy()
-        prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
         with rt.frame("spike.text.prefill"):
-            rt.register_inputs(
-                {
-                    model_tensors().position_ids: prefill_position_ids,
-                    model_tensors().audio_inject.audio_positions: preprocessed["audio_positions"],
-                    model_tensors().text_layers[0].cache_position: prefill_cache_position,
-                }
-            )
             run_embed_tokens(rt)
             run_audio_inject(rt)
             for layer_idx in range(len(model_tensors().text_layers) - 1):
@@ -498,7 +500,8 @@ def main(
         )[0]
         print(f"Transcription: {text}")
 
-    rt.close()
+    if owns_runtime:
+        rt.close()
     return text
 
 

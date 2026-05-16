@@ -26,7 +26,7 @@ def quantize_q8_0_vulkan(rt: RuntimeSession, array: np.ndarray, *, name: str) ->
     source = _source_tensor(name, array.shape)
     blocks_per_row = array.shape[1] // 32
     packed = _output_tensor(f"{name}.q8_0", "uint16", (array.shape[0], blocks_per_row * 17))
-    rt.register_inputs({source: np.ascontiguousarray(array, dtype=np.float32)})
+    rt.register_host_inputs({source: np.ascontiguousarray(array, dtype=np.float32)})
     with rt.frame(f"gguf_quantize.q8_0.{name}"):
         GGUF_QUANTIZE_Q8_0_F32(rt, x=source, output=packed)
         words = rt.readback(packed)
@@ -37,7 +37,7 @@ def quantize_q4_k_vulkan(rt: RuntimeSession, array: np.ndarray, *, name: str) ->
     source = _source_tensor(name, array.shape)
     blocks_per_row = array.shape[1] // 256
     packed = _output_tensor(f"{name}.q4_k", "uint32", (array.shape[0], blocks_per_row * 36))
-    rt.register_inputs({source: np.ascontiguousarray(array, dtype=np.float32)})
+    rt.register_host_inputs({source: np.ascontiguousarray(array, dtype=np.float32)})
     with rt.frame(f"gguf_quantize.q4_k.{name}"):
         GGUF_QUANTIZE_Q4_K_F32(rt, x=source, output=packed)
         words = rt.readback(packed)
@@ -48,7 +48,7 @@ def quantize_q6_k_vulkan(rt: RuntimeSession, array: np.ndarray, *, name: str) ->
     source = _source_tensor(name, array.shape)
     blocks_per_row = array.shape[1] // 256
     packed = _output_tensor(f"{name}.q6_k", "uint16", (array.shape[0], blocks_per_row * 105))
-    rt.register_inputs({source: np.ascontiguousarray(array, dtype=np.float32)})
+    rt.register_host_inputs({source: np.ascontiguousarray(array, dtype=np.float32)})
     with rt.frame(f"gguf_quantize.q6_k.{name}"):
         GGUF_QUANTIZE_Q6_K_F32(rt, x=source, output=packed)
         halfwords = rt.readback(packed)

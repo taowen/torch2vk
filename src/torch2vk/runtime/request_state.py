@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from torch2vk.runtime.session import RuntimeSession
 
 
-def initialize_request_state(
+def _initialize_request_state(
     rt: RuntimeSession,
     states: Mapping[LogicalTensor, object],
 ) -> None:
