@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import os
 import time
+from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -64,6 +66,34 @@ get_shader = make_shader_loader(
     extra_variants=(ROPE_TABLE_F32,),
 )
 _REPLAY_SOURCE_DIGEST = source_tree_digest(__file__)
+
+
+@dataclass(frozen=True, slots=True)
+class _ModelResources:
+    model_dir: Path
+    gguf_path: Path
+    config: Qwen3ASRConfig
+
+
+@lru_cache(maxsize=1)
+def _model_resources() -> _ModelResources:
+    model_dir = Path(resolve_cached_model(REPO_ID))
+    gguf_path = export_qwen3_asr_q4_k_m_gguf(model_dir=model_dir)
+    config_payload = (model_dir / "config.json").read_text()
+
+    devnull = open(os.devnull, "w")
+    stdout_fd, stderr_fd = os.dup(1), os.dup(2)
+    os.dup2(devnull.fileno(), 1)
+    os.dup2(devnull.fileno(), 2)
+    try:
+        config = Qwen3ASRConfig(**json.loads(config_payload))
+    finally:
+        os.dup2(stdout_fd, 1)
+        os.dup2(stderr_fd, 2)
+        os.close(stdout_fd)
+        os.close(stderr_fd)
+        devnull.close()
+    return _ModelResources(model_dir=model_dir, gguf_path=gguf_path, config=config)
 
 
 def _require_gpu_output(tensor: LogicalTensor) -> None:
@@ -217,23 +247,11 @@ def main(
         raise FileNotFoundError(f"Wav not found at {resolved_wav_path}")
 
     print("Preparing inputs...")
-    model_dir = resolve_cached_model(REPO_ID)
-    gguf_path = export_qwen3_asr_q4_k_m_gguf(model_dir=model_dir)
+    resources = _model_resources()
+    model_dir = resources.model_dir
+    gguf_path = resources.gguf_path
     replay_cache_namespace = _decode_replay_cache_namespace(gguf_path.parent)
-    config_payload = (Path(model_dir) / "config.json").read_text()
-
-    devnull = open(os.devnull, "w")
-    stdout_fd, stderr_fd = os.dup(1), os.dup(2)
-    os.dup2(devnull.fileno(), 1)
-    os.dup2(devnull.fileno(), 2)
-    try:
-        config = Qwen3ASRConfig(**json.loads(config_payload))
-    finally:
-        os.dup2(stdout_fd, 1)
-        os.dup2(stderr_fd, 2)
-        os.close(stdout_fd)
-        os.close(stderr_fd)
-        devnull.close()
+    config = resources.config
 
     ac = config.thinker_config.audio_config
     tc = config.thinker_config.text_config

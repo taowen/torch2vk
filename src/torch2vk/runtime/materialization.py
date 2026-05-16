@@ -167,11 +167,25 @@ def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOK
 
 
 def materialize_weight(rt: RuntimeSession, tensor: LogicalTensor) -> None:
+    if tensor.buffer is not None:
+        return
     tensor.validate_declaration()
     checkpoint = resolve_weight_checkpoint(rt, tensor)
     tensor_key = tensor.checkpoint_key
     if not tensor_key:
         raise RuntimeError(f"{tensor.name} is a weight tensor but checkpoint_key is not set")
+    cached = rt._cached_weight(
+        tensor_key=tensor_key,
+        checkpoint=checkpoint,
+        spec=tensor.spec,
+        layout=tensor.layout,
+    )
+    if cached is not None:
+        with tensor.runtime_write_scope():
+            tensor.buffer = cached.buffer
+            tensor.descriptor_nbytes = cached.descriptor_nbytes
+            tensor.alias_source = None
+        return
     checkpoint_tensor = CheckpointTensor.open(
         storage=rt._checkpoint_storage(checkpoint),
         tensor_key=tensor_key,
@@ -185,7 +199,15 @@ def materialize_weight(rt: RuntimeSession, tensor: LogicalTensor) -> None:
     with tensor.runtime_write_scope():
         tensor.buffer = slice_
         tensor.descriptor_nbytes = slice_.nbytes
-    rt._model_allocations.append(allocation)
+    rt._cache_weight(
+        tensor_key=tensor_key,
+        checkpoint=checkpoint,
+        spec=tensor.spec,
+        layout=tensor.layout,
+        buffer=slice_,
+        descriptor_nbytes=slice_.nbytes,
+        allocation=allocation,
+    )
 
 
 def resolve_weight_checkpoint(rt: RuntimeSession, tensor: LogicalTensor) -> Path:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING
@@ -33,10 +34,19 @@ from torch2vk.runtime.shader import (
 from torch2vk.vulkan.allocation import BufferAllocation, BufferSlice
 from torch2vk.vulkan.compute_pipeline import ComputePipeline
 from torch2vk.vulkan.device import VulkanDevice
-from torch2vk.vulkan.types import tensor_nbytes
+from torch2vk.vulkan.types import TensorLayout, TensorSpec, tensor_nbytes
 
 if TYPE_CHECKING:
     from torch2vk.runtime.replay import ReplayPlan
+
+
+@dataclass(frozen=True, slots=True)
+class _CachedWeight:
+    checkpoint: Path
+    spec: TensorSpec
+    layout: TensorLayout
+    buffer: BufferSlice
+    descriptor_nbytes: int
 
 
 def _request_input_tensor(
@@ -84,6 +94,7 @@ class RuntimeSession:
         self._pipeline_cache: dict[tuple[object, ...], ComputePipeline] = {}
         self._replay_plan_cache: dict[str, list[ReplayPlan]] = {}
         self._checkpoint_storage_cache: dict[Path, SafetensorsMmap | GGUFMmap] = {}
+        self._weight_cache: dict[str, _CachedWeight] = {}
 
         self._model_allocations: list[BufferAllocation] = []
         self._request_allocations: list[BufferAllocation] = []
@@ -219,18 +230,19 @@ class RuntimeSession:
         self._require_open()
         if self._request_active:
             raise RuntimeError("RuntimeSession.bind_model_tensors cannot run inside rt.request(...)")
+        if model_tensors is self._model_tensors:
+            return
         self._close_replay_plan_cache()
         if self._model_tensors is not None:
             for tensor in collect_named_logical_tensors(self._model_tensors).values():
                 if tensor.memory in {MemoryClass.MODEL_WEIGHT, MemoryClass.SESSION_TENSOR}:
+                    if tensor.memory is MemoryClass.SESSION_TENSOR and tensor.buffer is not None:
+                        tensor.buffer.allocation.close()
                     with tensor.runtime_write_scope():
                         tensor.buffer = None
                         tensor.descriptor_nbytes = None
                         tensor.writer = None
                         tensor.alias_source = None
-        for allocation in reversed(self._model_allocations):
-            allocation.close()
-        self._model_allocations.clear()
         collect_named_logical_tensors(model_tensors)
         self._model_tensors = model_tensors
 
@@ -346,6 +358,7 @@ class RuntimeSession:
         for allocation in reversed(self._model_allocations):
             allocation.close()
         self._model_allocations.clear()
+        self._weight_cache.clear()
         for storage in self._checkpoint_storage_cache.values():
             storage.close()
         self._checkpoint_storage_cache.clear()
@@ -412,6 +425,47 @@ class RuntimeSession:
         from torch2vk.runtime.materialization import materialize_weight
 
         materialize_weight(self, tensor)
+
+    def _cached_weight(
+        self,
+        *,
+        tensor_key: str,
+        checkpoint: Path,
+        spec: TensorSpec,
+        layout: TensorLayout,
+    ) -> _CachedWeight | None:
+        cached = self._weight_cache.get(tensor_key)
+        if cached is None:
+            return None
+        if cached.checkpoint != checkpoint or cached.spec != spec or cached.layout != layout:
+            raise RuntimeError(
+                f"cached weight {tensor_key!r} was declared with incompatible metadata"
+            )
+        if cached.buffer.allocation.released:
+            raise RuntimeError(f"cached weight {tensor_key!r} points to a released allocation")
+        return cached
+
+    def _cache_weight(
+        self,
+        *,
+        tensor_key: str,
+        checkpoint: Path,
+        spec: TensorSpec,
+        layout: TensorLayout,
+        buffer: BufferSlice,
+        descriptor_nbytes: int,
+        allocation: BufferAllocation,
+    ) -> None:
+        if tensor_key in self._weight_cache:
+            raise RuntimeError(f"cached weight {tensor_key!r} already exists")
+        self._weight_cache[tensor_key] = _CachedWeight(
+            checkpoint=checkpoint,
+            spec=spec,
+            layout=layout,
+            buffer=buffer,
+            descriptor_nbytes=descriptor_nbytes,
+        )
+        self._model_allocations.append(allocation)
 
     def _resolve_weight_checkpoint(self, tensor: LogicalTensor) -> Path:
         from torch2vk.runtime.materialization import resolve_weight_checkpoint

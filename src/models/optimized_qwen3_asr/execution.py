@@ -4,11 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Protocol, TypeGuard
 
 import numpy as np
 import numpy.typing as npt
+from qwen_asr.core.transformers_backend.processing_qwen3_asr import Qwen3ASRProcessor
+from qwen_asr.inference.utils import (
+    normalize_audios,
+    normalize_language_name,
+    validate_language,
+)
 
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.pytorch.example import REPO_ID
@@ -79,17 +86,8 @@ def prepare_qwen3_asr_inputs(
     language: str | None = "English",
     context: str = "",
 ) -> tuple[Qwen3AsrProcessorLike, Qwen3AsrPreparedInputs]:
-    from qwen_asr.core.transformers_backend.processing_qwen3_asr import Qwen3ASRProcessor
-    from qwen_asr.inference.utils import (
-        normalize_audios,
-        normalize_language_name,
-        validate_language,
-    )
-
     resolved_model_dir = resolve_cached_model(REPO_ID, model_dir)
-    processor = _Qwen3AsrProcessorAdapter(
-        Qwen3ASRProcessor.from_pretrained(str(resolved_model_dir), fix_mistral_regex=True)
-    )
+    processor = _cached_processor(str(resolved_model_dir))
     force_language = _normalize_optional_language(
         language,
         normalize_language_name=normalize_language_name,
@@ -112,6 +110,13 @@ def prepare_qwen3_asr_inputs(
         attention_mask=_to_numpy(batch["attention_mask"], dtype=np.int64),
         input_features=_to_numpy(batch["input_features"], dtype=np.float32),
         feature_attention_mask=_to_numpy(batch["feature_attention_mask"], dtype=np.int64),
+    )
+
+
+@lru_cache(maxsize=2)
+def _cached_processor(resolved_model_dir: str) -> Qwen3AsrProcessorLike:
+    return _Qwen3AsrProcessorAdapter(
+        Qwen3ASRProcessor.from_pretrained(resolved_model_dir, fix_mistral_regex=True)
     )
 
 
