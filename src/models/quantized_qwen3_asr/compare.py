@@ -271,13 +271,12 @@ def _run_decode_step_with_compare(
     rt: RuntimeSession,
     *,
     step: int,
-    cache_position: np.ndarray,
+    cache_position: int,
     eos_token_ids: np.ndarray,
-    token_index: np.ndarray,
+    token_index: int,
     refs: _QwenCompareReferences,
 ) -> int:
     tensors = model_tensors()
-    cache_position_value = int(cache_position.reshape(-1)[0])
     decode_input = _vulkan_request_state(rt, tensors.next_token).astype(np.int64, copy=False)
     with rt.frame(f"spike.decode.{step:04d}"):
         run_decode_embed(rt)
@@ -292,7 +291,7 @@ def _run_decode_step_with_compare(
         for layer_idx in range(len(tensors.decode_layers)):
             key_cache_before = _vulkan_request_state(rt, tensors.key_caches[layer_idx])
             value_cache_before = _vulkan_request_state(rt, tensors.value_caches[layer_idx])
-            run_decode_layer(rt, layer_idx, cache_position=cache_position_value)
+            run_decode_layer(rt, layer_idx, cache_position=cache_position)
             reference.run_decode_layer(
                 rt,
                 refs.decode_layers[layer_idx],
@@ -327,7 +326,7 @@ def _run_decode_step_with_compare(
         QWEN3_ASR_TOKEN_STORE_EOS(
             rt,
             next_token=tensors.next_token,
-            token_index=int(token_index.reshape(-1)[0]),
+            token_index=token_index,
             done=tensors.done,
             generated_tokens=tensors.generated_tokens,
             generated_length=tensors.generated_length,
@@ -608,7 +607,7 @@ def compare_decode_steps(
         frame_name="spike.text.token_store",
         refs=compare_refs,
         next_token=_vulkan_request_state(rt, model_tensors().next_token),
-        token_index=np.array([0], dtype=np.int64),
+        token_index=0,
         done=_vulkan_request_state(rt, model_tensors().done),
         generated_tokens=generated_tokens_before,
         generated_length=generated_length_before,
@@ -640,9 +639,9 @@ def compare_decode_steps(
         next_token = _run_decode_step_with_compare(
             rt,
             step=step,
-            cache_position=np.array([cache_pos], dtype=np.int64),
+            cache_position=cache_pos,
             eos_token_ids=eos_token_array,
-            token_index=np.array([step + 1], dtype=np.int64),
+            token_index=step + 1,
             refs=compare_refs,
         )
         generated_tokens.append(next_token)

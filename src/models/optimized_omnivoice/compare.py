@@ -266,8 +266,6 @@ def _run_generation_step_with_compare(
 
         step_index = torch.tensor([step], dtype=torch.int64, device="cuda")
         tokens = _vulkan_tensor(rt, model_tensors().tokens).long()
-        active_target_len_t = np.array([active_target_len], dtype=np.uint32)
-        cond_target_start_t = np.array([cond_target_start], dtype=np.uint32)
         _run_token_score(
             rt,
             step=step,
@@ -284,11 +282,11 @@ def _run_generation_step_with_compare(
             step=step,
             logits=logits,
             tokens=tokens,
-            audio_mask_id=np.array([audio_mask_id], dtype=np.int64),
+            audio_mask_id=audio_mask_id,
             rng_seed=np.array([rng_seed], dtype=np.uint32),
             step_index=step_index,
-            active_target_len=active_target_len_t,
-            cond_target_start=cond_target_start_t,
+            active_target_len=active_target_len,
+            cond_target_start=cond_target_start,
         )
         candidate_tokens = _vulkan_tensor(rt, model_tensors().candidate_tokens).long()
         candidate_scores = _vulkan_tensor(rt, model_tensors().candidate_scores).float()
@@ -311,8 +309,8 @@ def _run_generation_step_with_compare(
             candidate_tokens=candidate_tokens,
             candidate_scores=candidate_scores,
             unmask_count=unmask_count_t,
-            active_target_len=active_target_len_t,
-            cond_target_start=cond_target_start_t,
+            active_target_len=active_target_len,
+            cond_target_start=cond_target_start,
         )
 
 

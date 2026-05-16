@@ -122,7 +122,7 @@ def _run_generation_step_with_compare(
             step=step,
             logits=logits,
             tokens=tokens,
-            audio_mask_id=np.array([audio_mask_id], dtype=np.int64),
+            audio_mask_id=audio_mask_id,
             rng_seed=np.array([rng_seed], dtype=np.uint32),
             step_index=step_index,
         )

@@ -17,7 +17,7 @@ from torch2vk.runtime.pytorch_debug import compare_expected
 from torch2vk.runtime.session import RuntimeSession
 
 
-ReferenceInput = np.ndarray | torch.Tensor
+ReferenceInput = np.ndarray | torch.Tensor | int
 ReferenceExpected = dict[str, object]
 
 _COMPARE_POLICIES = {
@@ -102,7 +102,7 @@ def _execute_and_compare(
 ) -> ReferenceExpected:
     expected = _execute_reference(
         reference=reference,
-        inputs={key: as_numpy_array(value) for key, value in inputs.items()},
+        inputs={key: _reference_input_array(value) for key, value in inputs.items()},
         output_bindings=output_bindings,
     )
     compare_expected(
@@ -136,6 +136,12 @@ def _execute_reference(
             output = output[0]
         return {_single_output_name(output_bindings): output}
     return reference.execute(inputs)
+
+
+def _reference_input_array(value: ReferenceInput) -> np.ndarray:
+    if isinstance(value, int):
+        return np.asarray([value], dtype=np.int64)
+    return as_numpy_array(value)
 
 
 def _reference_arg(value: np.ndarray, float_dtype: torch.dtype | None) -> torch.Tensor:

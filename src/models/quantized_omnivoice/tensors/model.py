@@ -133,22 +133,14 @@ def _weight_tensor(
     layout: TensorLayout = CONTIGUOUS_LAYOUT
     if quantized_layout is not None:
         if shape[1] % quantized_layout.block_size != 0:
-            raise ValueError(
-                f"Quantized weight {checkpoint_key} requires K divisible by {quantized_layout.block_size}"
-            )
+            raise ValueError(f"Quantized weight {checkpoint_key} requires K divisible by {quantized_layout.block_size}")
         layout = quantized_layout
         if isinstance(quantized_layout, Q4KWordsLayout):
             dtype = "uint32"
-            shape = (
-                shape[0],
-                shape[1] // quantized_layout.block_size * quantized_layout.words_per_block,
-            )
+            shape = (shape[0], shape[1] // quantized_layout.block_size * quantized_layout.words_per_block)
         elif isinstance(quantized_layout, Q8_0HalfwordsLayout):
             dtype = "uint16"
-            shape = (
-                shape[0],
-                shape[1] // quantized_layout.block_size * quantized_layout.halfwords_per_block,
-            )
+            shape = (shape[0], shape[1] // quantized_layout.block_size * quantized_layout.halfwords_per_block)
     return LogicalTensor(
         spec=TensorSpec(dtype=dtype, shape=shape),
         role=TensorRole.WEIGHT,
