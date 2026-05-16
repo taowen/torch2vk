@@ -34,7 +34,6 @@ class QuantizedOmniVoiceTensors:
     batch_input_ids: LogicalTensor
     batch_audio_mask: LogicalTensor
     attention_mask: LogicalTensor
-    audio_mask_id: LogicalTensor
     active_target_len: LogicalTensor
     cond_target_start: LogicalTensor
     tokens: LogicalTensor
@@ -65,7 +64,6 @@ def create_model_tensors() -> QuantizedOmniVoiceTensors:
     batch_input_ids = _state_tensor("int64", (2, 8, SEQ_CAPACITY))
     batch_audio_mask = _state_tensor("uint32", (2, SEQ_CAPACITY))
     attention_mask = _state_tensor("float16", (2, 1, SEQ_CAPACITY, SEQ_CAPACITY))
-    audio_mask_id = _state_tensor("int64", (1,))
     active_target_len = _state_tensor("uint32", (1,))
     cond_target_start = _state_tensor("uint32", (1,))
     tokens = _state_tensor("int64", (1, 8, TARGET_CAPACITY))
@@ -106,7 +104,6 @@ def create_model_tensors() -> QuantizedOmniVoiceTensors:
         batch_input_ids=batch_input_ids,
         batch_audio_mask=batch_audio_mask,
         attention_mask=attention_mask,
-        audio_mask_id=audio_mask_id,
         active_target_len=active_target_len,
         cond_target_start=cond_target_start,
         tokens=tokens,

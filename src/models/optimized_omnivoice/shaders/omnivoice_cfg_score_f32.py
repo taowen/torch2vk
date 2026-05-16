@@ -54,12 +54,6 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
                 ),
             ),
             TensorFieldSpec(
-                name="audio_mask_id",
-                io_kind=IOKind.INPUT,
-                role="mask_id",
-                contract=TensorContract(dtype="int64", shape=(1,)),
-            ),
-            TensorFieldSpec(
                 name="active_target_len",
                 io_kind=IOKind.INPUT,
                 role="active_target_len",
@@ -97,7 +91,7 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=36,
+            size=40,
             fields=(
                 PushConstantFieldSpec("S", PushConstantType.UINT32, 0, "S", dynamic=False),
                 PushConstantFieldSpec("C", PushConstantType.UINT32, 4, "C", dynamic=False),
@@ -126,6 +120,13 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
                     PushConstantInput("rng_seed"),
                     dynamic=False,
                 ),
+                PushConstantFieldSpec(
+                    "audio_mask_id",
+                    PushConstantType.UINT32,
+                    36,
+                    PushConstantInput("audio_mask_id"),
+                    dynamic=False,
+                ),
             ),
         ),
         params_buffer=None,
@@ -151,23 +152,19 @@ layout(set = 0, binding = 1) buffer restrict readonly TokensBuffer {
     int64_t tokens[];
 };
 
-layout(set = 0, binding = 2) buffer restrict readonly AudioMaskIdBuffer {
-    int64_t audio_mask_id[];
-};
-
-layout(set = 0, binding = 3) buffer restrict readonly ActiveTargetLenBuffer {
+layout(set = 0, binding = 2) buffer restrict readonly ActiveTargetLenBuffer {
     uint active_target_len[];
 };
 
-layout(set = 0, binding = 4) buffer restrict readonly CondTargetStartBuffer {
+layout(set = 0, binding = 3) buffer restrict readonly CondTargetStartBuffer {
     uint cond_target_start[];
 };
 
-layout(set = 0, binding = 5) buffer restrict writeonly CandidateTokensBuffer {
+layout(set = 0, binding = 4) buffer restrict writeonly CandidateTokensBuffer {
     int64_t candidate_tokens[];
 };
 
-layout(set = 0, binding = 6) buffer restrict writeonly CandidateScoresBuffer {
+layout(set = 0, binding = 5) buffer restrict writeonly CandidateScoresBuffer {
     float candidate_scores[];
 };
 
@@ -181,6 +178,7 @@ layout(push_constant) uniform PushConstants {
     float position_temperature;
     uint step_index;
     uint rng_seed;
+    uint audio_mask_id;
 } pc;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -226,7 +224,7 @@ void main() {
 
     const uint codebook = flat_pos / pc.T;
     const uint target = flat_pos - codebook * pc.T;
-    const uint mask_token = uint(audio_mask_id[0]);
+    const uint mask_token = pc.audio_mask_id;
     if (target >= active_target_len[0]) {
         candidate_tokens[flat_pos] = int64_t(mask_token);
         candidate_scores[flat_pos] = -3.4028234663852886e+38;
@@ -278,7 +276,7 @@ void main() {
         const uint active_flat_pos = codebook * active_target_len[0] + target;
         confidence = confidence / pc.position_temperature + gumbel_noise(active_flat_pos);
     }
-    if (tokens[flat_pos] != audio_mask_id[0]) {
+    if (tokens[flat_pos] != int64_t(pc.audio_mask_id)) {
         confidence = -3.4028234663852886e+38;
     }
     candidate_tokens[flat_pos] = int64_t(best_token);
