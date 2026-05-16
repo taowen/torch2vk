@@ -38,6 +38,16 @@ if TYPE_CHECKING:
     from torch2vk.runtime.replay import ReplayPlan
 
 
+def _request_input_tensor(
+    tensors: Mapping[str, LogicalTensor],
+    name: str,
+) -> LogicalTensor:
+    tensor = tensors.get(name)
+    if tensor is None:
+        raise KeyError(f"request input {name!r} is not a named model tensor")
+    return tensor
+
+
 class RuntimeSession:
     """The single runtime owner for LogicalTensor materialization and shader dispatch."""
 
@@ -65,6 +75,7 @@ class RuntimeSession:
         self._model_tensors = model_tensors
         self._get_shader = get_shader
         self._inputs: dict[LogicalTensor, object] = {}
+        self._request_active = False
         self._frame_stack: list[FrameContext] = []
         self._frame_history: dict[str, FrameContext] = {}
         self._dispatch_records: list[DispatchRecord] = []
@@ -133,6 +144,31 @@ class RuntimeSession:
             self._inputs[tensor] = value
             self._invalidate_input_materialization(tensor)
             self._record_frame_input(tensor)
+
+    @contextmanager
+    def request(self, **inputs: object):
+        """Start a request scope and optionally register host inputs for it.
+
+        Request keyword names are resolved against RuntimeSession.model_tensors by
+        LogicalTensor.name, then registered with register_inputs().
+        This scope does not release or reset request state yet.
+        """
+        self._require_open()
+        if self._request_active:
+            raise RuntimeError("RuntimeSession.request cannot be nested")
+        self._request_active = True
+        try:
+            if inputs:
+                tensors = self._named_model_tensors()
+                self.register_inputs(
+                    {
+                        _request_input_tensor(tensors, name): value
+                        for name, value in inputs.items()
+                    }
+                )
+            yield self
+        finally:
+            self._request_active = False
 
     def register_session_tensors(self, tensors: Mapping[LogicalTensor, object]) -> None:
         self._require_open()

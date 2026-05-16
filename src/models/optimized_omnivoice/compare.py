@@ -370,62 +370,63 @@ def compare_generation_steps(
         get_shader=get_shader,
     )
     try:
-        rt.initialize_request_state(
-            {
-                model_tensors().batch_input_ids: prepared.batch_input_ids,
-                model_tensors().batch_audio_mask: prepared.batch_audio_mask,
-                model_tensors().attention_mask: attention_mask,
-                model_tensors().tokens: tokens,
-            }
-        )
-        _run_rope_table(rt, frame_name="omnivoice.rope")
+        with rt.request():
+            rt.initialize_request_state(
+                {
+                    model_tensors().batch_input_ids: prepared.batch_input_ids,
+                    model_tensors().batch_audio_mask: prepared.batch_audio_mask,
+                    model_tensors().attention_mask: attention_mask,
+                    model_tensors().tokens: tokens,
+                }
+            )
+            _run_rope_table(rt, frame_name="omnivoice.rope")
 
-        timesteps = _get_time_steps(0.0, 1.0, num_steps, t_shift=0.1)
-        total_mask = prepared.target_len * config.num_audio_codebook
-        remaining = total_mask
-        for step in range(num_steps):
-            if step == num_steps - 1:
-                unmask_count = remaining
-            else:
-                unmask_count = min(
-                    math.ceil(total_mask * (timesteps[step + 1] - timesteps[step])),
-                    remaining,
+            timesteps = _get_time_steps(0.0, 1.0, num_steps, t_shift=0.1)
+            total_mask = prepared.target_len * config.num_audio_codebook
+            remaining = total_mask
+            for step in range(num_steps):
+                if step == num_steps - 1:
+                    unmask_count = remaining
+                else:
+                    unmask_count = min(
+                        math.ceil(total_mask * (timesteps[step + 1] - timesteps[step])),
+                        remaining,
+                    )
+                remaining -= int(unmask_count)
+                if unmask_count <= 0:
+                    continue
+                _run_generation_step_with_compare(
+                    rt,
+                    step=step,
+                    unmask_count=int(unmask_count),
+                    rng_seed=rng_seed,
+                    audio_mask_id=config.audio_mask_id,
+                    active_target_len=prepared.target_len,
+                    cond_target_start=prepared.cond_target_start,
+                    refs=refs,
                 )
-            remaining -= int(unmask_count)
-            if unmask_count <= 0:
-                continue
-            _run_generation_step_with_compare(
-                rt,
-                step=step,
-                unmask_count=int(unmask_count),
-                rng_seed=rng_seed,
-                audio_mask_id=config.audio_mask_id,
-                active_target_len=prepared.target_len,
-                cond_target_start=prepared.cond_target_start,
-                refs=refs,
+            generated_tokens = np.ascontiguousarray(
+                rt.read_request_state(model_tensors().tokens)[0, :, : prepared.target_len]
             )
-        generated_tokens = np.ascontiguousarray(
-            rt.read_request_state(model_tensors().tokens)[0, :, : prepared.target_len]
-        )
-        audio_topology = _audio_decode_topology(
-            prepared.target_len,
-            config.num_audio_codebook,
-        )
-        rt.initialize_request_state({audio_topology.audio_codes: generated_tokens[None, :, :]})
-        with rt.frame("omnivoice.audio_decode"):
-            run_audio_decode_with_tensors(rt, audio_topology.tensors)
-            expected = _run_rocm_reference(
-                rt,
-                refs.audio_decode.execute,
-                {"audio_codes": generated_tokens[None, :, :]},
+            audio_topology = _audio_decode_topology(
+                prepared.target_len,
+                config.num_audio_codebook,
             )
-            compare_expected(
-                rt,
-                name="omnivoice.audio_decode",
-                tensors=audio_topology.tensors,
-                output_bindings={"conv1d_31": "conv1d_31"},
-                expected=expected,
-                policy=_AUDIO_DECODE_COMPARE_POLICY,
-            )
+            rt.initialize_request_state({audio_topology.audio_codes: generated_tokens[None, :, :]})
+            with rt.frame("omnivoice.audio_decode"):
+                run_audio_decode_with_tensors(rt, audio_topology.tensors)
+                expected = _run_rocm_reference(
+                    rt,
+                    refs.audio_decode.execute,
+                    {"audio_codes": generated_tokens[None, :, :]},
+                )
+                compare_expected(
+                    rt,
+                    name="omnivoice.audio_decode",
+                    tensors=audio_topology.tensors,
+                    output_bindings={"conv1d_31": "conv1d_31"},
+                    expected=expected,
+                    policy=_AUDIO_DECODE_COMPARE_POLICY,
+                )
     finally:
         rt.close()

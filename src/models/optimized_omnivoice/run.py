@@ -548,34 +548,35 @@ def main(
     )
     rt = runtime.rt
 
-    _run_rope_table(rt, frame_name="omnivoice.rope")
+    with rt.request():
+        _run_rope_table(rt, frame_name="omnivoice.rope")
 
-    generated_chunks: list[_GeneratedChunk] = []
-    first_chunk_tokens: np.ndarray | None = None
-    first_chunk_text: str | None = None
-    for chunk_idx, chunk in enumerate(text_chunks):
-        print(f"\n=== Chunk {chunk_idx + 1}/{len(text_chunks)} ===")
-        prepared = prepare_omnivoice_inputs(
-            text=chunk.text,
-            tokenizer=text_tokenizer,
-            config=config,
-            ref_text=first_chunk_text,
-            ref_audio_tokens=first_chunk_tokens,
-            seq_capacity=SEQ_CAPACITY,
-            target_capacity=TARGET_CAPACITY,
-        )
-        generated = _run_prepared_chunk(
-            rt,
-            runtime,
-            text=chunk.text,
-            prepared=prepared,
-            config=config,
-            num_steps=num_steps,
-        )
-        generated_chunks.append(generated)
-        if first_chunk_tokens is None:
-            first_chunk_tokens = generated.tokens
-            first_chunk_text = generated.text
+        generated_chunks: list[_GeneratedChunk] = []
+        first_chunk_tokens: np.ndarray | None = None
+        first_chunk_text: str | None = None
+        for chunk_idx, chunk in enumerate(text_chunks):
+            print(f"\n=== Chunk {chunk_idx + 1}/{len(text_chunks)} ===")
+            prepared = prepare_omnivoice_inputs(
+                text=chunk.text,
+                tokenizer=text_tokenizer,
+                config=config,
+                ref_text=first_chunk_text,
+                ref_audio_tokens=first_chunk_tokens,
+                seq_capacity=SEQ_CAPACITY,
+                target_capacity=TARGET_CAPACITY,
+            )
+            generated = _run_prepared_chunk(
+                rt,
+                runtime,
+                text=chunk.text,
+                prepared=prepared,
+                config=config,
+                num_steps=num_steps,
+            )
+            generated_chunks.append(generated)
+            if first_chunk_tokens is None:
+                first_chunk_tokens = generated.tokens
+                first_chunk_text = generated.text
 
     if runtime.profile_dir is not None:
         runtime.close()

@@ -326,70 +326,72 @@ def main(
         input_ids=prepared.input_ids,
         prompt_length=prompt_length,
     )
-    prefill_start = time.perf_counter()
-    if prefill_replay_plan is None:
-        rt.register_inputs(prefill_inputs)
-        _run_prefill(rt, rope_theta=rope_theta)
-        prefill_replay_plan = _build_replay_plan(
-            rt,
-            name="quantized_qwen3_prefill",
-            frame="qwen3.prefill",
-            cache_namespace=prefill_cache_namespace,
-        )
-    else:
-        stage_replay_step_inputs(
-            rt,
-            plan=prefill_replay_plan,
-            inputs=prefill_inputs,
-            write_through=(model_tensors().text_layers[0].cache_position,),
-        )
-        execute_replay(
-            prefill_replay_plan,
-            dynamic_push_constants={"start_position": 0, "token_index": 0},
-        )
-    first_token = _read_selected_token(rt, model_tensors().next_token)
-    prefill_elapsed = time.perf_counter() - prefill_start
-    print(f"  first_token={first_token}, prefill={prefill_elapsed:.3f}s")
-
-    decode_replay_plan = _cached_replay_plan(rt, cache_namespace=decode_cache_namespace)
-    decode_steps = 0
-    decode_start = time.perf_counter()
-    for step in range(max_new_tokens - 1):
-        cache_pos = prompt_length + step
-        if decode_replay_plan is None:
-            _run_decode_step(
+    with rt.request(**{tensor.name: value for tensor, value in prefill_inputs.items()}):
+        prefill_start = time.perf_counter()
+        if prefill_replay_plan is None:
+            _run_prefill(rt, rope_theta=rope_theta)
+            prefill_replay_plan = _build_replay_plan(
                 rt,
-                cache_position=cache_pos,
-                rope_theta=rope_theta,
-                step=step,
-            )
-            decode_replay_plan = _build_replay_plan(
-                rt,
-                name="quantized_qwen3_decode_step",
-                frame=f"qwen3.decode.{step:04d}",
-                cache_namespace=decode_cache_namespace,
+                name="quantized_qwen3_prefill",
+                frame="qwen3.prefill",
+                cache_namespace=prefill_cache_namespace,
             )
         else:
             stage_replay_step_inputs(
                 rt,
-                plan=decode_replay_plan,
-                inputs={},
+                plan=prefill_replay_plan,
+                inputs=prefill_inputs,
+                write_through=(model_tensors().text_layers[0].cache_position,),
             )
             execute_replay(
-                decode_replay_plan,
-                dynamic_push_constants={
-                    "cache_position": cache_pos,
-                    "start_position": cache_pos,
-                    "token_index": step + 1,
-                },
+                prefill_replay_plan,
+                dynamic_push_constants={"start_position": 0, "token_index": 0},
             )
-        decode_steps += 1
+        first_token = _read_selected_token(rt, model_tensors().next_token)
+        prefill_elapsed = time.perf_counter() - prefill_start
+        print(f"  first_token={first_token}, prefill={prefill_elapsed:.3f}s")
 
-    decode_elapsed = time.perf_counter() - decode_start
-    generated_length = int(rt.read_request_state(model_tensors().generated_length).reshape(-1)[0])
-    generated_tokens = rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[
-        :generated_length
-    ]
+        decode_replay_plan = _cached_replay_plan(rt, cache_namespace=decode_cache_namespace)
+        decode_steps = 0
+        decode_start = time.perf_counter()
+        for step in range(max_new_tokens - 1):
+            cache_pos = prompt_length + step
+            if decode_replay_plan is None:
+                _run_decode_step(
+                    rt,
+                    cache_position=cache_pos,
+                    rope_theta=rope_theta,
+                    step=step,
+                )
+                decode_replay_plan = _build_replay_plan(
+                    rt,
+                    name="quantized_qwen3_decode_step",
+                    frame=f"qwen3.decode.{step:04d}",
+                    cache_namespace=decode_cache_namespace,
+                )
+            else:
+                stage_replay_step_inputs(
+                    rt,
+                    plan=decode_replay_plan,
+                    inputs={},
+                )
+                execute_replay(
+                    decode_replay_plan,
+                    dynamic_push_constants={
+                        "cache_position": cache_pos,
+                        "start_position": cache_pos,
+                        "token_index": step + 1,
+                    },
+                )
+            decode_steps += 1
+
+        decode_elapsed = time.perf_counter() - decode_start
+        generated_length = int(
+            rt.read_request_state(model_tensors().generated_length).reshape(-1)[0]
+        )
+        generated_tokens = rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[
+            :generated_length
+        ]
     text = tokenizer.batch_decode(
         np.array([generated_tokens], dtype=np.int64),
         skip_special_tokens=True,

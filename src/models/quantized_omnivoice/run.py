@@ -234,43 +234,54 @@ def main(
         rem -= int(num)
 
     rng_seed = 0x1234ABCD
-    rt.initialize_request_state(
-        {
-            model_tensors().batch_input_ids: batch_input_ids,
-            model_tensors().batch_audio_mask: batch_audio_mask,
-            model_tensors().attention_mask: attn_mask_np,
-            model_tensors().tokens: tokens,
-        }
-    )
+    with rt.request():
+        rt.initialize_request_state(
+            {
+                model_tensors().batch_input_ids: batch_input_ids,
+                model_tensors().batch_audio_mask: batch_audio_mask,
+                model_tensors().attention_mask: attn_mask_np,
+                model_tensors().tokens: tokens,
+            }
+        )
 
-    # Compute RoPE once on GPU (positions are fixed for masked decoding)
-    _run_rope_table(rt, frame_name="omnivoice.rope")
+        # Compute RoPE once on GPU (positions are fixed for masked decoding)
+        _run_rope_table(rt, frame_name="omnivoice.rope")
 
-    unmasked = 0
-    generation_replay_plan: ReplayPlan | None = None
-    for step in range(num_steps):
-        k = schedule[step]
-        if k <= 0:
-            continue
+        unmasked = 0
+        generation_replay_plan: ReplayPlan | None = None
+        for step in range(num_steps):
+            k = schedule[step]
+            if k <= 0:
+                continue
 
-        if generation_replay_plan is None:
-            generation_replay_plan = _cached_generation_replay_plan(
-                rt,
-                cache_namespace=replay_cache_namespace,
-            )
             if generation_replay_plan is None:
-                _run_generation_step(
+                generation_replay_plan = _cached_generation_replay_plan(
                     rt,
-                    step=step,
-                    unmask_count=k,
-                    rng_seed=rng_seed,
-                    audio_mask_id=audio_mask_id,
-                )
-                generation_replay_plan = _build_generation_replay_plan(
-                    rt,
-                    frame=f"omnivoice.step.{step:04d}",
                     cache_namespace=replay_cache_namespace,
                 )
+                if generation_replay_plan is None:
+                    _run_generation_step(
+                        rt,
+                        step=step,
+                        unmask_count=k,
+                        rng_seed=rng_seed,
+                        audio_mask_id=audio_mask_id,
+                    )
+                    generation_replay_plan = _build_generation_replay_plan(
+                        rt,
+                        frame=f"omnivoice.step.{step:04d}",
+                        cache_namespace=replay_cache_namespace,
+                    )
+                else:
+                    execute_replay(
+                        generation_replay_plan,
+                        dynamic_push_constants={
+                            "step_index": step,
+                            "unmask_count": k,
+                            "rng_seed": rng_seed,
+                            "audio_mask_id": audio_mask_id,
+                        },
+                    )
             else:
                 execute_replay(
                     generation_replay_plan,
@@ -281,29 +292,19 @@ def main(
                         "audio_mask_id": audio_mask_id,
                     },
                 )
-        else:
-            execute_replay(
-                generation_replay_plan,
-                dynamic_push_constants={
-                    "step_index": step,
-                    "unmask_count": k,
-                    "rng_seed": rng_seed,
-                    "audio_mask_id": audio_mask_id,
-                },
-            )
-        unmasked += k
+            unmasked += k
 
-        if step % 8 == 0 or step == num_steps - 1:
-            total = num_audio_codebook * target_len
-            print(f"  Step {step}: unmasked {unmasked}/{total} ({100 * unmasked / total:.0f}%)")
+            if step % 8 == 0 or step == num_steps - 1:
+                total = num_audio_codebook * target_len
+                print(f"  Step {step}: unmasked {unmasked}/{total} ({100 * unmasked / total:.0f}%)")
 
-    # Decode audio tokens
-    print("\nDecoding audio tokens...")
-    with rt.frame("omnivoice.audio_decode"):
-        run_audio_decode(rt)
-    waveform = torch.from_numpy(
-        np.ascontiguousarray(rt.read_request_state(model_tensors().audio_decode.conv1d_31)[0])
-    )
+        # Decode audio tokens
+        print("\nDecoding audio tokens...")
+        with rt.frame("omnivoice.audio_decode"):
+            run_audio_decode(rt)
+        waveform = torch.from_numpy(
+            np.ascontiguousarray(rt.read_request_state(model_tensors().audio_decode.conv1d_31)[0])
+        )
     rt.close()
 
     # Save wav

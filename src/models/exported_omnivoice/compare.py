@@ -203,44 +203,45 @@ def compare_generation_steps(
         get_shader=get_shader,
     )
     try:
-        rt.initialize_request_state(
-            {
-                model_tensors().batch_input_ids: prepared.batch_input_ids,
-                model_tensors().batch_audio_mask: prepared.batch_audio_mask,
-                model_tensors().attention_mask: attention_mask,
-                model_tensors().tokens: tokens,
-            }
-        )
-        _run_rope_table(rt, frame_name="omnivoice.rope")
+        with rt.request():
+            rt.initialize_request_state(
+                {
+                    model_tensors().batch_input_ids: prepared.batch_input_ids,
+                    model_tensors().batch_audio_mask: prepared.batch_audio_mask,
+                    model_tensors().attention_mask: attention_mask,
+                    model_tensors().tokens: tokens,
+                }
+            )
+            _run_rope_table(rt, frame_name="omnivoice.rope")
 
-        timesteps = _get_time_steps(0.0, 1.0, num_steps, t_shift=0.1)
-        total_mask = prepared.target_len * config.num_audio_codebook
-        remaining = total_mask
-        for step in range(num_steps):
-            if step == num_steps - 1:
-                unmask_count = remaining
-            else:
-                unmask_count = min(
-                    math.ceil(total_mask * (timesteps[step + 1] - timesteps[step])),
-                    remaining,
+            timesteps = _get_time_steps(0.0, 1.0, num_steps, t_shift=0.1)
+            total_mask = prepared.target_len * config.num_audio_codebook
+            remaining = total_mask
+            for step in range(num_steps):
+                if step == num_steps - 1:
+                    unmask_count = remaining
+                else:
+                    unmask_count = min(
+                        math.ceil(total_mask * (timesteps[step + 1] - timesteps[step])),
+                        remaining,
+                    )
+                remaining -= int(unmask_count)
+                if unmask_count <= 0:
+                    continue
+                _run_generation_step_with_compare(
+                    rt,
+                    step=step,
+                    unmask_count=int(unmask_count),
+                    rng_seed=rng_seed,
+                    audio_mask_id=config.audio_mask_id,
+                    refs=refs,
                 )
-            remaining -= int(unmask_count)
-            if unmask_count <= 0:
-                continue
-            _run_generation_step_with_compare(
-                rt,
-                step=step,
-                unmask_count=int(unmask_count),
-                rng_seed=rng_seed,
-                audio_mask_id=config.audio_mask_id,
-                refs=refs,
-            )
-        with rt.frame("omnivoice.audio_decode"):
-            run_audio_decode(rt)
-            reference.run_audio_decode(
-                rt,
-                refs.audio_decode,
-                audio_codes=_vulkan_tensor(rt, model_tensors().tokens).long(),
-            )
+            with rt.frame("omnivoice.audio_decode"):
+                run_audio_decode(rt)
+                reference.run_audio_decode(
+                    rt,
+                    refs.audio_decode,
+                    audio_codes=_vulkan_tensor(rt, model_tensors().tokens).long(),
+                )
     finally:
         rt.close()

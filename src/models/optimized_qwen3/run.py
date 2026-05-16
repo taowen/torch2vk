@@ -392,115 +392,130 @@ def main(
         rt,
         cache_namespace=prefill_tail_cache_namespace,
     )
-    prefill_start = time.perf_counter()
-    if fixed_prefill_length:
-        if full_prefill_replay_plan is None:
-            rt.register_inputs(full_inputs)
-            with rt.frame("qwen3.prefill.full512"):
+    request_inputs = {tensor.name: value for tensor, value in tail_inputs.items()}
+    request_inputs.update({tensor.name: value for tensor, value in full_inputs.items()})
+    with rt.request(**request_inputs):
+        prefill_start = time.perf_counter()
+        if fixed_prefill_length:
+            if full_prefill_replay_plan is None:
+                with rt.frame("qwen3.prefill.full512"):
+                    ROPE_TABLE_F32(
+                        rt,
+                        start_position=0,
+                        theta=rope_theta,
+                        cos=model_tensors().prefill_full_rope.cos,
+                        sin=model_tensors().prefill_full_rope.sin,
+                    )
+                    run_prefill_full_embed(rt)
+                    run_prefill_full_mask_opt(rt)
+                    for layer_idx in range(len(model_tensors().prefill_full_layers)):
+                        run_prefill_full_layer(rt, layer_idx)
+                _build_prefill_replay_plan(
+                    rt,
+                    name="optimized_qwen3_prefill_full512",
+                    frame="qwen3.prefill.full512",
+                    cache_namespace=prefill_full_cache_namespace,
+                )
+            else:
+                stage_replay_step_inputs(
+                    rt,
+                    plan=full_prefill_replay_plan,
+                    inputs=full_inputs,
+                    write_through=(model_tensors().prefill_full_layers[0].cache_position,),
+                )
+                execute_replay(
+                    full_prefill_replay_plan,
+                    dynamic_push_constants={"start_position": 0},
+                )
+
+        if tail_prefill_replay_plan is None:
+            with rt.frame("qwen3.prefill.tail"):
                 ROPE_TABLE_F32(
                     rt,
-                    start_position=0,
+                    start_position=fixed_prefill_length,
                     theta=rope_theta,
-                    cos=model_tensors().prefill_full_rope.cos,
-                    sin=model_tensors().prefill_full_rope.sin,
+                    cos=model_tensors().prefill_tail_rope.cos,
+                    sin=model_tensors().prefill_tail_rope.sin,
                 )
-                run_prefill_full_embed(rt)
-                run_prefill_full_mask_opt(rt)
-                for layer_idx in range(len(model_tensors().prefill_full_layers)):
-                    run_prefill_full_layer(rt, layer_idx)
+                run_prefill_tail_embed(rt)
+                run_prefill_tail_mask_opt(rt)
+                for layer_idx in range(len(model_tensors().prefill_tail_layers) - 1):
+                    run_prefill_tail_layer(rt, layer_idx)
+                run_prefill_tail_last_layer_tail(rt)
+                run_text_norm(rt)
+                _run_lm_head_select(rt, x=model_tensors().text_norm.mul_1)
+                QWEN3_TOKEN_STORE_EOS_F32(
+                    rt,
+                    next_token=model_tensors().next_token,
+                    token_index=0,
+                    done=model_tensors().done,
+                    generated_tokens=model_tensors().generated_tokens,
+                    generated_length=model_tensors().generated_length,
+                    stopped=model_tensors().stopped,
+                )
             _build_prefill_replay_plan(
                 rt,
-                name="optimized_qwen3_prefill_full512",
-                frame="qwen3.prefill.full512",
-                cache_namespace=prefill_full_cache_namespace,
+                name="optimized_qwen3_prefill_tail",
+                frame="qwen3.prefill.tail",
+                cache_namespace=prefill_tail_cache_namespace,
             )
         else:
             stage_replay_step_inputs(
                 rt,
-                plan=full_prefill_replay_plan,
-                inputs=full_inputs,
-                write_through=(model_tensors().prefill_full_layers[0].cache_position,),
+                plan=tail_prefill_replay_plan,
+                inputs=tail_inputs,
+                write_through=(model_tensors().prefill_tail_layers[0].cache_position,),
             )
             execute_replay(
-                full_prefill_replay_plan,
-                dynamic_push_constants={"start_position": 0},
+                tail_prefill_replay_plan,
+                dynamic_push_constants={
+                    "start_position": fixed_prefill_length,
+                    "token_index": 0,
+                },
             )
+        first_token = _read_selected_token(rt, model_tensors().next_token)
+        prefill_elapsed = time.perf_counter() - prefill_start
+        print(f"  first_token={first_token}, prefill={prefill_elapsed:.3f}s")
 
-    if tail_prefill_replay_plan is None:
-        rt.register_inputs(tail_inputs)
-        with rt.frame("qwen3.prefill.tail"):
-            ROPE_TABLE_F32(
-                rt,
-                start_position=fixed_prefill_length,
-                theta=rope_theta,
-                cos=model_tensors().prefill_tail_rope.cos,
-                sin=model_tensors().prefill_tail_rope.sin,
-            )
-            run_prefill_tail_embed(rt)
-            run_prefill_tail_mask_opt(rt)
-            for layer_idx in range(len(model_tensors().prefill_tail_layers) - 1):
-                run_prefill_tail_layer(rt, layer_idx)
-            run_prefill_tail_last_layer_tail(rt)
-            run_text_norm(rt)
-            _run_lm_head_select(rt, x=model_tensors().text_norm.mul_1)
-            QWEN3_TOKEN_STORE_EOS_F32(
-                rt,
-                next_token=model_tensors().next_token,
-                token_index=0,
-                done=model_tensors().done,
-                generated_tokens=model_tensors().generated_tokens,
-                generated_length=model_tensors().generated_length,
-                stopped=model_tensors().stopped,
-            )
-        _build_prefill_replay_plan(
+        decode_replay_plan: ReplayPlan | None = _cached_decode_replay_plan(
             rt,
-            name="optimized_qwen3_prefill_tail",
-            frame="qwen3.prefill.tail",
-            cache_namespace=prefill_tail_cache_namespace,
+            cache_namespace=replay_cache_namespace,
         )
-    else:
-        stage_replay_step_inputs(
-            rt,
-            plan=tail_prefill_replay_plan,
-            inputs=tail_inputs,
-            write_through=(model_tensors().prefill_tail_layers[0].cache_position,),
-        )
-        execute_replay(
-            tail_prefill_replay_plan,
-            dynamic_push_constants={
-                "start_position": fixed_prefill_length,
-                "token_index": 0,
-            },
-        )
-    first_token = _read_selected_token(rt, model_tensors().next_token)
-    prefill_elapsed = time.perf_counter() - prefill_start
-    print(f"  first_token={first_token}, prefill={prefill_elapsed:.3f}s")
-
-    decode_replay_plan: ReplayPlan | None = _cached_decode_replay_plan(
-        rt,
-        cache_namespace=replay_cache_namespace,
-    )
-    decode_steps = 0
-    decode_start = time.perf_counter()
-    for step in range(max_new_tokens - 1):
-        cache_pos = prompt_length + step
-        if decode_replay_plan is None:
-            decode_replay_plan = _cached_decode_replay_plan(
-                rt,
-                cache_namespace=replay_cache_namespace,
-            )
+        decode_steps = 0
+        decode_start = time.perf_counter()
+        for step in range(max_new_tokens - 1):
+            cache_pos = prompt_length + step
             if decode_replay_plan is None:
-                _run_decode_step(
+                decode_replay_plan = _cached_decode_replay_plan(
                     rt,
-                    cache_position=cache_pos,
-                    rope_theta=rope_theta,
-                    step=step,
-                )
-                decode_replay_plan = _build_decode_replay_plan(
-                    rt,
-                    frame=f"qwen3.decode.{step:04d}",
                     cache_namespace=replay_cache_namespace,
                 )
+                if decode_replay_plan is None:
+                    _run_decode_step(
+                        rt,
+                        cache_position=cache_pos,
+                        rope_theta=rope_theta,
+                        step=step,
+                    )
+                    decode_replay_plan = _build_decode_replay_plan(
+                        rt,
+                        frame=f"qwen3.decode.{step:04d}",
+                        cache_namespace=replay_cache_namespace,
+                    )
+                else:
+                    stage_replay_step_inputs(
+                        rt,
+                        plan=decode_replay_plan,
+                        inputs={},
+                    )
+                    execute_replay(
+                        decode_replay_plan,
+                        dynamic_push_constants={
+                            "cache_position": cache_pos,
+                            "start_position": cache_pos,
+                            "token_index": step + 1,
+                        },
+                    )
             else:
                 stage_replay_step_inputs(
                     rt,
@@ -515,27 +530,15 @@ def main(
                         "token_index": step + 1,
                     },
                 )
-        else:
-            stage_replay_step_inputs(
-                rt,
-                plan=decode_replay_plan,
-                inputs={},
-            )
-            execute_replay(
-                decode_replay_plan,
-                dynamic_push_constants={
-                    "cache_position": cache_pos,
-                    "start_position": cache_pos,
-                    "token_index": step + 1,
-                },
-            )
-        decode_steps += 1
+            decode_steps += 1
 
-    decode_elapsed = time.perf_counter() - decode_start
-    generated_length = int(rt.read_request_state(model_tensors().generated_length).reshape(-1)[0])
-    generated_tokens = rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[
-        :generated_length
-    ]
+        decode_elapsed = time.perf_counter() - decode_start
+        generated_length = int(
+            rt.read_request_state(model_tensors().generated_length).reshape(-1)[0]
+        )
+        generated_tokens = rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[
+            :generated_length
+        ]
     text = tokenizer.batch_decode(
         np.array([generated_tokens], dtype=np.int64),
         skip_special_tokens=True,

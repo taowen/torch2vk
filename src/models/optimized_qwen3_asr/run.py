@@ -291,149 +291,156 @@ def main(
         get_shader=get_shader,
     )
     rt.register_session_tensors({model_tensors().eos_token_ids: eos_token_array})
+    with rt.request(
+        input_ids=np.ascontiguousarray(prepared.input_ids, dtype=np.int64),
+        attention_mask=np.ascontiguousarray(prepared.attention_mask, dtype=np.int64),
+        input_features=np.ascontiguousarray(prepared.input_features, dtype=np.float32),
+        feature_attention_mask=np.ascontiguousarray(
+            prepared.feature_attention_mask,
+            dtype=np.int64,
+        ),
+    ):
 
-    zero_cache = np.zeros(
-        (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
-        dtype=np.float16,
-    )
-    rt.initialize_request_state(
-        {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
-    )
+        zero_cache = np.zeros(
+            (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
+            dtype=np.float16,
+        )
+        rt.initialize_request_state(
+            {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
+        )
 
-    # === Audio Tower ===
-    print("\n=== Phase 1: Audio Tower ===")
-    print(f"  hidden_states after compact: {model_tensors().audio_encoder.index_select.spec.shape}")
-    print(f"  audio encoder ({model_tensors().audio_encoder.x.spec.shape})...")
-    rt.register_inputs(
-        {
-            model_tensors().audio_encoder.x: as_float16_array(preprocessed["padded_feature"]),
-            model_tensors().audio_encoder.position_embedding: as_float16_array(
-                preprocessed["position_embedding"]
-            ),
-            model_tensors().audio_encoder.compact_index: preprocessed["compact_index"],
-            model_tensors().audio_encoder.attention_mask: as_float16_attention_mask(
-                preprocessed["audio_attention_mask"]
-            ),
-        }
-    )
-    with rt.frame("spike.audio"):
-        run_audio_encoder(rt)
-    _require_gpu_output(model_tensors().audio_encoder.linear_110)
-    print(f"  Audio tower output: {model_tensors().audio_encoder.linear_110.spec.shape}")
-
-    # === Text Prefill ===
-    print("\n=== Phase 2: Text Prefill ===")
-    prompt_length = prepared.prompt_length
-
-    audio_positions = preprocessed["audio_positions"]
-    if len(audio_positions) > 0:
-        audio_start = int(audio_positions[0])
-        audio_end = audio_start + len(audio_positions)
-        print(f"    Injecting audio [{audio_start}:{audio_end}]")
-
-    _run_rope_table(
-        rt,
-        phase="prefill",
-        start_position=0,
-        rope_theta=rope_theta,
-        frame_name="spike.text.prefill_rope",
-    )
-
-    # Embedding, audio injection, and decoder layers stay on GPU.
-    print(f"  embed + audio inject + decoder layers x {tc.num_hidden_layers}...")
-    prefill_position_ids = np.broadcast_to(
-        np.arange(prompt_length, dtype=np.int64)[None, None, :],
-        (3, 1, prompt_length),
-    ).copy()
-    prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
-    rt.initialize_request_state(
-        {
-            model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
-            model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
-            model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
-        }
-    )
-    with rt.frame("spike.text.prefill"):
+        # === Audio Tower ===
+        print("\n=== Phase 1: Audio Tower ===")
+        print(f"  hidden_states after compact: {model_tensors().audio_encoder.index_select.spec.shape}")
+        print(f"  audio encoder ({model_tensors().audio_encoder.x.spec.shape})...")
         rt.register_inputs(
             {
-                model_tensors().input_ids: np.ascontiguousarray(
-                    prepared.input_ids,
-                    dtype=np.int64,
+                model_tensors().audio_encoder.x: as_float16_array(preprocessed["padded_feature"]),
+                model_tensors().audio_encoder.position_embedding: as_float16_array(
+                    preprocessed["position_embedding"]
                 ),
-                model_tensors().attention_mask: np.ascontiguousarray(
-                    prepared.attention_mask,
-                    dtype=np.int64,
+                model_tensors().audio_encoder.compact_index: preprocessed["compact_index"],
+                model_tensors().audio_encoder.attention_mask: as_float16_attention_mask(
+                    preprocessed["audio_attention_mask"]
                 ),
-                model_tensors().input_features: np.ascontiguousarray(
-                    prepared.input_features,
-                    dtype=np.float32,
-                ),
-                model_tensors().feature_attention_mask: np.ascontiguousarray(
-                    prepared.feature_attention_mask,
-                    dtype=np.int64,
-                ),
-                model_tensors().position_ids: prefill_position_ids,
-                model_tensors().audio_inject.audio_positions: preprocessed["audio_positions"],
-                model_tensors().text_layers[0].cache_position: prefill_cache_position,
             }
         )
-        run_embed_tokens(rt)
-        run_audio_inject(rt)
-        for layer_idx in range(len(model_tensors().text_layers) - 1):
-            run_text_layer(rt, layer_idx)
-            if layer_idx % 7 == 6:
-                print(f"    layer {layer_idx} done")
-        run_text_last_layer_tail(rt)
-        run_text_norm(rt)
-        _run_lm_head_select(rt, x=model_tensors().text_norm.mul_1)
-        QWEN3_ASR_TOKEN_STORE_EOS(
+        with rt.frame("spike.audio"):
+            run_audio_encoder(rt)
+        _require_gpu_output(model_tensors().audio_encoder.linear_110)
+        print(f"  Audio tower output: {model_tensors().audio_encoder.linear_110.spec.shape}")
+
+        # === Text Prefill ===
+        print("\n=== Phase 2: Text Prefill ===")
+        prompt_length = prepared.prompt_length
+
+        audio_positions = preprocessed["audio_positions"]
+        if len(audio_positions) > 0:
+            audio_start = int(audio_positions[0])
+            audio_end = audio_start + len(audio_positions)
+            print(f"    Injecting audio [{audio_start}:{audio_end}]")
+
+        _run_rope_table(
             rt,
-            next_token=model_tensors().next_token,
-            token_index=0,
-            done=model_tensors().done,
-            generated_tokens=model_tensors().generated_tokens,
-            generated_length=model_tensors().generated_length,
-            stopped=model_tensors().stopped,
+            phase="prefill",
+            start_position=0,
+            rope_theta=rope_theta,
+            frame_name="spike.text.prefill_rope",
         )
 
-    first_token = _read_selected_token(rt, model_tensors().next_token)
-    print(f"  First token: {first_token}")
+        # Embedding, audio injection, and decoder layers stay on GPU.
+        print(f"  embed + audio inject + decoder layers x {tc.num_hidden_layers}...")
+        prefill_position_ids = np.broadcast_to(
+            np.arange(prompt_length, dtype=np.int64)[None, None, :],
+            (3, 1, prompt_length),
+        ).copy()
+        prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
+        rt.initialize_request_state(
+            {
+                model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
+                model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
+                model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
+            }
+        )
+        with rt.frame("spike.text.prefill"):
+            rt.register_inputs(
+                {
+                    model_tensors().position_ids: prefill_position_ids,
+                    model_tensors().audio_inject.audio_positions: preprocessed["audio_positions"],
+                    model_tensors().text_layers[0].cache_position: prefill_cache_position,
+                }
+            )
+            run_embed_tokens(rt)
+            run_audio_inject(rt)
+            for layer_idx in range(len(model_tensors().text_layers) - 1):
+                run_text_layer(rt, layer_idx)
+                if layer_idx % 7 == 6:
+                    print(f"    layer {layer_idx} done")
+            run_text_last_layer_tail(rt)
+            run_text_norm(rt)
+            _run_lm_head_select(rt, x=model_tensors().text_norm.mul_1)
+            QWEN3_ASR_TOKEN_STORE_EOS(
+                rt,
+                next_token=model_tensors().next_token,
+                token_index=0,
+                done=model_tensors().done,
+                generated_tokens=model_tensors().generated_tokens,
+                generated_length=model_tensors().generated_length,
+                stopped=model_tensors().stopped,
+            )
 
-    # === Decode Loop ===
-    print("\n=== Phase 3: Decode Loop ===")
-    decode_replay_plan: ReplayPlan | None = None
+        first_token = _read_selected_token(rt, model_tensors().next_token)
+        print(f"  First token: {first_token}")
 
-    baseline_stats = rt.device.allocation_stats()
-    print(
-        f"  Baseline GPU memory: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
-        f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB"
-    )
+        # === Decode Loop ===
+        print("\n=== Phase 3: Decode Loop ===")
+        decode_replay_plan: ReplayPlan | None = None
 
-    decode_start = time.perf_counter()
-    decode_steps = 0
-    if _request_stopped(rt):
-        print("  EOS after prefill")
-    else:
-        for step in range(max_new_tokens - 1):
-            cache_pos = prompt_length + step
+        baseline_stats = rt.device.allocation_stats()
+        print(
+            f"  Baseline GPU memory: device_local={baseline_stats.device_local_live_bytes / 1024**2:.1f} MB, "
+            f"reserved={baseline_stats.device_local_reserved_bytes / 1024**2:.1f} MB"
+        )
 
-            if decode_replay_plan is None:
-                decode_replay_plan = _cached_decode_replay_plan(
-                    rt,
-                    cache_namespace=replay_cache_namespace,
-                )
+        decode_start = time.perf_counter()
+        decode_steps = 0
+        if _request_stopped(rt):
+            print("  EOS after prefill")
+        else:
+            for step in range(max_new_tokens - 1):
+                cache_pos = prompt_length + step
+
                 if decode_replay_plan is None:
-                    _run_decode_step(
+                    decode_replay_plan = _cached_decode_replay_plan(
                         rt,
-                        cache_position=cache_pos,
-                        rope_theta=rope_theta,
-                        step=step,
-                    )
-                    decode_replay_plan = _build_decode_replay_plan(
-                        rt,
-                        frame=f"spike.decode.{step:04d}",
                         cache_namespace=replay_cache_namespace,
                     )
+                    if decode_replay_plan is None:
+                        _run_decode_step(
+                            rt,
+                            cache_position=cache_pos,
+                            rope_theta=rope_theta,
+                            step=step,
+                        )
+                        decode_replay_plan = _build_decode_replay_plan(
+                            rt,
+                            frame=f"spike.decode.{step:04d}",
+                            cache_namespace=replay_cache_namespace,
+                        )
+                    else:
+                        stage_replay_step_inputs(
+                            rt,
+                            plan=decode_replay_plan,
+                            inputs={},
+                        )
+                        execute_replay(
+                            decode_replay_plan,
+                            dynamic_push_constants={
+                                "cache_position": cache_pos,
+                                "start_position": cache_pos,
+                                "token_index": step + 1,
+                            },
+                        )
                 else:
                     stage_replay_step_inputs(
                         rt,
@@ -448,62 +455,48 @@ def main(
                             "token_index": step + 1,
                         },
                     )
-            else:
-                stage_replay_step_inputs(
-                    rt,
-                    plan=decode_replay_plan,
-                    inputs={},
-                )
-                execute_replay(
-                    decode_replay_plan,
-                    dynamic_push_constants={
-                        "cache_position": cache_pos,
-                        "start_position": cache_pos,
-                        "token_index": step + 1,
-                    },
-                )
 
-            decode_steps += 1
+                decode_steps += 1
 
-            if step < 5 or step % 20 == 0:
-                print(f"  Step {step}")
+                if step < 5 or step % 20 == 0:
+                    print(f"  Step {step}")
 
-            if (step + 1) % _STOP_CHECK_INTERVAL == 0 and _request_stopped(rt):
-                print(f"  EOS at step {step + 1}")
-                break
+                if (step + 1) % _STOP_CHECK_INTERVAL == 0 and _request_stopped(rt):
+                    print(f"  EOS at step {step + 1}")
+                    break
 
-    decode_elapsed = time.perf_counter() - decode_start
-    print(
-        f"\n  Decode: {decode_steps} steps in {decode_elapsed:.3f}s "
-        f"({decode_elapsed / decode_steps * 1000:.1f} ms/token)"
-        if decode_steps > 0
-        else ""
-    )
+        decode_elapsed = time.perf_counter() - decode_start
+        print(
+            f"\n  Decode: {decode_steps} steps in {decode_elapsed:.3f}s "
+            f"({decode_elapsed / decode_steps * 1000:.1f} ms/token)"
+            if decode_steps > 0
+            else ""
+        )
 
-    final_stats = rt.device.allocation_stats()
-    print("\n=== GPU Memory ===")
-    print(f"  Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB")
-    print(
-        f"  Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB"
-    )
-    print(f"  Final device_local live: {final_stats.device_local_live_bytes / 1024**2:.1f} MB")
+        final_stats = rt.device.allocation_stats()
+        print("\n=== GPU Memory ===")
+        print(f"  Peak device_local live: {final_stats.device_local_peak_live_bytes / 1024**2:.1f} MB")
+        print(
+            f"  Peak device_local reserved: {final_stats.device_local_peak_reserved_bytes / 1024**2:.1f} MB"
+        )
+        print(f"  Final device_local live: {final_stats.device_local_live_bytes / 1024**2:.1f} MB")
 
-    # Decode text
-    print("\n=== Result ===")
-    stored_length = int(rt.read_request_state(model_tensors().generated_length).reshape(-1)[0])
-    generated_tokens = [
-        int(token)
-        for token in rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[
-            :stored_length
+        # Decode text
+        print("\n=== Result ===")
+        stored_length = int(rt.read_request_state(model_tensors().generated_length).reshape(-1)[0])
+        generated_tokens = [
+            int(token)
+            for token in rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[
+                :stored_length
+            ]
         ]
-    ]
-    print(f"Generated {len(generated_tokens)} tokens")
-    text = processor.batch_decode(
-        np.array([generated_tokens], dtype=np.int64),
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False,
-    )[0]
-    print(f"Transcription: {text}")
+        print(f"Generated {len(generated_tokens)} tokens")
+        text = processor.batch_decode(
+            np.array([generated_tokens], dtype=np.int64),
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
+        )[0]
+        print(f"Transcription: {text}")
 
     rt.close()
     return text

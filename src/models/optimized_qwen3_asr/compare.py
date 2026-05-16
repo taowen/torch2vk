@@ -426,232 +426,225 @@ def compare_decode_steps(
         get_shader=get_shader,
     )
     rt.register_session_tensors({model_tensors().eos_token_ids: eos_token_array})
-    print("Loading PyTorch reference for compare...")
-    compare_refs = _build_compare_references(_load_qwen_reference_model(Path(model_dir)))
+    with rt.request(
+        input_ids=np.ascontiguousarray(prepared.input_ids, dtype=np.int64),
+        attention_mask=np.ascontiguousarray(prepared.attention_mask, dtype=np.int64),
+        input_features=np.ascontiguousarray(prepared.input_features, dtype=np.float32),
+        feature_attention_mask=np.ascontiguousarray(
+            prepared.feature_attention_mask,
+            dtype=np.int64,
+        ),
+    ):
+        print("Loading PyTorch reference for compare...")
+        compare_refs = _build_compare_references(_load_qwen_reference_model(Path(model_dir)))
 
-    zero_cache = np.zeros(
-        (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
-        dtype=np.float16,
-    )
-    rt.initialize_request_state(
-        {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
-    )
-
-    # === Audio Tower ===
-    print("\n=== Phase 1: Audio Tower ===")
-    print(f"  hidden_states after compact: {model_tensors().audio_encoder.index_select.spec.shape}")
-    print(f"  audio encoder ({model_tensors().audio_encoder.x.spec.shape})...")
-    rt.register_inputs(
-        {
-            model_tensors().audio_encoder.x: as_float16_array(preprocessed["padded_feature"]),
-            model_tensors().audio_encoder.position_embedding: as_float16_array(
-                preprocessed["position_embedding"]
-            ),
-            model_tensors().audio_encoder.compact_index: preprocessed["compact_index"],
-            model_tensors().audio_encoder.attention_mask: as_float16_attention_mask(
-                preprocessed["audio_attention_mask"]
-            ),
-        }
-    )
-    with rt.frame("spike.audio"):
-        run_audio_encoder(rt)
-        reference.run_audio_encoder(
-            rt,
-            compare_refs.audio_encoder,
-            x=as_float16_array(preprocessed["padded_feature"]),
-            position_embedding=as_float16_array(preprocessed["position_embedding"]),
-            compact_index=preprocessed["compact_index"],
-            attention_mask=as_float16_attention_mask(preprocessed["audio_attention_mask"]),
+        zero_cache = np.zeros(
+            (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
+            dtype=np.float16,
         )
-        ref_audio_features = _vulkan_input(rt, model_tensors().audio_encoder.linear_110)
-    _require_gpu_output(model_tensors().audio_encoder.linear_110)
-    print(f"  Audio tower output: {model_tensors().audio_encoder.linear_110.spec.shape}")
+        rt.initialize_request_state(
+            {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
+        )
 
-    # === Text Prefill ===
-    print("\n=== Phase 2: Text Prefill ===")
-    prompt_length = prepared.prompt_length
-
-    audio_positions = preprocessed["audio_positions"]
-    if len(audio_positions) > 0:
-        audio_start = int(audio_positions[0])
-        audio_end = audio_start + len(audio_positions)
-        print(f"    Injecting audio [{audio_start}:{audio_end}]")
-
-    _run_rope_table(
-        rt,
-        phase="prefill",
-        start_position=0,
-        rope_theta=rope_theta,
-        frame_name="spike.text.prefill_rope",
-    )
-
-    # Embedding, audio injection, and decoder layers stay on GPU.
-    print(f"  embed + audio inject + decoder layers x {tc.num_hidden_layers}...")
-    prefill_position_ids = np.broadcast_to(
-        np.arange(prompt_length, dtype=np.int64)[None, None, :],
-        (3, 1, prompt_length),
-    ).copy()
-    prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
-    rt.initialize_request_state(
-        {
-            model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
-            model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
-            model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
-        }
-    )
-    with rt.frame("spike.text.prefill"):
+        # === Audio Tower ===
+        print("\n=== Phase 1: Audio Tower ===")
+        print(f"  hidden_states after compact: {model_tensors().audio_encoder.index_select.spec.shape}")
+        print(f"  audio encoder ({model_tensors().audio_encoder.x.spec.shape})...")
         rt.register_inputs(
             {
-                model_tensors().input_ids: np.ascontiguousarray(
-                    prepared.input_ids,
-                    dtype=np.int64,
+                model_tensors().audio_encoder.x: as_float16_array(preprocessed["padded_feature"]),
+                model_tensors().audio_encoder.position_embedding: as_float16_array(
+                    preprocessed["position_embedding"]
                 ),
-                model_tensors().attention_mask: np.ascontiguousarray(
-                    prepared.attention_mask,
-                    dtype=np.int64,
+                model_tensors().audio_encoder.compact_index: preprocessed["compact_index"],
+                model_tensors().audio_encoder.attention_mask: as_float16_attention_mask(
+                    preprocessed["audio_attention_mask"]
                 ),
-                model_tensors().input_features: np.ascontiguousarray(
-                    prepared.input_features,
-                    dtype=np.float32,
-                ),
-                model_tensors().feature_attention_mask: np.ascontiguousarray(
-                    prepared.feature_attention_mask,
-                    dtype=np.int64,
-                ),
-                model_tensors().position_ids: prefill_position_ids,
-                model_tensors().audio_inject.audio_positions: preprocessed["audio_positions"],
-                model_tensors().text_layers[0].cache_position: prefill_cache_position,
             }
         )
-        run_embed_tokens(rt)
-        reference.run_embed_tokens(
-            rt,
-            input=prepared.input_ids,
-        )
-        ref_hidden = _vulkan_input(rt, model_tensors().embed_tokens.embedding)
-        run_audio_inject(rt)
-        reference.run_audio_inject(
-            rt,
-            compare_refs.audio_inject,
-            inputs_embeds=ref_hidden,
-            audio_positions=preprocessed["audio_positions"],
-            audio_features=ref_audio_features,
-        )
-        ref_hidden = _vulkan_input(rt, model_tensors().audio_inject.index_copy)
-        ref_cos = _vulkan_input(rt, model_tensors().prefill_rope.cos)
-        ref_sin = _vulkan_input(rt, model_tensors().prefill_rope.sin)
-        for layer_idx in range(len(model_tensors().text_layers) - 1):
-            key_cache_before = _vulkan_request_state(rt, model_tensors().key_caches[layer_idx])
-            value_cache_before = _vulkan_request_state(rt, model_tensors().value_caches[layer_idx])
-            run_text_layer(rt, layer_idx)
-            if layer_idx < compare_prefill_layers:
-                reference.run_text_layer(
-                    rt,
-                    compare_refs.text_layers[layer_idx],
-                    layer_idx=layer_idx,
-                    hidden_states=ref_hidden,
-                    position_embeddings_0=ref_cos,
-                    position_embeddings_1=ref_sin,
-                    cache_position=prefill_cache_position,
-                    key_cache=key_cache_before,
-                    value_cache=value_cache_before,
-                )
-            ref_hidden = _vulkan_input(rt, model_tensors().text_layers[layer_idx].add_7)
-            if layer_idx % 7 == 6:
-                print(f"    layer {layer_idx} done")
-        run_text_last_layer_tail(rt)
-        ref_hidden = _vulkan_input(rt, model_tensors().prefill_last_output)
-        run_text_norm(rt)
-        reference.run_text_norm(
-            rt,
-            hidden_states=ref_hidden,
-        )
-        ref_hidden = _vulkan_input(rt, model_tensors().text_norm.mul_1)
-        _run_lm_head_select(rt, x=model_tensors().text_norm.mul_1)
-        _compare_token_select(
-            rt,
-            frame_name="spike.text.token_select",
-            logits=_reference_lm_head_logits(compare_refs.lm_head, ref_hidden),
-            eos_token_ids=eos_token_array,
-            refs=compare_refs,
-        )
+        with rt.frame("spike.audio"):
+            run_audio_encoder(rt)
+            reference.run_audio_encoder(
+                rt,
+                compare_refs.audio_encoder,
+                x=as_float16_array(preprocessed["padded_feature"]),
+                position_embedding=as_float16_array(preprocessed["position_embedding"]),
+                compact_index=preprocessed["compact_index"],
+                attention_mask=as_float16_attention_mask(preprocessed["audio_attention_mask"]),
+            )
+            ref_audio_features = _vulkan_input(rt, model_tensors().audio_encoder.linear_110)
+        _require_gpu_output(model_tensors().audio_encoder.linear_110)
+        print(f"  Audio tower output: {model_tensors().audio_encoder.linear_110.spec.shape}")
 
-    print("  lm_head + token_select...")
-    generated_tokens_before = _vulkan_request_state(rt, model_tensors().generated_tokens)
-    generated_length_before = _vulkan_request_state(rt, model_tensors().generated_length)
-    stopped_before = _vulkan_request_state(rt, model_tensors().stopped)
-    _run_token_store(
-        rt,
-        next_token=model_tensors().next_token,
-        token_index=0,
-        done=model_tensors().done,
-        generated_tokens=model_tensors().generated_tokens,
-        generated_length=model_tensors().generated_length,
-        stopped=model_tensors().stopped,
-        frame_name="spike.text.token_store",
-    )
-    _compare_token_store(
-        rt,
-        frame_name="spike.text.token_store",
-        refs=compare_refs,
-        next_token=_vulkan_request_state(rt, model_tensors().next_token),
-        token_index=0,
-        done=_vulkan_request_state(rt, model_tensors().done),
-        generated_tokens=generated_tokens_before,
-        generated_length=generated_length_before,
-        stopped=stopped_before,
-    )
-    first_token = _read_selected_token(rt, model_tensors().next_token)
-    print(f"  First token: {first_token}")
+        # === Text Prefill ===
+        print("\n=== Phase 2: Text Prefill ===")
+        prompt_length = prepared.prompt_length
 
-    # === Decode Loop ===
-    print("\n=== Phase 3: Decode Loop ===")
-    eos_token_set = set(eos_token_ids)
-    generated_tokens = [first_token]
-
-    for step in range(max_new_tokens - 1):
-        if generated_tokens[-1] in eos_token_set:
-            print(f"  EOS at step {step}")
-            break
-
-        cache_pos = prompt_length + step
+        audio_positions = preprocessed["audio_positions"]
+        if len(audio_positions) > 0:
+            audio_start = int(audio_positions[0])
+            audio_end = audio_start + len(audio_positions)
+            print(f"    Injecting audio [{audio_start}:{audio_end}]")
 
         _run_rope_table(
             rt,
-            phase="decode",
-            start_position=cache_pos,
+            phase="prefill",
+            start_position=0,
             rope_theta=rope_theta,
-            frame_name=f"spike.decode.rope.{step:04d}",
+            frame_name="spike.text.prefill_rope",
         )
 
-        next_token = _run_decode_step_with_compare(
+        # Embedding, audio injection, and decoder layers stay on GPU.
+        print(f"  embed + audio inject + decoder layers x {tc.num_hidden_layers}...")
+        prefill_position_ids = np.broadcast_to(
+            np.arange(prompt_length, dtype=np.int64)[None, None, :],
+            (3, 1, prompt_length),
+        ).copy()
+        prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
+        rt.initialize_request_state(
+            {
+                model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
+                model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
+                model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
+            }
+        )
+        with rt.frame("spike.text.prefill"):
+            rt.register_inputs(
+                {
+                    model_tensors().position_ids: prefill_position_ids,
+                    model_tensors().audio_inject.audio_positions: preprocessed["audio_positions"],
+                    model_tensors().text_layers[0].cache_position: prefill_cache_position,
+                }
+            )
+            run_embed_tokens(rt)
+            reference.run_embed_tokens(
+                rt,
+                input=prepared.input_ids,
+            )
+            ref_hidden = _vulkan_input(rt, model_tensors().embed_tokens.embedding)
+            run_audio_inject(rt)
+            reference.run_audio_inject(
+                rt,
+                compare_refs.audio_inject,
+                inputs_embeds=ref_hidden,
+                audio_positions=preprocessed["audio_positions"],
+                audio_features=ref_audio_features,
+            )
+            ref_hidden = _vulkan_input(rt, model_tensors().audio_inject.index_copy)
+            ref_cos = _vulkan_input(rt, model_tensors().prefill_rope.cos)
+            ref_sin = _vulkan_input(rt, model_tensors().prefill_rope.sin)
+            for layer_idx in range(len(model_tensors().text_layers) - 1):
+                key_cache_before = _vulkan_request_state(rt, model_tensors().key_caches[layer_idx])
+                value_cache_before = _vulkan_request_state(rt, model_tensors().value_caches[layer_idx])
+                run_text_layer(rt, layer_idx)
+                if layer_idx < compare_prefill_layers:
+                    reference.run_text_layer(
+                        rt,
+                        compare_refs.text_layers[layer_idx],
+                        layer_idx=layer_idx,
+                        hidden_states=ref_hidden,
+                        position_embeddings_0=ref_cos,
+                        position_embeddings_1=ref_sin,
+                        cache_position=prefill_cache_position,
+                        key_cache=key_cache_before,
+                        value_cache=value_cache_before,
+                    )
+                ref_hidden = _vulkan_input(rt, model_tensors().text_layers[layer_idx].add_7)
+                if layer_idx % 7 == 6:
+                    print(f"    layer {layer_idx} done")
+            run_text_last_layer_tail(rt)
+            ref_hidden = _vulkan_input(rt, model_tensors().prefill_last_output)
+            run_text_norm(rt)
+            reference.run_text_norm(
+                rt,
+                hidden_states=ref_hidden,
+            )
+            ref_hidden = _vulkan_input(rt, model_tensors().text_norm.mul_1)
+            _run_lm_head_select(rt, x=model_tensors().text_norm.mul_1)
+            _compare_token_select(
+                rt,
+                frame_name="spike.text.token_select",
+                logits=_reference_lm_head_logits(compare_refs.lm_head, ref_hidden),
+                eos_token_ids=eos_token_array,
+                refs=compare_refs,
+            )
+
+        print("  lm_head + token_select...")
+        generated_tokens_before = _vulkan_request_state(rt, model_tensors().generated_tokens)
+        generated_length_before = _vulkan_request_state(rt, model_tensors().generated_length)
+        stopped_before = _vulkan_request_state(rt, model_tensors().stopped)
+        _run_token_store(
             rt,
-            step=step,
-            cache_position=cache_pos,
-            eos_token_ids=eos_token_array,
-            token_index=step + 1,
-            refs=compare_refs,
+            next_token=model_tensors().next_token,
+            token_index=0,
+            done=model_tensors().done,
+            generated_tokens=model_tensors().generated_tokens,
+            generated_length=model_tensors().generated_length,
+            stopped=model_tensors().stopped,
+            frame_name="spike.text.token_store",
         )
-        generated_tokens.append(next_token)
-        if step < 5 or step % 20 == 0:
-            print(f"  Step {step}: token={generated_tokens[-1]}")
+        _compare_token_store(
+            rt,
+            frame_name="spike.text.token_store",
+            refs=compare_refs,
+            next_token=_vulkan_request_state(rt, model_tensors().next_token),
+            token_index=0,
+            done=_vulkan_request_state(rt, model_tensors().done),
+            generated_tokens=generated_tokens_before,
+            generated_length=generated_length_before,
+            stopped=stopped_before,
+        )
+        first_token = _read_selected_token(rt, model_tensors().next_token)
+        print(f"  First token: {first_token}")
 
-    # Decode text
-    print("\n=== Result ===")
-    stored_length = int(rt.read_request_state(model_tensors().generated_length).reshape(-1)[0])
-    generated_tokens = [
-        int(token)
-        for token in rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[
-            :stored_length
+        # === Decode Loop ===
+        print("\n=== Phase 3: Decode Loop ===")
+        eos_token_set = set(eos_token_ids)
+        generated_tokens = [first_token]
+
+        for step in range(max_new_tokens - 1):
+            if generated_tokens[-1] in eos_token_set:
+                print(f"  EOS at step {step}")
+                break
+
+            cache_pos = prompt_length + step
+
+            _run_rope_table(
+                rt,
+                phase="decode",
+                start_position=cache_pos,
+                rope_theta=rope_theta,
+                frame_name=f"spike.decode.rope.{step:04d}",
+            )
+
+            next_token = _run_decode_step_with_compare(
+                rt,
+                step=step,
+                cache_position=cache_pos,
+                eos_token_ids=eos_token_array,
+                token_index=step + 1,
+                refs=compare_refs,
+            )
+            generated_tokens.append(next_token)
+            if step < 5 or step % 20 == 0:
+                print(f"  Step {step}: token={generated_tokens[-1]}")
+
+        # Decode text
+        print("\n=== Result ===")
+        stored_length = int(rt.read_request_state(model_tensors().generated_length).reshape(-1)[0])
+        generated_tokens = [
+            int(token)
+            for token in rt.read_request_state(model_tensors().generated_tokens).reshape(-1)[
+                :stored_length
+            ]
         ]
-    ]
-    print(f"Generated {len(generated_tokens)} tokens")
-    text = processor.batch_decode(
-        np.array([generated_tokens], dtype=np.int64),
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False,
-    )[0]
-    print(f"Transcription: {text}")
+        print(f"Generated {len(generated_tokens)} tokens")
+        text = processor.batch_decode(
+            np.array([generated_tokens], dtype=np.int64),
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
+        )[0]
+        print(f"Transcription: {text}")
 
     rt.close()
     return text
