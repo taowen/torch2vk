@@ -117,7 +117,7 @@ def _run_decode_step(
         )
         run_decode_embed(rt)
         for layer_idx in range(len(tensors.decode_layers)):
-            run_decode_layer(rt, layer_idx)
+            run_decode_layer(rt, layer_idx, cache_position=cache_position)
         run_decode_norm(rt)
         _run_lm_head_select(rt, x=tensors.decode_norm.mul_1)
         QWEN3_ASR_TOKEN_STORE_EOS(
@@ -155,18 +155,6 @@ def _run_rope_table(
         sin=rope_t.sin,
         frame_name=frame_name,
     )
-
-
-def _decode_step_inputs(
-    *,
-    cache_position: int,
-) -> dict[LogicalTensor, np.ndarray]:
-    tensors = model_tensors()
-    if not tensors.decode_layers:
-        raise ValueError("decode_layers must not be empty")
-    return {
-        tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
-    }
 
 
 def _read_selected_token(rt: RuntimeSession, next_token: LogicalTensor) -> int:
@@ -429,11 +417,7 @@ def main(
         for step in range(max_new_tokens - 1):
             cache_pos = prompt_length + step
 
-            decode_step_inputs = _decode_step_inputs(
-                cache_position=cache_pos,
-            )
             if decode_replay_plan is None:
-                rt.register_inputs(decode_step_inputs)
                 decode_replay_plan = _cached_decode_replay_plan(
                     rt,
                     cache_namespace=replay_cache_namespace,
@@ -454,12 +438,12 @@ def main(
                     stage_replay_step_inputs(
                         rt,
                         plan=decode_replay_plan,
-                        inputs=decode_step_inputs,
-                        write_through=(model_tensors().decode_layers[0].cache_position,),
+                        inputs={},
                     )
                     execute_replay(
                         decode_replay_plan,
                         dynamic_push_constants={
+                            "cache_position": cache_pos,
                             "start_position": cache_pos,
                             "token_index": step + 1,
                         },
@@ -468,12 +452,12 @@ def main(
                 stage_replay_step_inputs(
                     rt,
                     plan=decode_replay_plan,
-                    inputs=decode_step_inputs,
-                    write_through=(model_tensors().decode_layers[0].cache_position,),
+                    inputs={},
                 )
                 execute_replay(
                     decode_replay_plan,
                     dynamic_push_constants={
+                        "cache_position": cache_pos,
                         "start_position": cache_pos,
                         "token_index": step + 1,
                     },

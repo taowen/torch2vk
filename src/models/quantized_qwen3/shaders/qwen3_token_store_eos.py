@@ -19,67 +19,49 @@ from torch2vk.vulkan.shader_execution_requirements import (
 
 
 QWEN3_TOKEN_STORE_EOS = ShaderVariant(
-    name="qwen3_token_store_eos",
-    family="qwen3.text",
+    name='qwen3_token_store_eos',
+    family='qwen3.text',
     contract=ShaderContract(
-        class_name="Qwen3TokenStoreEosProgram",
-        shader_name="qwen3_token_store_eos",
+        class_name='Qwen3TokenStoreEosProgram',
+        shader_name='qwen3_token_store_eos',
         fields=(
             TensorFieldSpec(
-                name="next_token",
+                name='next_token',
                 io_kind=IOKind.INPUT,
-                role="next_token",
-                contract=TensorContract(
-                    dtype="int64",
-                    shape=(
-                        1,
-                        1,
-                    ),
-                ),
+                role='next_token',
+                contract=TensorContract(dtype='int64', shape=(1, 1,)),
             ),
             TensorFieldSpec(
-                name="done",
+                name='done',
                 io_kind=IOKind.INPUT,
-                role="done",
-                contract=TensorContract(dtype="uint32", shape=(1,)),
+                role='done',
+                contract=TensorContract(dtype='uint32', shape=(1,)),
             ),
             TensorFieldSpec(
-                name="generated_tokens",
+                name='generated_tokens',
                 io_kind=IOKind.INOUT,
-                role="generated_tokens",
-                contract=TensorContract(
-                    dtype="int64",
-                    shape=(
-                        1,
-                        "G",
-                    ),
-                ),
+                role='generated_tokens',
+                contract=TensorContract(dtype='int64', shape=(1, 'G',)),
             ),
             TensorFieldSpec(
-                name="generated_length",
+                name='generated_length',
                 io_kind=IOKind.INOUT,
-                role="generated_length",
-                contract=TensorContract(dtype="uint32", shape=(1,)),
+                role='generated_length',
+                contract=TensorContract(dtype='uint32', shape=(1,)),
             ),
             TensorFieldSpec(
-                name="stopped",
+                name='stopped',
                 io_kind=IOKind.INOUT,
-                role="stopped",
-                contract=TensorContract(dtype="uint32", shape=(1,)),
+                role='stopped',
+                contract=TensorContract(dtype='uint32', shape=(1,)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=12,
             fields=(
-                PushConstantFieldSpec("G", PushConstantType.UINT32, 0, "G", dynamic=False),
-                PushConstantFieldSpec("stop_on_eos", PushConstantType.UINT32, 4, 1, dynamic=False),
-                PushConstantFieldSpec(
-                    "token_index",
-                    PushConstantType.UINT32,
-                    8,
-                    PushConstantInput("token_index"),
-                    dynamic=False,
-                ),
+                PushConstantFieldSpec('G', PushConstantType.UINT32, 0, 'G', dynamic=False),
+                PushConstantFieldSpec('stop_on_eos', PushConstantType.UINT32, 4, 1, dynamic=False),
+                PushConstantFieldSpec('token_index', PushConstantType.UINT32, 8, PushConstantInput('token_index'), dynamic=False),
             ),
         ),
         params_buffer=None,

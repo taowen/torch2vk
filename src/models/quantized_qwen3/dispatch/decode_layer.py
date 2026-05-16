@@ -14,7 +14,7 @@ from models.quantized_qwen3.shaders.decode_layer_mul_broadcast_inner import DECO
 from models.quantized_qwen3.shaders.decode_layer_mul_broadcast_last import DECODE_LAYER_MUL_BROADCAST_LAST
 from models.quantized_qwen3.shaders.decode_layer_mul_broadcast_last_11 import DECODE_LAYER_MUL_BROADCAST_LAST_11
 from models.quantized_qwen3.shaders.decode_layer_mul_broadcast_last_18 import DECODE_LAYER_MUL_BROADCAST_LAST_18
-from models.quantized_qwen3.shaders.kv_cache_write_f16 import KV_CACHE_WRITE_F16
+from models.quantized_qwen3.shaders.kv_cache_write_decode_f16 import KV_CACHE_WRITE_DECODE_F16
 from models.quantized_qwen3.shaders.linear_nobias_q4_k_matvec_f32 import LINEAR_NOBIAS_Q4_K_MATVEC_F32
 from models.quantized_qwen3.shaders.linear_nobias_q6_k_matvec_f32 import LINEAR_NOBIAS_Q6_K_MATVEC_F32
 from models.quantized_qwen3.shaders.linear_nobias_q8_0_matvec_f32 import LINEAR_NOBIAS_Q8_0_MATVEC_F32
@@ -45,7 +45,7 @@ from torch2vk.runtime.quantized_dispatch import run_quantized_linear
 from torch2vk.runtime.session import RuntimeSession
 
 
-def _run_decode_layer_with_tensors(rt: RuntimeSession, tensors: DecodeLayerTensors) -> None:
+def _run_decode_layer_with_tensors(rt: RuntimeSession, tensors: DecodeLayerTensors, *, cache_position: int) -> None:
     POW_SCALAR_F32(rt, x=tensors.to, output=tensors.pow_1)
     MEAN_DIM_F32(rt, x=tensors.pow_1, output=tensors.mean)
     ADD_SCALAR(rt, x=tensors.mean, output=tensors.add)
@@ -84,9 +84,9 @@ def _run_decode_layer_with_tensors(rt: RuntimeSession, tensors: DecodeLayerTenso
     CAT_F32(rt, a=tensors.neg_1, b=tensors.slice_3, output=tensors.cat_1)
     DECODE_LAYER_MUL_BROADCAST_INNER(rt, x=tensors.cat_1, y=tensors.unsqueeze_1, output=tensors.mul_9)
     ADD_F32(rt, x=tensors.mul_8, y=tensors.mul_9, output=tensors.add_4)
-    KV_CACHE_WRITE_F16(rt, cache=tensors.index_copy, cache_position=tensors.cache_position, src=tensors.add_4)
-    KV_CACHE_WRITE_F16(rt, cache=tensors.index_copy_1, cache_position=tensors.cache_position, src=tensors.transpose_2)
-    SDPA_DECODE_CACHE_F16(rt, q=tensors.add_3, k=tensors.index_copy, v=tensors.index_copy_1, cache_position=tensors.cache_position, output=tensors.scaled_dot_product_attention)
+    KV_CACHE_WRITE_DECODE_F16(rt, cache=tensors.index_copy, src=tensors.add_4, cache_position=cache_position)
+    KV_CACHE_WRITE_DECODE_F16(rt, cache=tensors.index_copy_1, src=tensors.transpose_2, cache_position=cache_position)
+    SDPA_DECODE_CACHE_F16(rt, q=tensors.add_3, k=tensors.index_copy, v=tensors.index_copy_1, output=tensors.scaled_dot_product_attention, cache_position=cache_position)
     TRANSPOSE_F32_9E77B1CEE2(rt, x=tensors.scaled_dot_product_attention, output=tensors.transpose_3)
     LINEAR_NOBIAS_Q4_K_MATVEC_F32(rt, x=tensors.reshape, weight=tensors.p_attn_o_proj_weight, output=tensors.linear_3)
     ADD_F32_33(rt, x=tensors.to, y=tensors.linear_3, output=tensors.add_5)
@@ -104,5 +104,5 @@ def _run_decode_layer_with_tensors(rt: RuntimeSession, tensors: DecodeLayerTenso
     ADD_F32_36(rt, x=tensors.to_6, y=tensors.linear_6, output=tensors.add_7)
 
 
-def run_decode_layer(rt: RuntimeSession, layer_idx: int) -> None:
-    _run_decode_layer_with_tensors(rt, model_tensors().decode_layers[layer_idx])
+def run_decode_layer(rt: RuntimeSession, layer_idx: int, *, cache_position: int) -> None:
+    _run_decode_layer_with_tensors(rt, model_tensors().decode_layers[layer_idx], cache_position=cache_position)

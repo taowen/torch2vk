@@ -17,6 +17,7 @@ from torch2vk.runtime.shader import (
     IOKind,
     mul,
     PushConstantFieldSpec,
+    PushConstantInput,
     PushConstantSpec,
     PushConstantType,
     ShaderContract,
@@ -234,15 +235,13 @@ _SOURCE_DECODE_CACHE = """\
 {{ACTIVATION_EXTENSION}}\
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
-{{CACHE_POSITION_EXTENSION}}
 
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { {{ACTIVATION_TYPE}} q[]; };
 layout(set = 0, binding = 1) buffer restrict readonly KBuffer { {{ACTIVATION_TYPE}} k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly VBuffer { {{ACTIVATION_TYPE}} v[]; };
-layout(set = 0, binding = 3) buffer restrict readonly CachePositionBuffer { {{CACHE_POSITION_TYPE}} cache_position[]; };
-layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
-layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; } pc;
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
+layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; uint cache_position; } pc;
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
 const float NEG_INF = -3.4028234663852886e38;
@@ -264,7 +263,7 @@ void main() {
     float acc = 0.0;
 
     const uint cache_head_base = kv_head * pc.S * pc.D;
-    const uint cache_len = min(uint(cache_position[0]) + 1u, pc.S);
+    const uint cache_len = min(pc.cache_position + 1u, pc.S);
     for (uint key_pos = 0u; key_pos < cache_len; ++key_pos) {
         const float k_val = valid_dim ? float(k[cache_head_base + key_pos * pc.D + dim]) : 0.0;
         const float v_val = valid_dim ? float(v[cache_head_base + key_pos * pc.D + dim]) : 0.0;
@@ -490,12 +489,6 @@ def _make_decode_cache_variant(
                     TensorContract(dtype=activation_dtype, shape=("B", "NK", "S", "D")),
                 ),
                 TensorFieldSpec(
-                    "cache_position",
-                    IOKind.INPUT,
-                    "cache_position",
-                    TensorContract(dtype=cache_position_dtype, shape=("T",)),
-                ),
-                TensorFieldSpec(
                     "output",
                     IOKind.OUTPUT,
                     "output",
@@ -503,12 +496,18 @@ def _make_decode_cache_variant(
                 ),
             ),
             push_constants=PushConstantSpec(
-                size=16,
+                size=20,
                 fields=(
                     PushConstantFieldSpec("NH", PushConstantType.UINT32, 0, "NH"),
                     PushConstantFieldSpec("NK", PushConstantType.UINT32, 4, "NK"),
                     PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S"),
                     PushConstantFieldSpec("D", PushConstantType.UINT32, 12, "D"),
+                    PushConstantFieldSpec(
+                        "cache_position",
+                        PushConstantType.UINT32,
+                        16,
+                        PushConstantInput("cache_position"),
+                    ),
                 ),
             ),
             dispatch=("NH", 1, 1),
@@ -517,27 +516,18 @@ def _make_decode_cache_variant(
             activation_dtype,
             ShaderExecutionRequirements(
                 subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
-                require_shader_int64=cache_position_dtype == "int64",
             ),
         ),
-        source=_decode_cache_source(cache_position_dtype, activation_dtype),
+        source=_decode_cache_source(activation_dtype),
     )
 
 
-def _decode_cache_source(cache_position_dtype: str, activation_dtype: str) -> str:
-    cache_position_type = "int64_t" if cache_position_dtype == "int64" else "int"
-    extension = (
-        "#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require"
-        if cache_position_dtype == "int64"
-        else ""
-    )
+def _decode_cache_source(activation_dtype: str) -> str:
     return render_shader_template(
         _SOURCE_DECODE_CACHE,
         {
             "ACTIVATION_EXTENSION": activation_extension_source(activation_dtype),
             "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
-            "CACHE_POSITION_EXTENSION": extension,
-            "CACHE_POSITION_TYPE": cache_position_type,
             "STORE_ACC": activation_store("acc / running_sum", activation_dtype),
         },
     )

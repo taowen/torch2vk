@@ -5,6 +5,7 @@ from __future__ import annotations
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
+    PushConstantInput,
     PushConstantSpec,
     PushConstantType,
     ShaderContract,
@@ -56,12 +57,6 @@ SDPA_DECODE_CACHE_WRITE_F16 = ShaderVariant(
                 TensorContract(dtype="float16", shape=("B", "NK", "S", "D")),
             ),
             TensorFieldSpec(
-                "cache_position",
-                IOKind.INPUT,
-                "cache_position",
-                TensorContract(dtype="int64", shape=("T",)),
-            ),
-            TensorFieldSpec(
                 "output",
                 IOKind.OUTPUT,
                 "output",
@@ -69,19 +64,24 @@ SDPA_DECODE_CACHE_WRITE_F16 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=16,
+            size=20,
             fields=(
                 PushConstantFieldSpec("NH", PushConstantType.UINT32, 0, "NH"),
                 PushConstantFieldSpec("NK", PushConstantType.UINT32, 4, "NK"),
                 PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S"),
                 PushConstantFieldSpec("D", PushConstantType.UINT32, 12, "D"),
+                PushConstantFieldSpec(
+                    "cache_position",
+                    PushConstantType.UINT32,
+                    16,
+                    PushConstantInput("cache_position"),
+                ),
             ),
         ),
         dispatch=("NH", 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(
         subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
-        require_shader_int64=True,
         require_storage_buffer_16bit_access=True,
     ),
     source="""\
@@ -91,7 +91,6 @@ SDPA_DECODE_CACHE_WRITE_F16 = ShaderVariant(
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float16_t q[]; };
@@ -99,9 +98,8 @@ layout(set = 0, binding = 1) buffer restrict readonly NewKBuffer { float16_t new
 layout(set = 0, binding = 2) buffer restrict readonly NewVBuffer { float16_t new_v[]; };
 layout(set = 0, binding = 3) buffer restrict KCacheBuffer { float16_t k_cache[]; };
 layout(set = 0, binding = 4) buffer restrict VCacheBuffer { float16_t v_cache[]; };
-layout(set = 0, binding = 5) buffer restrict readonly CachePositionBuffer { int64_t cache_position[]; };
-layout(set = 0, binding = 6) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
-layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; } pc;
+layout(set = 0, binding = 5) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; uint cache_position; } pc;
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
 const float NEG_INF = -3.4028234663852886e38;
@@ -117,7 +115,7 @@ void main() {
     const uint kv_head = head * pc.NK / pc.NH;
     const uint q_heads_per_kv = pc.NH / pc.NK;
     const bool cache_writer = head == kv_head * q_heads_per_kv;
-    const uint current_pos = uint(cache_position[0]);
+    const uint current_pos = pc.cache_position;
     const uint cache_head_base = kv_head * pc.S * pc.D;
     const uint new_offset = kv_head * pc.D + dim;
     const float new_k_value = valid_dim ? float(new_k[new_offset]) : 0.0;

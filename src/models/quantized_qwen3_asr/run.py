@@ -128,14 +128,14 @@ def _run_token_store(
         )
 
 
-def _run_decode_step(rt: RuntimeSession, *, step: int) -> int:
+def _run_decode_step(rt: RuntimeSession, *, cache_position: int, step: int) -> int:
     tensors = model_tensors()
     if not tensors.decode_layers:
         raise ValueError("decode_layers must not be empty")
     with rt.frame(f"spike.decode.{step:04d}"):
         run_decode_embed(rt)
         for layer_idx in range(len(tensors.decode_layers)):
-            run_decode_layer(rt, layer_idx)
+            run_decode_layer(rt, layer_idx, cache_position=cache_position)
         run_decode_norm(rt)
         _run_lm_head_select(rt, x=tensors.decode_norm.mul_1)
         QWEN3_ASR_TOKEN_STORE_EOS(
@@ -173,18 +173,6 @@ def _run_rope_table(
         sin=rope_t.sin,
         frame_name=frame_name,
     )
-
-
-def _decode_step_inputs(
-    *,
-    cache_position: int,
-) -> dict[LogicalTensor, np.ndarray]:
-    tensors = model_tensors()
-    if not tensors.decode_layers:
-        raise ValueError("decode_layers must not be empty")
-    return {
-        tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
-    }
 
 
 def _read_selected_token(rt: RuntimeSession, next_token: LogicalTensor) -> int:
@@ -454,11 +442,7 @@ def main(
             frame_name=f"spike.decode.rope.{step:04d}",
         )
 
-        decode_step_inputs = _decode_step_inputs(
-            cache_position=cache_pos,
-        )
         if decode_replay_plan is None:
-            rt.register_inputs(decode_step_inputs)
             decode_replay_plan = _cached_decode_replay_plan(
                 rt,
                 cache_namespace=replay_cache_namespace,
@@ -466,6 +450,7 @@ def main(
             if decode_replay_plan is None:
                 _run_decode_step(
                     rt,
+                    cache_position=cache_pos,
                     step=step,
                 )
                 decode_replay_plan = _build_decode_replay_plan(
@@ -477,23 +462,27 @@ def main(
                 stage_replay_step_inputs(
                     rt,
                     plan=decode_replay_plan,
-                    inputs=decode_step_inputs,
-                    write_through=(model_tensors().decode_layers[0].cache_position,),
+                    inputs={},
                 )
                 execute_replay(
                     decode_replay_plan,
-                    dynamic_push_constants={"token_index": step + 1},
+                    dynamic_push_constants={
+                        "cache_position": cache_pos,
+                        "token_index": step + 1,
+                    },
                 )
         else:
             stage_replay_step_inputs(
                 rt,
                 plan=decode_replay_plan,
-                inputs=decode_step_inputs,
-                write_through=(model_tensors().decode_layers[0].cache_position,),
+                inputs={},
             )
             execute_replay(
                 decode_replay_plan,
-                dynamic_push_constants={"token_index": step + 1},
+                dynamic_push_constants={
+                    "cache_position": cache_pos,
+                    "token_index": step + 1,
+                },
             )
 
         stats = rt.device.allocation_stats()

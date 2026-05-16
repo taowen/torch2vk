@@ -226,7 +226,6 @@ def create_model_tensors(
             index_copy_1=value_caches[layer_idx],
             position_embeddings_0=decode_rope.cos,
             position_embeddings_1=decode_rope.sin,
-            cache_position=decode_layers_list[0].cache_position if layer_idx > 0 else None,
         )
         decode_layers_list.append(layer_tensors)
         decode_hidden = layer_tensors.add_7

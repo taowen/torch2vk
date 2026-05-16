@@ -58,7 +58,12 @@ def _attn_qkv(rt: RuntimeSession, tensors: DecodeLayerTensors) -> None:
     )
 
 
-def _run_decode_layer_with_tensors(rt: RuntimeSession, tensors: DecodeLayerTensors) -> None:
+def _run_decode_layer_with_tensors(
+    rt: RuntimeSession,
+    tensors: DecodeLayerTensors,
+    *,
+    cache_position: int,
+) -> None:
     RMS_NORM_MUL_F16_F32(
         rt,
         x=tensors.to,
@@ -89,7 +94,7 @@ def _run_decode_layer_with_tensors(rt: RuntimeSession, tensors: DecodeLayerTenso
         new_v=tensors.view_2,
         k_cache=tensors.index_copy,
         v_cache=tensors.index_copy_1,
-        cache_position=tensors.cache_position,
+        cache_position=cache_position,
         output=tensors.scaled_dot_product_attention,
     )
     LINEAR_NOBIAS_Q4_K_MATVEC_ADD_F32(
@@ -123,5 +128,9 @@ def _run_decode_layer_with_tensors(rt: RuntimeSession, tensors: DecodeLayerTenso
     )
 
 
-def run_decode_layer(rt: RuntimeSession, layer_idx: int) -> None:
-    _run_decode_layer_with_tensors(rt, model_tensors().decode_layers[layer_idx])
+def run_decode_layer(rt: RuntimeSession, layer_idx: int, *, cache_position: int) -> None:
+    _run_decode_layer_with_tensors(
+        rt,
+        model_tensors().decode_layers[layer_idx],
+        cache_position=cache_position,
+    )

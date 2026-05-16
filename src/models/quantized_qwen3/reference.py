@@ -250,7 +250,6 @@ def run_decode_layer(
     attention_mask: ReferenceInput,
     key_cache: ReferenceInput,
     value_cache: ReferenceInput,
-    cache_position: ReferenceInput,
 ) -> ReferenceExpected:
     return _execute_and_compare(
         rt,
@@ -267,7 +266,6 @@ def run_decode_layer(
             "attention_mask": attention_mask,
             "key_cache": key_cache,
             "value_cache": value_cache,
-            "cache_position": cache_position,
         },
     )
 

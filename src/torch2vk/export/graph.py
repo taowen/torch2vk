@@ -178,6 +178,11 @@ def _find_kv_cache_write(
         if _node_arg_name(node, 2) != cache_position_name:
             continue
         node.meta["torch2vk_kv_cache"] = f"{phase}_{cache_kind}_write"
+        if phase == "decode":
+            src_name = _node_arg_name(node, 3)
+            if src_name is None:
+                raise ValueError(f"{node.name} decode KV cache write is missing source input")
+            node.meta["torch2vk_shader_inputs"] = (cache_name, src_name)
         return node
     raise ValueError(
         f"KV cache hint did not match an index_copy write for {cache_kind}_cache={cache_name!r}"
@@ -209,7 +214,6 @@ def _annotate_decode_cache_attention(
             query_name,
             key_write.name,
             value_write.name,
-            cache_position_name,
         )
         cache_position_node = _find_node_by_name(graph, cache_position_name)
         node.meta["torch2vk_cache_position_dtype"] = _node_dtype(cache_position_node)
@@ -346,14 +350,15 @@ def inject_kv_cache(prog: torch.export.ExportedProgram, hint: KVCacheInjectHint)
             persistent=None,
         )
     )
-    sig.input_specs.append(
-        InputSpec(
-            kind=InputKind.USER_INPUT,
-            arg=TensorArgument(name="cache_position"),
-            target=None,
-            persistent=None,
+    if hint.phase == "prefill":
+        sig.input_specs.append(
+            InputSpec(
+                kind=InputKind.USER_INPUT,
+                arg=TensorArgument(name="cache_position"),
+                target=None,
+                persistent=None,
+            )
         )
-    )
 
     _annotate_kv_cache(
         prog,

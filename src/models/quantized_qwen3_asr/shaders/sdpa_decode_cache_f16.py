@@ -5,6 +5,7 @@ from __future__ import annotations
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
+    PushConstantInput,
     PushConstantSpec,
     PushConstantType,
     ShaderContract,
@@ -44,12 +45,6 @@ SDPA_DECODE_CACHE_F16 = ShaderVariant(
                 contract=TensorContract(dtype='float16', shape=('B', 'NK', 'S', 'D',)),
             ),
             TensorFieldSpec(
-                name='cache_position',
-                io_kind=IOKind.INPUT,
-                role='cache_position',
-                contract=TensorContract(dtype='int64', shape=('T',)),
-            ),
-            TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
@@ -57,18 +52,19 @@ SDPA_DECODE_CACHE_F16 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=16,
+            size=20,
             fields=(
                 PushConstantFieldSpec('NH', PushConstantType.UINT32, 0, 'NH', dynamic=False),
                 PushConstantFieldSpec('NK', PushConstantType.UINT32, 4, 'NK', dynamic=False),
                 PushConstantFieldSpec('S', PushConstantType.UINT32, 8, 'S', dynamic=False),
                 PushConstantFieldSpec('D', PushConstantType.UINT32, 12, 'D', dynamic=False),
+                PushConstantFieldSpec('cache_position', PushConstantType.UINT32, 16, PushConstantInput('cache_position'), dynamic=False),
             ),
         ),
         params_buffer=None,
         dispatch=('NH', 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_shader_int64=True, require_storage_buffer_16bit_access=True),
+    execution_requirements=ShaderExecutionRequirements(subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True), require_storage_buffer_16bit_access=True),
     source="""\
 #version 450
 
@@ -76,15 +72,13 @@ SDPA_DECODE_CACHE_F16 = ShaderVariant(
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float16_t q[]; };
 layout(set = 0, binding = 1) buffer restrict readonly KBuffer { float16_t k[]; };
 layout(set = 0, binding = 2) buffer restrict readonly VBuffer { float16_t v[]; };
-layout(set = 0, binding = 3) buffer restrict readonly CachePositionBuffer { int64_t cache_position[]; };
-layout(set = 0, binding = 4) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
-layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; } pc;
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(push_constant) uniform PushConstants { uint NH; uint NK; uint S; uint D; uint cache_position; } pc;
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
 const float NEG_INF = -3.4028234663852886e38;
@@ -106,7 +100,7 @@ void main() {
     float acc = 0.0;
 
     const uint cache_head_base = kv_head * pc.S * pc.D;
-    const uint cache_len = min(uint(cache_position[0]) + 1u, pc.S);
+    const uint cache_len = min(pc.cache_position + 1u, pc.S);
     for (uint key_pos = 0u; key_pos < cache_len; ++key_pos) {
         const float k_val = valid_dim ? float(k[cache_head_base + key_pos * pc.D + dim]) : 0.0;
         const float v_val = valid_dim ? float(v[cache_head_base + key_pos * pc.D + dim]) : 0.0;

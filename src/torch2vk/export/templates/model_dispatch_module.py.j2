@@ -17,4 +17,4 @@ from torch2vk.runtime.session import RuntimeSession
 
 
 def {{ function_name }}(rt: RuntimeSession{{ parameters_source }}) -> None:
-    _{{ function_name }}_with_tensors(rt, {{ tensor_expr }})
+    _{{ function_name }}_with_tensors(rt, {{ tensor_expr }}{{ arguments_source }})

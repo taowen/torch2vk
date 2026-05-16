@@ -39,7 +39,6 @@ class DecodeLayerTensors:
     hidden_states: LogicalTensor
     position_embeddings_0: LogicalTensor
     position_embeddings_1: LogicalTensor
-    cache_position: LogicalTensor
     to: LogicalTensor
     pow_1: LogicalTensor
     mean: LogicalTensor
@@ -135,7 +134,6 @@ def create_decode_layer(
     hidden_states: LogicalTensor | None = None,
     position_embeddings_0: LogicalTensor | None = None,
     position_embeddings_1: LogicalTensor | None = None,
-    cache_position: LogicalTensor | None = None,
     to: LogicalTensor | None = None,
     pow_1: LogicalTensor | None = None,
     mean: LogicalTensor | None = None,
@@ -390,19 +388,6 @@ def create_decode_layer(
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
                 request_state='position_embeddings_1' in request_state_outputs,
-            ),
-        ),
-        cache_position=_bind_tensor(
-            cache_position,
-            _declare_tensor(
-                checkpoint_key=None,
-                reference_key=None,
-                spec=TensorSpec(dtype='int64', shape=(1,)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.INPUT,
-                memory=MemoryClass.HOST_INPUT,
-                lifetime=TensorLifetime.FRAME,
-                request_state='cache_position' in request_state_outputs,
             ),
         ),
         to=_bind_tensor(

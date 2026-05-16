@@ -168,7 +168,7 @@ def _run_decode_step(
         )
         run_decode_embed(rt)
         for layer_idx in range(len(tensors.decode_layers)):
-            run_decode_layer(rt, layer_idx)
+            run_decode_layer(rt, layer_idx, cache_position=cache_position)
         run_decode_norm(rt)
         _run_lm_head_select(rt, x=tensors.decode_norm.mul_1)
         QWEN3_TOKEN_STORE_EOS(
@@ -191,16 +191,6 @@ def _prefill_inputs(
     return {
         tensors.input_ids: input_ids,
         tensors.text_layers[0].cache_position: np.arange(prompt_length, dtype=np.int64),
-    }
-
-
-def _decode_step_inputs(
-    *,
-    cache_position: int,
-) -> dict[LogicalTensor, np.ndarray]:
-    tensors = model_tensors()
-    return {
-        tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
     }
 
 
@@ -366,11 +356,7 @@ def main(
     decode_start = time.perf_counter()
     for step in range(max_new_tokens - 1):
         cache_pos = prompt_length + step
-        decode_inputs = _decode_step_inputs(
-            cache_position=cache_pos,
-        )
         if decode_replay_plan is None:
-            rt.register_inputs(decode_inputs)
             _run_decode_step(
                 rt,
                 cache_position=cache_pos,
@@ -387,12 +373,12 @@ def main(
             stage_replay_step_inputs(
                 rt,
                 plan=decode_replay_plan,
-                inputs=decode_inputs,
-                write_through=(model_tensors().decode_layers[0].cache_position,),
+                inputs={},
             )
             execute_replay(
                 decode_replay_plan,
                 dynamic_push_constants={
+                    "cache_position": cache_pos,
                     "start_position": cache_pos,
                     "token_index": step + 1,
                 },

@@ -88,8 +88,16 @@ def _dispatch_tensor_expr(func_name: str) -> str:
 
 
 def _dispatch_parameters_source(func_name: str) -> str:
+    if func_name == "decode_layer":
+        return ", layer_idx: int, *, cache_position: int"
     if func_name in ("text_layer", "decode_layer"):
         return ", layer_idx: int"
+    return ""
+
+
+def _dispatch_arguments_source(func_name: str) -> str:
+    if func_name == "decode_layer":
+        return ", cache_position=cache_position"
     return ""
 
 
@@ -249,6 +257,7 @@ def main() -> int:
                 shader_imports=shader_imports,
                 function_source=bind_dispatch_function_to_tensors(func_src),
                 parameters_source=_dispatch_parameters_source(func_name),
+                arguments_source=_dispatch_arguments_source(func_name),
                 uses_quantized_linear_dispatch="run_quantized_linear(" in func_src,
             )
         )

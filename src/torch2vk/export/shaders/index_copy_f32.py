@@ -16,6 +16,7 @@ from torch2vk.export.shaders._factory import (
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
+    PushConstantInput,
     PushConstantSpec,
     PushConstantType,
     ShaderContract,
@@ -117,6 +118,34 @@ void main() {
 """
 
 
+_SOURCE_KV_CACHE_WRITE_DECODE = """\
+#version 450
+{{ACTIVATION_EXTENSION}}\
+layout(std430) buffer;
+layout(set = 0, binding = 0) buffer restrict CacheBuffer { {{ACTIVATION_TYPE}} cache[]; };
+layout(set = 0, binding = 1) buffer restrict readonly SrcBuffer { {{ACTIVATION_TYPE}} src[]; };
+layout(push_constant) uniform PushConstants { uint B; uint H; uint S; uint D; uint T; uint cache_position; } pc;
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+void main() {
+    const uint idx = gl_GlobalInvocationID.x;
+    const uint total = pc.B * pc.H * pc.T * pc.D;
+    if (idx >= total) { return; }
+
+    uint rem = idx;
+    const uint d = rem % pc.D;
+    rem = rem / pc.D;
+    const uint t = rem % pc.T;
+    rem = rem / pc.T;
+    const uint h = rem % pc.H;
+    const uint b = rem / pc.H;
+
+    const uint src_idx = ((b * pc.H + h) * pc.T + t) * pc.D + d;
+    const uint dst_idx = ((b * pc.H + h) * pc.S + pc.cache_position) * pc.D + d;
+    cache[dst_idx] = src[src_idx];
+}
+"""
+
+
 def make_index_copy_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
     if len(node.args) != 4:
         return None
@@ -140,6 +169,7 @@ def _is_kv_cache_write(node: Node) -> bool:
 
 
 def _make_kv_cache_write_variant(node: Node, activation_dtype: str) -> ShaderVariant | None:
+    phase = str(node.meta.get("torch2vk_kv_cache", "")).split("_", 1)[0]
     dim = node.args[1]
     cache_shape = node_output_shape(node)
     index_shape = node_input_shape(node, 2)
@@ -162,50 +192,90 @@ def _make_kv_cache_write_variant(node: Node, activation_dtype: str) -> ShaderVar
 
     total = mul(mul(mul("B", "H"), "T"), "D")
     suffix = activation_dtype_suffix(activation_dtype)
-    shader_name = f"kv_cache_write_{suffix}"
+    shader_name = f"kv_cache_write_decode_{suffix}" if phase == "decode" else f"kv_cache_write_{suffix}"
     class_name = f"ExportKvCacheWrite{suffix.upper()}Program"
+    if phase == "decode":
+        fields = (
+            TensorFieldSpec(
+                "cache",
+                IOKind.INOUT,
+                "state",
+                TensorContract(dtype=activation_dtype, shape=("B", "H", "S", "D")),
+            ),
+            TensorFieldSpec(
+                "src",
+                IOKind.INPUT,
+                "input",
+                TensorContract(dtype=activation_dtype, shape=("B", "H", "T", "D")),
+            ),
+        )
+        push_constants = PushConstantSpec(
+            size=24,
+            fields=(
+                PushConstantFieldSpec("B", PushConstantType.UINT32, 0, "B"),
+                PushConstantFieldSpec("H", PushConstantType.UINT32, 4, "H"),
+                PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S"),
+                PushConstantFieldSpec("D", PushConstantType.UINT32, 12, "D"),
+                PushConstantFieldSpec("T", PushConstantType.UINT32, 16, "T"),
+                PushConstantFieldSpec(
+                    "cache_position",
+                    PushConstantType.UINT32,
+                    20,
+                    PushConstantInput("cache_position"),
+                ),
+            ),
+        )
+        requirements = activation_requirements(
+            activation_dtype, ShaderExecutionRequirements()
+        )
+        source = _index_source(_SOURCE_KV_CACHE_WRITE_DECODE, "int32", activation_dtype)
+    else:
+        fields = (
+            TensorFieldSpec(
+                "cache",
+                IOKind.INOUT,
+                "state",
+                TensorContract(dtype=activation_dtype, shape=("B", "H", "S", "D")),
+            ),
+            TensorFieldSpec(
+                "cache_position",
+                IOKind.INPUT,
+                "cache_position",
+                TensorContract(dtype=index_dtype, shape=("T",)),
+            ),
+            TensorFieldSpec(
+                "src",
+                IOKind.INPUT,
+                "input",
+                TensorContract(dtype=activation_dtype, shape=("B", "H", "T", "D")),
+            ),
+        )
+        push_constants = PushConstantSpec(
+            size=20,
+            fields=(
+                PushConstantFieldSpec("B", PushConstantType.UINT32, 0, "B"),
+                PushConstantFieldSpec("H", PushConstantType.UINT32, 4, "H"),
+                PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S"),
+                PushConstantFieldSpec("D", PushConstantType.UINT32, 12, "D"),
+                PushConstantFieldSpec("T", PushConstantType.UINT32, 16, "T"),
+            ),
+        )
+        requirements = activation_requirements(
+            activation_dtype, _index_execution_requirements(index_dtype)
+        )
+        source = _index_source(_SOURCE_KV_CACHE_WRITE, index_dtype, activation_dtype)
     return ShaderVariant(
         name=shader_name,
         family="export",
         contract=ShaderContract(
             class_name=class_name,
             shader_name=shader_name,
-            fields=(
-                TensorFieldSpec(
-                    "cache",
-                    IOKind.INOUT,
-                    "state",
-                    TensorContract(dtype=activation_dtype, shape=("B", "H", "S", "D")),
-                ),
-                TensorFieldSpec(
-                    "cache_position",
-                    IOKind.INPUT,
-                    "cache_position",
-                    TensorContract(dtype=index_dtype, shape=("T",)),
-                ),
-                TensorFieldSpec(
-                    "src",
-                    IOKind.INPUT,
-                    "input",
-                    TensorContract(dtype=activation_dtype, shape=("B", "H", "T", "D")),
-                ),
-            ),
-            push_constants=PushConstantSpec(
-                size=20,
-                fields=(
-                    PushConstantFieldSpec("B", PushConstantType.UINT32, 0, "B"),
-                    PushConstantFieldSpec("H", PushConstantType.UINT32, 4, "H"),
-                    PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S"),
-                    PushConstantFieldSpec("D", PushConstantType.UINT32, 12, "D"),
-                    PushConstantFieldSpec("T", PushConstantType.UINT32, 16, "T"),
-                ),
-            ),
+            fields=fields,
+            push_constants=push_constants,
             dispatch=(ceil_div(total, 256), 1, 1),
         ),
-        execution_requirements=activation_requirements(
-            activation_dtype, _index_execution_requirements(index_dtype)
-        ),
-        source=_index_source(_SOURCE_KV_CACHE_WRITE, index_dtype, activation_dtype),
+        execution_requirements=requirements,
+        source=source,
     )
 
 

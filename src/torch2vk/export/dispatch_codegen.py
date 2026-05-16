@@ -33,6 +33,7 @@ from torch2vk.export.shaders.linear_nobias_quantized import (
 from torch2vk.quantize import Q4KMQuantizationConfig
 from torch2vk.quantize.gguf import _WeightDeclaration
 from torch2vk.runtime.shader import IOKind, ShaderContract, ShaderVariant
+from torch2vk.runtime.shader import PushConstantInput, PushConstantType
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +47,7 @@ class _DispatchOp:
     name: str
     variant: ShaderVariant
     bindings: dict[str, str]
+    push_inputs: tuple[str, ...] = ()
     q6_variant: ShaderVariant | None = None
     q8_variant: ShaderVariant | None = None
 
@@ -92,8 +94,8 @@ def render_dispatch_file(
 
 def bind_dispatch_function_to_tensors(source: str) -> str:
     bound = re.sub(
-        r"def (run_\w+)\(rt: RuntimeSession, tensors: (\w+)\) -> None:",
-        r"def _\1_with_tensors(rt: RuntimeSession, tensors: \2) -> None:",
+        r"def (run_\w+)\(rt: RuntimeSession, tensors: (\w+)([^)]*)\) -> None:",
+        r"def _\1_with_tensors(rt: RuntimeSession, tensors: \2\3) -> None:",
         source,
         count=1,
     )
@@ -112,6 +114,7 @@ def render_model_dispatch_module(
     shader_imports: Mapping[str, str],
     function_source: str,
     parameters_source: str = "",
+    arguments_source: str = "",
     uses_quantized_linear_dispatch: bool = False,
 ) -> str:
     return render_template(
@@ -126,6 +129,7 @@ def render_model_dispatch_module(
         ),
         function_source=function_source.rstrip("\n"),
         parameters_source=parameters_source,
+        arguments_source=arguments_source,
         uses_quantized_linear_dispatch=uses_quantized_linear_dispatch,
     )
 
@@ -522,7 +526,11 @@ def _generate_static_dispatch_function(
 
     shader_imports: dict[str, str] = {}
     lines: list[str] = []
-    lines.append(f"def {function_name}(rt: RuntimeSession, tensors: {class_name}) -> None:")
+    push_constant_params = _dispatch_push_constant_params(ops)
+    lines.append(
+        f"def {function_name}(rt: RuntimeSession, tensors: {class_name}"
+        f"{_push_constant_parameters_source(push_constant_params)}) -> None:"
+    )
 
     for op in ops:
         if isinstance(op, _AliasOp):
@@ -530,7 +538,7 @@ def _generate_static_dispatch_function(
         elif isinstance(op, _DispatchOp):
             const_name = op.variant.name.upper()
             shader_imports[op.variant.name] = const_name
-            args = ", ".join(f"{k}={v}" for k, v in op.bindings.items())
+            args = _dispatch_args_source(op)
             if op.q6_variant is not None:
                 if op.q8_variant is None:
                     raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
@@ -606,6 +614,7 @@ def _collect_ops(
                 name=node.name,
                 variant=shader,
                 bindings=bindings,
+                push_inputs=_dispatch_push_constant_input_names(shader, q6_shader, q8_shader),
                 q6_variant=q6_shader,
                 q8_variant=q8_shader,
             )
@@ -621,6 +630,59 @@ def _q6_variant_for_q4_k_m(node: Node, shader: ShaderVariant) -> ShaderVariant |
     if base_name == "linear_nobias_q4_k_matvec_f32":
         return make_linear_nobias_q6_k_variant(node, _activation_dtype(shader), matvec=True)
     return None
+
+
+def _dispatch_args_source(op: _DispatchOp) -> str:
+    args = [f"{k}={v}" for k, v in op.bindings.items()]
+    args.extend(f"{name}={name}" for name in op.push_inputs)
+    return ", ".join(args)
+
+
+def _dispatch_push_constant_input_names(
+    *variants: ShaderVariant | None,
+) -> tuple[str, ...]:
+    names: set[str] = set()
+    for variant in variants:
+        if variant is None or variant.contract.push_constants is None:
+            continue
+        for field in variant.contract.push_constants.fields:
+            if isinstance(field.value, PushConstantInput):
+                names.add(field.value.name)
+    return tuple(sorted(names))
+
+
+def _dispatch_push_constant_params(ops: list[_Op]) -> tuple[tuple[str, str], ...]:
+    types: dict[str, str] = {}
+    for op in ops:
+        if not isinstance(op, _DispatchOp):
+            continue
+        for variant in (op.variant, op.q6_variant, op.q8_variant):
+            if variant is None or variant.contract.push_constants is None:
+                continue
+            for field in variant.contract.push_constants.fields:
+                if not isinstance(field.value, PushConstantInput):
+                    continue
+                param_type = _push_constant_python_type(field.dtype)
+                existing = types.get(field.value.name)
+                if existing is not None and existing != param_type:
+                    raise RuntimeError(
+                        f"Push constant input {field.value.name!r} has conflicting "
+                        f"types: {existing} and {param_type}"
+                    )
+                types[field.value.name] = param_type
+    return tuple(sorted(types.items()))
+
+
+def _push_constant_python_type(dtype: PushConstantType) -> str:
+    if dtype is PushConstantType.FLOAT32:
+        return "float"
+    return "int"
+
+
+def _push_constant_parameters_source(params: tuple[tuple[str, str], ...]) -> str:
+    if not params:
+        return ""
+    return ", *, " + ", ".join(f"{name}: {param_type}" for name, param_type in params)
 
 
 def _q8_variant_for_q4_k_m(node: Node, shader: ShaderVariant) -> ShaderVariant | None:

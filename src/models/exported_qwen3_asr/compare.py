@@ -181,18 +181,6 @@ def _run_rope_table(
     )
 
 
-def _decode_step_inputs(
-    *,
-    cache_position: int,
-) -> dict[LogicalTensor, np.ndarray]:
-    tensors = model_tensors()
-    if not tensors.decode_layers:
-        raise ValueError("decode_layers must not be empty")
-    return {
-        tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
-    }
-
-
 def _read_selected_token(rt: RuntimeSession, next_token: LogicalTensor) -> int:
     _require_gpu_output(next_token)
     return int(rt.read_request_state(next_token).reshape(-1)[0])
@@ -287,6 +275,7 @@ def _run_decode_step_with_compare(
     refs: _QwenCompareReferences,
 ) -> int:
     tensors = model_tensors()
+    cache_position_value = int(cache_position.reshape(-1)[0])
     decode_input = _vulkan_request_state(rt, tensors.next_token).astype(np.int64, copy=False)
     with rt.frame(f"spike.decode.{step:04d}"):
         run_decode_embed(rt)
@@ -301,7 +290,7 @@ def _run_decode_step_with_compare(
         for layer_idx in range(len(tensors.decode_layers)):
             key_cache_before = _vulkan_request_state(rt, tensors.key_caches[layer_idx])
             value_cache_before = _vulkan_request_state(rt, tensors.value_caches[layer_idx])
-            run_decode_layer(rt, layer_idx)
+            run_decode_layer(rt, layer_idx, cache_position=cache_position_value)
             reference.run_decode_layer(
                 rt,
                 refs.decode_layers[layer_idx],
@@ -630,10 +619,6 @@ def compare_decode_steps(
             frame_name=f"spike.decode.rope.{step:04d}",
         )
 
-        decode_step_inputs = _decode_step_inputs(
-            cache_position=cache_pos,
-        )
-        rt.register_inputs(decode_step_inputs)
         next_token = _run_decode_step_with_compare(
             rt,
             step=step,
