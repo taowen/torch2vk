@@ -160,6 +160,8 @@ def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOK
         )
         tensor.descriptor_nbytes = size
         tensor.alias_source = None
+    if tensor.memory is MemoryClass.REQUEST_STATE:
+        rt._request_tensors.add(tensor)
     if tensor.lifetime in {TensorLifetime.FRAME, TensorLifetime.OP}:
         rt._frame_allocations.append((tensor, allocation))
 
@@ -245,6 +247,7 @@ def materialize_input(rt: RuntimeSession, tensor: LogicalTensor) -> None:
             tensor.descriptor_nbytes = slice_.nbytes
             tensor.alias_source = None
         rt._request_allocations.append(allocation)
+        rt._request_tensors.add(tensor)
         return
     with tensor.runtime_write_scope():
         tensor.buffer = BufferSlice(
@@ -365,6 +368,14 @@ def release_request_allocation(rt: RuntimeSession, allocation: BufferAllocation)
         if request_allocation is not allocation
     ]
     allocation.close()
+    for tensor in tuple(rt._request_tensors):
+        if tensor.buffer is not None and tensor.buffer.allocation is allocation:
+            with tensor.runtime_write_scope():
+                tensor.buffer = None
+                tensor.descriptor_nbytes = None
+                tensor.writer = None
+                tensor.alias_source = None
+            rt._request_tensors.discard(tensor)
 
 
 def descriptor_view_for_field(

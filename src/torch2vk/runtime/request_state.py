@@ -46,6 +46,8 @@ def initialize_request_state(
             with tensor.runtime_write_scope():
                 tensor.buffer = None
                 tensor.descriptor_nbytes = 0
+                tensor.alias_source = None
+            rt._request_tensors.add(tensor)
             continue
         if tensor.buffer is None:
             ((slice_, allocation),) = rt.device.upload_numpy_arrays_with_allocations(
@@ -54,7 +56,9 @@ def initialize_request_state(
             with tensor.runtime_write_scope():
                 tensor.buffer = slice_
                 tensor.descriptor_nbytes = expected
+                tensor.alias_source = None
             rt._request_allocations.append(allocation)
+            rt._request_tensors.add(tensor)
             continue
         ((source, allocation),) = rt.device.upload_numpy_arrays_with_allocations(
             [(tensor.name, array)]
@@ -69,6 +73,7 @@ def initialize_request_state(
             )
         finally:
             allocation.close()
+        rt._request_tensors.add(tensor)
 
 
 def read_request_state(rt: RuntimeSession, tensor: LogicalTensor) -> np.ndarray:
@@ -107,6 +112,7 @@ def grow_request_state(
         new_shape=resolved_new_shape,
     )
     if resolved_new_shape == old_shape:
+        rt._request_tensors.add(tensor)
         return
 
     old_logical_nbytes = tensor_nbytes(tensor.spec)
@@ -122,6 +128,7 @@ def grow_request_state(
             tensor.spec = new_spec
             tensor.descriptor_nbytes = 0
             tensor.version += 1
+        rt._request_tensors.add(tensor)
         return
     buffer = tensor.buffer
     if buffer is not None and buffer.nbytes >= new_logical_nbytes and not requires_relayout:
@@ -129,6 +136,7 @@ def grow_request_state(
             tensor.spec = new_spec
             tensor.descriptor_nbytes = new_logical_nbytes
             tensor.version += 1
+        rt._request_tensors.add(tensor)
         return
 
     new_capacity_nbytes = _grown_request_state_capacity_nbytes(
@@ -170,7 +178,9 @@ def grow_request_state(
             tensor.spec = new_spec
             tensor.descriptor_nbytes = new_logical_nbytes
             tensor.version += 1
+            tensor.alias_source = None
         rt._request_allocations.append(new_allocation)
+        rt._request_tensors.add(tensor)
     except Exception:
         new_allocation.close()
         raise
@@ -178,38 +188,18 @@ def grow_request_state(
         rt._release_request_allocation(old_allocation)
 
 
-def release_request_state(
-    rt: RuntimeSession,
-    tensors: Sequence[LogicalTensor] | None = None,
-) -> None:
-    """Release selected request-state buffers, or all request allocations when omitted."""
-    rt._require_open()
-    if tensors is None:
-        for allocation in reversed(rt._request_allocations):
-            allocation.close()
-        rt._request_allocations.clear()
-        return
-    requested = set(tensors)
-    retained: list[BufferAllocation] = []
-    released: list[BufferAllocation] = []
-    for allocation in rt._request_allocations:
-        if any(
-            tensor.buffer is not None and tensor.buffer.allocation is allocation
-            for tensor in requested
-        ):
-            allocation.close()
-            released.append(allocation)
-        else:
-            retained.append(allocation)
-    rt._request_allocations = retained
-    for tensor in requested:
-        if tensor.buffer is not None and any(
-            tensor.buffer.allocation is allocation for allocation in released
-        ):
-            with tensor.runtime_write_scope():
-                tensor.buffer = None
-                tensor.descriptor_nbytes = None
-                tensor.writer = None
+def _clear_request_state(rt: RuntimeSession) -> None:
+    """Release all buffers and tensor bindings owned by the current request."""
+    for allocation in reversed(rt._request_allocations):
+        allocation.close()
+    rt._request_allocations.clear()
+    for tensor in rt._request_tensors:
+        with tensor.runtime_write_scope():
+            tensor.buffer = None
+            tensor.descriptor_nbytes = None
+            tensor.writer = None
+            tensor.alias_source = None
+    rt._request_tensors.clear()
 
 
 def _copy_grown_request_state(

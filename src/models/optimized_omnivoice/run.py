@@ -77,8 +77,6 @@ class _RuntimeCache:
     profile_dir: str | None
     generation_cache_namespace: str
     rt: RuntimeSession
-    generation_replay_plan: ReplayPlan | None = None
-    audio_decode_replay_plans: dict[int, ReplayPlan] | None = None
 
     def close(self) -> None:
         self.rt.close()
@@ -148,7 +146,6 @@ def _runtime_for(
             model_tensors=model_tensors(),
             get_shader=get_shader,
         ),
-        audio_decode_replay_plans={},
     )
     if profile_key is None:
         _RUNTIME_CACHE = runtime
@@ -369,19 +366,15 @@ def _audio_decode_topology(target_len: int, num_audio_codebook: int) -> _AudioDe
 
 def _decode_current_audio(
     rt: RuntimeSession,
-    runtime: _RuntimeCache,
     *,
     tokens: np.ndarray,
     num_audio_codebook: int,
+    replay_plans: dict[int, ReplayPlan],
 ) -> np.ndarray:
     active_target_len = int(tokens.shape[-1])
     topology = _audio_decode_topology(active_target_len, num_audio_codebook)
     rt.initialize_request_state({topology.audio_codes: tokens[None, :, :]})
 
-    replay_plans = runtime.audio_decode_replay_plans
-    if replay_plans is None:
-        replay_plans = {}
-        runtime.audio_decode_replay_plans = replay_plans
     audio_decode_replay_plan = replay_plans.get(active_target_len)
     if audio_decode_replay_plan is None:
         with rt.frame(f"omnivoice.audio_decode.{active_target_len}"):
@@ -405,7 +398,9 @@ def _run_prepared_chunk(
     prepared: PreparedOmniVoiceInputs,
     config: OmniVoiceConfig,
     num_steps: int,
-) -> _GeneratedChunk:
+    generation_replay_plan: ReplayPlan | None,
+    audio_decode_replay_plans: dict[int, ReplayPlan],
+) -> tuple[_GeneratedChunk, ReplayPlan | None]:
     num_audio_codebook = config.num_audio_codebook
     target_len = prepared.target_len
     audio_mask_id = config.audio_mask_id
@@ -437,7 +432,6 @@ def _run_prepared_chunk(
         num_steps=num_steps,
     )
     unmasked = 0
-    generation_replay_plan = runtime.generation_replay_plan
     generation_start = time.perf_counter()
     rng_seed = 0x1234ABCD
     for step, unmask_count in enumerate(schedule):
@@ -476,7 +470,6 @@ def _run_prepared_chunk(
                         "cond_target_start": prepared.cond_target_start,
                     },
                 )
-            runtime.generation_replay_plan = generation_replay_plan
         else:
             execute_replay(
                 generation_replay_plan,
@@ -506,13 +499,13 @@ def _run_prepared_chunk(
     decode_start = time.perf_counter()
     waveform = _decode_current_audio(
         rt,
-        runtime,
         tokens=generated_tokens,
         num_audio_codebook=num_audio_codebook,
+        replay_plans=audio_decode_replay_plans,
     )
     print(f"  Audio decode: {time.perf_counter() - decode_start:.3f}s")
 
-    return _GeneratedChunk(text=text, tokens=generated_tokens, waveform=waveform)
+    return _GeneratedChunk(text=text, tokens=generated_tokens, waveform=waveform), generation_replay_plan
 
 
 def main(
@@ -554,6 +547,8 @@ def main(
         generated_chunks: list[_GeneratedChunk] = []
         first_chunk_tokens: np.ndarray | None = None
         first_chunk_text: str | None = None
+        generation_replay_plan: ReplayPlan | None = None
+        audio_decode_replay_plans: dict[int, ReplayPlan] = {}
         for chunk_idx, chunk in enumerate(text_chunks):
             print(f"\n=== Chunk {chunk_idx + 1}/{len(text_chunks)} ===")
             prepared = prepare_omnivoice_inputs(
@@ -565,13 +560,15 @@ def main(
                 seq_capacity=SEQ_CAPACITY,
                 target_capacity=TARGET_CAPACITY,
             )
-            generated = _run_prepared_chunk(
+            generated, generation_replay_plan = _run_prepared_chunk(
                 rt,
                 runtime,
                 text=chunk.text,
                 prepared=prepared,
                 config=config,
                 num_steps=num_steps,
+                generation_replay_plan=generation_replay_plan,
+                audio_decode_replay_plans=audio_decode_replay_plans,
             )
             generated_chunks.append(generated)
             if first_chunk_tokens is None:

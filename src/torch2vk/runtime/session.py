@@ -86,6 +86,7 @@ class RuntimeSession:
 
         self._model_allocations: list[BufferAllocation] = []
         self._request_allocations: list[BufferAllocation] = []
+        self._request_tensors: set[LogicalTensor] = set()
         self._frame_allocations: list[tuple[LogicalTensor, BufferAllocation]] = []
         self._closed = False
 
@@ -151,7 +152,6 @@ class RuntimeSession:
 
         Request keyword names are resolved against RuntimeSession.model_tensors by
         LogicalTensor.name, then registered with register_inputs().
-        This scope does not release or reset request state yet.
         """
         self._require_open()
         if self._request_active:
@@ -168,7 +168,12 @@ class RuntimeSession:
                 )
             yield self
         finally:
-            self._request_active = False
+            try:
+                self._close_replay_plan_cache()
+                self._clear_request_state()
+                self._inputs.clear()
+            finally:
+                self._request_active = False
 
     def register_session_tensors(self, tensors: Mapping[LogicalTensor, object]) -> None:
         self._require_open()
@@ -226,11 +231,6 @@ class RuntimeSession:
         from torch2vk.runtime.request_state import grow_request_state
 
         grow_request_state(self, tensor, new_shape, growth=growth)
-
-    def release_request_state(self, tensors: Sequence[LogicalTensor] | None = None) -> None:
-        from torch2vk.runtime.request_state import release_request_state
-
-        release_request_state(self, tensors)
 
     @contextmanager
     def frame(self, name: str):
@@ -323,17 +323,12 @@ class RuntimeSession:
         if self._closed:
             return
         self._closed = True
-        for plans in self._replay_plan_cache.values():
-            for plan in plans:
-                plan.close()
-        self._replay_plan_cache.clear()
+        self._close_replay_plan_cache()
         self._release_frame_allocations()
         for pipeline in self._pipeline_cache.values():
             pipeline.close()
         self._pipeline_cache.clear()
-        for allocation in reversed(self._request_allocations):
-            allocation.close()
-        self._request_allocations.clear()
+        self._clear_request_state()
         for allocation in reversed(self._model_allocations):
             allocation.close()
         self._model_allocations.clear()
@@ -477,6 +472,17 @@ class RuntimeSession:
         from torch2vk.runtime.materialization import release_frame_allocations
 
         release_frame_allocations(self)
+
+    def _clear_request_state(self) -> None:
+        from torch2vk.runtime.request_state import _clear_request_state
+
+        _clear_request_state(self)
+
+    def _close_replay_plan_cache(self) -> None:
+        for plans in self._replay_plan_cache.values():
+            for plan in plans:
+                plan.close()
+        self._replay_plan_cache.clear()
 
     def _release_request_allocation(self, allocation: BufferAllocation) -> None:
         from torch2vk.runtime.materialization import release_request_allocation

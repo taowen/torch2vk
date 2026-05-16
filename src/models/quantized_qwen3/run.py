@@ -308,25 +308,28 @@ def main(
         ),
         dtype=np.float16,
     )
-    rt.initialize_request_state(
-        {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
-    )
-    rt.initialize_request_state(
-        {
-            model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
-            model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
-            model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
-        }
-    )
     rt.materialize_model_weights()
 
     print(f"Prefill prompt_length={prompt_length}...")
-    prefill_replay_plan = _cached_replay_plan(rt, cache_namespace=prefill_cache_namespace)
     prefill_inputs = _prefill_inputs(
         input_ids=prepared.input_ids,
         prompt_length=prompt_length,
     )
     with rt.request(**{tensor.name: value for tensor, value in prefill_inputs.items()}):
+        rt.initialize_request_state(
+            {
+                cache: zero_cache
+                for cache in model_tensors().key_caches + model_tensors().value_caches
+            }
+        )
+        rt.initialize_request_state(
+            {
+                model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
+                model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
+                model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
+            }
+        )
+        prefill_replay_plan = _cached_replay_plan(rt, cache_namespace=prefill_cache_namespace)
         prefill_start = time.perf_counter()
         if prefill_replay_plan is None:
             _run_prefill(rt, rope_theta=rope_theta)

@@ -199,6 +199,18 @@ class ReplayPlan:
         if self._closed:
             return
         self._closed = True
+        workspace_allocations = tuple(self.workspace_allocations)
+        for entry in self.dispatch_entries:
+            for descriptor in entry.descriptors:
+                tensor = descriptor.tensor
+                if tensor.buffer is not None and any(
+                    tensor.buffer.allocation is alloc for alloc in workspace_allocations
+                ):
+                    with tensor.runtime_write_scope():
+                        tensor.buffer = None
+                        tensor.descriptor_nbytes = None
+                        tensor.writer = None
+                        tensor.alias_source = None
         for binding in self.bindings:
             binding.close()
         if self.fence is not None:

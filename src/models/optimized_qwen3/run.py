@@ -327,32 +327,6 @@ def main(
         (1, max_sequence_length, int(config.num_key_value_heads), int(config.head_dim)),
         dtype=np.float16,
     )
-    rt.initialize_request_state(
-        {
-            cache: zero_full_flash_cache
-            for cache in model_tensors().prefill_full_key_caches
-            + model_tensors().prefill_full_value_caches
-        }
-    )
-    rt.initialize_request_state(
-        {
-            cache: zero_prefill_flash_cache
-            for cache in model_tensors().prefill_key_caches + model_tensors().prefill_value_caches
-        }
-    )
-    rt.initialize_request_state(
-        {
-            cache: zero_decode_cache
-            for cache in model_tensors().decode_key_caches + model_tensors().decode_value_caches
-        }
-    )
-    rt.initialize_request_state(
-        {
-            model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
-            model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
-            model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
-        }
-    )
     rt.materialize_model_weights()
 
     print(f"Prefill prompt_length={prompt_length}...")
@@ -383,18 +357,46 @@ def main(
                 dtype=np.int64,
             ),
         }
-    full_prefill_replay_plan = (
-        _cached_prefill_replay_plan(rt, cache_namespace=prefill_full_cache_namespace)
-        if fixed_prefill_length
-        else None
-    )
-    tail_prefill_replay_plan = _cached_prefill_replay_plan(
-        rt,
-        cache_namespace=prefill_tail_cache_namespace,
-    )
     request_inputs = {tensor.name: value for tensor, value in tail_inputs.items()}
     request_inputs.update({tensor.name: value for tensor, value in full_inputs.items()})
     with rt.request(**request_inputs):
+        rt.initialize_request_state(
+            {
+                cache: zero_full_flash_cache
+                for cache in model_tensors().prefill_full_key_caches
+                + model_tensors().prefill_full_value_caches
+            }
+        )
+        rt.initialize_request_state(
+            {
+                cache: zero_prefill_flash_cache
+                for cache in model_tensors().prefill_key_caches
+                + model_tensors().prefill_value_caches
+            }
+        )
+        rt.initialize_request_state(
+            {
+                cache: zero_decode_cache
+                for cache in model_tensors().decode_key_caches
+                + model_tensors().decode_value_caches
+            }
+        )
+        rt.initialize_request_state(
+            {
+                model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
+                model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
+                model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
+            }
+        )
+        full_prefill_replay_plan = (
+            _cached_prefill_replay_plan(rt, cache_namespace=prefill_full_cache_namespace)
+            if fixed_prefill_length
+            else None
+        )
+        tail_prefill_replay_plan = _cached_prefill_replay_plan(
+            rt,
+            cache_namespace=prefill_tail_cache_namespace,
+        )
         prefill_start = time.perf_counter()
         if fixed_prefill_length:
             if full_prefill_replay_plan is None:
