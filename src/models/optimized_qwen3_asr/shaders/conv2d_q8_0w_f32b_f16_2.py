@@ -96,18 +96,30 @@ layout(push_constant) uniform PushConstants {
 } pc;
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-float q8_0_value(uint row, uint k) {
-    const uint kernel_k = pc.in_c * pc.kh * pc.kw;
-    const uint blocks_per_row = (kernel_k + 31u) / 32u;
-    const uint block_index = k >> 5u;
-    const uint block_half = row * blocks_per_row * 17u + block_index * 17u;
-    const float d = unpackHalf2x16(uint(weight[block_half])).x;
-    const uint local = k & 31u;
-    const uint packed = uint(weight[block_half + 1u + (local >> 1u)]);
-    uint byte_value = ((local & 1u) == 0u) ? (packed & 255u) : (packed >> 8u);
+void accumulate_q8_0(
+    uint b,
+    uint oh,
+    uint ow,
+    uint k,
+    float d,
+    uint byte_value,
+    inout float acc
+) {
+    const uint ic = k / 9u;
+    const uint rem = k - ic * 9u;
+    const uint fh = rem / 3u;
+    const uint fw = rem - fh * 3u;
+    const uint ih_pre = oh * 2u + fh;
+    const uint iw_pre = ow * 2u + fw;
+    if (ih_pre == 0u || ih_pre > pc.in_h || iw_pre == 0u || iw_pre > pc.in_w) {
+        return;
+    }
     int quant = int(byte_value);
     if (quant >= 128) { quant -= 256; }
-    return d * float(quant);
+    const uint ih = ih_pre - 1u;
+    const uint iw = iw_pre - 1u;
+    const uint x_idx = ((b * pc.in_c + ic) * pc.in_h + ih) * pc.in_w + iw;
+    acc = fma(float(x[x_idx]), d * float(quant), acc);
 }
 
 void main() {
@@ -118,17 +130,16 @@ void main() {
     const uint oh = spatial / pc.out_w;
     const uint ow = spatial - oh * pc.out_w;
     float acc = float(bias[oc]);
-    for (uint ic = 0u; ic < pc.in_c; ++ic) {
-        for (uint fh = 0u; fh < pc.kh; ++fh) {
-            for (uint fw = 0u; fw < pc.kw; ++fw) {
-                const uint ih = oh * pc.stride_h + fh - pc.pad_h;
-                const uint iw = ow * pc.stride_w + fw - pc.pad_w;
-                if (ih < pc.in_h && iw < pc.in_w) {
-                    const uint x_idx = ((b * pc.in_c + ic) * pc.in_h + ih) * pc.in_w + iw;
-                    const uint k = ((ic * pc.kh + fh) * pc.kw + fw);
-                    acc = fma(float(x[x_idx]), q8_0_value(oc, k), acc);
-                }
-            }
+    const uint blocks_per_row = 135u;
+    for (uint block = 0u; block < blocks_per_row; ++block) {
+        const uint block_half = oc * blocks_per_row * 17u + block * 17u;
+        const float d = unpackHalf2x16(uint(weight[block_half])).x;
+        const uint base_k = block * 32u;
+        for (uint word = 0u; word < 16u; ++word) {
+            const uint packed = uint(weight[block_half + 1u + word]);
+            const uint k = base_k + word * 2u;
+            accumulate_q8_0(b, oh, ow, k, d, packed & 255u, acc);
+            accumulate_q8_0(b, oh, ow, k + 1u, d, packed >> 8u, acc);
         }
     }
     output_values[((b * pc.out_c + oc) * pc.out_h + oh) * pc.out_w + ow] = float16_t(acc);
