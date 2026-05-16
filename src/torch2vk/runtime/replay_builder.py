@@ -765,6 +765,8 @@ def rebind_replay_plan(rt: RuntimeSession, plan: ReplayPlan) -> None:
         raise ValueError("ReplayPlan belongs to a different RuntimeSession device")
     if plan.readback_slots:
         raise RuntimeError("Replay plans with baked readback copy commands cannot be rebound")
+    if plan.in_flight:
+        rt.device.wait_pending_submits()
 
     logical_tensors = rt._named_model_tensors()
     for entry in plan.dispatch_entries:

@@ -307,8 +307,10 @@ class ComputePipeline:
             raise ValueError(f"Expected {len(self.descriptor_types)} bound buffers, got {len(buffers)}")
         self._validate_push_constants(push_constants)
 
-        with self.bind_buffers(buffers) as binding:
-            command_buffer = self.device.allocate_command_buffer()
+        binding = self.bind_buffers(buffers)
+        command_buffer = self.device.allocate_command_buffer()
+        submitted = False
+        try:
             vkBeginCommandBuffer(command_buffer, VkCommandBufferBeginInfo())
             if debug_label is not None:
                 self.device.begin_command_label(command_buffer=command_buffer, name=debug_label)
@@ -326,7 +328,17 @@ class ComputePipeline:
                     self.device.end_command_label(command_buffer=command_buffer)
             self.record_eager_completion_barrier(command_buffer)
             vkEndCommandBuffer(command_buffer)
-            self.device.submit_one_shot_and_wait(command_buffer)
+            try:
+                self.device.submit_one_shot_async(command_buffer, cleanup=binding.close)
+            except Exception:
+                submitted = True
+                raise
+            else:
+                submitted = True
+        finally:
+            if not submitted:
+                binding.close()
+                self.device.free_command_buffer(command_buffer)
 
     def bind_buffers(self, buffers: Sequence["DescriptorBufferBinding"]) -> "BoundComputeBinding":
         self.device.require_open()

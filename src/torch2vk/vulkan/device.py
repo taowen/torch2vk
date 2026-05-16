@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from _cffi_backend import _CDataBase
+from dataclasses import dataclass
 from types import TracebackType
 
 import numpy as np
@@ -34,6 +35,7 @@ from vulkan import (
     vkGetDeviceQueue,
     vkGetPhysicalDeviceMemoryProperties,
     vkGetPhysicalDeviceProperties,
+    vkDestroyFence,
 )
 
 from torch2vk.checkpoints.checkpoint_tensor import CheckpointTensor
@@ -60,7 +62,14 @@ from .debug_utils import DebugUtils, create_debug_utils
 from .memory_allocator import set_device_memory_priority, tensor_nbytes
 from .memory_allocator import VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_VALUE
 from .memory_manager import MemoryAllocationStats, MemoryManager
-from .queue_submission import submit_and_wait, submit_and_wait_with_fence, submit_one_shot_and_wait
+from .queue_submission import (
+    submit_and_wait,
+    submit_and_wait_with_fence,
+    submit_one_shot_and_wait,
+    submit_with_existing_fence,
+    submit_with_new_fence,
+    wait_for_fence,
+)
 from .shader_execution_requirements import (
     CooperativeMatrixRequirements,
     ShaderExecutionRequirements,
@@ -88,6 +97,16 @@ _NUMPY_DTYPE_TO_SPEC: dict[np.dtype, str] = {
     if spec_dtype != "bfloat16"
 }
 _UPLOAD_STAGING_CHUNK_BYTES = 64 * 1024 * 1024
+
+
+@dataclass(slots=True)
+class _PendingCommandBufferSubmit:
+    submit_id: int
+    command_buffer: object
+    fence: object
+    cleanup: Callable[[], None]
+    release_command_buffer: bool
+    destroy_fence: bool
 
 
 def _slice_for_spec(*, spec: TensorSpec, allocation: BufferAllocation) -> BufferSlice:
@@ -171,6 +190,7 @@ class VulkanDevice:
             ),
             None,
         )
+        self._pending_submits: list[_PendingCommandBufferSubmit] = []
 
     @property
     def closed(self) -> bool:
@@ -238,13 +258,15 @@ class VulkanDevice:
 
     def wait_idle(self) -> None:
         self.require_open()
+        self.wait_pending_submits()
         vkDeviceWaitIdle(self.device)
 
     def close(self) -> None:
         if self._closed:
             return
-        self._closed = True
         if getattr(self, "device", VK_NULL_HANDLE):
+            self.wait_pending_submits()
+            self._closed = True
             vkDeviceWaitIdle(self.device)
             if hasattr(self, "memory_manager"):
                 self.memory_manager.close()
@@ -253,6 +275,8 @@ class VulkanDevice:
                 self.command_pool = VK_NULL_HANDLE
             vkDestroyDevice(self.device, None)
             self.device = VK_NULL_HANDLE
+        else:
+            self._closed = True
         if getattr(self, "instance", VK_NULL_HANDLE):
             vkDestroyInstance(self.instance, None)
             self.instance = VK_NULL_HANDLE
@@ -483,6 +507,7 @@ class VulkanDevice:
         size: int | None = None,
     ) -> bytes:
         self.require_open()
+        self.wait_pending_submits()
         if byte_offset < 0:
             raise ValueError(f"Buffer readback byte_offset must be non-negative, got {byte_offset}")
         resolved_size = buffer.size - byte_offset if size is None else int(size)
@@ -528,6 +553,7 @@ class VulkanDevice:
         self.require_open()
         if not transfers:
             return
+        self.wait_pending_submits()
         command_buffer = self.allocate_command_buffer()
         vkBeginCommandBuffer(command_buffer, VkCommandBufferBeginInfo())
         for src_offset, dst, dst_offset, size in transfers:
@@ -558,6 +584,7 @@ class VulkanDevice:
         self.require_open()
         if not tensors:
             return
+        self.wait_pending_submits()
         command_buffer = self.allocate_command_buffer()
         vkBeginCommandBuffer(command_buffer, VkCommandBufferBeginInfo())
         for slice in tensors:
@@ -587,6 +614,7 @@ class VulkanDevice:
 
     def submit_one_shot_and_wait(self, command_buffer: object) -> None:
         self.require_open()
+        self.wait_pending_submits()
         submit_point = self.memory_manager.note_queue_submit_started()
         submit_one_shot_and_wait(
             device_handle=self.device,
@@ -598,6 +626,7 @@ class VulkanDevice:
 
     def submit_and_wait(self, command_buffer: object) -> None:
         self.require_open()
+        self.wait_pending_submits()
         submit_point = self.memory_manager.note_queue_submit_started()
         submit_and_wait(
             device_handle=self.device,
@@ -608,6 +637,7 @@ class VulkanDevice:
 
     def submit_and_wait_with_fence(self, command_buffer: object, fence: object) -> None:
         self.require_open()
+        self.wait_pending_submits()
         submit_point = self.memory_manager.note_queue_submit_started()
         submit_and_wait_with_fence(
             device_handle=self.device,
@@ -616,3 +646,75 @@ class VulkanDevice:
             fence=fence,
         )
         self.memory_manager.note_queue_submit_completed(submit_point)
+
+    def submit_one_shot_async(self, command_buffer: object, *, cleanup: Callable[[], None]) -> None:
+        self.submit_command_buffer_async(
+            command_buffer,
+            cleanup=cleanup,
+            release_command_buffer=True,
+            destroy_fence=True,
+        )
+
+    def submit_command_buffer_async(
+        self,
+        command_buffer: object,
+        *,
+        fence: object | None = None,
+        cleanup: Callable[[], None] | None = None,
+        release_command_buffer: bool = False,
+        destroy_fence: bool = False,
+    ) -> None:
+        self.require_open()
+        cleanup_fn = _noop if cleanup is None else cleanup
+        submit_id = self.memory_manager.note_queue_submit_started()
+        owns_fence = destroy_fence
+        try:
+            if fence is None:
+                fence = submit_with_new_fence(
+                    device_handle=self.device,
+                    queue_handle=self.queue,
+                    command_buffer=command_buffer,
+                )
+                owns_fence = True
+            else:
+                submit_with_existing_fence(
+                    device_handle=self.device,
+                    queue_handle=self.queue,
+                    command_buffer=command_buffer,
+                    fence=fence,
+                )
+        except Exception:
+            self.memory_manager.note_queue_submit_completed(submit_id)
+            if release_command_buffer:
+                self.free_command_buffer(command_buffer)
+            cleanup_fn()
+            raise
+        self._pending_submits.append(
+            _PendingCommandBufferSubmit(
+                submit_id=submit_id,
+                command_buffer=command_buffer,
+                fence=fence,
+                cleanup=cleanup_fn,
+                release_command_buffer=release_command_buffer,
+                destroy_fence=owns_fence,
+            )
+        )
+
+    def wait_pending_submits(self) -> None:
+        self.require_open()
+        while self._pending_submits:
+            submit = self._pending_submits[0]
+            wait_for_fence(device_handle=self.device, fence=submit.fence)
+            self._pending_submits.pop(0)
+            try:
+                if submit.release_command_buffer:
+                    self.free_command_buffer(submit.command_buffer)
+                submit.cleanup()
+            finally:
+                if submit.destroy_fence:
+                    vkDestroyFence(self.device, submit.fence, None)
+                self.memory_manager.note_queue_submit_completed(submit.submit_id)
+
+
+def _noop() -> None:
+    return None

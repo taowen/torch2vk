@@ -152,6 +152,7 @@ class RuntimeSession:
         return self._model_tensors
 
     def register_host_inputs(self, inputs: Mapping[LogicalTensor, object]) -> None:
+        self.device.wait_pending_submits()
         for tensor, value in inputs.items():
             if not isinstance(tensor, LogicalTensor):
                 raise TypeError(
@@ -169,6 +170,7 @@ class RuntimeSession:
             self._record_frame_input(tensor)
 
     def release_host_inputs(self, tensors: Sequence[LogicalTensor]) -> None:
+        self.device.wait_pending_submits()
         for tensor in tensors:
             if not isinstance(tensor, LogicalTensor):
                 raise TypeError(
@@ -205,6 +207,7 @@ class RuntimeSession:
             yield self
         finally:
             try:
+                self.device.wait_pending_submits()
                 self._close_replay_plan_cache()
                 request_state._clear_request_state(self)
                 self._inputs.clear()
@@ -213,6 +216,7 @@ class RuntimeSession:
 
     def initialize_session_tensors(self, tensors: Mapping[LogicalTensor, object]) -> None:
         self._require_open()
+        self.device.wait_pending_submits()
         for tensor, value in tensors.items():
             if not isinstance(tensor, LogicalTensor):
                 raise TypeError(
@@ -288,6 +292,7 @@ class RuntimeSession:
             if popped is not context:
                 raise RuntimeError("RuntimeSession frame stack corrupted")
             self._frame_history[context.frame] = context
+            self.device.wait_pending_submits()
             self._release_frame_allocations()
 
     def dispatch(self, variant: ShaderVariant, **arguments: object) -> None:
@@ -297,6 +302,7 @@ class RuntimeSession:
 
     def readback(self, tensor: LogicalTensor) -> np.ndarray:
         self._require_open()
+        self.device.wait_pending_submits()
         if tensor.buffer is None:
             if tensor_nbytes(tensor.spec) == 0:
                 return self.device.empty_tensor(spec=tensor.spec)
@@ -361,6 +367,7 @@ class RuntimeSession:
         if self._closed:
             return
         self._closed = True
+        self.device.wait_pending_submits()
         self._close_replay_plan_cache()
         self._release_frame_allocations()
         for pipeline in self._pipeline_cache.values():

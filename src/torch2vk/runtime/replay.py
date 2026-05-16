@@ -14,14 +14,10 @@ from vulkan import (
     VK_QUERY_RESULT_WAIT_BIT,
     VK_QUERY_TYPE_TIMESTAMP,
     VkQueryPoolCreateInfo,
-    VkSubmitInfo,
     vkCreateQueryPool,
     vkDestroyFence,
     vkDestroyQueryPool,
     vkGetQueryPoolResults,
-    vkQueueSubmit,
-    vkResetFences,
-    vkWaitForFences,
 )
 from vulkan._vulkan import ffi
 
@@ -46,9 +42,6 @@ if TYPE_CHECKING:
     from torch2vk.runtime.logical import LogicalTensor
     from torch2vk.runtime.session import RuntimeSession
     from torch2vk.vulkan.device import VulkanDevice
-
-
-_WAIT_TIMEOUT_NS = 30_000_000_000
 
 
 @dataclass(slots=True)
@@ -192,12 +185,15 @@ class ReplayPlan:
     profile_state: ReplayProfileState | None = None
     profile_recorder: object | None = None
     in_place_staging_rebound: bool = False
+    in_flight: bool = False
 
     _closed: bool = False
 
     def close(self) -> None:
         if self._closed:
             return
+        if not self.device.closed:
+            self.device.wait_pending_submits()
         self._closed = True
         workspace_allocations = tuple(self.workspace_allocations)
         for entry in self.dispatch_entries:
@@ -262,13 +258,25 @@ def execute_replay(
         if plan.params_entries:
             _write_params_buffers(plan, symbols, push_constants)
 
-        vkResetFences(plan.device.device, 1, [plan.fence])
-        submit_info = VkSubmitInfo(
-            commandBufferCount=1,
-            pCommandBuffers=[plan.command_buffer],
-        )
-        vkQueueSubmit(plan.device.queue, 1, [submit_info], plan.fence)
-        vkWaitForFences(plan.device.device, 1, [plan.fence], True, _WAIT_TIMEOUT_NS)
+        if plan.in_flight:
+            plan.device.wait_pending_submits()
+
+        sync_submit = bool(plan.readback_slots) or plan.profile_state is not None
+        if sync_submit:
+            plan.device.submit_and_wait_with_fence(plan.command_buffer, plan.fence)
+        else:
+            plan.in_flight = True
+            try:
+                plan.device.submit_command_buffer_async(
+                    plan.command_buffer,
+                    fence=plan.fence,
+                    cleanup=lambda: _mark_replay_complete(plan),
+                )
+            except Exception:
+                plan.in_flight = False
+                raise
+            return {}
+
         if plan.profile_state is not None and plan.profile_recorder is not None:
             profile_start_ns = time.perf_counter_ns()
             timestamps = plan.profile_state.read_timestamps(plan.device)
@@ -306,6 +314,10 @@ def execute_replay(
                 )
 
 
+def _mark_replay_complete(plan: ReplayPlan) -> None:
+    plan.in_flight = False
+
+
 def stage_replay_step_inputs(
     rt: "RuntimeSession",
     *,
@@ -316,6 +328,8 @@ def stage_replay_step_inputs(
     """Update replay step inputs and rebind plan descriptors to the latest buffers."""
     host_start_ns = time.perf_counter_ns()
     try:
+        if plan.in_flight:
+            rt.device.wait_pending_submits()
         if _can_stage_replay_inputs_in_place(inputs):
             for tensor, value in inputs.items():
                 tensor.validate_declaration()
