@@ -19,6 +19,7 @@ from torch2vk.runtime.shader import (
 )
 from torch2vk.vulkan.allocation import BufferAllocation, BufferSlice
 from torch2vk.vulkan.compute_pipeline import DescriptorBufferBinding
+from torch2vk.vulkan.types import tensor_nbytes
 
 if TYPE_CHECKING:
     from torch2vk.runtime.session import RuntimeSession
@@ -92,6 +93,18 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
         eval_expr(contract.dispatch[1], symbols),
         eval_expr(contract.dispatch[2], symbols),
     )
+    if any(dim == 0 for dim in dispatch_size):
+        try:
+            for field in contract.output_fields:
+                if tensor_nbytes(tensors[field.name].spec) != 0:
+                    raise ValueError(
+                        f"{variant.name} resolved zero dispatch {dispatch_size} "
+                        f"for non-empty output {tensors[field.name].name}"
+                    )
+            return
+        finally:
+            if params_allocation is not None:
+                params_allocation.close()
     if any(dim <= 0 for dim in dispatch_size):
         raise ValueError(f"{variant.name} resolved non-positive dispatch {dispatch_size}")
 

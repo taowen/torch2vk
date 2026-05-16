@@ -14,12 +14,17 @@ from torch.fx import Node
 
 from torch2vk.export.shaders import (
     make_add_variant,
+    make_arange_variant,
     make_argmax_variant,
     make_cat_variant,
     make_conv1d_variant,
     make_conv2d_variant,
     make_conv_transpose1d_variant,
+    make_cos_variant,
+    make_div_variant,
     make_embedding_variant,
+    make_einsum_outer_variant,
+    make_exp_variant,
     make_gelu_variant,
     make_index_copy_variant,
     make_index_select_variant,
@@ -30,6 +35,7 @@ from torch2vk.export.shaders import (
     make_mean_dim_variant,
     make_mul_variant,
     make_neg_variant,
+    make_pow_base_scalar_variant,
     make_pow_scalar_variant,
     make_permute_variant,
     make_reciprocal_variant,
@@ -39,8 +45,10 @@ from torch2vk.export.shaders import (
     make_silu_variant,
     make_sin_variant,
     make_slice_variant,
+    make_stack_variant,
     make_sub_variant,
     make_transpose_variant,
+    make_tuple_getitem_variant,
 )
 from torch2vk.runtime.shader import ShaderVariant
 
@@ -86,9 +94,11 @@ DEFAULT_REGISTRY = ShaderRegistry(
     [
         ShaderBinding("aten.linear.default", _make_linear_variant),
         ShaderBinding("aten.mul.Tensor", make_mul_variant),
+        ShaderBinding("aten.div.Tensor", make_div_variant),
         ShaderBinding("aten.add.Tensor", make_add_variant),
         ShaderBinding("aten.sub.Tensor", make_sub_variant),
         ShaderBinding("aten.pow.Tensor_Scalar", make_pow_scalar_variant),
+        ShaderBinding("aten.pow.Scalar", make_pow_base_scalar_variant),
         ShaderBinding("aten.mean.dim", make_mean_dim_variant),
         ShaderBinding("aten.rsqrt.default", make_rsqrt_variant),
         ShaderBinding("aten.silu.default", make_silu_variant),
@@ -109,7 +119,14 @@ DEFAULT_REGISTRY = ShaderRegistry(
         ShaderBinding("aten.index_copy.default", make_index_copy_variant),
         ShaderBinding("aten.index_select.default", make_index_select_variant),
         ShaderBinding("aten.select.int", make_select_variant),
+        ShaderBinding("aten.stack.default", make_stack_variant),
         ShaderBinding("aten.sin.default", make_sin_variant),
+        ShaderBinding("aten.cos.default", make_cos_variant),
+        ShaderBinding("aten.exp.default", make_exp_variant),
+        ShaderBinding("aten.einsum.default", make_einsum_outer_variant),
+        ShaderBinding("aten.arange.start", make_arange_variant),
+        ShaderBinding("aten.arange.start_step", make_arange_variant),
         ShaderBinding("aten.reciprocal.default", make_reciprocal_variant),
+        ShaderBinding("<built-in function getitem>", make_tuple_getitem_variant),
     ]
 )

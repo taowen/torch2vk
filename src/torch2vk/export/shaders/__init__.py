@@ -1,6 +1,7 @@
 """Aten op shader factories for torch2vk.export."""
 
 from torch2vk.export.shaders.add_f32 import make_add_variant
+from torch2vk.export.shaders.arange_f32 import make_arange_variant
 from torch2vk.export.shaders.argmax_f32 import make_argmax_variant
 from torch2vk.export.shaders.cat_f32 import make_cat_variant
 from torch2vk.export.shaders.conv1d_f32 import make_conv1d_variant
@@ -11,11 +12,15 @@ from torch2vk.export.shaders.conv_transpose1d_f32 import make_conv_transpose1d_v
 from torch2vk.export.shaders.conv_transpose1d_quantized import (
     make_conv_transpose1d_q8_0_variant,
 )
+from torch2vk.export.shaders.cos_f32 import make_cos_variant
+from torch2vk.export.shaders.div_f32 import make_div_variant
 from torch2vk.export.shaders.embedding_f32 import make_embedding_variant
 from torch2vk.export.shaders.embedding_quantized import (
     make_embedding_q4_k_m_variant,
     make_embedding_q8_0_variant,
 )
+from torch2vk.export.shaders.einsum_outer import make_einsum_outer_variant
+from torch2vk.export.shaders.exp_f32 import make_exp_variant
 from torch2vk.export.shaders.gelu_f32 import make_gelu_variant
 from torch2vk.export.shaders.index_copy_f32 import make_index_copy_variant
 from torch2vk.export.shaders.index_select_f32 import make_index_select_variant
@@ -38,6 +43,7 @@ from torch2vk.export.shaders.max_f32 import make_max_variant
 from torch2vk.export.shaders.mean_dim_f32 import make_mean_dim_variant
 from torch2vk.export.shaders.mul_f32 import make_mul_variant
 from torch2vk.export.shaders.neg_f32 import make_neg_variant
+from torch2vk.export.shaders.pow_base_scalar import make_pow_base_scalar_variant
 from torch2vk.export.shaders.pow_scalar_f32 import make_pow_scalar_variant
 from torch2vk.export.shaders.permute_f32 import make_permute_variant
 from torch2vk.export.shaders.qwen3_asr_token_store import (
@@ -60,11 +66,14 @@ from torch2vk.export.shaders.silu_f32 import make_silu_variant
 from torch2vk.export.shaders.sin_f32 import make_sin_variant
 from torch2vk.export.shaders.slice_f32 import make_slice_variant
 from torch2vk.export.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
+from torch2vk.export.shaders.stack_f32 import make_stack_variant
 from torch2vk.export.shaders.sub_f32 import make_sub_variant
 from torch2vk.export.shaders.transpose_f32 import make_transpose_variant
+from torch2vk.export.shaders.tuple_getitem import make_tuple_getitem_variant
 
 __all__ = [
     "make_add_variant",
+    "make_arange_variant",
     "make_argmax_variant",
     "make_cat_variant",
     "make_conv1d_q8_0_variant",
@@ -73,9 +82,13 @@ __all__ = [
     "make_conv_transpose1d_variant",
     "make_conv2d_q8_0_variant",
     "make_conv2d_variant",
+    "make_cos_variant",
+    "make_div_variant",
     "make_embedding_q4_k_m_variant",
     "make_embedding_q8_0_variant",
     "make_embedding_variant",
+    "make_einsum_outer_variant",
+    "make_exp_variant",
     "make_gelu_variant",
     "make_index_copy_variant",
     "make_index_select_variant",
@@ -92,6 +105,7 @@ __all__ = [
     "make_mean_dim_variant",
     "make_mul_variant",
     "make_neg_variant",
+    "make_pow_base_scalar_variant",
     "make_pow_scalar_variant",
     "make_permute_variant",
     "QWEN3_ASR_TOKEN_STORE",
@@ -108,6 +122,8 @@ __all__ = [
     "make_sin_variant",
     "make_slice_variant",
     "SLICE_LAST_TOKEN_F16",
+    "make_stack_variant",
     "make_sub_variant",
     "make_transpose_variant",
+    "make_tuple_getitem_variant",
 ]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -157,6 +158,14 @@ class _GGUFTensor:
 
 
 @dataclass(frozen=True, slots=True)
+class _GGUFTensorInfo:
+    name: str
+    ggml_type: GGUFTensorType
+    logical_shape: tuple[int, ...]
+    nbytes: int
+
+
+@dataclass(frozen=True, slots=True)
 class _GGUFMetadataValue:
     key: str
     value_type: GGUFValueType
@@ -182,23 +191,43 @@ def export_q4_k_m_gguf(
     if output_path.exists():
         output_path.unlink()
 
-    tensors: list[_GGUFTensor] = []
+    tensor_infos: list[_GGUFTensorInfo] = []
     seen_tensor_names: set[str] = set()
-    with RuntimeSession.open(device_index=0) as rt:
-        for name, tensor in _iter_safetensor_tensors(
-            Path(model_dir).expanduser().resolve(),
-            safetensor_subdirs=config.safetensor_subdirs,
-        ):
-            if name in seen_tensor_names:
-                raise ValueError(f"Duplicate safetensor tensor name while writing GGUF: {name}")
-            seen_tensor_names.add(name)
-            tensors.append(_tensor_to_gguf_tensor(
-                rt,
-                name=name,
-                tensor=tensor,
-                config=config,
-            ))
-    _write_gguf(path=output_path, metadata=_metadata(config), tensors=tuple(tensors))
+    data_path = output_path.with_name(f"{output_path.name}.data.tmp")
+    final_path = output_path.with_name(f"{output_path.name}.tmp")
+    for stale_path in (data_path, final_path):
+        if stale_path.exists():
+            stale_path.unlink()
+
+    try:
+        with data_path.open("wb") as data_handle:
+            with RuntimeSession.open(device_index=0) as rt:
+                for name, tensor in _iter_safetensor_tensors(
+                    Path(model_dir).expanduser().resolve(),
+                    safetensor_subdirs=config.safetensor_subdirs,
+                ):
+                    if name in seen_tensor_names:
+                        raise ValueError(f"Duplicate safetensor tensor name while writing GGUF: {name}")
+                    seen_tensor_names.add(name)
+                    gguf_tensor = _tensor_to_gguf_tensor(
+                        rt,
+                        name=name,
+                        tensor=tensor,
+                        config=config,
+                    )
+                    tensor_infos.append(_tensor_info(gguf_tensor))
+                    _write_tensor_data(data_handle, gguf_tensor)
+        _write_gguf(
+            path=final_path,
+            metadata=_metadata(config),
+            tensors=tuple(tensor_infos),
+            data_path=data_path,
+        )
+        final_path.replace(output_path)
+    finally:
+        for stale_path in (data_path, final_path):
+            if stale_path.exists():
+                stale_path.unlink()
     return output_path
 
 
@@ -243,7 +272,7 @@ def _tensor_to_gguf_tensor(
     tensor: torch.Tensor,
     config: Q4KMQuantizationConfig,
 ) -> _GGUFTensor:
-    array = tensor.float().numpy() if tensor.dtype == torch.bfloat16 else tensor.numpy()
+    array = tensor.float().numpy() if tensor.is_floating_point() else tensor.numpy()
     gguf_type = config.gguf_type(
         checkpoint_key=name,
         dtype=str(tensor.dtype).removeprefix("torch."),
@@ -310,7 +339,8 @@ def _write_gguf(
     *,
     path: Path,
     metadata: tuple[_GGUFMetadataValue, ...],
-    tensors: tuple[_GGUFTensor, ...],
+    tensors: tuple[_GGUFTensorInfo, ...],
+    data_path: Path,
 ) -> None:
     tensor_offsets = _tensor_offsets(tensors)
     with path.open("wb") as handle:
@@ -323,12 +353,25 @@ def _write_gguf(
         for tensor, offset in zip(tensors, tensor_offsets, strict=True):
             _write_tensor_info(handle, tensor, offset)
         _write_alignment_padding(handle)
-        for tensor in tensors:
-            handle.write(np.ascontiguousarray(tensor.data).tobytes(order="C"))
-            _write_alignment_padding(handle)
+        with data_path.open("rb") as data_handle:
+            shutil.copyfileobj(data_handle, handle, length=16 * 1024 * 1024)
 
 
-def _tensor_offsets(tensors: tuple[_GGUFTensor, ...]) -> tuple[int, ...]:
+def _tensor_info(tensor: _GGUFTensor) -> _GGUFTensorInfo:
+    return _GGUFTensorInfo(
+        name=tensor.name,
+        ggml_type=tensor.ggml_type,
+        logical_shape=tensor.logical_shape,
+        nbytes=tensor.nbytes,
+    )
+
+
+def _write_tensor_data(handle: BinaryIO, tensor: _GGUFTensor) -> None:
+    handle.write(np.ascontiguousarray(tensor.data).tobytes(order="C"))
+    _write_alignment_padding(handle)
+
+
+def _tensor_offsets(tensors: tuple[_GGUFTensorInfo, ...]) -> tuple[int, ...]:
     offsets: list[int] = []
     current = 0
     for tensor in tensors:
@@ -352,7 +395,7 @@ def _write_metadata(handle: BinaryIO, item: _GGUFMetadataValue) -> None:
         raise ValueError(f"Unsupported GGUF metadata type for writer: {item.value_type}")
 
 
-def _write_tensor_info(handle: BinaryIO, tensor: _GGUFTensor, offset: int) -> None:
+def _write_tensor_info(handle: BinaryIO, tensor: _GGUFTensorInfo, offset: int) -> None:
     _write_string(handle, tensor.name)
     _write_u32(handle, len(tensor.logical_shape))
     for dim in reversed(tensor.logical_shape):
@@ -388,6 +431,8 @@ def _round_up(value: int, multiple: int) -> int:
 
 def _checkpoint_float_dtype(dtype: str) -> str:
     if dtype in {"float32", "float16", "bfloat16"}:
+        return "float32"
+    if dtype.startswith("float8"):
         return "float32"
     return dtype
 

@@ -19,6 +19,7 @@ from torch2vk.runtime.host_array import prepare_host_array
 from torch2vk.runtime.logical import (
     LogicalTensor,
     MemoryClass,
+    TensorLifetime,
     TensorRole,
     collect_named_logical_tensors,
 )
@@ -166,6 +167,17 @@ class RuntimeSession:
             self._inputs[tensor] = value
             self._invalidate_input_materialization(tensor)
             self._record_frame_input(tensor)
+
+    def release_host_inputs(self, tensors: Sequence[LogicalTensor]) -> None:
+        for tensor in tensors:
+            if not isinstance(tensor, LogicalTensor):
+                raise TypeError(
+                    f"release_host_inputs entry must be LogicalTensor, got {type(tensor).__name__}"
+                )
+            if tensor.lifetime not in {TensorLifetime.FRAME, TensorLifetime.OP}:
+                raise ValueError(f"{tensor.name} is not a frame-local host input")
+            self._inputs.pop(tensor, None)
+            self._invalidate_input_materialization(tensor)
 
     @contextmanager
     def request(

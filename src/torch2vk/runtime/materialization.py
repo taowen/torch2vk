@@ -34,6 +34,8 @@ from torch2vk.vulkan.types import bind_tensor_layout_symbols, concrete_shape, te
 if TYPE_CHECKING:
     from torch2vk.runtime.session import RuntimeSession
 
+_EMPTY_DESCRIPTOR_NBYTES = 4
+
 
 def bind_shape_symbols(
     rt: RuntimeSession,
@@ -127,10 +129,25 @@ def materialize_write(rt: RuntimeSession, tensor: LogicalTensor, *, io_kind: IOK
         return
     size = tensor_nbytes(tensor.spec)
     if size == 0:
+        allocation = rt.device.memory_manager.allocate_device_local_buffer(
+            _EMPTY_DESCRIPTOR_NBYTES,
+            usage_flags=VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+            | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+            | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        )
         with tensor.runtime_write_scope():
-            tensor.buffer = None
-            tensor.descriptor_nbytes = 0
+            tensor.buffer = BufferSlice(
+                allocation=allocation,
+                offset=allocation.offset,
+                nbytes=_EMPTY_DESCRIPTOR_NBYTES,
+            )
+            tensor.descriptor_nbytes = _EMPTY_DESCRIPTOR_NBYTES
             tensor.alias_source = None
+        if tensor.memory is MemoryClass.REQUEST_STATE:
+            rt._request_allocations.append(allocation)
+            rt._request_tensors.add(tensor)
+        if tensor.lifetime in {TensorLifetime.FRAME, TensorLifetime.OP}:
+            rt._frame_allocations.append((tensor, allocation))
         return
     materialized_slice: BufferSlice | None = None
     if tensor.memory is MemoryClass.HOST_OUTPUT:

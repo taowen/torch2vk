@@ -32,6 +32,49 @@ _SOURCE_TEMPLATE = """\
 {{WEIGHT_EXTENSION}}\
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
+{{WEIGHT_BUFFER}}{{BIAS_BUFFER}}\
+layout(set = 0, binding = {{OUTPUT_BINDING}}) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
+layout(push_constant) uniform PushConstants { uint ROWS; uint COLS; float eps; } pc;
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+shared float partial_sum[256];
+shared float partial_sumsq[256];
+void main() {
+    const uint row = gl_WorkGroupID.x;
+    const uint tid = gl_LocalInvocationID.x;
+    if (row >= pc.ROWS) { return; }
+    float sum = 0.0;
+    float sumsq = 0.0;
+    for (uint c = tid; c < pc.COLS; c += 256u) {
+        float v = float(x[row * pc.COLS + c]);
+        sum += v;
+        sumsq += v * v;
+    }
+    partial_sum[tid] = sum;
+    partial_sumsq[tid] = sumsq;
+    barrier();
+    for (uint stride = 128u; stride > 0u; stride >>= 1u) {
+        if (tid < stride) {
+            partial_sum[tid] += partial_sum[tid + stride];
+            partial_sumsq[tid] += partial_sumsq[tid + stride];
+        }
+        barrier();
+    }
+    float mean = partial_sum[0] / float(pc.COLS);
+    float var = partial_sumsq[0] / float(pc.COLS) - mean * mean;
+    float inv_std = inversesqrt(var + pc.eps);
+    for (uint c = tid; c < pc.COLS; c += 256u) {
+        uint idx = row * pc.COLS + c;
+        output_values[idx] = {{STORE_NORM}};
+    }
+}
+"""
+
+_AFFINE_SOURCE_TEMPLATE = """\
+#version 450
+{{ACTIVATION_EXTENSION}}\
+{{WEIGHT_EXTENSION}}\
+layout(std430) buffer;
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{ACTIVATION_TYPE}} x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly WeightBuffer { {{WEIGHT_TYPE}} weight[]; };
 layout(set = 0, binding = 2) buffer restrict readonly BiasBuffer { {{BIAS_TYPE}} bias[]; };
 layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
@@ -101,11 +144,44 @@ def make_layer_norm_variant(node: Node, activation_dtype: str = "float32") -> Sh
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
     rows = product_expr(in_contract[:-normalized_rank])
     cols_expr = product_expr(in_contract[-normalized_rank:])
-    weight_dtype = node_input_dtype(node, 2)
-    bias_dtype = node_input_dtype(node, 3)
-    weight_suffix = weight_dtype_suffix(weight_dtype)
-    bias_suffix = weight_dtype_suffix(bias_dtype)
+    has_weight = len(node.args) > 2 and isinstance(node.args[2], Node)
+    has_bias = len(node.args) > 3 and isinstance(node.args[3], Node)
+    weight_dtype = node_input_dtype(node, 2) if has_weight else ""
+    bias_dtype = node_input_dtype(node, 3) if has_bias else ""
+    weight_suffix = weight_dtype_suffix(weight_dtype) if has_weight else "none"
+    bias_suffix = weight_dtype_suffix(bias_dtype) if has_bias else "none"
     shader_name = f"layer_norm_{weight_suffix}w_{bias_suffix}b_f32"
+    fields = [
+        TensorFieldSpec(
+            "x",
+            IOKind.INPUT,
+            "input",
+            TensorContract(dtype=activation_dtype, shape=in_contract),
+        )
+    ]
+    if has_weight:
+        fields.append(
+            TensorFieldSpec(
+                "weight",
+                IOKind.INPUT,
+                "weight",
+                TensorContract(dtype=weight_dtype, shape=("W0",)),
+            )
+        )
+    if has_bias:
+        fields.append(
+            TensorFieldSpec(
+                "bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("W0",))
+            )
+        )
+    fields.append(
+        TensorFieldSpec(
+            "output",
+            IOKind.OUTPUT,
+            "output",
+            TensorContract(dtype=activation_dtype, shape=out_contract),
+        )
+    )
 
     return ShaderVariant(
         name=shader_name,
@@ -113,29 +189,7 @@ def make_layer_norm_variant(node: Node, activation_dtype: str = "float32") -> Sh
         contract=ShaderContract(
             class_name=f"ExportLayerNorm{weight_suffix.title()}Weight{bias_suffix.title()}BiasProgram",
             shader_name=shader_name,
-            fields=(
-                TensorFieldSpec(
-                    "x",
-                    IOKind.INPUT,
-                    "input",
-                    TensorContract(dtype=activation_dtype, shape=in_contract),
-                ),
-                TensorFieldSpec(
-                    "weight",
-                    IOKind.INPUT,
-                    "weight",
-                    TensorContract(dtype=weight_dtype, shape=("W0",)),
-                ),
-                TensorFieldSpec(
-                    "bias", IOKind.INPUT, "input", TensorContract(dtype=bias_dtype, shape=("W0",))
-                ),
-                TensorFieldSpec(
-                    "output",
-                    IOKind.OUTPUT,
-                    "output",
-                    TensorContract(dtype=activation_dtype, shape=out_contract),
-                ),
-            ),
+            fields=tuple(fields),
             push_constants=PushConstantSpec(
                 size=12,
                 fields=(
@@ -147,18 +201,46 @@ def make_layer_norm_variant(node: Node, activation_dtype: str = "float32") -> Sh
             dispatch=(rows, 1, 1),
         ),
         source=_source(
-            weight_dtype=weight_dtype, bias_dtype=bias_dtype, activation_dtype=activation_dtype
+            weight_dtype=weight_dtype,
+            bias_dtype=bias_dtype,
+            activation_dtype=activation_dtype,
+            has_weight=has_weight,
+            has_bias=has_bias,
         ),
         execution_requirements=activation_requirements(activation_dtype),
     )
 
 
-def _source(*, weight_dtype: str, bias_dtype: str, activation_dtype: str) -> str:
+def _source(
+    *,
+    weight_dtype: str,
+    bias_dtype: str,
+    activation_dtype: str,
+    has_weight: bool,
+    has_bias: bool,
+) -> str:
+    if not has_weight and not has_bias:
+        return (
+            _SOURCE_TEMPLATE.replace(
+                "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
+            )
+            .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))
+            .replace("{{WEIGHT_EXTENSION}}", "")
+            .replace("{{WEIGHT_BUFFER}}", "")
+            .replace("{{BIAS_BUFFER}}", "")
+            .replace("{{OUTPUT_BINDING}}", "1")
+            .replace(
+                "{{STORE_NORM}}",
+                activation_store("(float(x[idx]) - mean) * inv_std", activation_dtype),
+            )
+        )
+    if not has_weight or not has_bias:
+        raise ValueError("layer_norm export supports either both weight/bias or neither")
     extension = (
         weight_extension_source("bfloat16") if "bfloat16" in {weight_dtype, bias_dtype} else ""
     )
     return (
-        _SOURCE_TEMPLATE.replace(
+        _AFFINE_SOURCE_TEMPLATE.replace(
             "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
         )
         .replace("{{ACTIVATION_TYPE}}", activation_glsl_type(activation_dtype))

@@ -83,8 +83,12 @@ def is_alias_op(node: Node) -> bool:
         return True
     if target == "aten.to.dtype":
         return _is_float_dtype(_node_input_dtype(node)) and _is_float_dtype(_node_dtype(node))
+    if target == "aten.to.device":
+        return _is_float_dtype(_node_input_dtype(node)) and _is_float_dtype(_node_dtype(node))
     if target == "aten.to.dtype_layout":
         return _node_input_dtype(node) == _node_dtype(node)
+    if target == "aten.type_as.default":
+        return _is_float_dtype(_node_input_dtype(node)) and _is_float_dtype(_node_dtype(node))
     return False
 
 

@@ -239,6 +239,15 @@ wheels = [
 ]
 
 [[package]]
+name = "einops"
+version = "0.8.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/77/850bef8d72ffb9219f0b1aac23fbc1bf7d038ee6ea666f331fa273031aa2/einops-0.8.2.tar.gz", hash = "sha256:609da665570e5e265e27283aab09e7f279ade90c4f01bcfca111f3d3e13f2827", size = 56261, upload-time = "2026-01-26T04:13:17.638Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2a/09/f8d8f8f31e4483c10a906437b4ce31bdf3d6d417b73fe33f1a8b59e34228/einops-0.8.2-py3-none-any.whl", hash = "sha256:54058201ac7087911181bfec4af6091bb59380360f069276601256a76af08193", size = 65638, upload-time = "2026-01-26T04:13:18.546Z" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.136.1"
 source = { registry = "https://pypi.org/simple" }
@@ -586,6 +595,23 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "modelscope"
+version = "1.37.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "filelock" },
+    { name = "packaging" },
+    { name = "requests" },
+    { name = "setuptools" },
+    { name = "tqdm" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f0/59/284fac17a579ab20872e91b9b9a11acf9ee9b43f7559866f9b965533781b/modelscope-1.37.0.tar.gz", hash = "sha256:f34918d2dc6ceaf81b985098735f1434d11b2238e919eea3714d9f541dca3cf8", size = 4593464, upload-time = "2026-05-15T10:00:23.533Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6d/fb/806ae23f12d45c8122e22e2779421125b69711e5dfd98824c7eac119d235/modelscope-1.37.0-py3-none-any.whl", hash = "sha256:8ff903295bb61260bc27ee3be4aa55401f1ca39065109f4b127047f82f237642", size = 6090015, upload-time = "2026-05-15T10:00:19.267Z" },
 ]
 
 [[package]]
@@ -1358,11 +1384,13 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "accelerate" },
+    { name = "einops" },
     { name = "gradio" },
     { name = "huggingface-hub" },
     { name = "import-linter" },
     { name = "jinja2" },
     { name = "librosa" },
+    { name = "modelscope" },
     { name = "nagisa" },
     { name = "numpy" },
     { name = "pillow" },
@@ -1388,11 +1416,13 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", specifier = ">=1.12,<2" },
+    { name = "einops", specifier = ">=0.8,<1" },
     { name = "gradio", specifier = ">=6,<7" },
     { name = "huggingface-hub", specifier = ">=0.34,<2" },
     { name = "import-linter", specifier = ">=2.11,<3" },
     { name = "jinja2", specifier = ">=3.1,<4" },
     { name = "librosa", specifier = ">=0.11,<1" },
+    { name = "modelscope", specifier = ">=1,<2" },
     { name = "nagisa", specifier = ">=0.2.11,<0.3" },
     { name = "numpy", specifier = ">=2,<3" },
     { name = "pillow", specifier = ">=11,<12" },

@@ -13,7 +13,6 @@ from torch2vk.export.shaders._factory import (
     render_shader_template,
 )
 from torch2vk.runtime.shader import (
-    ceil_div,
     IOKind,
     mul,
     PushConstantFieldSpec,
@@ -35,6 +34,7 @@ _SOURCE_CAUSAL = """\
 {{ACTIVATION_EXTENSION}}\
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
+{{SUBGROUP_FLOAT16_EXTENSION}}\
 
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { {{ACTIVATION_TYPE}} q[]; };
@@ -105,6 +105,10 @@ void main() {
 _SOURCE_NONCAUSAL = """\
 #version 450
 {{ACTIVATION_EXTENSION}}\
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+{{SUBGROUP_FLOAT16_EXTENSION}}\
+
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { {{ACTIVATION_TYPE}} q[]; };
 layout(set = 0, binding = 1) buffer restrict readonly KBuffer { {{ACTIVATION_TYPE}} k[]; };
@@ -115,41 +119,57 @@ layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint batch_head = gl_WorkGroupID.x;
     const uint row = gl_WorkGroupID.y;
-    const uint d_out = gl_WorkGroupID.z * 64u + gl_LocalInvocationID.x;
-    if (batch_head >= pc.B * pc.NH || row >= pc.T || d_out >= pc.D) { return; }
+    const uint dim0 = gl_LocalInvocationID.x;
+    const uint dim1 = dim0 + 64u;
+    if (batch_head >= pc.B * pc.NH || row >= pc.T) { return; }
+    const bool valid0 = dim0 < pc.D;
+    const bool valid1 = dim1 < pc.D;
+
     const uint batch = batch_head / pc.NH;
     const uint head = batch_head % pc.NH;
     const uint kv_head = head * pc.NK / pc.NH;
     const uint q_base = (batch * pc.NH + head) * pc.T * pc.D;
     const uint k_base = (batch * pc.NK + kv_head) * pc.S * pc.D;
     const uint v_base = k_base;
-    const float scale = inversesqrt(float(pc.D));
-    float max_score = -1.0e38;
+    const uint q_row_base = q_base + row * pc.D;
+    const {{ACTIVATION_TYPE}} q0 = valid0 ? {{ACTIVATION_TYPE}}(q[q_row_base + dim0]) : {{ACC_ZERO}};
+    const {{ACTIVATION_TYPE}} q1 = valid1 ? {{ACTIVATION_TYPE}}(q[q_row_base + dim1]) : {{ACC_ZERO}};
+    const {{ACTIVATION_TYPE}} scale = {{ACTIVATION_TYPE}}(inversesqrt(float(pc.D)));
+    {{ACTIVATION_TYPE}} running_max = {{ACC_NEG_INF}};
+    {{ACTIVATION_TYPE}} running_sum = {{ACC_ZERO}};
+    {{ACTIVATION_TYPE}} acc0 = {{ACC_ZERO}};
+    {{ACTIVATION_TYPE}} acc1 = {{ACC_ZERO}};
+
     for (uint col = 0u; col < pc.S; ++col) {
-        float dot = 0.0;
-        for (uint d = 0u; d < pc.D; ++d) {
-            dot += float(q[q_base + row * pc.D + d]) * float(k[k_base + col * pc.D + d]);
+        const uint kv_offset = col * pc.D;
+        const {{ACTIVATION_TYPE}} k0 = valid0 ? {{ACTIVATION_TYPE}}(k[k_base + kv_offset + dim0]) : {{ACC_ZERO}};
+        const {{ACTIVATION_TYPE}} k1 = valid1 ? {{ACTIVATION_TYPE}}(k[k_base + kv_offset + dim1]) : {{ACC_ZERO}};
+        const {{ACTIVATION_TYPE}} dot = subgroupAdd(q0 * k0 + q1 * k1);
+        const {{ACTIVATION_TYPE}} score = dot * scale;
+        const {{ACTIVATION_TYPE}} next_max = score > running_max ? score : running_max;
+        const {{ACTIVATION_TYPE}} old_scale = running_max == {{ACC_NEG_INF}}
+            ? {{ACC_ZERO}}
+            : {{ACTIVATION_TYPE}}(exp(float(running_max - next_max)));
+        const {{ACTIVATION_TYPE}} score_scale = {{ACTIVATION_TYPE}}(exp(float(score - next_max)));
+        if (valid0) {
+            acc0 = acc0 * old_scale + score_scale * {{ACTIVATION_TYPE}}(v[v_base + kv_offset + dim0]);
         }
-        max_score = max(max_score, dot * scale);
-    }
-    float sum_exp = 0.0;
-    for (uint col = 0u; col < pc.S; ++col) {
-        float dot = 0.0;
-        for (uint d = 0u; d < pc.D; ++d) {
-            dot += float(q[q_base + row * pc.D + d]) * float(k[k_base + col * pc.D + d]);
+        if (valid1) {
+            acc1 = acc1 * old_scale + score_scale * {{ACTIVATION_TYPE}}(v[v_base + kv_offset + dim1]);
         }
-        sum_exp += exp(dot * scale - max_score);
+        running_sum = running_sum * old_scale + score_scale;
+        running_max = next_max;
     }
-    float acc = 0.0;
-    for (uint col = 0u; col < pc.S; ++col) {
-        float dot = 0.0;
-        for (uint dd = 0u; dd < pc.D; ++dd) {
-            dot += float(q[q_base + row * pc.D + dd]) * float(k[k_base + col * pc.D + dd]);
+
+    if (running_sum > {{ACC_ZERO}}) {
+        const uint output_base = (batch * pc.NH + head) * pc.T * pc.D + row * pc.D;
+        if (valid0) {
+            output_values[output_base + dim0] = {{STORE_ACC0}};
         }
-        float w = exp(dot * scale - max_score) / sum_exp;
-        acc += w * float(v[v_base + col * pc.D + d_out]);
+        if (valid1) {
+            output_values[output_base + dim1] = {{STORE_ACC1}};
+        }
     }
-    output_values[(batch * pc.NH + head) * pc.T * pc.D + row * pc.D + d_out] = {{STORE_ACC}};
 }
 """
 
@@ -370,8 +390,13 @@ def make_sdpa_variant(node: Node, activation_dtype: str = "float32") -> ShaderVa
             subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
         )
     else:
+        if d > 128:
+            return None
         source = _SOURCE_NONCAUSAL
-        shader_name = "sdpa_f32"
+        shader_name = f"sdpa_{activation_dtype_suffix(activation_dtype)}"
+        execution_requirements = ShaderExecutionRequirements(
+            subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
+        )
 
     if masked:
         mask_shape = node_input_shape(node, 3)
@@ -436,7 +461,7 @@ def make_sdpa_variant(node: Node, activation_dtype: str = "float32") -> ShaderVa
                     PushConstantFieldSpec("D", PushConstantType.UINT32, 20, "Q3"),
                 ),
             ),
-            dispatch=(mul("Q0", "Q1"), "Q2", 1 if masked or causal else ceil_div("Q3", 64)),
+            dispatch=(mul("Q0", "Q1"), "Q2", 1),
         ),
         execution_requirements=activation_requirements(activation_dtype, execution_requirements),
         source=_source(source, activation_dtype),
@@ -539,8 +564,33 @@ def _source(source: str, activation_dtype: str) -> str:
         {
             "ACTIVATION_EXTENSION": activation_extension_source(activation_dtype),
             "ACTIVATION_TYPE": activation_glsl_type(activation_dtype),
+            "SUBGROUP_FLOAT16_EXTENSION": _subgroup_float16_extension(activation_dtype),
+            "ACC_ZERO": _acc_zero(activation_dtype),
+            "ACC_NEG_INF": _acc_neg_inf(activation_dtype),
             "STORE_ACC": activation_store("acc", activation_dtype),
             "STORE_ACC0": activation_store("acc0 / running_sum", activation_dtype),
             "STORE_ACC1": activation_store("acc1 / running_sum", activation_dtype),
         },
     )
+
+
+def _subgroup_float16_extension(activation_dtype: str) -> str:
+    if activation_dtype == "float16":
+        return "#extension GL_EXT_shader_subgroup_extended_types_float16 : require\n"
+    return ""
+
+
+def _acc_zero(activation_dtype: str) -> str:
+    if activation_dtype == "float16":
+        return "float16_t(0.0)"
+    if activation_dtype == "float32":
+        return "0.0"
+    raise ValueError(f"Unsupported activation dtype for SDPA: {activation_dtype}")
+
+
+def _acc_neg_inf(activation_dtype: str) -> str:
+    if activation_dtype == "float16":
+        return "float16_t(-65504.0)"
+    if activation_dtype == "float32":
+        return "-1.0e38"
+    raise ValueError(f"Unsupported activation dtype for SDPA: {activation_dtype}")
