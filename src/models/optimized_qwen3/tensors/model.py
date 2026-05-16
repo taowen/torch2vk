@@ -66,7 +66,6 @@ class OptimizedQwen3Tensors:
     generated_tokens: LogicalTensor
     generated_length: LogicalTensor
     stopped: LogicalTensor
-    token_index: LogicalTensor
 
 
 _MODEL_TENSORS: OptimizedQwen3Tensors | None = None
@@ -88,8 +87,12 @@ def create_model_tensors(
 ) -> OptimizedQwen3Tensors:
     prefill_full_input_ids = _host_input_tensor("int64", (1, prefill_chunk_length))
     prefill_tail_input_ids = _host_input_tensor("int64", (1, prefill_tail_length))
-    prefill_full_causal_mask = _host_input_tensor("float16", (prefill_chunk_length, prefill_chunk_length))
-    prefill_tail_causal_mask = _host_input_tensor("float16", (prefill_tail_length, prefill_attention_length))
+    prefill_full_causal_mask = _host_input_tensor(
+        "float16", (prefill_chunk_length, prefill_chunk_length)
+    )
+    prefill_tail_causal_mask = _host_input_tensor(
+        "float16", (prefill_tail_length, prefill_attention_length)
+    )
     prefill_full_mask_opt = _activation_tensor(
         "uint32",
         (_mask_opt_words(prefill_chunk_length), _mask_opt_rows(prefill_chunk_length)),
@@ -323,8 +326,6 @@ def create_model_tensors(
         (1,),
         semantic=TensorSemantic.TOKEN,
     )
-    token_index = _host_input_tensor("int64", (1,))
-
     global _MODEL_TENSORS
     _MODEL_TENSORS = OptimizedQwen3Tensors(
         prefill_full_input_ids=prefill_full_input_ids,
@@ -368,7 +369,6 @@ def create_model_tensors(
         generated_tokens=generated_tokens,
         generated_length=generated_length,
         stopped=stopped,
-        token_index=token_index,
     )
     bind_logical_tensor_names(_MODEL_TENSORS)
     return _MODEL_TENSORS

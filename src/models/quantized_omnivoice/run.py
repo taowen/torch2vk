@@ -34,8 +34,7 @@ from models.quantized_omnivoice.tensors.model import create_model_tensors, model
 from omnivoice.models.omnivoice import OmniVoiceConfig
 from models.optimized_omnivoice.pytorch.example import REPO_ID, save_audio_wav
 from torch2vk.runtime.host_array import as_float16_attention_mask
-from torch2vk.runtime.logical import LogicalTensor
-from torch2vk.runtime.replay import ReplayPlan, execute_replay, stage_replay_step_inputs
+from torch2vk.runtime.replay import ReplayPlan, execute_replay
 from torch2vk.runtime.replay_cache_key import (
     build_cached_replay_plan,
     cached_replay_plan,
@@ -64,7 +63,7 @@ def _run_rope_table(rt: RuntimeSession, *, frame_name: str) -> None:
     rope_t = model_tensors().rope
     run_rope_table_f32(
         rt,
-        start_position=rope_t.start_position,
+        start_position=0,
         theta=1_000_000.0,
         cos=rope_t.cos,
         sin=rope_t.sin,
@@ -84,7 +83,7 @@ def _run_input_embed(rt: RuntimeSession) -> None:
     )
 
 
-def _run_token_score(rt: RuntimeSession) -> None:
+def _run_token_score(rt: RuntimeSession, *, step: int) -> None:
     tensors = model_tensors()
     OMNIVOICE_CFG_SCORE_F32(
         rt,
@@ -92,38 +91,31 @@ def _run_token_score(rt: RuntimeSession) -> None:
         tokens=tensors.tokens,
         audio_mask_id=tensors.audio_mask_id,
         rng_seed=tensors.rng_seed,
-        step_index=tensors.step_index,
+        step_index=step,
         candidate_tokens=tensors.candidate_tokens,
         candidate_scores=tensors.candidate_scores,
     )
 
 
-def _run_token_update(rt: RuntimeSession) -> None:
+def _run_token_update(rt: RuntimeSession, *, unmask_count: int) -> None:
     tensors = model_tensors()
     OMNIVOICE_TOKEN_UPDATE_TOPK_F32(
         rt,
         candidate_tokens=tensors.candidate_tokens,
         candidate_scores=tensors.candidate_scores,
-        unmask_count=tensors.unmask_count,
+        unmask_count=unmask_count,
         tokens=tensors.tokens,
         batch_input_ids=tensors.batch_input_ids,
     )
 
 
-def _run_generation_step(rt: RuntimeSession, *, step: int) -> None:
+def _run_generation_step(rt: RuntimeSession, *, step: int, unmask_count: int) -> None:
     with rt.frame(f"omnivoice.step.{step:04d}"):
         _run_input_embed(rt)
         run_llm_forward(rt)
         run_audio_head(rt)
-        _run_token_score(rt)
-        _run_token_update(rt)
-
-
-def _generation_step_inputs(step: int, unmask_count: int) -> dict[LogicalTensor, np.ndarray]:
-    return {
-        model_tensors().step_index: np.array([step], dtype=np.uint32),
-        model_tensors().unmask_count: np.array([unmask_count], dtype=np.uint32),
-    }
+        _run_token_score(rt, step=step)
+        _run_token_update(rt, unmask_count=unmask_count)
 
 
 def _build_generation_replay_plan(
@@ -245,11 +237,6 @@ def main(
     )
 
     # Compute RoPE once on GPU (positions are fixed for masked decoding)
-    rt.register_inputs(
-        {
-            model_tensors().rope.start_position: np.array([0], dtype=np.int64),
-        }
-    )
     _run_rope_table(rt, frame_name="omnivoice.rope")
 
     unmasked = 0
@@ -259,42 +246,28 @@ def main(
         if k <= 0:
             continue
 
-        step_inputs = _generation_step_inputs(step, k)
         if generation_replay_plan is None:
-            rt.register_inputs(step_inputs)
             generation_replay_plan = _cached_generation_replay_plan(
                 rt,
                 cache_namespace=replay_cache_namespace,
             )
             if generation_replay_plan is None:
-                _run_generation_step(rt, step=step)
+                _run_generation_step(rt, step=step, unmask_count=k)
                 generation_replay_plan = _build_generation_replay_plan(
                     rt,
                     frame=f"omnivoice.step.{step:04d}",
                     cache_namespace=replay_cache_namespace,
                 )
             else:
-                stage_replay_step_inputs(
-                    rt,
-                    plan=generation_replay_plan,
-                    inputs=step_inputs,
-                    write_through=(
-                        model_tensors().step_index,
-                        model_tensors().unmask_count,
-                    ),
+                execute_replay(
+                    generation_replay_plan,
+                    dynamic_push_constants={"step_index": step, "unmask_count": k},
                 )
-                execute_replay(generation_replay_plan)
         else:
-            stage_replay_step_inputs(
-                rt,
-                plan=generation_replay_plan,
-                inputs=step_inputs,
-                write_through=(
-                    model_tensors().step_index,
-                    model_tensors().unmask_count,
-                ),
+            execute_replay(
+                generation_replay_plan,
+                dynamic_push_constants={"step_index": step, "unmask_count": k},
             )
-            execute_replay(generation_replay_plan)
         unmasked += k
 
         if step % 8 == 0 or step == num_steps - 1:

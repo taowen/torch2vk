@@ -415,10 +415,17 @@ class RuntimeSession:
         *,
         tensors: Mapping[str, LogicalTensor],
         symbols: Mapping[str, int],
+        push_constant_inputs: Mapping[str, object] | None = None,
     ) -> BufferAllocation:
         from torch2vk.runtime.materialization import materialize_params_buffer
 
-        return materialize_params_buffer(self, spec, tensors=tensors, symbols=symbols)
+        return materialize_params_buffer(
+            self,
+            spec,
+            tensors=tensors,
+            symbols=symbols,
+            push_constant_inputs=push_constant_inputs,
+        )
 
     def _pipeline_for_variant(self, variant: ShaderVariant) -> ComputePipeline:
         from torch2vk.runtime.pipeline_cache import pipeline_for_variant

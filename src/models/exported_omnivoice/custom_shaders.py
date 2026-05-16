@@ -5,6 +5,7 @@ from __future__ import annotations
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
+    PushConstantInput,
     PushConstantSpec,
     PushConstantType,
     ShaderContract,
@@ -177,12 +178,6 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
                 TensorContract(dtype="uint32", shape=(1,)),
             ),
             TensorFieldSpec(
-                "step_index",
-                IOKind.INPUT,
-                "step",
-                TensorContract(dtype="uint32", shape=(1,)),
-            ),
-            TensorFieldSpec(
                 "candidate_tokens",
                 IOKind.OUTPUT,
                 "candidate_tokens",
@@ -196,7 +191,7 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=28,
+            size=32,
             fields=(
                 PushConstantFieldSpec("S", PushConstantType.UINT32, 0, "S"),
                 PushConstantFieldSpec("C", PushConstantType.UINT32, 4, "C"),
@@ -205,6 +200,9 @@ OMNIVOICE_CFG_SCORE_F32 = ShaderVariant(
                 PushConstantFieldSpec("guidance_scale", PushConstantType.FLOAT32, 16, 2.0),
                 PushConstantFieldSpec("layer_penalty", PushConstantType.FLOAT32, 20, 5.0),
                 PushConstantFieldSpec("position_temperature", PushConstantType.FLOAT32, 24, 5.0),
+                PushConstantFieldSpec(
+                    "step_index", PushConstantType.UINT32, 28, PushConstantInput("step_index")
+                ),
             ),
         ),
         dispatch=(ceil_div(mul("C", "T"), 256), 1, 1),
@@ -238,15 +236,11 @@ layout(set = 0, binding = 3) buffer restrict readonly RngSeedBuffer {
     uint rng_seed[];
 };
 
-layout(set = 0, binding = 4) buffer restrict readonly StepIndexBuffer {
-    uint step_index[];
-};
-
-layout(set = 0, binding = 5) buffer restrict writeonly CandidateTokensBuffer {
+layout(set = 0, binding = 4) buffer restrict writeonly CandidateTokensBuffer {
     int64_t candidate_tokens[];
 };
 
-layout(set = 0, binding = 6) buffer restrict writeonly CandidateScoresBuffer {
+layout(set = 0, binding = 5) buffer restrict writeonly CandidateScoresBuffer {
     float candidate_scores[];
 };
 
@@ -258,6 +252,7 @@ layout(push_constant) uniform PushConstants {
     float guidance_scale;
     float layer_penalty;
     float position_temperature;
+    uint step_index;
 } pc;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -280,7 +275,7 @@ float uniform01(uint x) {
 }
 
 float gumbel_noise(uint flat_pos) {
-    uint x = rng_seed[0] ^ (step_index[0] * 0x9e3779b9u) ^ (flat_pos * 0x85ebca6bu);
+    uint x = rng_seed[0] ^ (pc.step_index * 0x9e3779b9u) ^ (flat_pos * 0x85ebca6bu);
     const float u = clamp(uniform01(x), 1.0e-7, 1.0 - 1.0e-7);
     return -log(-log(u));
 }
@@ -379,12 +374,6 @@ OMNIVOICE_TOKEN_UPDATE_TOPK_F32 = ShaderVariant(
                 TensorContract(dtype="float32", shape=("C", "T")),
             ),
             TensorFieldSpec(
-                "unmask_count",
-                IOKind.INPUT,
-                "unmask_count",
-                TensorContract(dtype="uint32", shape=(1,)),
-            ),
-            TensorFieldSpec(
                 "tokens",
                 IOKind.INOUT,
                 "tokens",
@@ -398,11 +387,17 @@ OMNIVOICE_TOKEN_UPDATE_TOPK_F32 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=12,
+            size=16,
             fields=(
                 PushConstantFieldSpec("C", PushConstantType.UINT32, 0, "C"),
                 PushConstantFieldSpec("T", PushConstantType.UINT32, 4, "T"),
                 PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S"),
+                PushConstantFieldSpec(
+                    "unmask_count",
+                    PushConstantType.UINT32,
+                    12,
+                    PushConstantInput("unmask_count"),
+                ),
             ),
         ),
         dispatch=(ceil_div(mul("C", "T"), 256), 1, 1),
@@ -423,15 +418,11 @@ layout(set = 0, binding = 1) buffer restrict readonly CandidateScoresBuffer {
     float candidate_scores[];
 };
 
-layout(set = 0, binding = 2) buffer restrict readonly UnmaskCountBuffer {
-    uint unmask_count[];
-};
-
-layout(set = 0, binding = 3) buffer restrict TokensBuffer {
+layout(set = 0, binding = 2) buffer restrict TokensBuffer {
     int64_t tokens[];
 };
 
-layout(set = 0, binding = 4) buffer restrict BatchInputIdsBuffer {
+layout(set = 0, binding = 3) buffer restrict BatchInputIdsBuffer {
     int64_t batch_input_ids[];
 };
 
@@ -439,6 +430,7 @@ layout(push_constant) uniform PushConstants {
     uint C;
     uint T;
     uint S;
+    uint unmask_count;
 } pc;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -450,7 +442,7 @@ bool better_pair(float lhs_score, uint lhs_index, float rhs_score, uint rhs_inde
 void main() {
     const uint index = gl_GlobalInvocationID.x;
     const uint total = pc.C * pc.T;
-    const uint limit = min(unmask_count[0], total);
+    const uint limit = min(pc.unmask_count, total);
     if (index >= total) {
         return;
     }

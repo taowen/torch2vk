@@ -124,7 +124,7 @@ def _run_prefill(rt: RuntimeSession, *, rope_theta: float) -> None:
     with rt.frame("qwen3.prefill"):
         ROPE_TABLE_F32(
             rt,
-            start_position=tensors.prefill_rope.start_position,
+            start_position=0,
             theta=rope_theta,
             cos=tensors.prefill_rope.cos,
             sin=tensors.prefill_rope.sin,
@@ -142,7 +142,7 @@ def _run_prefill(rt: RuntimeSession, *, rope_theta: float) -> None:
         QWEN3_TOKEN_STORE_EOS(
             rt,
             next_token=tensors.next_token,
-            token_index=tensors.token_index,
+            token_index=0,
             done=tensors.done,
             generated_tokens=tensors.generated_tokens,
             generated_length=tensors.generated_length,
@@ -150,12 +150,18 @@ def _run_prefill(rt: RuntimeSession, *, rope_theta: float) -> None:
         )
 
 
-def _run_decode_step(rt: RuntimeSession, *, rope_theta: float, step: int) -> None:
+def _run_decode_step(
+    rt: RuntimeSession,
+    *,
+    cache_position: int,
+    rope_theta: float,
+    step: int,
+) -> None:
     tensors = model_tensors()
     with rt.frame(f"qwen3.decode.{step:04d}"):
         ROPE_TABLE_F32(
             rt,
-            start_position=tensors.decode_rope.start_position,
+            start_position=cache_position,
             theta=rope_theta,
             cos=tensors.decode_rope.cos,
             sin=tensors.decode_rope.sin,
@@ -168,7 +174,7 @@ def _run_decode_step(rt: RuntimeSession, *, rope_theta: float, step: int) -> Non
         QWEN3_TOKEN_STORE_EOS(
             rt,
             next_token=tensors.next_token,
-            token_index=tensors.token_index,
+            token_index=step + 1,
             done=tensors.done,
             generated_tokens=tensors.generated_tokens,
             generated_length=tensors.generated_length,
@@ -185,21 +191,16 @@ def _prefill_inputs(
     return {
         tensors.input_ids: input_ids,
         tensors.text_layers[0].cache_position: np.arange(prompt_length, dtype=np.int64),
-        tensors.prefill_rope.start_position: np.array([0], dtype=np.int64),
-        tensors.token_index: np.array([0], dtype=np.int64),
     }
 
 
 def _decode_step_inputs(
     *,
     cache_position: int,
-    token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
     return {
-        tensors.decode_rope.start_position: np.array([cache_position], dtype=np.int64),
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
-        tensors.token_index: np.array([token_index_value], dtype=np.int64),
     }
 
 
@@ -350,12 +351,12 @@ def main(
             rt,
             plan=prefill_replay_plan,
             inputs=prefill_inputs,
-            write_through=(
-                model_tensors().text_layers[0].cache_position,
-                model_tensors().token_index,
-            ),
+            write_through=(model_tensors().text_layers[0].cache_position,),
         )
-        execute_replay(prefill_replay_plan)
+        execute_replay(
+            prefill_replay_plan,
+            dynamic_push_constants={"start_position": 0, "token_index": 0},
+        )
     first_token = _read_selected_token(rt, model_tensors().next_token)
     prefill_elapsed = time.perf_counter() - prefill_start
     print(f"  first_token={first_token}, prefill={prefill_elapsed:.3f}s")
@@ -367,11 +368,15 @@ def main(
         cache_pos = prompt_length + step
         decode_inputs = _decode_step_inputs(
             cache_position=cache_pos,
-            token_index_value=step + 1,
         )
         if decode_replay_plan is None:
             rt.register_inputs(decode_inputs)
-            _run_decode_step(rt, rope_theta=rope_theta, step=step)
+            _run_decode_step(
+                rt,
+                cache_position=cache_pos,
+                rope_theta=rope_theta,
+                step=step,
+            )
             decode_replay_plan = _build_replay_plan(
                 rt,
                 name="quantized_qwen3_decode_step",
@@ -383,12 +388,15 @@ def main(
                 rt,
                 plan=decode_replay_plan,
                 inputs=decode_inputs,
-                write_through=(
-                    model_tensors().decode_layers[0].cache_position,
-                    model_tensors().token_index,
-                ),
+                write_through=(model_tensors().decode_layers[0].cache_position,),
             )
-            execute_replay(decode_replay_plan)
+            execute_replay(
+                decode_replay_plan,
+                dynamic_push_constants={
+                    "start_position": cache_pos,
+                    "token_index": step + 1,
+                },
+            )
         decode_steps += 1
 
     decode_elapsed = time.perf_counter() - decode_start

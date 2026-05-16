@@ -5,6 +5,7 @@ from __future__ import annotations
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
+    PushConstantInput,
     PushConstantSpec,
     PushConstantType,
     ShaderContract,
@@ -27,12 +28,6 @@ QWEN3_TOKEN_STORE = ShaderVariant(
                 io_kind=IOKind.INPUT,
                 role="next_token",
                 contract=TensorContract(dtype="int64", shape=(1, 1)),
-            ),
-            TensorFieldSpec(
-                name="token_index",
-                io_kind=IOKind.INPUT,
-                role="token_index",
-                contract=TensorContract(dtype="int64", shape=(1,)),
             ),
             TensorFieldSpec(
                 name="done",
@@ -60,10 +55,13 @@ QWEN3_TOKEN_STORE = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=8,
+            size=12,
             fields=(
                 PushConstantFieldSpec("G", PushConstantType.UINT32, 0, "G"),
                 PushConstantFieldSpec("stop_on_eos", PushConstantType.UINT32, 4, 0),
+                PushConstantFieldSpec(
+                    "token_index", PushConstantType.UINT32, 8, PushConstantInput("token_index")
+                ),
             ),
         ),
         dispatch=(1, 1, 1),
@@ -80,35 +78,32 @@ layout(set = 0, binding = 0) buffer restrict readonly NextTokenBuffer {
     int64_t next_token[];
 };
 
-layout(set = 0, binding = 1) buffer restrict readonly TokenIndexBuffer {
-    int64_t token_index[];
-};
-
-layout(set = 0, binding = 2) buffer restrict readonly DoneBuffer {
+layout(set = 0, binding = 1) buffer restrict readonly DoneBuffer {
     uint done[];
 };
 
-layout(set = 0, binding = 3) buffer restrict GeneratedTokensBuffer {
+layout(set = 0, binding = 2) buffer restrict GeneratedTokensBuffer {
     int64_t generated_tokens[];
 };
 
-layout(set = 0, binding = 4) buffer restrict GeneratedLengthBuffer {
+layout(set = 0, binding = 3) buffer restrict GeneratedLengthBuffer {
     uint generated_length[];
 };
 
-layout(set = 0, binding = 5) buffer restrict StoppedBuffer {
+layout(set = 0, binding = 4) buffer restrict StoppedBuffer {
     uint stopped[];
 };
 
 layout(push_constant) uniform PushConstants {
     uint G;
     uint stop_on_eos;
+    uint token_index;
 } pc;
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
 void main() {
-    const uint index = uint(token_index[0]);
+    const uint index = pc.token_index;
     if (index >= pc.G) {
         return;
     }
@@ -134,10 +129,13 @@ QWEN3_TOKEN_STORE_EOS = ShaderVariant(
         shader_name="qwen3_token_store_eos",
         fields=QWEN3_TOKEN_STORE.contract.fields,
         push_constants=PushConstantSpec(
-            size=8,
+            size=12,
             fields=(
                 PushConstantFieldSpec("G", PushConstantType.UINT32, 0, "G"),
                 PushConstantFieldSpec("stop_on_eos", PushConstantType.UINT32, 4, 1),
+                PushConstantFieldSpec(
+                    "token_index", PushConstantType.UINT32, 8, PushConstantInput("token_index")
+                ),
             ),
         ),
         dispatch=QWEN3_TOKEN_STORE.contract.dispatch,

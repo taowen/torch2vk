@@ -36,8 +36,6 @@ class QuantizedOmniVoiceTensors:
     attention_mask: LogicalTensor
     audio_mask_id: LogicalTensor
     rng_seed: LogicalTensor
-    step_index: LogicalTensor
-    unmask_count: LogicalTensor
     active_target_len: LogicalTensor
     cond_target_start: LogicalTensor
     tokens: LogicalTensor
@@ -70,8 +68,6 @@ def create_model_tensors() -> QuantizedOmniVoiceTensors:
     attention_mask = _state_tensor("float16", (2, 1, SEQ_CAPACITY, SEQ_CAPACITY))
     audio_mask_id = _state_tensor("int64", (1,))
     rng_seed = _state_tensor("uint32", (1,))
-    step_index = _host_input_tensor("uint32", (1,))
-    unmask_count = _host_input_tensor("uint32", (1,))
     active_target_len = _state_tensor("uint32", (1,))
     cond_target_start = _state_tensor("uint32", (1,))
     tokens = _state_tensor("int64", (1, 8, TARGET_CAPACITY))
@@ -114,8 +110,6 @@ def create_model_tensors() -> QuantizedOmniVoiceTensors:
         attention_mask=attention_mask,
         audio_mask_id=audio_mask_id,
         rng_seed=rng_seed,
-        step_index=step_index,
-        unmask_count=unmask_count,
         active_target_len=active_target_len,
         cond_target_start=cond_target_start,
         tokens=tokens,
@@ -152,14 +146,22 @@ def _weight_tensor(
     layout: TensorLayout = CONTIGUOUS_LAYOUT
     if quantized_layout is not None:
         if shape[1] % quantized_layout.block_size != 0:
-            raise ValueError(f"Quantized weight {checkpoint_key} requires K divisible by {quantized_layout.block_size}")
+            raise ValueError(
+                f"Quantized weight {checkpoint_key} requires K divisible by {quantized_layout.block_size}"
+            )
         layout = quantized_layout
         if isinstance(quantized_layout, Q4KWordsLayout):
             dtype = "uint32"
-            shape = (shape[0], shape[1] // quantized_layout.block_size * quantized_layout.words_per_block)
+            shape = (
+                shape[0],
+                shape[1] // quantized_layout.block_size * quantized_layout.words_per_block,
+            )
         elif isinstance(quantized_layout, Q8_0HalfwordsLayout):
             dtype = "uint16"
-            shape = (shape[0], shape[1] // quantized_layout.block_size * quantized_layout.halfwords_per_block)
+            shape = (
+                shape[0],
+                shape[1] // quantized_layout.block_size * quantized_layout.halfwords_per_block,
+            )
     return LogicalTensor(
         spec=TensorSpec(dtype=dtype, shape=shape),
         role=TensorRole.WEIGHT,

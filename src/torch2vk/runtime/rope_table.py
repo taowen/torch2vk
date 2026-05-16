@@ -25,7 +25,6 @@ from torch2vk.vulkan.types import TensorSpec
 
 @dataclass(frozen=True, slots=True)
 class RopeTableTensors:
-    start_position: LogicalTensor
     cos: LogicalTensor
     sin: LogicalTensor
 
@@ -37,12 +36,6 @@ ROPE_TABLE_F32 = ShaderVariant(
         class_name="RopeTableF32Program",
         shader_name="rope_table_f32",
         fields=(
-            TensorFieldSpec(
-                name="start_position",
-                io_kind=IOKind.INPUT,
-                role="input",
-                contract=TensorContract(dtype="int64", shape=(1,)),
-            ),
             TensorFieldSpec(
                 name="cos",
                 io_kind=IOKind.OUTPUT,
@@ -57,7 +50,7 @@ ROPE_TABLE_F32 = ShaderVariant(
             ),
         ),
         push_constants=PushConstantSpec(
-            size=20,
+            size=24,
             fields=(
                 PushConstantFieldSpec("B", PushConstantType.UINT32, 0, "B"),
                 PushConstantFieldSpec("T", PushConstantType.UINT32, 4, "T"),
@@ -66,32 +59,32 @@ ROPE_TABLE_F32 = ShaderVariant(
                 PushConstantFieldSpec(
                     "theta", PushConstantType.FLOAT32, 16, PushConstantInput("theta")
                 ),
+                PushConstantFieldSpec(
+                    "start_position",
+                    PushConstantType.UINT32,
+                    20,
+                    PushConstantInput("start_position"),
+                ),
             ),
         ),
         dispatch=(ceil_div(mul(mul("B", "T"), "D"), 256), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(
-        require_shader_int64=True,
         require_storage_buffer_16bit_access=True,
     ),
     source="""
 #version 450
 
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_shader_16bit_storage : require
 
 layout(std430) buffer;
 
-layout(set = 0, binding = 0) buffer restrict readonly StartPositionBuffer {
-    int64_t start_position_values[];
-};
-
-layout(set = 0, binding = 1) buffer restrict writeonly CosBuffer {
+layout(set = 0, binding = 0) buffer restrict writeonly CosBuffer {
     float16_t cos_values[];
 };
 
-layout(set = 0, binding = 2) buffer restrict writeonly SinBuffer {
+layout(set = 0, binding = 1) buffer restrict writeonly SinBuffer {
     float16_t sin_values[];
 };
 
@@ -101,6 +94,7 @@ layout(push_constant) uniform PushConstants {
     uint D;
     float attention_scaling;
     float theta;
+    uint start_position;
 } pc;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -119,7 +113,7 @@ void main() {
     const uint freq_idx = d % half_dim;
     const float exponent = (2.0 * float(freq_idx)) / float(pc.D);
     const float inv_freq = pow(pc.theta, -exponent);
-    const float position = float(start_position_values[0] + int64_t(token));
+    const float position = float(pc.start_position + token);
     const float angle = position * inv_freq;
     cos_values[index] = float16_t(cos(angle) * pc.attention_scaling);
     sin_values[index] = float16_t(sin(angle) * pc.attention_scaling);
@@ -135,7 +129,6 @@ ROPE_TABLE_OUTPUT_F32 = ShaderVariant(
         class_name="RopeTableOutputF32Program",
         shader_name="rope_table_output_f32",
         fields=(
-            ROPE_TABLE_F32.contract.fields[0],
             TensorFieldSpec(
                 name="cos",
                 io_kind=IOKind.OUTPUT,
@@ -152,7 +145,7 @@ ROPE_TABLE_OUTPUT_F32 = ShaderVariant(
         push_constants=ROPE_TABLE_F32.contract.push_constants,
         dispatch=ROPE_TABLE_F32.contract.dispatch,
     ),
-    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
+    execution_requirements=ShaderExecutionRequirements(),
     source=ROPE_TABLE_F32.source.replace(
         "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
         "#extension GL_EXT_shader_16bit_storage : require\n",
@@ -171,16 +164,6 @@ ROPE_TABLE_OUTPUT_F32 = ShaderVariant(
 )
 
 
-def declare_rope_start_position_tensor(name: str) -> LogicalTensor:
-    return LogicalTensor(
-        name=name,
-        spec=TensorSpec(dtype="int64", shape=(1,)),
-        role=TensorRole.INPUT,
-        memory=MemoryClass.HOST_INPUT,
-        lifetime=TensorLifetime.FRAME,
-    )
-
-
 def declare_rope_table_tensors(
     prefix: str,
     *,
@@ -190,7 +173,6 @@ def declare_rope_table_tensors(
     dtype: str = "float16",
 ) -> RopeTableTensors:
     return RopeTableTensors(
-        start_position=declare_rope_start_position_tensor(f"{prefix}.start_position"),
         cos=_declare_rope_output(
             f"{prefix}.cos",
             batch=batch,
@@ -211,7 +193,7 @@ def declare_rope_table_tensors(
 def run_rope_table_f32(
     rt: RuntimeSession,
     *,
-    start_position: LogicalTensor,
+    start_position: int,
     theta: float,
     cos: LogicalTensor,
     sin: LogicalTensor,

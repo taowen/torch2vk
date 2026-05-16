@@ -27,11 +27,11 @@ from vulkan._vulkan import ffi
 
 from torch2vk.runtime.host_array import prepare_host_array
 from torch2vk.runtime.logical import TensorRole
+from torch2vk.runtime.materialization import pack_push_constant_value
 from torch2vk.runtime.shader import (
     ExprDim,
     ParamsBufferSpec,
     PushConstantInput,
-    PushConstantType,
     TensorFieldSpec,
     eval_expr,
 )
@@ -71,7 +71,9 @@ class ReplayDispatchEntry:
     dispatch_size: tuple[int, int, int]
     dispatch_formula: tuple[ExprDim, ExprDim, ExprDim]
     symbols: dict[str, int]
+    push_constant_values: dict[str, int | float]
     dynamic_symbol_names: tuple[str, ...] = ()
+    dynamic_push_constant_names: tuple[str, ...] = ()
     indirect_offset: int | None = None
     params_buffer: BufferAllocation | None = None
     params_layout: ParamsBufferSpec | None = None
@@ -93,6 +95,7 @@ class ReplayDispatchTemplate:
     dispatch_size: tuple[int, int, int]
     push_constant_values: tuple[tuple[str, int | float], ...]
     dynamic_symbol_names: tuple[str, ...]
+    dynamic_push_constant_names: tuple[str, ...]
     source_dispatch_index: int | None = None
     source_frame: str | None = None
 
@@ -104,6 +107,7 @@ class ReplayPlanTemplate:
     name: str
     entries: tuple[ReplayDispatchTemplate, ...]
     dynamic_symbol_names: tuple[str, ...]
+    dynamic_push_constant_names: tuple[str, ...]
 
 
 @dataclass(slots=True)
@@ -178,6 +182,7 @@ class ReplayPlan:
     dispatch_entries: tuple[ReplayDispatchEntry, ...]
     params_entries: tuple[ReplayDispatchEntry, ...]
     dynamic_symbol_names: tuple[str, ...]
+    dynamic_push_constant_names: tuple[str, ...]
     template: ReplayPlanTemplate | None
 
     readback_slots: dict[str, ReplayReadbackSlot]
@@ -213,6 +218,7 @@ class ReplayPlan:
 def execute_replay(
     plan: ReplayPlan,
     dynamic_symbols: Mapping[str, int] | None = None,
+    dynamic_push_constants: Mapping[str, int | float] | None = None,
 ) -> dict[str, bytes]:
     """Execute the replay plan with given dynamic symbol values.
 
@@ -231,11 +237,18 @@ def execute_replay(
             raise ValueError(
                 f"ReplayPlan {plan.name!r} got unexpected dynamic symbols: {sorted(unexpected_symbols)}"
             )
+        push_constants = {} if dynamic_push_constants is None else dynamic_push_constants
+        unexpected_push_constants = set(push_constants) - set(plan.dynamic_push_constant_names)
+        if unexpected_push_constants:
+            raise ValueError(
+                f"ReplayPlan {plan.name!r} got unexpected dynamic push constants: "
+                f"{sorted(unexpected_push_constants)}"
+            )
 
         if plan.indirect_buffer is not None:
             _write_indirect_dispatch_buffer(plan, symbols)
         if plan.params_entries:
-            _write_params_buffers(plan, symbols)
+            _write_params_buffers(plan, symbols, push_constants)
 
         vkResetFences(plan.device.device, 1, [plan.fence])
         submit_info = VkSubmitInfo(
@@ -368,7 +381,11 @@ def _write_indirect_dispatch_buffer(plan: ReplayPlan, dynamic_symbols: Mapping[s
     plan.device.memory_manager.host_upload_ring.flush(allocation=plan.indirect_buffer)
 
 
-def _write_params_buffers(plan: ReplayPlan, dynamic_symbols: Mapping[str, int]) -> None:
+def _write_params_buffers(
+    plan: ReplayPlan,
+    dynamic_symbols: Mapping[str, int],
+    dynamic_push_constants: Mapping[str, int | float],
+) -> None:
     for entry in plan.params_entries:
         if entry.params_buffer is None or entry.params_layout is None:
             raise RuntimeError("Replay params entry is missing its params buffer")
@@ -377,27 +394,40 @@ def _write_params_buffers(plan: ReplayPlan, dynamic_symbols: Mapping[str, int]) 
         for field in entry.params_layout.fields:
             raw = field.value
             if isinstance(raw, PushConstantInput):
-                raise ValueError(
-                    f"PushConstantInput {raw.name!r} is not supported by replay params"
-                )
-            if callable(raw):
+                value = _replay_push_constant_value(entry, field.name, raw, dynamic_push_constants)
+            elif callable(raw):
                 raise ValueError(f"Callable replay param {field.name!r} is not supported")
-            if isinstance(raw, str):
+            elif isinstance(raw, str):
                 value = symbols[raw]
             elif isinstance(raw, int | float):
                 value = raw
             else:
                 value = eval_expr(raw, symbols)
-            if field.dtype is PushConstantType.UINT32:
-                struct.pack_into("<I", data, field.offset, int(value))
-            elif field.dtype is PushConstantType.INT32:
-                struct.pack_into("<i", data, field.offset, int(value))
-            elif field.dtype is PushConstantType.FLOAT32:
-                struct.pack_into("<f", data, field.offset, float(value))
-            elif field.dtype is PushConstantType.UINT64:
-                struct.pack_into("<Q", data, field.offset, int(value))
+            data[field.offset : field.offset + field.size] = pack_push_constant_value(
+                field.dtype,
+                value,
+            )
         entry.params_buffer.buffer.write_bytes_at(entry.params_buffer.offset, bytes(data))
         plan.device.memory_manager.host_upload_ring.flush(allocation=entry.params_buffer)
+
+
+def _replay_push_constant_value(
+    entry: ReplayDispatchEntry,
+    field_name: str,
+    input_ref: PushConstantInput,
+    dynamic_push_constants: Mapping[str, int | float],
+) -> int | float:
+    if input_ref.name in dynamic_push_constants:
+        return dynamic_push_constants[input_ref.name]
+    if field_name in dynamic_push_constants:
+        return dynamic_push_constants[field_name]
+    if field_name in entry.push_constant_values:
+        return entry.push_constant_values[field_name]
+    if input_ref.name in entry.push_constant_values:
+        return entry.push_constant_values[input_ref.name]
+    raise ValueError(
+        f"Replay entry {entry.source_shader!r} is missing push constant {field_name!r}"
+    )
 
 
 def _entry_symbols(

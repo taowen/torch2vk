@@ -318,14 +318,16 @@ def materialize_params_buffer(
     *,
     tensors: Mapping[str, LogicalTensor],
     symbols: Mapping[str, int],
+    push_constant_inputs: Mapping[str, object] | None = None,
 ) -> BufferAllocation:
     allocation = rt.device.allocate_host_visible_allocation(spec.size)
+    inputs = {} if push_constant_inputs is None else push_constant_inputs
     data = bytearray(spec.size)
     for field in spec.fields:
         raw = field.value
         if isinstance(raw, PushConstantInput):
-            raise ValueError(f"PushConstantInput {raw.name!r} is not supported by params buffers")
-        if callable(raw):
+            value = _push_constant_input_value(field.name, raw.name, inputs)
+        elif callable(raw):
             value = raw(tensors, symbols)
         elif isinstance(raw, str):
             value = symbols[raw]

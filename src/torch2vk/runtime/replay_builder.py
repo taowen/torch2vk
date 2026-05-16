@@ -73,7 +73,7 @@ if TYPE_CHECKING:
 
 
 _REPLAY_TEMPLATE_CACHE: dict[str, list[ReplayPlanTemplate]] = {}
-_REPLAY_TEMPLATE_CACHE_DIR = "replay_templates_v2"
+_REPLAY_TEMPLATE_CACHE_DIR = "replay_templates_v3"
 
 
 def build_replay_plan(
@@ -119,8 +119,15 @@ def _build_replay_template_from_records(
         )
         for record in frame_dispatch_records
     )
+    entry_dynamic_push_constant_names = tuple(
+        _entry_dynamic_push_constant_names(rt._model_shader(record.shader))
+        for record in frame_dispatch_records
+    )
     dynamic_symbol_names = tuple(
         sorted({symbol for entry_symbols in entry_dynamic_symbol_names for symbol in entry_symbols})
+    )
+    dynamic_push_constant_names = tuple(
+        sorted({name for entry_names in entry_dynamic_push_constant_names for name in entry_names})
     )
     entries = tuple(
         ReplayDispatchTemplate(
@@ -131,6 +138,7 @@ def _build_replay_template_from_records(
             dispatch_size=record.dispatch_size,
             push_constant_values=record.push_constant_values,
             dynamic_symbol_names=entry_dynamic_symbol_names[i],
+            dynamic_push_constant_names=entry_dynamic_push_constant_names[i],
             source_dispatch_index=record.index,
             source_frame=record.frame,
         )
@@ -140,6 +148,7 @@ def _build_replay_template_from_records(
         name=name,
         entries=entries,
         dynamic_symbol_names=dynamic_symbol_names,
+        dynamic_push_constant_names=dynamic_push_constant_names,
     )
 
 
@@ -152,6 +161,7 @@ def _instantiate_replay_template(
 ) -> ReplayPlan:
     num_dispatches = len(template.entries)
     dynamic_symbol_names = template.dynamic_symbol_names
+    dynamic_push_constant_names = template.dynamic_push_constant_names
 
     use_indirect_dispatch = len(dynamic_symbol_names) > 0
     indirect_buffer: BufferAllocation | None = None
@@ -175,7 +185,12 @@ def _instantiate_replay_template(
     for i, template_entry in enumerate(template.entries):
         source_variant = rt._model_shader(template_entry.shader)
         dynamic_symbols = template_entry.dynamic_symbol_names
-        variant = _replay_variant_for_dynamic_symbols(source_variant, dynamic_symbols)
+        dynamic_push_constants = template_entry.dynamic_push_constant_names
+        variant = _replay_variant_for_dynamic_symbols(
+            source_variant,
+            dynamic_symbols,
+            dynamic_push_constants,
+        )
         contract = variant.contract
         pipeline = rt._pipeline_for_variant(variant)
         record_symbols = dict(template_entry.symbols)
@@ -241,6 +256,7 @@ def _instantiate_replay_template(
                 contract.params_buffer,
                 tensors=tensors,
                 symbols=record_symbols,
+                push_constant_inputs=dict(template_entry.push_constant_values),
             )
             params_alloc.buffer.map_persistent()
             params_slice = BufferSlice(
@@ -269,7 +285,9 @@ def _instantiate_replay_template(
             dispatch_size=template_entry.dispatch_size,
             dispatch_formula=contract.dispatch,
             symbols=record_symbols,
+            push_constant_values=dict(template_entry.push_constant_values),
             dynamic_symbol_names=dynamic_symbols,
+            dynamic_push_constant_names=dynamic_push_constants,
             indirect_offset=i * 12 if use_indirect_dispatch else None,
             params_buffer=params_alloc,
             params_layout=contract.params_buffer,
@@ -430,6 +448,7 @@ def _instantiate_replay_template(
         dispatch_entries=tuple(dispatch_entries),
         params_entries=tuple(params_entries),
         dynamic_symbol_names=dynamic_symbol_names,
+        dynamic_push_constant_names=dynamic_push_constant_names,
         template=template,
         readback_slots=readback_slots,
         workspace_allocations=workspace_allocations + params_allocations,
@@ -480,6 +499,19 @@ def _entry_dynamic_symbol_names(
     return tuple(sorted(symbol for symbol in dynamic_symbols if symbol in record_symbols))
 
 
+def _entry_dynamic_push_constant_names(variant: ShaderVariant) -> tuple[str, ...]:
+    push_constants = variant.contract.push_constants
+    if push_constants is None:
+        return ()
+    return tuple(
+        sorted(
+            field.value.name
+            for field in push_constants.fields
+            if isinstance(field.value, PushConstantInput)
+        )
+    )
+
+
 def _tensor_field_symbol_names(field: TensorFieldSpec) -> tuple[str, ...]:
     symbols = list(_referenced_symbols_in_dims(field.contract.shape))
     symbols.extend(tensor_layout_symbol_names(field.contract.layout))
@@ -502,16 +534,22 @@ _PUSH_CONSTANT_DECL_RE = re.compile(
 def _replay_variant_for_dynamic_symbols(
     variant: ShaderVariant,
     dynamic_symbol_names: tuple[str, ...],
+    dynamic_push_constant_names: tuple[str, ...],
 ) -> ShaderVariant:
     push_constants = variant.contract.push_constants
-    if push_constants is None or not dynamic_symbol_names:
+    if push_constants is None:
         return variant
 
     dynamic_symbols = set(dynamic_symbol_names)
+    dynamic_push_constants = set(dynamic_push_constant_names)
     dynamic_fields = tuple(
         field
         for field in push_constants.fields
         if dynamic_symbols.intersection(_push_constant_value_symbols(field.value))
+        or (
+            isinstance(field.value, PushConstantInput)
+            and field.value.name in dynamic_push_constants
+        )
     )
     if not dynamic_fields:
         return variant
@@ -612,11 +650,6 @@ def _validate_replay_param_value(
     shader_name: str,
     field: PushConstantFieldSpec,
 ) -> None:
-    if isinstance(field.value, PushConstantInput):
-        raise RuntimeError(
-            f"Replay shader {shader_name!r} cannot move PushConstantInput "
-            f"{field.name!r} into params"
-        )
     if callable(field.value):
         raise RuntimeError(
             f"Replay shader {shader_name!r} cannot move callable push constant "

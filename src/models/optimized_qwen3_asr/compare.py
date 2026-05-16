@@ -129,7 +129,7 @@ def _run_token_store(
     rt: RuntimeSession,
     *,
     next_token: LogicalTensor,
-    token_index: LogicalTensor,
+    token_index: int,
     done: LogicalTensor,
     generated_tokens: LogicalTensor,
     generated_length: LogicalTensor,
@@ -152,6 +152,7 @@ def _run_rope_table(
     rt: RuntimeSession,
     *,
     phase: str,
+    start_position: int,
     rope_theta: float,
     frame_name: str,
 ) -> None:
@@ -164,7 +165,7 @@ def _run_rope_table(
         raise ValueError(f"unknown rope phase: {phase}")
     run_rope_table_f32(
         rt,
-        start_position=rope_t.start_position,
+        start_position=start_position,
         theta=rope_theta,
         cos=rope_t.cos,
         sin=rope_t.sin,
@@ -175,14 +176,12 @@ def _run_rope_table(
 def _decode_step_inputs(
     *,
     cache_position: int,
-    token_index_value: int,
 ) -> dict[LogicalTensor, np.ndarray]:
     tensors = model_tensors()
     if not tensors.decode_layers:
         raise ValueError("decode_layers must not be empty")
     return {
         tensors.decode_layers[0].cache_position: np.array([cache_position], dtype=np.int64),
-        tensors.token_index: np.array([token_index_value], dtype=np.int64),
     }
 
 
@@ -329,7 +328,7 @@ def _run_decode_step_with_compare(
         QWEN3_ASR_TOKEN_STORE_EOS(
             rt,
             next_token=tensors.next_token,
-            token_index=tensors.token_index,
+            token_index=int(token_index.reshape(-1)[0]),
             done=tensors.done,
             generated_tokens=tensors.generated_tokens,
             generated_length=tensors.generated_length,
@@ -490,14 +489,10 @@ def compare_decode_steps(
         audio_end = audio_start + len(audio_positions)
         print(f"    Injecting audio [{audio_start}:{audio_end}]")
 
-    rt.register_inputs(
-        {
-            model_tensors().prefill_rope.start_position: np.array([0], dtype=np.int64),
-        }
-    )
     _run_rope_table(
         rt,
         phase="prefill",
+        start_position=0,
         rope_theta=rope_theta,
         frame_name="spike.text.prefill_rope",
     )
@@ -594,14 +589,13 @@ def compare_decode_steps(
         )
 
     print("  lm_head + token_select...")
-    rt.register_inputs({model_tensors().token_index: np.array([0], dtype=np.int64)})
     generated_tokens_before = _vulkan_request_state(rt, model_tensors().generated_tokens)
     generated_length_before = _vulkan_request_state(rt, model_tensors().generated_length)
     stopped_before = _vulkan_request_state(rt, model_tensors().stopped)
     _run_token_store(
         rt,
         next_token=model_tensors().next_token,
-        token_index=model_tensors().token_index,
+        token_index=0,
         done=model_tensors().done,
         generated_tokens=model_tensors().generated_tokens,
         generated_length=model_tensors().generated_length,
@@ -634,24 +628,16 @@ def compare_decode_steps(
 
         cache_pos = prompt_length + step
 
-        rt.register_inputs(
-            {
-                model_tensors().decode_rope.start_position: np.array(
-                    [cache_pos],
-                    dtype=np.int64,
-                ),
-            }
-        )
         _run_rope_table(
             rt,
             phase="decode",
+            start_position=cache_pos,
             rope_theta=rope_theta,
             frame_name=f"spike.decode.rope.{step:04d}",
         )
 
         decode_step_inputs = _decode_step_inputs(
             cache_position=cache_pos,
-            token_index_value=step + 1,
         )
         rt.register_inputs(decode_step_inputs)
         next_token = _run_decode_step_with_compare(

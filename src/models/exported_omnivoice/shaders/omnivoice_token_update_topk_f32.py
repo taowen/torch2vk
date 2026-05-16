@@ -5,6 +5,7 @@ from __future__ import annotations
 from torch2vk.runtime.shader import (
     IOKind,
     PushConstantFieldSpec,
+    PushConstantInput,
     PushConstantSpec,
     PushConstantType,
     ShaderContract,
@@ -20,53 +21,80 @@ from torch2vk.vulkan.shader_execution_requirements import (
 
 
 OMNIVOICE_TOKEN_UPDATE_TOPK_F32 = ShaderVariant(
-    name='omnivoice_token_update_topk_f32',
-    family='omnivoice',
+    name="omnivoice_token_update_topk_f32",
+    family="omnivoice",
     contract=ShaderContract(
-        class_name='OmniVoiceTokenUpdateTopkF32Program',
-        shader_name='omnivoice_token_update_topk_f32',
+        class_name="OmniVoiceTokenUpdateTopkF32Program",
+        shader_name="omnivoice_token_update_topk_f32",
         fields=(
             TensorFieldSpec(
-                name='candidate_tokens',
+                name="candidate_tokens",
                 io_kind=IOKind.INPUT,
-                role='candidate_tokens',
-                contract=TensorContract(dtype='int64', shape=('C', 'T',)),
+                role="candidate_tokens",
+                contract=TensorContract(
+                    dtype="int64",
+                    shape=(
+                        "C",
+                        "T",
+                    ),
+                ),
             ),
             TensorFieldSpec(
-                name='candidate_scores',
+                name="candidate_scores",
                 io_kind=IOKind.INPUT,
-                role='candidate_scores',
-                contract=TensorContract(dtype='float32', shape=('C', 'T',)),
+                role="candidate_scores",
+                contract=TensorContract(
+                    dtype="float32",
+                    shape=(
+                        "C",
+                        "T",
+                    ),
+                ),
             ),
             TensorFieldSpec(
-                name='unmask_count',
-                io_kind=IOKind.INPUT,
-                role='unmask_count',
-                contract=TensorContract(dtype='uint32', shape=(1,)),
-            ),
-            TensorFieldSpec(
-                name='tokens',
+                name="tokens",
                 io_kind=IOKind.INOUT,
-                role='tokens',
-                contract=TensorContract(dtype='int64', shape=(1, 'C', 'T',)),
+                role="tokens",
+                contract=TensorContract(
+                    dtype="int64",
+                    shape=(
+                        1,
+                        "C",
+                        "T",
+                    ),
+                ),
             ),
             TensorFieldSpec(
-                name='batch_input_ids',
+                name="batch_input_ids",
                 io_kind=IOKind.INOUT,
-                role='tokens',
-                contract=TensorContract(dtype='int64', shape=(2, 'C', 'S',)),
+                role="tokens",
+                contract=TensorContract(
+                    dtype="int64",
+                    shape=(
+                        2,
+                        "C",
+                        "S",
+                    ),
+                ),
             ),
         ),
         push_constants=PushConstantSpec(
-            size=12,
+            size=16,
             fields=(
-                PushConstantFieldSpec('C', PushConstantType.UINT32, 0, 'C', dynamic=False),
-                PushConstantFieldSpec('T', PushConstantType.UINT32, 4, 'T', dynamic=False),
-                PushConstantFieldSpec('S', PushConstantType.UINT32, 8, 'S', dynamic=False),
+                PushConstantFieldSpec("C", PushConstantType.UINT32, 0, "C", dynamic=False),
+                PushConstantFieldSpec("T", PushConstantType.UINT32, 4, "T", dynamic=False),
+                PushConstantFieldSpec("S", PushConstantType.UINT32, 8, "S", dynamic=False),
+                PushConstantFieldSpec(
+                    "unmask_count",
+                    PushConstantType.UINT32,
+                    12,
+                    PushConstantInput("unmask_count"),
+                    dynamic=False,
+                ),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(mul('C', 'T'), 256), 1, 1),
+        dispatch=(ceil_div(mul("C", "T"), 256), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
     source="""\
@@ -84,15 +112,11 @@ layout(set = 0, binding = 1) buffer restrict readonly CandidateScoresBuffer {
     float candidate_scores[];
 };
 
-layout(set = 0, binding = 2) buffer restrict readonly UnmaskCountBuffer {
-    uint unmask_count[];
-};
-
-layout(set = 0, binding = 3) buffer restrict TokensBuffer {
+layout(set = 0, binding = 2) buffer restrict TokensBuffer {
     int64_t tokens[];
 };
 
-layout(set = 0, binding = 4) buffer restrict BatchInputIdsBuffer {
+layout(set = 0, binding = 3) buffer restrict BatchInputIdsBuffer {
     int64_t batch_input_ids[];
 };
 
@@ -100,6 +124,7 @@ layout(push_constant) uniform PushConstants {
     uint C;
     uint T;
     uint S;
+    uint unmask_count;
 } pc;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -111,7 +136,7 @@ bool better_pair(float lhs_score, uint lhs_index, float rhs_score, uint rhs_inde
 void main() {
     const uint index = gl_GlobalInvocationID.x;
     const uint total = pc.C * pc.T;
-    const uint limit = min(unmask_count[0], total);
+    const uint limit = min(pc.unmask_count, total);
     if (index >= total) {
         return;
     }

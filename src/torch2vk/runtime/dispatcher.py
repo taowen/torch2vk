@@ -66,6 +66,9 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
             contract.params_buffer,
             tensors=tensors,
             symbols=symbols,
+            push_constant_inputs={
+                name: arguments[name] for name in push_constant_inputs if name in arguments
+            },
         )
         params_slice = BufferSlice(
             allocation=params_allocation,

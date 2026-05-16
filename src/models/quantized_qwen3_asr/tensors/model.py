@@ -78,7 +78,6 @@ class ExportedQwen3AsrTensors:
     generated_tokens: LogicalTensor
     generated_length: LogicalTensor
     stopped: LogicalTensor
-    token_index: LogicalTensor
 
 
 _MODEL_TENSORS: ExportedQwen3AsrTensors | None = None
@@ -252,8 +251,6 @@ def create_model_tensors(
         (1,),
         semantic=TensorSemantic.TOKEN,
     )
-    token_index = _host_input_tensor("int64", (1,))
-
     global _MODEL_TENSORS
     _MODEL_TENSORS = ExportedQwen3AsrTensors(
         input_ids=input_ids,
@@ -285,7 +282,6 @@ def create_model_tensors(
         generated_tokens=generated_tokens,
         generated_length=generated_length,
         stopped=stopped,
-        token_index=token_index,
     )
     bind_logical_tensor_names(_MODEL_TENSORS)
     return _MODEL_TENSORS

@@ -25,7 +25,6 @@ from models.exported_omnivoice.pytorch_modules import (
     TokenUpdateReference,
 )
 from models.exported_omnivoice.run import (
-    _generation_step_inputs,
     _get_time_steps,
     _run_input_embed,
     _run_rope_table,
@@ -114,7 +113,7 @@ def _run_generation_step_with_compare(
 
         step_index = torch.tensor([step], dtype=torch.int64, device="cuda")
         tokens = _vulkan_tensor(rt, model_tensors().tokens).long()
-        _run_token_score(rt)
+        _run_token_score(rt, step=step)
         reference.run_token_score(
             rt,
             refs.token_score,
@@ -128,7 +127,7 @@ def _run_generation_step_with_compare(
         candidate_tokens = _vulkan_tensor(rt, model_tensors().candidate_tokens).long()
         candidate_scores = _vulkan_tensor(rt, model_tensors().candidate_scores).float()
 
-        _run_token_update(rt)
+        _run_token_update(rt, unmask_count=unmask_count)
         unmask_count_t = torch.tensor([unmask_count], dtype=torch.uint32, device="cuda")
         reference.run_token_update(
             rt,
@@ -212,11 +211,6 @@ def compare_generation_steps(
                 model_tensors().tokens: tokens,
             }
         )
-        rt.register_inputs(
-            {
-                model_tensors().rope.start_position: np.array([0], dtype=np.int64),
-            }
-        )
         _run_rope_table(rt, frame_name="omnivoice.rope")
 
         timesteps = _get_time_steps(0.0, 1.0, num_steps, t_shift=0.1)
@@ -233,7 +227,6 @@ def compare_generation_steps(
             remaining -= int(unmask_count)
             if unmask_count <= 0:
                 continue
-            rt.register_inputs(_generation_step_inputs(step, int(unmask_count)))
             _run_generation_step_with_compare(
                 rt,
                 step=step,
