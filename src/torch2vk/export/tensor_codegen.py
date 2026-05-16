@@ -16,12 +16,11 @@ from torch2vk.export.dispatch_codegen import (
     _AliasOp,
     _DispatchOp,
     _collect_ops,
-    _find_graph_outputs,
     _prune_dead_ops,
     _resolve_all_variants,
 )
 from torch2vk.export.dtype_policy import logical_tensor_dtype, requires_float32_intermediate
-from torch2vk.export.graph import SKIP_OPS
+from torch2vk.export.graph import SKIP_OPS, graph_output_names
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
 from torch2vk.quantize import Q4KMQuantizationConfig
 
@@ -210,7 +209,7 @@ def generate_tensor_class_source(
         quantization_config=quantization_config,
     )
     ops = _collect_ops(graph, node_variants)
-    output_names = _find_graph_outputs(graph)
+    output_names = graph_output_names(graph)
     if not output_names:
         output_names = [output_name] if output_name else []
     live_ops = _prune_dead_ops(ops, output_names)

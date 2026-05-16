@@ -111,6 +111,22 @@ def node_input_names(node: Node) -> tuple[str, ...]:
     return tuple(names)
 
 
+def graph_output_names(graph: Graph) -> list[str]:
+    names: list[str] = []
+    for node in graph.nodes:
+        if node.op == "output":
+            _collect_output_node_names(node.args, names)
+    return names
+
+
+def _collect_output_node_names(value, names: list[str]) -> None:
+    if isinstance(value, Node):
+        names.append(value.name)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _collect_output_node_names(item, names)
+
+
 def _node_dtype(node: Node) -> str:
     tensor_meta = node.meta.get("tensor_meta")
     if tensor_meta is None:

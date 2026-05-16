@@ -21,14 +21,14 @@ from torch2vk.export.dispatch_codegen import (
     _Op,
     _UnsupportedOp,
     _collect_ops,
-    _find_graph_outputs,
+    _dispatch_call_source,
     _mixed_quantized_linear_op_names,
     _parameter_map,
     _prune_dead_ops,
     _resolve_all_variants,
 )
 from torch2vk.export.dtype_policy import requires_float32_intermediate
-from torch2vk.export.graph import SKIP_OPS, LayerLoopHint
+from torch2vk.export.graph import SKIP_OPS, LayerLoopHint, graph_output_names
 from torch2vk.export.tensor_codegen import (
     TensorClassContext,
     _TensorKind,
@@ -314,7 +314,7 @@ def generate_looped_dispatch_function_source(
         quantization_config=quantization_config,
     )
     all_ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
-    output_names = _find_graph_outputs(graph)
+    output_names = graph_output_names(graph)
     live_ops = _prune_dead_ops(all_ops, output_names)
 
     classification = _classify_graph_nodes(graph, hint.layer_prefix)
@@ -350,26 +350,11 @@ def generate_looped_dispatch_function_source(
         if isinstance(op, _AliasOp):
             return ""
         elif isinstance(op, _DispatchOp):
-            const_name = op.variant.name.upper()
-            shader_imports[op.variant.name] = const_name
-            q6_const_name: str | None = None
-            q8_const_name: str | None = None
-            if op.q6_variant is not None:
-                q6_const_name = op.q6_variant.name.upper()
-                shader_imports[op.q6_variant.name] = q6_const_name
-                if op.q8_variant is None:
-                    raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
-                q8_const_name = op.q8_variant.name.upper()
-                shader_imports[op.q8_variant.name] = q8_const_name
             bindings: list[str] = []
             for k, v in op.bindings.items():
                 t = v.removeprefix("tensors.")
                 bindings.append(f"{k}={_tensor_ref(t, in_loop)}")
-            if q6_const_name is not None:
-                if q8_const_name is None:
-                    raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
-                return f"{indent}run_quantized_linear(rt, q4={const_name}, q6={q6_const_name}, q8={q8_const_name}, {', '.join(bindings)})"
-            return f"{indent}{const_name}(rt, {', '.join(bindings)})"
+            return _dispatch_call_source(op, ", ".join(bindings), shader_imports, indent=indent)
         elif isinstance(op, _UnsupportedOp):
             return f"{indent}raise RuntimeError({op.message!r})"
         return ""
@@ -406,17 +391,6 @@ def generate_looped_dispatch_function_source(
         if isinstance(op, _AliasOp):
             continue
         elif isinstance(op, _DispatchOp):
-            const_name = op.variant.name.upper()
-            shader_imports[op.variant.name] = const_name
-            q6_const_name: str | None = None
-            q8_const_name: str | None = None
-            if op.q6_variant is not None:
-                q6_const_name = op.q6_variant.name.upper()
-                shader_imports[op.q6_variant.name] = q6_const_name
-                if op.q8_variant is None:
-                    raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
-                q8_const_name = op.q8_variant.name.upper()
-                shader_imports[op.q8_variant.name] = q8_const_name
             bindings: list[str] = []
             for k, v in op.bindings.items():
                 t = v.removeprefix("tensors.")
@@ -424,14 +398,9 @@ def generate_looped_dispatch_function_source(
                     bindings.append(f"{k}=carry")
                 else:
                     bindings.append(f"{k}=tensors.{t}")
-            if q6_const_name is not None:
-                if q8_const_name is None:
-                    raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
-                lines.append(
-                    f"    run_quantized_linear(rt, q4={const_name}, q6={q6_const_name}, q8={q8_const_name}, {', '.join(bindings)})"
-                )
-            else:
-                lines.append(f"    {const_name}(rt, {', '.join(bindings)})")
+            lines.append(
+                _dispatch_call_source(op, ", ".join(bindings), shader_imports, indent="    ")
+            )
         elif isinstance(op, _UnsupportedOp):
             lines.append(f"    raise RuntimeError({op.message!r})")
     used_variants: dict[str, ShaderVariant] = {}
@@ -550,7 +519,7 @@ def generate_looped_tensor_class_sources(
 
     # Prune dead tensors using full graph
     all_ops = _collect_ops(graph, node_variants)
-    output_names = _find_graph_outputs(graph)
+    output_names = graph_output_names(graph)
     live_ops = _prune_dead_ops(all_ops, output_names)
     live_tensors = set(output_names)
     for op in live_ops:

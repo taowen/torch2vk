@@ -8,7 +8,7 @@ from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind
 
 from torch2vk.export._templates import render_template
-from torch2vk.export.dispatch_codegen import _find_graph_outputs
+from torch2vk.export.graph import graph_output_names
 
 
 ReferencePolicy: TypeAlias = (
@@ -94,7 +94,7 @@ def render_exported_reference_function(
             if spec.kind == InputKind.USER_INPUT
         }
     if output_bindings is None:
-        output_bindings = {name: name for name in _find_graph_outputs(ep.graph_module.graph)}
+        output_bindings = {name: name for name in graph_output_names(ep.graph_module.graph)}
     return render_reference_function(
         name=name,
         reference_source=reference_source,

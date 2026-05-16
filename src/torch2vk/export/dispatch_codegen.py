@@ -12,7 +12,7 @@ from torch.fx import Graph, Node
 
 from torch2vk.checkpoints.gguf import GGUFTensorType
 from torch2vk.export._templates import render_template
-from torch2vk.export.graph import SKIP_OPS, is_alias_op, node_input_names
+from torch2vk.export.graph import SKIP_OPS, graph_output_names, is_alias_op, node_input_names
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
 from torch2vk.export.shaders._factory import node_input_dtype, node_input_shape
 from torch2vk.export.shaders.conv1d_quantized import make_conv1d_q8_0_variant
@@ -59,6 +59,11 @@ class _UnsupportedOp:
 
 
 _Op = _AliasOp | _DispatchOp | _UnsupportedOp
+
+_QuantizedTargetResolver = Callable[
+    [Node, Q4KMQuantizationConfig, Mapping[str, str], str],
+    ShaderVariant | None,
+]
 
 
 def render_dispatch_function(function_name: str, class_name: str, ops) -> str:
@@ -221,54 +226,14 @@ def _resolve_quantized_variant(
     parameter_map: Mapping[str, str],
     activation_dtype: str,
 ) -> ShaderVariant | None:
-    target = str(node.target)
-    if target == "aten.linear.default":
-        return _resolve_quantized_linear_variant(
-            node,
-            quantization_config=quantization_config,
-            parameter_map=parameter_map,
-            activation_dtype=activation_dtype,
-        )
-    if target == "aten.embedding.default":
-        return _resolve_quantized_embedding_variant(
-            node,
-            quantization_config=quantization_config,
-            parameter_map=parameter_map,
-            activation_dtype=activation_dtype,
-        )
-    if target == "aten.conv1d.default":
-        return _resolve_quantized_q8_only_variant(
-            node,
-            quantization_config=quantization_config,
-            parameter_map=parameter_map,
-            activation_dtype=activation_dtype,
-            weight_arg_index=1,
-            factory=make_conv1d_q8_0_variant,
-        )
-    if target == "aten.conv2d.default":
-        return _resolve_quantized_q8_only_variant(
-            node,
-            quantization_config=quantization_config,
-            parameter_map=parameter_map,
-            activation_dtype=activation_dtype,
-            weight_arg_index=1,
-            factory=make_conv2d_q8_0_variant,
-        )
-    if target == "aten.conv_transpose1d.default":
-        return _resolve_quantized_q8_only_variant(
-            node,
-            quantization_config=quantization_config,
-            parameter_map=parameter_map,
-            activation_dtype=activation_dtype,
-            weight_arg_index=1,
-            factory=make_conv_transpose1d_q8_0_variant,
-        )
-    return None
+    resolver = _QUANTIZED_TARGET_RESOLVERS.get(str(node.target))
+    if resolver is None:
+        return None
+    return resolver(node, quantization_config, parameter_map, activation_dtype)
 
 
 def _resolve_quantized_linear_variant(
     node: Node,
-    *,
     quantization_config: Q4KMQuantizationConfig,
     parameter_map: Mapping[str, str],
     activation_dtype: str,
@@ -306,7 +271,6 @@ def _resolve_quantized_linear_variant(
 
 def _resolve_quantized_embedding_variant(
     node: Node,
-    *,
     quantization_config: Q4KMQuantizationConfig,
     parameter_map: Mapping[str, str],
     activation_dtype: str,
@@ -324,6 +288,54 @@ def _resolve_quantized_embedding_variant(
     if declaration.gguf_type is GGUFTensorType.Q8_0:
         return make_embedding_q8_0_variant(node, activation_dtype)
     raise RuntimeError(f"{node.name} has unsupported quantized embedding weight: {declaration.gguf_type.name}")
+
+
+def _resolve_quantized_conv1d_variant(
+    node: Node,
+    quantization_config: Q4KMQuantizationConfig,
+    parameter_map: Mapping[str, str],
+    activation_dtype: str,
+) -> ShaderVariant | None:
+    return _resolve_quantized_q8_only_variant(
+        node,
+        quantization_config=quantization_config,
+        parameter_map=parameter_map,
+        activation_dtype=activation_dtype,
+        weight_arg_index=1,
+        factory=make_conv1d_q8_0_variant,
+    )
+
+
+def _resolve_quantized_conv2d_variant(
+    node: Node,
+    quantization_config: Q4KMQuantizationConfig,
+    parameter_map: Mapping[str, str],
+    activation_dtype: str,
+) -> ShaderVariant | None:
+    return _resolve_quantized_q8_only_variant(
+        node,
+        quantization_config=quantization_config,
+        parameter_map=parameter_map,
+        activation_dtype=activation_dtype,
+        weight_arg_index=1,
+        factory=make_conv2d_q8_0_variant,
+    )
+
+
+def _resolve_quantized_conv_transpose1d_variant(
+    node: Node,
+    quantization_config: Q4KMQuantizationConfig,
+    parameter_map: Mapping[str, str],
+    activation_dtype: str,
+) -> ShaderVariant | None:
+    return _resolve_quantized_q8_only_variant(
+        node,
+        quantization_config=quantization_config,
+        parameter_map=parameter_map,
+        activation_dtype=activation_dtype,
+        weight_arg_index=1,
+        factory=make_conv_transpose1d_q8_0_variant,
+    )
 
 
 def _resolve_quantized_q8_only_variant(
@@ -348,6 +360,15 @@ def _resolve_quantized_q8_only_variant(
             f"{node.name} has unsupported quantized convolution weight: {declaration.gguf_type.name}"
         )
     return factory(node, activation_dtype)
+
+
+_QUANTIZED_TARGET_RESOLVERS: Mapping[str, _QuantizedTargetResolver] = {
+    "aten.linear.default": _resolve_quantized_linear_variant,
+    "aten.embedding.default": _resolve_quantized_embedding_variant,
+    "aten.conv1d.default": _resolve_quantized_conv1d_variant,
+    "aten.conv2d.default": _resolve_quantized_conv2d_variant,
+    "aten.conv_transpose1d.default": _resolve_quantized_conv_transpose1d_variant,
+}
 
 
 def _quantized_weight_declaration(
@@ -516,7 +537,7 @@ def _generate_static_dispatch_function(
     q6_variant_op_names: frozenset[str] = frozenset(),
 ) -> tuple[list[str], dict[str, str]]:
     ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
-    output_names = _find_graph_outputs(graph)
+    output_names = graph_output_names(graph)
     ops = _prune_dead_ops(ops, output_names)
 
     unsupported = [op for op in ops if isinstance(op, _UnsupportedOp)]
@@ -536,21 +557,14 @@ def _generate_static_dispatch_function(
         if isinstance(op, _AliasOp):
             continue
         elif isinstance(op, _DispatchOp):
-            const_name = op.variant.name.upper()
-            shader_imports[op.variant.name] = const_name
-            args = _dispatch_args_source(op)
-            if op.q6_variant is not None:
-                if op.q8_variant is None:
-                    raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
-                q6_const_name = op.q6_variant.name.upper()
-                q8_const_name = op.q8_variant.name.upper()
-                shader_imports[op.q6_variant.name] = q6_const_name
-                shader_imports[op.q8_variant.name] = q8_const_name
-                lines.append(
-                    f"    run_quantized_linear(rt, q4={const_name}, q6={q6_const_name}, q8={q8_const_name}, {args})"
+            lines.append(
+                _dispatch_call_source(
+                    op,
+                    _dispatch_args_source(op),
+                    shader_imports,
+                    indent="    ",
                 )
-            else:
-                lines.append(f"    {const_name}(rt, {args})")
+            )
     if len(lines) == 1:
         lines.append("    pass")
 
@@ -636,6 +650,30 @@ def _dispatch_args_source(op: _DispatchOp) -> str:
     args = [f"{k}={v}" for k, v in op.bindings.items()]
     args.extend(f"{name}={name}" for name in op.push_inputs)
     return ", ".join(args)
+
+
+def _dispatch_call_source(
+    op: _DispatchOp,
+    args: str,
+    shader_imports: dict[str, str],
+    *,
+    indent: str,
+) -> str:
+    const_name = op.variant.name.upper()
+    shader_imports[op.variant.name] = const_name
+    args_suffix = f", {args}" if args else ""
+    if op.q6_variant is None:
+        return f"{indent}{const_name}(rt{args_suffix})"
+    if op.q8_variant is None:
+        raise RuntimeError(f"{op.name} has q6 variant but no q8 variant")
+    q6_const_name = op.q6_variant.name.upper()
+    q8_const_name = op.q8_variant.name.upper()
+    shader_imports[op.q6_variant.name] = q6_const_name
+    shader_imports[op.q8_variant.name] = q8_const_name
+    return (
+        f"{indent}run_quantized_linear(rt, q4={const_name}, "
+        f"q6={q6_const_name}, q8={q8_const_name}{args_suffix})"
+    )
 
 
 def _dispatch_push_constant_input_names(
@@ -738,22 +776,6 @@ def _dedup_variant(
     return shader
 
 
-def _find_graph_outputs(graph: Graph) -> list[str]:
-    names: list[str] = []
-    for node in graph.nodes:
-        if node.op == "output":
-            _collect_output_node_names(node.args, names)
-    return names
-
-
-def _collect_output_node_names(value, names: list[str]) -> None:
-    if isinstance(value, Node):
-        names.append(value.name)
-    elif isinstance(value, (list, tuple)):
-        for item in value:
-            _collect_output_node_names(item, names)
-
-
 def _prune_dead_ops(ops: list[_Op], output_names: list[str]) -> list[_Op]:
     needed = set(output_names)
     kept_reversed: list[_Op] = []
@@ -812,7 +834,7 @@ def generate_dispatch_function_source(
         q6_variant_op_names=q6_variant_op_names,
     )
     all_ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
-    output_names = _find_graph_outputs(graph)
+    output_names = graph_output_names(graph)
     live_ops = _prune_dead_ops(all_ops, output_names)
     used_variants: dict[str, ShaderVariant] = {}
     for op in live_ops:
