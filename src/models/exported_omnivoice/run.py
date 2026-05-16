@@ -224,16 +224,14 @@ def main(
         rem -= int(num)
 
     rng_seed = 0x1234ABCD
-    with rt.request():
-        rt.initialize_request_state(
-            {
-                model_tensors().batch_input_ids: batch_input_ids,
-                model_tensors().batch_audio_mask: batch_audio_mask,
-                model_tensors().attention_mask: attn_mask_np,
-                model_tensors().tokens: tokens,
-            }
-        )
-
+    with rt.request(
+        state={
+            model_tensors().batch_input_ids: batch_input_ids,
+            model_tensors().batch_audio_mask: batch_audio_mask,
+            model_tensors().attention_mask: attn_mask_np,
+            model_tensors().tokens: tokens,
+        },
+    ):
         # Compute RoPE once on GPU (positions are fixed for masked decoding)
         _run_rope_table(rt, frame_name="omnivoice.rope")
 

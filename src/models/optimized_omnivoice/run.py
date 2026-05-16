@@ -65,6 +65,7 @@ from torch2vk.vulkan.types import TensorSpec
 
 DEFAULT_OUTPUT_WAV = Path("/tmp/torch2vk_omnivoice_optimized.wav")
 _GENERATION_REPLAY_CACHE = "optimized_omnivoice_generation_step:v12"
+_AUDIO_DECODE_REPLAY_CACHE = "optimized_omnivoice_audio_decode:v1"
 get_shader = make_shader_loader("models.optimized_omnivoice.shaders")
 
 
@@ -285,15 +286,15 @@ def _build_audio_decode_replay_plan(
     rt: RuntimeSession,
     *,
     frame: str,
+    cache_namespace: str,
 ) -> ReplayPlan:
-    plan = rt.build_replay_plan(
+    return build_cached_replay_plan(
+        rt,
+        namespace=cache_namespace,
         name="optimized_omnivoice_audio_decode",
         frame=frame,
+        readback_error="OmniVoice audio decode replay must not use readback slots",
     )
-    if plan.readback_slots:
-        plan.close()
-        raise RuntimeError("OmniVoice audio decode replay must not use readback slots")
-    return plan
 
 
 def _cached_generation_replay_plan(
@@ -309,6 +310,15 @@ def _generation_replay_cache_namespace(model_dir: Path) -> str:
         name=_GENERATION_REPLAY_CACHE,
         source_digest=_REPLAY_SOURCE_DIGEST,
         model_dir=model_dir,
+    )
+
+
+def _audio_decode_replay_cache_namespace(model_dir: Path, *, target_len: int) -> str:
+    return replay_cache_namespace(
+        name=_AUDIO_DECODE_REPLAY_CACHE,
+        source_digest=_REPLAY_SOURCE_DIGEST,
+        model_dir=model_dir,
+        shape_key=f"target_len={target_len}",
     )
 
 
@@ -366,27 +376,30 @@ def _audio_decode_topology(target_len: int, num_audio_codebook: int) -> _AudioDe
 
 def _decode_current_audio(
     rt: RuntimeSession,
+    runtime: _RuntimeCache,
     *,
     tokens: np.ndarray,
     num_audio_codebook: int,
-    replay_plans: dict[int, ReplayPlan],
 ) -> np.ndarray:
     active_target_len = int(tokens.shape[-1])
     topology = _audio_decode_topology(active_target_len, num_audio_codebook)
-    rt.initialize_request_state({topology.audio_codes: tokens[None, :, :]})
-
-    audio_decode_replay_plan = replay_plans.get(active_target_len)
-    if audio_decode_replay_plan is None:
-        with rt.frame(f"omnivoice.audio_decode.{active_target_len}"):
-            run_audio_decode_with_tensors(rt, topology.tensors)
-        audio_decode_replay_plan = _build_audio_decode_replay_plan(
-            rt,
-            frame=f"omnivoice.audio_decode.{active_target_len}",
-        )
-        replay_plans[active_target_len] = audio_decode_replay_plan
-    else:
-        execute_replay(audio_decode_replay_plan)
-    waveform = np.ascontiguousarray(rt.read_request_state(topology.tensors.conv1d_31)[0])
+    cache_namespace = _audio_decode_replay_cache_namespace(
+        runtime.gguf_dir,
+        target_len=active_target_len,
+    )
+    with rt.request(state={topology.audio_codes: tokens[None, :, :]}):
+        audio_decode_replay_plan = cached_replay_plan(rt, namespace=cache_namespace)
+        if audio_decode_replay_plan is None:
+            with rt.frame(f"omnivoice.audio_decode.{active_target_len}"):
+                run_audio_decode_with_tensors(rt, topology.tensors)
+            audio_decode_replay_plan = _build_audio_decode_replay_plan(
+                rt,
+                frame=f"omnivoice.audio_decode.{active_target_len}",
+                cache_namespace=cache_namespace,
+            )
+        else:
+            execute_replay(audio_decode_replay_plan)
+        waveform = np.ascontiguousarray(rt.read_request_state(topology.tensors.conv1d_31)[0])
     return waveform
 
 
@@ -398,9 +411,7 @@ def _run_prepared_chunk(
     prepared: PreparedOmniVoiceInputs,
     config: OmniVoiceConfig,
     num_steps: int,
-    generation_replay_plan: ReplayPlan | None,
-    audio_decode_replay_plans: dict[int, ReplayPlan],
-) -> tuple[_GeneratedChunk, ReplayPlan | None]:
+) -> _GeneratedChunk:
     num_audio_codebook = config.num_audio_codebook
     target_len = prepared.target_len
     audio_mask_id = config.audio_mask_id
@@ -417,48 +428,62 @@ def _run_prepared_chunk(
         audio_mask_id,
         dtype=np.int64,
     )
-    rt.initialize_request_state(
-        {
+    with rt.request(
+        state={
             model_tensors().batch_input_ids: prepared.batch_input_ids,
             model_tensors().batch_audio_mask: prepared.batch_audio_mask,
             model_tensors().attention_mask: as_float16_attention_mask(prepared.attention_mask),
             model_tensors().tokens: tokens,
-        }
-    )
+        },
+    ):
+        _run_rope_table(rt, frame_name="omnivoice.rope")
 
-    schedule = _generation_schedule(
-        target_len=target_len,
-        num_audio_codebook=num_audio_codebook,
-        num_steps=num_steps,
-    )
-    unmasked = 0
-    generation_start = time.perf_counter()
-    rng_seed = 0x1234ABCD
-    for step, unmask_count in enumerate(schedule):
-        if unmask_count <= 0:
-            continue
-        if generation_replay_plan is None:
-            generation_replay_plan = _cached_generation_replay_plan(
-                rt,
-                cache_namespace=runtime.generation_cache_namespace,
-            )
+        schedule = _generation_schedule(
+            target_len=target_len,
+            num_audio_codebook=num_audio_codebook,
+            num_steps=num_steps,
+        )
+        unmasked = 0
+        generation_start = time.perf_counter()
+        rng_seed = 0x1234ABCD
+        generation_replay_plan: ReplayPlan | None = None
+        for step, unmask_count in enumerate(schedule):
+            if unmask_count <= 0:
+                continue
             if generation_replay_plan is None:
-                _run_generation_step(
+                generation_replay_plan = _cached_generation_replay_plan(
                     rt,
-                    step=step,
-                    unmask_count=unmask_count,
-                    rng_seed=rng_seed,
-                    audio_mask_id=audio_mask_id,
-                    active_target_len=target_len,
-                    cond_target_start=prepared.cond_target_start,
-                )
-                generation_replay_plan = _build_generation_replay_plan(
-                    rt,
-                    frame=f"omnivoice.step.{step:04d}",
                     cache_namespace=runtime.generation_cache_namespace,
                 )
+                if generation_replay_plan is None:
+                    _run_generation_step(
+                        rt,
+                        step=step,
+                        unmask_count=unmask_count,
+                        rng_seed=rng_seed,
+                        audio_mask_id=audio_mask_id,
+                        active_target_len=target_len,
+                        cond_target_start=prepared.cond_target_start,
+                    )
+                    generation_replay_plan = _build_generation_replay_plan(
+                        rt,
+                        frame=f"omnivoice.step.{step:04d}",
+                        cache_namespace=runtime.generation_cache_namespace,
+                    )
+                else:
+                    print("  Generation replay cache hit")
+                    execute_replay(
+                        generation_replay_plan,
+                        dynamic_push_constants={
+                            "step_index": step,
+                            "unmask_count": unmask_count,
+                            "rng_seed": rng_seed,
+                            "audio_mask_id": audio_mask_id,
+                            "active_target_len": target_len,
+                            "cond_target_start": prepared.cond_target_start,
+                        },
+                    )
             else:
-                print("  Generation replay cache hit")
                 execute_replay(
                     generation_replay_plan,
                     dynamic_push_constants={
@@ -470,42 +495,30 @@ def _run_prepared_chunk(
                         "cond_target_start": prepared.cond_target_start,
                     },
                 )
-        else:
-            execute_replay(
-                generation_replay_plan,
-                dynamic_push_constants={
-                    "step_index": step,
-                    "unmask_count": unmask_count,
-                    "rng_seed": rng_seed,
-                    "audio_mask_id": audio_mask_id,
-                    "active_target_len": target_len,
-                    "cond_target_start": prepared.cond_target_start,
-                },
-            )
-        unmasked += unmask_count
-        if step % 8 == 0 or step == num_steps - 1:
-            total = num_audio_codebook * target_len
-            print(f"  Step {step}: unmasked {unmasked}/{total} ({100 * unmasked / total:.0f}%)")
-    generation_elapsed = time.perf_counter() - generation_start
-    print(
-        f"  Generation: {num_steps} steps in {generation_elapsed:.3f}s "
-        f"({generation_elapsed / num_steps * 1000:.1f} ms/step)"
-    )
-    generated_tokens = np.ascontiguousarray(
-        rt.read_request_state(model_tensors().tokens)[0, :, :target_len]
-    )
+            unmasked += unmask_count
+            if step % 8 == 0 or step == num_steps - 1:
+                total = num_audio_codebook * target_len
+                print(f"  Step {step}: unmasked {unmasked}/{total} ({100 * unmasked / total:.0f}%)")
+        generation_elapsed = time.perf_counter() - generation_start
+        print(
+            f"  Generation: {num_steps} steps in {generation_elapsed:.3f}s "
+            f"({generation_elapsed / num_steps * 1000:.1f} ms/step)"
+        )
+        generated_tokens = np.ascontiguousarray(
+            rt.read_request_state(model_tensors().tokens)[0, :, :target_len]
+        )
 
     print("  Decoding audio tokens...")
     decode_start = time.perf_counter()
     waveform = _decode_current_audio(
         rt,
+        runtime,
         tokens=generated_tokens,
         num_audio_codebook=num_audio_codebook,
-        replay_plans=audio_decode_replay_plans,
     )
     print(f"  Audio decode: {time.perf_counter() - decode_start:.3f}s")
 
-    return _GeneratedChunk(text=text, tokens=generated_tokens, waveform=waveform), generation_replay_plan
+    return _GeneratedChunk(text=text, tokens=generated_tokens, waveform=waveform)
 
 
 def main(
@@ -541,39 +554,32 @@ def main(
     )
     rt = runtime.rt
 
-    with rt.request():
-        _run_rope_table(rt, frame_name="omnivoice.rope")
-
-        generated_chunks: list[_GeneratedChunk] = []
-        first_chunk_tokens: np.ndarray | None = None
-        first_chunk_text: str | None = None
-        generation_replay_plan: ReplayPlan | None = None
-        audio_decode_replay_plans: dict[int, ReplayPlan] = {}
-        for chunk_idx, chunk in enumerate(text_chunks):
-            print(f"\n=== Chunk {chunk_idx + 1}/{len(text_chunks)} ===")
-            prepared = prepare_omnivoice_inputs(
-                text=chunk.text,
-                tokenizer=text_tokenizer,
-                config=config,
-                ref_text=first_chunk_text,
-                ref_audio_tokens=first_chunk_tokens,
-                seq_capacity=SEQ_CAPACITY,
-                target_capacity=TARGET_CAPACITY,
-            )
-            generated, generation_replay_plan = _run_prepared_chunk(
-                rt,
-                runtime,
-                text=chunk.text,
-                prepared=prepared,
-                config=config,
-                num_steps=num_steps,
-                generation_replay_plan=generation_replay_plan,
-                audio_decode_replay_plans=audio_decode_replay_plans,
-            )
-            generated_chunks.append(generated)
-            if first_chunk_tokens is None:
-                first_chunk_tokens = generated.tokens
-                first_chunk_text = generated.text
+    generated_chunks: list[_GeneratedChunk] = []
+    first_chunk_tokens: np.ndarray | None = None
+    first_chunk_text: str | None = None
+    for chunk_idx, chunk in enumerate(text_chunks):
+        print(f"\n=== Chunk {chunk_idx + 1}/{len(text_chunks)} ===")
+        prepared = prepare_omnivoice_inputs(
+            text=chunk.text,
+            tokenizer=text_tokenizer,
+            config=config,
+            ref_text=first_chunk_text,
+            ref_audio_tokens=first_chunk_tokens,
+            seq_capacity=SEQ_CAPACITY,
+            target_capacity=TARGET_CAPACITY,
+        )
+        generated = _run_prepared_chunk(
+            rt,
+            runtime,
+            text=chunk.text,
+            prepared=prepared,
+            config=config,
+            num_steps=num_steps,
+        )
+        generated_chunks.append(generated)
+        if first_chunk_tokens is None:
+            first_chunk_tokens = generated.tokens
+            first_chunk_text = generated.text
 
     if runtime.profile_dir is not None:
         runtime.close()

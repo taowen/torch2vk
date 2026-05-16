@@ -147,12 +147,13 @@ class RuntimeSession:
             self._record_frame_input(tensor)
 
     @contextmanager
-    def request(self, **inputs: object):
-        """Start a request scope and optionally register host inputs for it.
-
-        Request keyword names are resolved against RuntimeSession.model_tensors by
-        LogicalTensor.name, then registered with register_inputs().
-        """
+    def request(
+        self,
+        *,
+        inputs: Mapping[str, object] | None = None,
+        state: Mapping[LogicalTensor, object] | None = None,
+    ):
+        """Start a request scope and optionally register host inputs and state."""
         self._require_open()
         if self._request_active:
             raise RuntimeError("RuntimeSession.request cannot be nested")
@@ -166,6 +167,8 @@ class RuntimeSession:
                         for name, value in inputs.items()
                     }
                 )
+            if state:
+                self.initialize_request_state(state)
             yield self
         finally:
             try:

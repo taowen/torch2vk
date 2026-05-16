@@ -50,7 +50,7 @@ def test_replay_reuses_dynamic_push_constants_across_shape() -> None:
         model_tensors=small,
         get_shader=_get_shader,
     ) as rt:
-        with rt.request(x=small_x, y=small_y):
+        with rt.request(inputs={"x": small_x, "y": small_y}):
             with rt.frame("add"):
                 rt.dispatch(_ADD_DYNAMIC_PC_F32, x=small.x, y=small.y, output=small.output)
             plan = rt.build_replay_plan(name="add", frame="add")
@@ -61,7 +61,7 @@ def test_replay_reuses_dynamic_push_constants_across_shape() -> None:
         assert [field.name for field in plan.params_entries[0].params_layout.fields] == ["N"]
 
         rt._model_tensors = large
-        with rt.request(x=large_x, y=large_y):
+        with rt.request(inputs={"x": large_x, "y": large_y}):
             assert rt.replay_plan_compatible(plan)
             rt.rebind_replay_plan(plan)
             execute_replay(plan)
@@ -84,7 +84,7 @@ def test_replay_rejects_rebinding_symbol_owned_by_static_descriptor() -> None:
         model_tensors=small,
         get_shader=_get_shader,
     ) as rt:
-        with rt.request(x=small_x):
+        with rt.request(inputs={"x": small_x}):
             with rt.frame("static"):
                 rt.dispatch(_STATIC_SYMBOL_F32, x=small.x, temp=small.temp)
             plan = rt.build_replay_plan(name="static", frame="static")
@@ -92,7 +92,7 @@ def test_replay_rejects_rebinding_symbol_owned_by_static_descriptor() -> None:
         assert plan.dynamic_symbol_names == ()
 
         rt._model_tensors = large
-        with rt.request(x=large_x):
+        with rt.request(inputs={"x": large_x}):
             assert not rt.replay_plan_compatible(plan)
             with pytest.raises(ValueError, match="cannot rebind static symbol"):
                 rt.rebind_replay_plan(plan)

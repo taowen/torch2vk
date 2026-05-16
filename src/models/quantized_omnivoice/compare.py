@@ -205,15 +205,14 @@ def compare_generation_steps(
         get_shader=get_shader,
     )
     try:
-        with rt.request():
-            rt.initialize_request_state(
-                {
-                    model_tensors().batch_input_ids: prepared.batch_input_ids,
-                    model_tensors().batch_audio_mask: prepared.batch_audio_mask,
-                    model_tensors().attention_mask: attention_mask,
-                    model_tensors().tokens: tokens,
-                }
-            )
+        with rt.request(
+            state={
+                model_tensors().batch_input_ids: prepared.batch_input_ids,
+                model_tensors().batch_audio_mask: prepared.batch_audio_mask,
+                model_tensors().attention_mask: attention_mask,
+                model_tensors().tokens: tokens,
+            },
+        ):
             _run_rope_table(rt, frame_name="omnivoice.rope")
 
             timesteps = _get_time_steps(0.0, 1.0, num_steps, t_shift=0.1)

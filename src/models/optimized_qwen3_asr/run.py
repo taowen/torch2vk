@@ -291,23 +291,30 @@ def main(
         get_shader=get_shader,
     )
     rt.register_session_tensors({model_tensors().eos_token_ids: eos_token_array})
+    zero_cache = np.zeros(
+        (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
+        dtype=np.float16,
+    )
     with rt.request(
-        input_ids=np.ascontiguousarray(prepared.input_ids, dtype=np.int64),
-        attention_mask=np.ascontiguousarray(prepared.attention_mask, dtype=np.int64),
-        input_features=np.ascontiguousarray(prepared.input_features, dtype=np.float32),
-        feature_attention_mask=np.ascontiguousarray(
-            prepared.feature_attention_mask,
-            dtype=np.int64,
-        ),
+        inputs={
+            "input_ids": np.ascontiguousarray(prepared.input_ids, dtype=np.int64),
+            "attention_mask": np.ascontiguousarray(prepared.attention_mask, dtype=np.int64),
+            "input_features": np.ascontiguousarray(prepared.input_features, dtype=np.float32),
+            "feature_attention_mask": np.ascontiguousarray(
+                prepared.feature_attention_mask,
+                dtype=np.int64,
+            ),
+        },
+        state={
+            **{
+                cache: zero_cache
+                for cache in model_tensors().key_caches + model_tensors().value_caches
+            },
+            model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
+            model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
+            model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
+        },
     ):
-
-        zero_cache = np.zeros(
-            (1, tc.num_key_value_heads, max_sequence_length, tc.head_dim),
-            dtype=np.float16,
-        )
-        rt.initialize_request_state(
-            {cache: zero_cache for cache in model_tensors().key_caches + model_tensors().value_caches}
-        )
 
         # === Audio Tower ===
         print("\n=== Phase 1: Audio Tower ===")
@@ -355,13 +362,6 @@ def main(
             (3, 1, prompt_length),
         ).copy()
         prefill_cache_position = np.arange(prompt_length, dtype=np.int64)
-        rt.initialize_request_state(
-            {
-                model_tensors().generated_tokens: np.zeros((1, max_new_tokens), dtype=np.int64),
-                model_tensors().generated_length: np.zeros((1,), dtype=np.uint32),
-                model_tensors().stopped: np.zeros((1,), dtype=np.uint32),
-            }
-        )
         with rt.frame("spike.text.prefill"):
             rt.register_inputs(
                 {
