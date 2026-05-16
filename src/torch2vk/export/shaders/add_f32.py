@@ -11,7 +11,7 @@ from torch2vk.export.shaders._factory import (
     activation_store,
     flat_numel_expr,
     make_binary_same_shape,
-    node_input_dtype,
+    node_input_storage_dtype,
     node_input_shape,
     node_output_shape,
     product_expr,
@@ -159,7 +159,7 @@ def _scalar_input_dtype(node: Node, activation_dtype: str) -> str:
     arg = node.args[0] if node.args and isinstance(node.args[0], Node) else None
     if arg is not None and requires_float32_intermediate(arg):
         return "float32"
-    return activation_dtype
+    return node_input_storage_dtype(node, 0, activation_dtype)
 
 
 def _scalar_source(input_dtype: str, output_dtype: str) -> str:
@@ -281,14 +281,11 @@ def _add_expr(lhs: str, rhs: str, lhs_dtype: str, rhs_dtype: str) -> str:
 
 
 def _binary_input_dtype(node: Node, index: int, activation_dtype: str) -> str:
-    if index >= len(node.args):
-        return activation_dtype
-    arg = node.args[index]
-    if not isinstance(arg, Node):
-        return activation_dtype
-    dtype = node_input_dtype(node, index) or activation_dtype
-    if dtype in {"int64", "int32", "uint32"}:
-        return dtype
-    if arg.op == "placeholder":
-        return dtype if arg.name.startswith("p_") else activation_dtype
-    return "float32" if requires_float32_intermediate(arg) else activation_dtype
+    arg: Node | None = None
+    if index < len(node.args):
+        candidate = node.args[index]
+        if isinstance(candidate, Node):
+            arg = candidate
+    if arg is not None and requires_float32_intermediate(arg):
+        return "float32"
+    return node_input_storage_dtype(node, index, activation_dtype)

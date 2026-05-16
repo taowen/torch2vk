@@ -5,14 +5,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from vulkan import (
     VK_SHARING_MODE_EXCLUSIVE,
+    VK_STRUCTURE_TYPE_MEMORY_PRIORITY_ALLOCATE_INFO_EXT,
     VkBufferCreateInfo,
     VkMemoryAllocateInfo,
+    VkMemoryPriorityAllocateInfoEXT,
     vkAllocateMemory,
     vkBindBufferMemory,
     vkCreateBuffer,
     vkGetBufferMemoryRequirements,
 )
-from vulkan._vulkan import ffi
+from vulkan._vulkan import ffi, lib as _vulkan_lib
 
 from torch2vk.vulkan.types import tensor_nbytes as tensor_nbytes
 
@@ -35,6 +37,7 @@ def create_buffer(
     size: int,
     usage_flags: int,
     memory_property_flags: int,
+    memory_priority: float | None = None,
 ) -> VulkanBuffer:
     require_device_open()
     buffer = vkCreateBuffer(
@@ -63,6 +66,15 @@ def create_buffer(
                 "deviceMask": 0,
             },
         )
+    if memory_priority is not None:
+        if memory_priority < 0.0 or memory_priority > 1.0:
+            raise ValueError(f"memory_priority must be in [0, 1], got {memory_priority}")
+        priority_info = VkMemoryPriorityAllocateInfoEXT(
+            sType=VK_STRUCTURE_TYPE_MEMORY_PRIORITY_ALLOCATE_INFO_EXT,
+            pNext=allocate_pnext,
+            priority=float(memory_priority),
+        )
+        allocate_pnext = ffi.addressof(priority_info)
     memory = vkAllocateMemory(
         device_handle,
         VkMemoryAllocateInfo(
@@ -81,6 +93,22 @@ def create_buffer(
         memory=memory,
         size=size,
     )
+
+
+def set_device_memory_priority(
+    *,
+    device_handle: object,
+    memory: object,
+    priority: float,
+) -> None:
+    if priority < 0.0 or priority > 1.0:
+        raise ValueError(f"priority must be in [0, 1], got {priority}")
+    vk_get_device_proc_addr = getattr(_vulkan_lib, "vkGetDeviceProcAddr")
+    raw = vk_get_device_proc_addr(device_handle, b"vkSetDeviceMemoryPriorityEXT")
+    if raw == _ffi_null:
+        raise RuntimeError("vkSetDeviceMemoryPriorityEXT is not available on this Vulkan device")
+    fn = ffi.cast("PFN_vkSetDeviceMemoryPriorityEXT", raw)
+    fn(device_handle, memory, float(priority))
 
 
 def find_memory_type(

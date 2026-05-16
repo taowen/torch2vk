@@ -173,6 +173,84 @@ void main() {
 }
 """
 
+_SOURCE_NONCAUSAL_WIDE = """\
+#version 450
+{{ACTIVATION_EXTENSION}}\
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(std430) buffer;
+layout(set = 0, binding = 0) buffer restrict readonly QBuffer { {{ACTIVATION_TYPE}} q[]; };
+layout(set = 0, binding = 1) buffer restrict readonly KBuffer { {{ACTIVATION_TYPE}} k[]; };
+layout(set = 0, binding = 2) buffer restrict readonly VBuffer { {{ACTIVATION_TYPE}} v[]; };
+layout(set = 0, binding = 3) buffer restrict writeonly OutputBuffer { {{ACTIVATION_TYPE}} output_values[]; };
+layout(push_constant) uniform PushConstants { uint B; uint NH; uint NK; uint T; uint S; uint D; } pc;
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+const float NEG_INF = -3.4028234663852886e38;
+
+void main() {
+    const uint batch_head = gl_WorkGroupID.x;
+    const uint row = gl_WorkGroupID.y;
+    const uint lane = gl_LocalInvocationID.x;
+    if (batch_head >= pc.B * pc.NH || row >= pc.T || pc.D > 512u) { return; }
+
+    const uint batch = batch_head / pc.NH;
+    const uint head = batch_head % pc.NH;
+    const uint kv_head = head * pc.NK / pc.NH;
+    const uint q_base = (batch * pc.NH + head) * pc.T * pc.D;
+    const uint k_base = (batch * pc.NK + kv_head) * pc.S * pc.D;
+    const uint v_base = k_base;
+    const uint q_row_base = q_base + row * pc.D;
+    const float scale = inversesqrt(float(pc.D));
+
+    float running_max = NEG_INF;
+    float running_sum = 0.0;
+    float acc0 = 0.0;
+    float acc1 = 0.0;
+    float acc2 = 0.0;
+    float acc3 = 0.0;
+    float acc4 = 0.0;
+    float acc5 = 0.0;
+    float acc6 = 0.0;
+    float acc7 = 0.0;
+
+    for (uint col = 0u; col < pc.S; ++col) {
+        const uint kv_offset = col * pc.D;
+        float partial = 0.0;
+        for (uint d = lane; d < pc.D; d += 64u) {
+            partial += float(q[q_row_base + d]) * float(k[k_base + kv_offset + d]);
+        }
+        const float score = subgroupAdd(partial) * scale;
+        const float next_max = max(running_max, score);
+        const float old_scale = running_max == NEG_INF ? 0.0 : exp(running_max - next_max);
+        const float score_scale = exp(score - next_max);
+        if (lane < pc.D) { acc0 = acc0 * old_scale + score_scale * float(v[v_base + kv_offset + lane]); }
+        if (lane + 64u < pc.D) { acc1 = acc1 * old_scale + score_scale * float(v[v_base + kv_offset + lane + 64u]); }
+        if (lane + 128u < pc.D) { acc2 = acc2 * old_scale + score_scale * float(v[v_base + kv_offset + lane + 128u]); }
+        if (lane + 192u < pc.D) { acc3 = acc3 * old_scale + score_scale * float(v[v_base + kv_offset + lane + 192u]); }
+        if (lane + 256u < pc.D) { acc4 = acc4 * old_scale + score_scale * float(v[v_base + kv_offset + lane + 256u]); }
+        if (lane + 320u < pc.D) { acc5 = acc5 * old_scale + score_scale * float(v[v_base + kv_offset + lane + 320u]); }
+        if (lane + 384u < pc.D) { acc6 = acc6 * old_scale + score_scale * float(v[v_base + kv_offset + lane + 384u]); }
+        if (lane + 448u < pc.D) { acc7 = acc7 * old_scale + score_scale * float(v[v_base + kv_offset + lane + 448u]); }
+        running_sum = running_sum * old_scale + score_scale;
+        running_max = next_max;
+    }
+
+    if (running_sum > 0.0) {
+        const uint output_base = (batch * pc.NH + head) * pc.T * pc.D + row * pc.D;
+        if (lane < pc.D) { output_values[output_base + lane] = {{STORE_ACC0}}; }
+        if (lane + 64u < pc.D) { output_values[output_base + lane + 64u] = {{STORE_ACC1}}; }
+        if (lane + 128u < pc.D) { output_values[output_base + lane + 128u] = {{STORE_ACC2}}; }
+        if (lane + 192u < pc.D) { output_values[output_base + lane + 192u] = {{STORE_ACC3}}; }
+        if (lane + 256u < pc.D) { output_values[output_base + lane + 256u] = {{STORE_ACC4}}; }
+        if (lane + 320u < pc.D) { output_values[output_base + lane + 320u] = {{STORE_ACC5}}; }
+        if (lane + 384u < pc.D) { output_values[output_base + lane + 384u] = {{STORE_ACC6}}; }
+        if (lane + 448u < pc.D) { output_values[output_base + lane + 448u] = {{STORE_ACC7}}; }
+    }
+}
+"""
+
 _SOURCE_MASKED = """\
 #version 450
 
@@ -390,10 +468,14 @@ def make_sdpa_variant(node: Node, activation_dtype: str = "float32") -> ShaderVa
             subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
         )
     else:
-        if d > 128:
+        if d > 512:
             return None
-        source = _SOURCE_NONCAUSAL
-        shader_name = f"sdpa_{activation_dtype_suffix(activation_dtype)}"
+        source = _SOURCE_NONCAUSAL_WIDE if d > 128 else _SOURCE_NONCAUSAL
+        shader_name = (
+            f"sdpa_wide_{activation_dtype_suffix(activation_dtype)}"
+            if d > 128
+            else f"sdpa_{activation_dtype_suffix(activation_dtype)}"
+        )
         execution_requirements = ShaderExecutionRequirements(
             subgroup=SubgroupRequirements(required_size=64, require_full_subgroups=True),
         )
@@ -559,7 +641,7 @@ def _decode_cache_source(activation_dtype: str) -> str:
 
 
 def _source(source: str, activation_dtype: str) -> str:
-    return render_shader_template(
+    rendered = render_shader_template(
         source,
         {
             "ACTIVATION_EXTENSION": activation_extension_source(activation_dtype),
@@ -570,8 +652,15 @@ def _source(source: str, activation_dtype: str) -> str:
             "STORE_ACC": activation_store("acc", activation_dtype),
             "STORE_ACC0": activation_store("acc0 / running_sum", activation_dtype),
             "STORE_ACC1": activation_store("acc1 / running_sum", activation_dtype),
+            "STORE_ACC2": activation_store("acc2 / running_sum", activation_dtype),
+            "STORE_ACC3": activation_store("acc3 / running_sum", activation_dtype),
+            "STORE_ACC4": activation_store("acc4 / running_sum", activation_dtype),
+            "STORE_ACC5": activation_store("acc5 / running_sum", activation_dtype),
+            "STORE_ACC6": activation_store("acc6 / running_sum", activation_dtype),
+            "STORE_ACC7": activation_store("acc7 / running_sum", activation_dtype),
         },
     )
+    return rendered
 
 
 def _subgroup_float16_extension(activation_dtype: str) -> str:

@@ -203,8 +203,9 @@ def materialize_weight(rt: RuntimeSession, tensor: LogicalTensor) -> None:
             tensor.descriptor_nbytes = cached.descriptor_nbytes
             tensor.alias_source = None
         return
+    storage = rt._checkpoint_storage(checkpoint)
     checkpoint_tensor = CheckpointTensor.open(
-        storage=rt._checkpoint_storage(checkpoint),
+        storage=storage,
         tensor_key=tensor_key,
         dtype=tensor.spec.dtype,
         shape=tensor.concrete_shape,
@@ -213,6 +214,7 @@ def materialize_weight(rt: RuntimeSession, tensor: LogicalTensor) -> None:
     ((slice_, allocation),) = rt.device.upload_checkpoint_tensors_with_allocations(
         [(tensor.name, checkpoint_tensor)]
     )
+    storage.release_mapping()
     with tensor.runtime_write_scope():
         tensor.buffer = slice_
         tensor.descriptor_nbytes = slice_.nbytes

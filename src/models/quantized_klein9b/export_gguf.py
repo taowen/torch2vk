@@ -10,8 +10,6 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
-from transformers import AutoConfig
-
 from models.quantized_klein9b.model_sources import (
     FLUX_REPO_ID,
     resolve_model_dirs,
@@ -19,8 +17,8 @@ from models.quantized_klein9b.model_sources import (
 from models.quantized_klein9b.quantization import (
     ae_q4_k_m_config,
     klein9b_q4_k_m_config,
+    qwen3_text_encoder_q8_config,
 )
-from models.quantized_qwen3.quantization import qwen3_q4_k_m_config
 from torch2vk.quantize import export_q4_k_m_gguf
 
 
@@ -61,11 +59,10 @@ def export_klein9b_q4_k_m_ggufs(
         config=klein9b_q4_k_m_config(),
         overwrite=overwrite,
     )
-    text_config = AutoConfig.from_pretrained(model_dirs.text_encoder)
     text_encoder_path = export_q4_k_m_gguf(
         model_dir=model_dirs.text_encoder,
         output=output / "text_encoder" / "model.gguf",
-        config=qwen3_q4_k_m_config(int(text_config.num_hidden_layers)),
+        config=qwen3_text_encoder_q8_config(),
         overwrite=overwrite,
     )
     ae_path = export_q4_k_m_gguf(

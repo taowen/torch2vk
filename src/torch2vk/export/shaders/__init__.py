@@ -22,6 +22,7 @@ from torch2vk.export.shaders.embedding_quantized import (
 from torch2vk.export.shaders.einsum_outer import make_einsum_outer_variant
 from torch2vk.export.shaders.exp_f32 import make_exp_variant
 from torch2vk.export.shaders.gelu_f32 import make_gelu_variant
+from torch2vk.export.shaders.group_norm_f32 import make_group_norm_variant
 from torch2vk.export.shaders.index_copy_f32 import make_index_copy_variant
 from torch2vk.export.shaders.index_select_f32 import make_index_select_variant
 from torch2vk.export.shaders.layer_norm_f32 import make_layer_norm_variant
@@ -62,14 +63,17 @@ from torch2vk.export.shaders.reciprocal_f32 import make_reciprocal_variant
 from torch2vk.export.shaders.rsqrt_f32 import make_rsqrt_variant
 from torch2vk.export.shaders.sdpa_f32 import make_sdpa_variant
 from torch2vk.export.shaders.select_int import make_select_variant
+from torch2vk.export.shaders.sigmoid_f32 import make_sigmoid_variant
 from torch2vk.export.shaders.silu_f32 import make_silu_variant
 from torch2vk.export.shaders.sin_f32 import make_sin_variant
 from torch2vk.export.shaders.slice_f32 import make_slice_variant
 from torch2vk.export.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
+from torch2vk.export.shaders.sqrt_f32 import make_sqrt_variant
 from torch2vk.export.shaders.stack_f32 import make_stack_variant
 from torch2vk.export.shaders.sub_f32 import make_sub_variant
 from torch2vk.export.shaders.transpose_f32 import make_transpose_variant
 from torch2vk.export.shaders.tuple_getitem import make_tuple_getitem_variant
+from torch2vk.export.shaders.upsample_nearest2d import make_upsample_nearest2d_variant
 
 __all__ = [
     "make_add_variant",
@@ -90,6 +94,7 @@ __all__ = [
     "make_einsum_outer_variant",
     "make_exp_variant",
     "make_gelu_variant",
+    "make_group_norm_variant",
     "make_index_copy_variant",
     "make_index_select_variant",
     "make_layer_norm_variant",
@@ -118,12 +123,15 @@ __all__ = [
     "make_rsqrt_variant",
     "make_sdpa_variant",
     "make_select_variant",
+    "make_sigmoid_variant",
     "make_silu_variant",
     "make_sin_variant",
     "make_slice_variant",
     "SLICE_LAST_TOKEN_F16",
+    "make_sqrt_variant",
     "make_stack_variant",
     "make_sub_variant",
     "make_transpose_variant",
     "make_tuple_getitem_variant",
+    "make_upsample_nearest2d_variant",
 ]

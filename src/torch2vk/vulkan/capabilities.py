@@ -18,6 +18,8 @@ from vulkan import (
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PRIORITY_FEATURES_EXT,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PAGEABLE_DEVICE_LOCAL_MEMORY_FEATURES_EXT,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_PROPERTIES,
@@ -31,6 +33,8 @@ from vulkan import (
     VkPhysicalDevice16BitStorageFeatures,
     VkPhysicalDeviceCooperativeMatrixFeaturesKHR,
     VkPhysicalDeviceFeatures2,
+    VkPhysicalDeviceMemoryPriorityFeaturesEXT,
+    VkPhysicalDevicePageableDeviceLocalMemoryFeaturesEXT,
     VkPhysicalDeviceProperties2,
     VkPhysicalDeviceShaderIntegerDotProductFeatures,
     VkPhysicalDeviceShaderIntegerDotProductProperties,
@@ -86,6 +90,8 @@ class DeviceFeatureSupport:
     compute_full_subgroups: bool
     vulkan_memory_model: bool
     vulkan_memory_model_device_scope: bool
+    memory_priority: bool
+    pageable_device_local_memory: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -236,6 +242,12 @@ def query_device_feature_support(physical_device: object) -> DeviceFeatureSuppor
     subgroup_uniform_control_flow = VkPhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR(
         sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_UNIFORM_CONTROL_FLOW_FEATURES_KHR
     )
+    memory_priority = VkPhysicalDeviceMemoryPriorityFeaturesEXT(
+        sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PRIORITY_FEATURES_EXT
+    )
+    pageable_device_local_memory = VkPhysicalDevicePageableDeviceLocalMemoryFeaturesEXT(
+        sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PAGEABLE_DEVICE_LOCAL_MEMORY_FEATURES_EXT
+    )
     features2.pNext = ffi.addressof(vulkan11)
     vulkan11.pNext = ffi.addressof(vulkan12)
     vulkan12.pNext = ffi.addressof(storage_16bit)
@@ -243,6 +255,8 @@ def query_device_feature_support(physical_device: object) -> DeviceFeatureSuppor
     cooperative_matrix.pNext = ffi.addressof(subgroup_size_control)
     subgroup_size_control.pNext = ffi.addressof(shader_integer_dot_product)
     shader_integer_dot_product.pNext = ffi.addressof(subgroup_uniform_control_flow)
+    subgroup_uniform_control_flow.pNext = ffi.addressof(memory_priority)
+    memory_priority.pNext = ffi.addressof(pageable_device_local_memory)
     vkGetPhysicalDeviceFeatures2(physical_device, features2)
     return DeviceFeatureSupport(
         cooperative_matrix=bool(cooperative_matrix.cooperativeMatrix),
@@ -261,6 +275,8 @@ def query_device_feature_support(physical_device: object) -> DeviceFeatureSuppor
         compute_full_subgroups=bool(subgroup_size_control.computeFullSubgroups),
         vulkan_memory_model=bool(vulkan12.vulkanMemoryModel),
         vulkan_memory_model_device_scope=bool(vulkan12.vulkanMemoryModelDeviceScope),
+        memory_priority=bool(memory_priority.memoryPriority),
+        pageable_device_local_memory=bool(pageable_device_local_memory.pageableDeviceLocalMemory),
     )
 
 

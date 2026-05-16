@@ -57,6 +57,55 @@ def node_input_dtype(node: Node, index: int) -> str:
     return str(tm.dtype).removeprefix("torch.")
 
 
+def node_input_storage_dtype(node: Node, index: int, activation_dtype: str) -> str:
+    if index >= len(node.args):
+        return activation_dtype
+    arg = node.args[index]
+    if not isinstance(arg, Node):
+        return activation_dtype
+    return node_storage_dtype(arg, activation_dtype)
+
+
+def node_storage_dtype(node: Node, activation_dtype: str) -> str:
+    dtype = _node_dtype(node)
+    if dtype in {"int64", "int32", "uint32"}:
+        return dtype
+    source = _alias_source(node)
+    if source.op == "placeholder" and source.name.startswith(("p_", "b_")):
+        return dtype
+    return activation_dtype
+
+
+def _alias_source(node: Node) -> Node:
+    current = node
+    while _is_alias_node(current):
+        if not current.args or not isinstance(current.args[0], Node):
+            return current
+        current = current.args[0]
+    return current
+
+
+def _is_alias_node(node: Node) -> bool:
+    return str(node.target) in {
+        "aten.view.default",
+        "aten.unsqueeze.default",
+        "aten.reshape.default",
+        "aten.contiguous.default",
+        "aten._assert_tensor_metadata.default",
+        "aten.to.dtype",
+        "aten.to.device",
+        "aten.to.dtype_layout",
+        "aten.type_as.default",
+    }
+
+
+def _node_dtype(node: Node) -> str:
+    tm = node.meta.get("tensor_meta")
+    if tm is None:
+        return ""
+    return str(tm.dtype).removeprefix("torch.")
+
+
 def weight_dtype_suffix(dtype: str) -> str:
     if dtype == "bfloat16":
         return "bf16"

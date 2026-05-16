@@ -115,11 +115,12 @@ class SafetensorsMmap:
         self.tensors = dict(tensors)
         self.metadata = dict(metadata)
         self._tensor_sources = dict(tensor_sources)
-        self._shards: dict[Path, _MappedSafetensorsShard] = {
-            shard_path: _MappedSafetensorsShard.open(shard_path)
-            for shard_path in sorted({source.shard_path for source in self._tensor_sources.values()})
-        }
+        self._shards: dict[Path, _MappedSafetensorsShard] = {}
+
     def close(self) -> None:
+        self.release_mapping()
+
+    def release_mapping(self) -> None:
         shard_errors: list[RuntimeError] = []
         for shard in self._shards.values():
             try:
@@ -179,10 +180,11 @@ class SafetensorsMmap:
             raise KeyError(f"Missing safetensors shard mapping for entry {name!r}") from exc
 
     def _require_shard(self, shard_path: Path) -> _MappedSafetensorsShard:
-        try:
-            return self._shards[shard_path]
-        except KeyError as exc:
-            raise RuntimeError(f"safetensors shard is closed: {shard_path}") from exc
+        shard = self._shards.get(shard_path)
+        if shard is None:
+            shard = _MappedSafetensorsShard.open(shard_path)
+            self._shards[shard_path] = shard
+        return shard
 
 
 def open_safetensors_mmap(path: str | Path) -> SafetensorsMmap:

@@ -30,23 +30,23 @@ NEG_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float16', shape=(1, 'T', 'H',)),
+                contract=TensorContract(dtype='float16', shape=(1, 'T', 'H', 'D',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float16', shape=(1, 'T', 'H',)),
+                contract=TensorContract(dtype='float16', shape=(1, 'T', 'H', 'D',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=4,
             fields=(
-                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul('T', 'H'), dynamic=False),
+                PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul('T', 'H'), 'D'), dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(mul('T', 'H'), 256), 1, 1),
+        dispatch=(ceil_div(mul(mul('T', 'H'), 'D'), 256), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""\

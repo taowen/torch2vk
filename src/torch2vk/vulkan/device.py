@@ -57,7 +57,7 @@ from .capabilities import (
     supports_shader_execution_requirements,
 )
 from .debug_utils import DebugUtils, create_debug_utils
-from .memory_allocator import tensor_nbytes
+from .memory_allocator import set_device_memory_priority, tensor_nbytes
 from .memory_allocator import VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_VALUE
 from .memory_manager import MemoryAllocationStats, MemoryManager
 from .queue_submission import submit_and_wait, submit_and_wait_with_fence, submit_one_shot_and_wait
@@ -87,6 +87,7 @@ _NUMPY_DTYPE_TO_SPEC: dict[np.dtype, str] = {
     for spec_dtype, numpy_dtype in _SPEC_DTYPE_TO_NUMPY.items()
     if spec_dtype != "bfloat16"
 }
+_UPLOAD_STAGING_CHUNK_BYTES = 64 * 1024 * 1024
 
 
 def _slice_for_spec(*, spec: TensorSpec, allocation: BufferAllocation) -> BufferSlice:
@@ -273,13 +274,25 @@ class VulkanDevice:
         *,
         layout: TensorLayout = CONTIGUOUS_LAYOUT,
         label: str | None = None,
+        memory_priority: float | None = None,
     ) -> tuple[BufferSlice, BufferAllocation]:
         del layout, label
         self.require_open()
         if spec.residency is not Residency.DEVICE:
             raise ValueError(f"allocate_tensor_allocation requires device residency, got {spec.residency}")
-        allocation = self.memory_manager.allocate_device_local_buffer(tensor_nbytes(spec))
+        allocation = self.memory_manager.allocate_device_local_buffer(
+            tensor_nbytes(spec),
+            memory_priority=memory_priority,
+        )
         return _slice_for_spec(spec=spec, allocation=allocation), allocation
+
+    def set_memory_priority(self, allocation: BufferAllocation, priority: float) -> None:
+        self.require_open()
+        set_device_memory_priority(
+            device_handle=self.device,
+            memory=allocation.buffer.memory,
+            priority=priority,
+        )
 
     def allocate_host_visible_allocation(
         self,
@@ -344,7 +357,8 @@ class VulkanDevice:
         ),
     ) -> tuple[tuple[BufferSlice, BufferAllocation], ...]:
         return self.upload_buffer_views_with_allocations(
-            tuple((label, tensor.spec, tensor.buffer_view()) for label, tensor in tensors)
+            tuple((label, tensor.spec, tensor.buffer_view()) for label, tensor in tensors),
+            memory_priority=1.0,
         )
 
     def upload_buffer_views_with_allocations(
@@ -353,6 +367,8 @@ class VulkanDevice:
             tuple[tuple[str | None, TensorSpec, bytes | bytearray | memoryview], ...]
             | list[tuple[str | None, TensorSpec, bytes | bytearray | memoryview]]
         ),
+        *,
+        memory_priority: float | None = None,
     ) -> tuple[tuple[BufferSlice, BufferAllocation], ...]:
         self.require_open()
         if not tensors:
@@ -363,42 +379,51 @@ class VulkanDevice:
             self.allocate_tensor_allocation(
                 spec.with_residency(Residency.DEVICE),
                 label=label,
+                memory_priority=memory_priority,
             )
             for label, spec, _data in uploads
         )
         slices = tuple(slice for slice, _ in allocations)
         owned_allocations = tuple(allocation for _, allocation in allocations)
 
-        staging_offsets: list[int] = []
-        total_staging_size = 0
         for _, spec, data in uploads:
             expected_nbytes = tensor_nbytes(spec)
             if len(data) != expected_nbytes:
                 raise ValueError(
                     f"Upload buffer for {spec} has {len(data)} bytes, expected {expected_nbytes}"
                 )
-            staging_offsets.append(total_staging_size)
-            total_staging_size += len(data)
 
         try:
-            staging_allocation = self.memory_manager.allocate_host_upload_buffer(
-                total_staging_size,
-                usage_flags=VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            )
-            try:
-                staging = staging_allocation.buffer
-                for staging_offset, (_label, _spec, data) in zip(staging_offsets, uploads):
-                    staging.write_bytes_at(staging_allocation.offset + staging_offset, data)
-                self.memory_manager.host_upload_ring.flush(allocation=staging_allocation)
-                self.copy_buffer_transfers(
-                    staging,
-                    tuple(
-                        (staging_allocation.offset + staging_offset, slice.allocation.buffer, slice.offset, len(data))
-                        for staging_offset, slice, (_label, _spec, data) in zip(staging_offsets, slices, uploads)
-                    ),
-                )
-            finally:
-                staging_allocation.close()
+            for slice, (_label, _spec, data) in zip(slices, uploads, strict=True):
+                remaining = len(data)
+                copied = 0
+                while copied < remaining:
+                    chunk_nbytes = min(_UPLOAD_STAGING_CHUNK_BYTES, remaining - copied)
+                    staging_allocation = self.memory_manager.allocate_host_upload_buffer(
+                        chunk_nbytes,
+                        usage_flags=VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    )
+                    try:
+                        staging = staging_allocation.buffer
+                        staging.write_bytes_at(
+                            staging_allocation.offset,
+                            data[copied : copied + chunk_nbytes],
+                        )
+                        self.memory_manager.host_upload_ring.flush(allocation=staging_allocation)
+                        self.copy_buffer_transfers(
+                            staging,
+                            (
+                                (
+                                    staging_allocation.offset,
+                                    slice.allocation.buffer,
+                                    slice.offset + copied,
+                                    chunk_nbytes,
+                                ),
+                            ),
+                        )
+                    finally:
+                        staging_allocation.close()
+                    copied += chunk_nbytes
         except Exception:
             for allocation in reversed(owned_allocations):
                 allocation.close()

@@ -6734,7 +6734,7 @@ def create_flux(
         p_img_in_weight=_bind_tensor(
             p_img_in_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="img_in.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("img_in.weight", dtype='float32', shape=(4096, 128)),
@@ -6748,7 +6748,7 @@ def create_flux(
         p_time_in_in_layer_weight=_bind_tensor(
             p_time_in_in_layer_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="time_in.in_layer.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("time_in.in_layer.weight", dtype='float32', shape=(4096, 256)),
@@ -6762,7 +6762,7 @@ def create_flux(
         p_time_in_out_layer_weight=_bind_tensor(
             p_time_in_out_layer_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="time_in.out_layer.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("time_in.out_layer.weight", dtype='float32', shape=(4096, 4096)),
@@ -6776,7 +6776,7 @@ def create_flux(
         p_txt_in_weight=_bind_tensor(
             p_txt_in_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="txt_in.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("txt_in.weight", dtype='float32', shape=(4096, 12288)),
@@ -6790,7 +6790,7 @@ def create_flux(
         p_double_blocks_0_img_attn_qkv_weight=_bind_tensor(
             p_double_blocks_0_img_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.img_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.img_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -6804,7 +6804,7 @@ def create_flux(
         p_double_blocks_0_img_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_0_img_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.img_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.img_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -6818,7 +6818,7 @@ def create_flux(
         p_double_blocks_0_img_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_0_img_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.img_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.img_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -6832,7 +6832,7 @@ def create_flux(
         p_double_blocks_0_img_attn_proj_weight=_bind_tensor(
             p_double_blocks_0_img_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.img_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.img_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -6846,7 +6846,7 @@ def create_flux(
         p_double_blocks_0_img_mlp_0_weight=_bind_tensor(
             p_double_blocks_0_img_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.img_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.img_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -6860,7 +6860,7 @@ def create_flux(
         p_double_blocks_0_img_mlp_2_weight=_bind_tensor(
             p_double_blocks_0_img_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.img_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.img_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -6874,7 +6874,7 @@ def create_flux(
         p_double_blocks_0_txt_attn_qkv_weight=_bind_tensor(
             p_double_blocks_0_txt_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.txt_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.txt_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -6888,7 +6888,7 @@ def create_flux(
         p_double_blocks_0_txt_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_0_txt_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.txt_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.txt_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -6902,7 +6902,7 @@ def create_flux(
         p_double_blocks_0_txt_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_0_txt_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.txt_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.txt_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -6916,7 +6916,7 @@ def create_flux(
         p_double_blocks_0_txt_attn_proj_weight=_bind_tensor(
             p_double_blocks_0_txt_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.txt_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.txt_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -6930,7 +6930,7 @@ def create_flux(
         p_double_blocks_0_txt_mlp_0_weight=_bind_tensor(
             p_double_blocks_0_txt_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.txt_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.txt_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -6944,7 +6944,7 @@ def create_flux(
         p_double_blocks_0_txt_mlp_2_weight=_bind_tensor(
             p_double_blocks_0_txt_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.0.txt_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.0.txt_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -6958,7 +6958,7 @@ def create_flux(
         p_double_blocks_1_img_attn_qkv_weight=_bind_tensor(
             p_double_blocks_1_img_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.img_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.img_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -6972,7 +6972,7 @@ def create_flux(
         p_double_blocks_1_img_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_1_img_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.img_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.img_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -6986,7 +6986,7 @@ def create_flux(
         p_double_blocks_1_img_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_1_img_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.img_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.img_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7000,7 +7000,7 @@ def create_flux(
         p_double_blocks_1_img_attn_proj_weight=_bind_tensor(
             p_double_blocks_1_img_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.img_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.img_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7014,7 +7014,7 @@ def create_flux(
         p_double_blocks_1_img_mlp_0_weight=_bind_tensor(
             p_double_blocks_1_img_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.img_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.img_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7028,7 +7028,7 @@ def create_flux(
         p_double_blocks_1_img_mlp_2_weight=_bind_tensor(
             p_double_blocks_1_img_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.img_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.img_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7042,7 +7042,7 @@ def create_flux(
         p_double_blocks_1_txt_attn_qkv_weight=_bind_tensor(
             p_double_blocks_1_txt_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.txt_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.txt_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7056,7 +7056,7 @@ def create_flux(
         p_double_blocks_1_txt_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_1_txt_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.txt_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.txt_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7070,7 +7070,7 @@ def create_flux(
         p_double_blocks_1_txt_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_1_txt_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.txt_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.txt_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7084,7 +7084,7 @@ def create_flux(
         p_double_blocks_1_txt_attn_proj_weight=_bind_tensor(
             p_double_blocks_1_txt_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.txt_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.txt_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7098,7 +7098,7 @@ def create_flux(
         p_double_blocks_1_txt_mlp_0_weight=_bind_tensor(
             p_double_blocks_1_txt_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.txt_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.txt_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7112,7 +7112,7 @@ def create_flux(
         p_double_blocks_1_txt_mlp_2_weight=_bind_tensor(
             p_double_blocks_1_txt_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.1.txt_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.1.txt_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7126,7 +7126,7 @@ def create_flux(
         p_double_blocks_2_img_attn_qkv_weight=_bind_tensor(
             p_double_blocks_2_img_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.img_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.img_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7140,7 +7140,7 @@ def create_flux(
         p_double_blocks_2_img_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_2_img_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.img_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.img_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7154,7 +7154,7 @@ def create_flux(
         p_double_blocks_2_img_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_2_img_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.img_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.img_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7168,7 +7168,7 @@ def create_flux(
         p_double_blocks_2_img_attn_proj_weight=_bind_tensor(
             p_double_blocks_2_img_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.img_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.img_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7182,7 +7182,7 @@ def create_flux(
         p_double_blocks_2_img_mlp_0_weight=_bind_tensor(
             p_double_blocks_2_img_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.img_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.img_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7196,7 +7196,7 @@ def create_flux(
         p_double_blocks_2_img_mlp_2_weight=_bind_tensor(
             p_double_blocks_2_img_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.img_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.img_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7210,7 +7210,7 @@ def create_flux(
         p_double_blocks_2_txt_attn_qkv_weight=_bind_tensor(
             p_double_blocks_2_txt_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.txt_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.txt_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7224,7 +7224,7 @@ def create_flux(
         p_double_blocks_2_txt_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_2_txt_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.txt_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.txt_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7238,7 +7238,7 @@ def create_flux(
         p_double_blocks_2_txt_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_2_txt_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.txt_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.txt_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7252,7 +7252,7 @@ def create_flux(
         p_double_blocks_2_txt_attn_proj_weight=_bind_tensor(
             p_double_blocks_2_txt_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.txt_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.txt_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7266,7 +7266,7 @@ def create_flux(
         p_double_blocks_2_txt_mlp_0_weight=_bind_tensor(
             p_double_blocks_2_txt_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.txt_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.txt_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7280,7 +7280,7 @@ def create_flux(
         p_double_blocks_2_txt_mlp_2_weight=_bind_tensor(
             p_double_blocks_2_txt_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.2.txt_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.2.txt_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7294,7 +7294,7 @@ def create_flux(
         p_double_blocks_3_img_attn_qkv_weight=_bind_tensor(
             p_double_blocks_3_img_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.img_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.img_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7308,7 +7308,7 @@ def create_flux(
         p_double_blocks_3_img_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_3_img_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.img_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.img_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7322,7 +7322,7 @@ def create_flux(
         p_double_blocks_3_img_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_3_img_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.img_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.img_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7336,7 +7336,7 @@ def create_flux(
         p_double_blocks_3_img_attn_proj_weight=_bind_tensor(
             p_double_blocks_3_img_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.img_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.img_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7350,7 +7350,7 @@ def create_flux(
         p_double_blocks_3_img_mlp_0_weight=_bind_tensor(
             p_double_blocks_3_img_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.img_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.img_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7364,7 +7364,7 @@ def create_flux(
         p_double_blocks_3_img_mlp_2_weight=_bind_tensor(
             p_double_blocks_3_img_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.img_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.img_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7378,7 +7378,7 @@ def create_flux(
         p_double_blocks_3_txt_attn_qkv_weight=_bind_tensor(
             p_double_blocks_3_txt_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.txt_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.txt_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7392,7 +7392,7 @@ def create_flux(
         p_double_blocks_3_txt_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_3_txt_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.txt_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.txt_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7406,7 +7406,7 @@ def create_flux(
         p_double_blocks_3_txt_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_3_txt_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.txt_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.txt_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7420,7 +7420,7 @@ def create_flux(
         p_double_blocks_3_txt_attn_proj_weight=_bind_tensor(
             p_double_blocks_3_txt_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.txt_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.txt_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7434,7 +7434,7 @@ def create_flux(
         p_double_blocks_3_txt_mlp_0_weight=_bind_tensor(
             p_double_blocks_3_txt_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.txt_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.txt_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7448,7 +7448,7 @@ def create_flux(
         p_double_blocks_3_txt_mlp_2_weight=_bind_tensor(
             p_double_blocks_3_txt_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.3.txt_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.3.txt_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7462,7 +7462,7 @@ def create_flux(
         p_double_blocks_4_img_attn_qkv_weight=_bind_tensor(
             p_double_blocks_4_img_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.img_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.img_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7476,7 +7476,7 @@ def create_flux(
         p_double_blocks_4_img_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_4_img_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.img_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.img_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7490,7 +7490,7 @@ def create_flux(
         p_double_blocks_4_img_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_4_img_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.img_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.img_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7504,7 +7504,7 @@ def create_flux(
         p_double_blocks_4_img_attn_proj_weight=_bind_tensor(
             p_double_blocks_4_img_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.img_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.img_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7518,7 +7518,7 @@ def create_flux(
         p_double_blocks_4_img_mlp_0_weight=_bind_tensor(
             p_double_blocks_4_img_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.img_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.img_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7532,7 +7532,7 @@ def create_flux(
         p_double_blocks_4_img_mlp_2_weight=_bind_tensor(
             p_double_blocks_4_img_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.img_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.img_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7546,7 +7546,7 @@ def create_flux(
         p_double_blocks_4_txt_attn_qkv_weight=_bind_tensor(
             p_double_blocks_4_txt_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.txt_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.txt_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7560,7 +7560,7 @@ def create_flux(
         p_double_blocks_4_txt_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_4_txt_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.txt_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.txt_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7574,7 +7574,7 @@ def create_flux(
         p_double_blocks_4_txt_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_4_txt_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.txt_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.txt_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7588,7 +7588,7 @@ def create_flux(
         p_double_blocks_4_txt_attn_proj_weight=_bind_tensor(
             p_double_blocks_4_txt_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.txt_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.txt_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7602,7 +7602,7 @@ def create_flux(
         p_double_blocks_4_txt_mlp_0_weight=_bind_tensor(
             p_double_blocks_4_txt_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.txt_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.txt_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7616,7 +7616,7 @@ def create_flux(
         p_double_blocks_4_txt_mlp_2_weight=_bind_tensor(
             p_double_blocks_4_txt_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.4.txt_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.4.txt_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7630,7 +7630,7 @@ def create_flux(
         p_double_blocks_5_img_attn_qkv_weight=_bind_tensor(
             p_double_blocks_5_img_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.img_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.img_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7644,7 +7644,7 @@ def create_flux(
         p_double_blocks_5_img_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_5_img_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.img_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.img_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7658,7 +7658,7 @@ def create_flux(
         p_double_blocks_5_img_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_5_img_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.img_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.img_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7672,7 +7672,7 @@ def create_flux(
         p_double_blocks_5_img_attn_proj_weight=_bind_tensor(
             p_double_blocks_5_img_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.img_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.img_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7686,7 +7686,7 @@ def create_flux(
         p_double_blocks_5_img_mlp_0_weight=_bind_tensor(
             p_double_blocks_5_img_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.img_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.img_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7700,7 +7700,7 @@ def create_flux(
         p_double_blocks_5_img_mlp_2_weight=_bind_tensor(
             p_double_blocks_5_img_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.img_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.img_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7714,7 +7714,7 @@ def create_flux(
         p_double_blocks_5_txt_attn_qkv_weight=_bind_tensor(
             p_double_blocks_5_txt_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.txt_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.txt_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7728,7 +7728,7 @@ def create_flux(
         p_double_blocks_5_txt_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_5_txt_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.txt_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.txt_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7742,7 +7742,7 @@ def create_flux(
         p_double_blocks_5_txt_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_5_txt_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.txt_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.txt_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7756,7 +7756,7 @@ def create_flux(
         p_double_blocks_5_txt_attn_proj_weight=_bind_tensor(
             p_double_blocks_5_txt_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.txt_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.txt_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7770,7 +7770,7 @@ def create_flux(
         p_double_blocks_5_txt_mlp_0_weight=_bind_tensor(
             p_double_blocks_5_txt_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.txt_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.txt_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7784,7 +7784,7 @@ def create_flux(
         p_double_blocks_5_txt_mlp_2_weight=_bind_tensor(
             p_double_blocks_5_txt_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.5.txt_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.5.txt_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7798,7 +7798,7 @@ def create_flux(
         p_double_blocks_6_img_attn_qkv_weight=_bind_tensor(
             p_double_blocks_6_img_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.img_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.img_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7812,7 +7812,7 @@ def create_flux(
         p_double_blocks_6_img_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_6_img_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.img_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.img_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7826,7 +7826,7 @@ def create_flux(
         p_double_blocks_6_img_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_6_img_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.img_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.img_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7840,7 +7840,7 @@ def create_flux(
         p_double_blocks_6_img_attn_proj_weight=_bind_tensor(
             p_double_blocks_6_img_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.img_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.img_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7854,7 +7854,7 @@ def create_flux(
         p_double_blocks_6_img_mlp_0_weight=_bind_tensor(
             p_double_blocks_6_img_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.img_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.img_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7868,7 +7868,7 @@ def create_flux(
         p_double_blocks_6_img_mlp_2_weight=_bind_tensor(
             p_double_blocks_6_img_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.img_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.img_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7882,7 +7882,7 @@ def create_flux(
         p_double_blocks_6_txt_attn_qkv_weight=_bind_tensor(
             p_double_blocks_6_txt_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.txt_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.txt_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7896,7 +7896,7 @@ def create_flux(
         p_double_blocks_6_txt_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_6_txt_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.txt_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.txt_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7910,7 +7910,7 @@ def create_flux(
         p_double_blocks_6_txt_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_6_txt_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.txt_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.txt_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -7924,7 +7924,7 @@ def create_flux(
         p_double_blocks_6_txt_attn_proj_weight=_bind_tensor(
             p_double_blocks_6_txt_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.txt_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.txt_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -7938,7 +7938,7 @@ def create_flux(
         p_double_blocks_6_txt_mlp_0_weight=_bind_tensor(
             p_double_blocks_6_txt_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.txt_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.txt_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -7952,7 +7952,7 @@ def create_flux(
         p_double_blocks_6_txt_mlp_2_weight=_bind_tensor(
             p_double_blocks_6_txt_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.6.txt_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.6.txt_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -7966,7 +7966,7 @@ def create_flux(
         p_double_blocks_7_img_attn_qkv_weight=_bind_tensor(
             p_double_blocks_7_img_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.img_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.img_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -7980,7 +7980,7 @@ def create_flux(
         p_double_blocks_7_img_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_7_img_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.img_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.img_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -7994,7 +7994,7 @@ def create_flux(
         p_double_blocks_7_img_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_7_img_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.img_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.img_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8008,7 +8008,7 @@ def create_flux(
         p_double_blocks_7_img_attn_proj_weight=_bind_tensor(
             p_double_blocks_7_img_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.img_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.img_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -8022,7 +8022,7 @@ def create_flux(
         p_double_blocks_7_img_mlp_0_weight=_bind_tensor(
             p_double_blocks_7_img_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.img_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.img_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -8036,7 +8036,7 @@ def create_flux(
         p_double_blocks_7_img_mlp_2_weight=_bind_tensor(
             p_double_blocks_7_img_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.img_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.img_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -8050,7 +8050,7 @@ def create_flux(
         p_double_blocks_7_txt_attn_qkv_weight=_bind_tensor(
             p_double_blocks_7_txt_attn_qkv_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.txt_attn.qkv.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.txt_attn.qkv.weight", dtype='float32', shape=(12288, 4096)),
@@ -8064,7 +8064,7 @@ def create_flux(
         p_double_blocks_7_txt_attn_norm_query_norm_scale=_bind_tensor(
             p_double_blocks_7_txt_attn_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.txt_attn.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.txt_attn.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8078,7 +8078,7 @@ def create_flux(
         p_double_blocks_7_txt_attn_norm_key_norm_scale=_bind_tensor(
             p_double_blocks_7_txt_attn_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.txt_attn.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.txt_attn.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8092,7 +8092,7 @@ def create_flux(
         p_double_blocks_7_txt_attn_proj_weight=_bind_tensor(
             p_double_blocks_7_txt_attn_proj_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.txt_attn.proj.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.txt_attn.proj.weight", dtype='float32', shape=(4096, 4096)),
@@ -8106,7 +8106,7 @@ def create_flux(
         p_double_blocks_7_txt_mlp_0_weight=_bind_tensor(
             p_double_blocks_7_txt_mlp_0_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.txt_mlp.0.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.txt_mlp.0.weight", dtype='float32', shape=(24576, 4096)),
@@ -8120,7 +8120,7 @@ def create_flux(
         p_double_blocks_7_txt_mlp_2_weight=_bind_tensor(
             p_double_blocks_7_txt_mlp_2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_blocks.7.txt_mlp.2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_blocks.7.txt_mlp.2.weight", dtype='float32', shape=(4096, 12288)),
@@ -8134,7 +8134,7 @@ def create_flux(
         p_single_blocks_0_linear1_weight=_bind_tensor(
             p_single_blocks_0_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.0.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.0.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8148,7 +8148,7 @@ def create_flux(
         p_single_blocks_0_linear2_weight=_bind_tensor(
             p_single_blocks_0_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.0.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.0.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8162,7 +8162,7 @@ def create_flux(
         p_single_blocks_0_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_0_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.0.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.0.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8176,7 +8176,7 @@ def create_flux(
         p_single_blocks_0_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_0_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.0.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.0.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8190,7 +8190,7 @@ def create_flux(
         p_single_blocks_1_linear1_weight=_bind_tensor(
             p_single_blocks_1_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.1.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.1.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8204,7 +8204,7 @@ def create_flux(
         p_single_blocks_1_linear2_weight=_bind_tensor(
             p_single_blocks_1_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.1.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.1.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8218,7 +8218,7 @@ def create_flux(
         p_single_blocks_1_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_1_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.1.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.1.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8232,7 +8232,7 @@ def create_flux(
         p_single_blocks_1_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_1_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.1.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.1.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8246,7 +8246,7 @@ def create_flux(
         p_single_blocks_2_linear1_weight=_bind_tensor(
             p_single_blocks_2_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.2.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.2.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8260,7 +8260,7 @@ def create_flux(
         p_single_blocks_2_linear2_weight=_bind_tensor(
             p_single_blocks_2_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.2.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.2.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8274,7 +8274,7 @@ def create_flux(
         p_single_blocks_2_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_2_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.2.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.2.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8288,7 +8288,7 @@ def create_flux(
         p_single_blocks_2_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_2_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.2.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.2.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8302,7 +8302,7 @@ def create_flux(
         p_single_blocks_3_linear1_weight=_bind_tensor(
             p_single_blocks_3_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.3.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.3.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8316,7 +8316,7 @@ def create_flux(
         p_single_blocks_3_linear2_weight=_bind_tensor(
             p_single_blocks_3_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.3.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.3.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8330,7 +8330,7 @@ def create_flux(
         p_single_blocks_3_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_3_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.3.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.3.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8344,7 +8344,7 @@ def create_flux(
         p_single_blocks_3_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_3_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.3.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.3.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8358,7 +8358,7 @@ def create_flux(
         p_single_blocks_4_linear1_weight=_bind_tensor(
             p_single_blocks_4_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.4.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.4.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8372,7 +8372,7 @@ def create_flux(
         p_single_blocks_4_linear2_weight=_bind_tensor(
             p_single_blocks_4_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.4.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.4.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8386,7 +8386,7 @@ def create_flux(
         p_single_blocks_4_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_4_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.4.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.4.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8400,7 +8400,7 @@ def create_flux(
         p_single_blocks_4_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_4_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.4.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.4.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8414,7 +8414,7 @@ def create_flux(
         p_single_blocks_5_linear1_weight=_bind_tensor(
             p_single_blocks_5_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.5.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.5.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8428,7 +8428,7 @@ def create_flux(
         p_single_blocks_5_linear2_weight=_bind_tensor(
             p_single_blocks_5_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.5.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.5.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8442,7 +8442,7 @@ def create_flux(
         p_single_blocks_5_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_5_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.5.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.5.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8456,7 +8456,7 @@ def create_flux(
         p_single_blocks_5_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_5_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.5.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.5.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8470,7 +8470,7 @@ def create_flux(
         p_single_blocks_6_linear1_weight=_bind_tensor(
             p_single_blocks_6_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.6.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.6.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8484,7 +8484,7 @@ def create_flux(
         p_single_blocks_6_linear2_weight=_bind_tensor(
             p_single_blocks_6_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.6.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.6.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8498,7 +8498,7 @@ def create_flux(
         p_single_blocks_6_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_6_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.6.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.6.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8512,7 +8512,7 @@ def create_flux(
         p_single_blocks_6_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_6_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.6.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.6.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8526,7 +8526,7 @@ def create_flux(
         p_single_blocks_7_linear1_weight=_bind_tensor(
             p_single_blocks_7_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.7.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.7.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8540,7 +8540,7 @@ def create_flux(
         p_single_blocks_7_linear2_weight=_bind_tensor(
             p_single_blocks_7_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.7.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.7.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8554,7 +8554,7 @@ def create_flux(
         p_single_blocks_7_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_7_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.7.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.7.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8568,7 +8568,7 @@ def create_flux(
         p_single_blocks_7_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_7_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.7.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.7.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8582,7 +8582,7 @@ def create_flux(
         p_single_blocks_8_linear1_weight=_bind_tensor(
             p_single_blocks_8_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.8.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.8.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8596,7 +8596,7 @@ def create_flux(
         p_single_blocks_8_linear2_weight=_bind_tensor(
             p_single_blocks_8_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.8.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.8.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8610,7 +8610,7 @@ def create_flux(
         p_single_blocks_8_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_8_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.8.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.8.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8624,7 +8624,7 @@ def create_flux(
         p_single_blocks_8_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_8_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.8.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.8.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8638,7 +8638,7 @@ def create_flux(
         p_single_blocks_9_linear1_weight=_bind_tensor(
             p_single_blocks_9_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.9.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.9.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8652,7 +8652,7 @@ def create_flux(
         p_single_blocks_9_linear2_weight=_bind_tensor(
             p_single_blocks_9_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.9.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.9.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8666,7 +8666,7 @@ def create_flux(
         p_single_blocks_9_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_9_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.9.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.9.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8680,7 +8680,7 @@ def create_flux(
         p_single_blocks_9_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_9_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.9.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.9.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8694,7 +8694,7 @@ def create_flux(
         p_single_blocks_10_linear1_weight=_bind_tensor(
             p_single_blocks_10_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.10.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.10.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8708,7 +8708,7 @@ def create_flux(
         p_single_blocks_10_linear2_weight=_bind_tensor(
             p_single_blocks_10_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.10.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.10.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8722,7 +8722,7 @@ def create_flux(
         p_single_blocks_10_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_10_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.10.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.10.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8736,7 +8736,7 @@ def create_flux(
         p_single_blocks_10_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_10_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.10.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.10.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8750,7 +8750,7 @@ def create_flux(
         p_single_blocks_11_linear1_weight=_bind_tensor(
             p_single_blocks_11_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.11.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.11.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8764,7 +8764,7 @@ def create_flux(
         p_single_blocks_11_linear2_weight=_bind_tensor(
             p_single_blocks_11_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.11.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.11.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8778,7 +8778,7 @@ def create_flux(
         p_single_blocks_11_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_11_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.11.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.11.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8792,7 +8792,7 @@ def create_flux(
         p_single_blocks_11_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_11_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.11.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.11.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8806,7 +8806,7 @@ def create_flux(
         p_single_blocks_12_linear1_weight=_bind_tensor(
             p_single_blocks_12_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.12.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.12.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8820,7 +8820,7 @@ def create_flux(
         p_single_blocks_12_linear2_weight=_bind_tensor(
             p_single_blocks_12_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.12.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.12.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8834,7 +8834,7 @@ def create_flux(
         p_single_blocks_12_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_12_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.12.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.12.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8848,7 +8848,7 @@ def create_flux(
         p_single_blocks_12_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_12_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.12.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.12.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8862,7 +8862,7 @@ def create_flux(
         p_single_blocks_13_linear1_weight=_bind_tensor(
             p_single_blocks_13_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.13.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.13.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8876,7 +8876,7 @@ def create_flux(
         p_single_blocks_13_linear2_weight=_bind_tensor(
             p_single_blocks_13_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.13.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.13.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8890,7 +8890,7 @@ def create_flux(
         p_single_blocks_13_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_13_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.13.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.13.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8904,7 +8904,7 @@ def create_flux(
         p_single_blocks_13_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_13_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.13.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.13.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8918,7 +8918,7 @@ def create_flux(
         p_single_blocks_14_linear1_weight=_bind_tensor(
             p_single_blocks_14_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.14.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.14.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8932,7 +8932,7 @@ def create_flux(
         p_single_blocks_14_linear2_weight=_bind_tensor(
             p_single_blocks_14_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.14.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.14.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -8946,7 +8946,7 @@ def create_flux(
         p_single_blocks_14_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_14_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.14.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.14.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -8960,7 +8960,7 @@ def create_flux(
         p_single_blocks_14_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_14_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.14.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.14.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -8974,7 +8974,7 @@ def create_flux(
         p_single_blocks_15_linear1_weight=_bind_tensor(
             p_single_blocks_15_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.15.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.15.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -8988,7 +8988,7 @@ def create_flux(
         p_single_blocks_15_linear2_weight=_bind_tensor(
             p_single_blocks_15_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.15.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.15.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -9002,7 +9002,7 @@ def create_flux(
         p_single_blocks_15_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_15_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.15.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.15.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -9016,7 +9016,7 @@ def create_flux(
         p_single_blocks_15_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_15_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.15.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.15.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -9030,7 +9030,7 @@ def create_flux(
         p_single_blocks_16_linear1_weight=_bind_tensor(
             p_single_blocks_16_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.16.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.16.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -9044,7 +9044,7 @@ def create_flux(
         p_single_blocks_16_linear2_weight=_bind_tensor(
             p_single_blocks_16_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.16.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.16.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -9058,7 +9058,7 @@ def create_flux(
         p_single_blocks_16_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_16_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.16.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.16.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -9072,7 +9072,7 @@ def create_flux(
         p_single_blocks_16_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_16_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.16.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.16.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -9086,7 +9086,7 @@ def create_flux(
         p_single_blocks_17_linear1_weight=_bind_tensor(
             p_single_blocks_17_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.17.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.17.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -9100,7 +9100,7 @@ def create_flux(
         p_single_blocks_17_linear2_weight=_bind_tensor(
             p_single_blocks_17_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.17.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.17.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -9114,7 +9114,7 @@ def create_flux(
         p_single_blocks_17_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_17_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.17.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.17.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -9128,7 +9128,7 @@ def create_flux(
         p_single_blocks_17_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_17_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.17.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.17.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -9142,7 +9142,7 @@ def create_flux(
         p_single_blocks_18_linear1_weight=_bind_tensor(
             p_single_blocks_18_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.18.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.18.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -9156,7 +9156,7 @@ def create_flux(
         p_single_blocks_18_linear2_weight=_bind_tensor(
             p_single_blocks_18_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.18.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.18.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -9170,7 +9170,7 @@ def create_flux(
         p_single_blocks_18_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_18_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.18.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.18.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -9184,7 +9184,7 @@ def create_flux(
         p_single_blocks_18_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_18_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.18.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.18.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -9198,7 +9198,7 @@ def create_flux(
         p_single_blocks_19_linear1_weight=_bind_tensor(
             p_single_blocks_19_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.19.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.19.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -9212,7 +9212,7 @@ def create_flux(
         p_single_blocks_19_linear2_weight=_bind_tensor(
             p_single_blocks_19_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.19.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.19.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -9226,7 +9226,7 @@ def create_flux(
         p_single_blocks_19_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_19_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.19.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.19.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -9240,7 +9240,7 @@ def create_flux(
         p_single_blocks_19_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_19_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.19.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.19.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -9254,7 +9254,7 @@ def create_flux(
         p_single_blocks_20_linear1_weight=_bind_tensor(
             p_single_blocks_20_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.20.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.20.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -9268,7 +9268,7 @@ def create_flux(
         p_single_blocks_20_linear2_weight=_bind_tensor(
             p_single_blocks_20_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.20.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.20.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -9282,7 +9282,7 @@ def create_flux(
         p_single_blocks_20_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_20_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.20.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.20.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -9296,7 +9296,7 @@ def create_flux(
         p_single_blocks_20_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_20_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.20.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.20.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -9310,7 +9310,7 @@ def create_flux(
         p_single_blocks_21_linear1_weight=_bind_tensor(
             p_single_blocks_21_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.21.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.21.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -9324,7 +9324,7 @@ def create_flux(
         p_single_blocks_21_linear2_weight=_bind_tensor(
             p_single_blocks_21_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.21.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.21.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -9338,7 +9338,7 @@ def create_flux(
         p_single_blocks_21_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_21_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.21.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.21.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -9352,7 +9352,7 @@ def create_flux(
         p_single_blocks_21_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_21_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.21.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.21.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -9366,7 +9366,7 @@ def create_flux(
         p_single_blocks_22_linear1_weight=_bind_tensor(
             p_single_blocks_22_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.22.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.22.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -9380,7 +9380,7 @@ def create_flux(
         p_single_blocks_22_linear2_weight=_bind_tensor(
             p_single_blocks_22_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.22.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.22.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -9394,7 +9394,7 @@ def create_flux(
         p_single_blocks_22_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_22_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.22.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.22.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -9408,7 +9408,7 @@ def create_flux(
         p_single_blocks_22_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_22_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.22.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.22.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -9422,7 +9422,7 @@ def create_flux(
         p_single_blocks_23_linear1_weight=_bind_tensor(
             p_single_blocks_23_linear1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.23.linear1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.23.linear1.weight", dtype='float32', shape=(36864, 4096)),
@@ -9436,7 +9436,7 @@ def create_flux(
         p_single_blocks_23_linear2_weight=_bind_tensor(
             p_single_blocks_23_linear2_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.23.linear2.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.23.linear2.weight", dtype='float32', shape=(4096, 16384)),
@@ -9450,7 +9450,7 @@ def create_flux(
         p_single_blocks_23_norm_query_norm_scale=_bind_tensor(
             p_single_blocks_23_norm_query_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.23.norm.query_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.23.norm.query_norm.scale", dtype='float32', shape=(128,)),
@@ -9464,7 +9464,7 @@ def create_flux(
         p_single_blocks_23_norm_key_norm_scale=_bind_tensor(
             p_single_blocks_23_norm_key_norm_scale,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_blocks.23.norm.key_norm.scale",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_blocks.23.norm.key_norm.scale", dtype='float32', shape=(128,)),
@@ -9478,7 +9478,7 @@ def create_flux(
         p_double_stream_modulation_img_lin_weight=_bind_tensor(
             p_double_stream_modulation_img_lin_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_stream_modulation_img.lin.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_stream_modulation_img.lin.weight", dtype='float32', shape=(24576, 4096)),
@@ -9492,7 +9492,7 @@ def create_flux(
         p_double_stream_modulation_txt_lin_weight=_bind_tensor(
             p_double_stream_modulation_txt_lin_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="double_stream_modulation_txt.lin.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("double_stream_modulation_txt.lin.weight", dtype='float32', shape=(24576, 4096)),
@@ -9506,7 +9506,7 @@ def create_flux(
         p_single_stream_modulation_lin_weight=_bind_tensor(
             p_single_stream_modulation_lin_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="single_stream_modulation.lin.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("single_stream_modulation.lin.weight", dtype='float32', shape=(12288, 4096)),
@@ -9520,7 +9520,7 @@ def create_flux(
         p_final_layer_linear_weight=_bind_tensor(
             p_final_layer_linear_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="final_layer.linear.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("final_layer.linear.weight", dtype='float32', shape=(128, 4096)),
@@ -9534,7 +9534,7 @@ def create_flux(
         p_final_layer_adaln_modulation_1_weight=_bind_tensor(
             p_final_layer_adaln_modulation_1_weight,
             _declare_tensor(
-                checkpoint=None,
+                checkpoint='flux/model.gguf',
                 checkpoint_key="final_layer.adaLN_modulation.1.weight",
                 reference_key=None,
                 spec=_quantized_weight_spec("final_layer.adaLN_modulation.1.weight", dtype='float32', shape=(8192, 4096)),

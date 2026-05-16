@@ -30,30 +30,30 @@ CAT_2_F32 = ShaderVariant(
                 name='x0',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float16', shape=('I0_0', 'I0_1',)),
+                contract=TensorContract(dtype='float16', shape=('I0_0', 'I0_1', 'I0_2', 'I0_3',)),
             ),
             TensorFieldSpec(
                 name='x1',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float16', shape=('I1_0', 'I1_1',)),
+                contract=TensorContract(dtype='float16', shape=('I1_0', 'I1_1', 'I1_2', 'I1_3',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float16', shape=('O0', 'O1',)),
+                contract=TensorContract(dtype='float16', shape=('O0', 'O1', 'O2', 'O3',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=8,
             fields=(
-                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, mul('O0', 'O1'), dynamic=False),
-                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 4, 256, dynamic=False),
+                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), dynamic=False),
+                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 4, 128, dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(mul('O0', 'O1'), 256), 1, 1),
+        dispatch=(ceil_div(mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), 256), 1, 1),
     ),
     execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
     source="""\
@@ -71,11 +71,11 @@ void main() {
     if (idx < pc.N_OUT) {
         uint row = idx / pc.OUT_STRIDE;
         uint col = idx % pc.OUT_STRIDE;
-        if (col < 128u) {
-            output_values[idx] = x0[row * 128u + (col - 0u)];
+        if (col < 64u) {
+            output_values[idx] = x0[row * 64u + (col - 0u)];
         }
-        else if (col < 256u) {
-            output_values[idx] = x1[row * 128u + (col - 128u)];
+        else if (col < 128u) {
+            output_values[idx] = x1[row * 64u + (col - 64u)];
         }
     }
 }

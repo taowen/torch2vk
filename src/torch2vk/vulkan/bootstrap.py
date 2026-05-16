@@ -6,10 +6,14 @@ from dataclasses import dataclass
 
 from vulkan import (
     VK_MAKE_VERSION,
+    VK_MEMORY_OVERALLOCATION_BEHAVIOR_ALLOWED_AMD,
     VK_QUEUE_COMPUTE_BIT,
+    VK_STRUCTURE_TYPE_DEVICE_MEMORY_OVERALLOCATION_CREATE_INFO_AMD,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PRIORITY_FEATURES_EXT,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PAGEABLE_DEVICE_LOCAL_MEMORY_FEATURES_EXT,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_UNIFORM_CONTROL_FLOW_FEATURES_KHR,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_FEATURES,
@@ -18,10 +22,13 @@ from vulkan import (
     VkPhysicalDevice16BitStorageFeatures,
     VkApplicationInfo,
     VkDeviceCreateInfo,
+    VkDeviceMemoryOverallocationCreateInfoAMD,
     VkDeviceQueueCreateInfo,
     VkInstanceCreateInfo,
     VkPhysicalDeviceCooperativeMatrixFeaturesKHR,
     VkPhysicalDeviceFeatures2,
+    VkPhysicalDeviceMemoryPriorityFeaturesEXT,
+    VkPhysicalDevicePageableDeviceLocalMemoryFeaturesEXT,
     VkPhysicalDeviceShaderIntegerDotProductFeatures,
     VkPhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR,
     VkPhysicalDeviceSubgroupSizeControlFeatures,
@@ -155,6 +162,14 @@ def create_device(
         sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_UNIFORM_CONTROL_FLOW_FEATURES_KHR,
         shaderSubgroupUniformControlFlow=feature_support.shader_subgroup_uniform_control_flow,
     )
+    memory_priority = VkPhysicalDeviceMemoryPriorityFeaturesEXT(
+        sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PRIORITY_FEATURES_EXT,
+        memoryPriority=feature_support.memory_priority,
+    )
+    pageable_device_local_memory = VkPhysicalDevicePageableDeviceLocalMemoryFeaturesEXT(
+        sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PAGEABLE_DEVICE_LOCAL_MEMORY_FEATURES_EXT,
+        pageableDeviceLocalMemory=feature_support.pageable_device_local_memory,
+    )
     features2.pNext = ffi.addressof(vulkan11)
     vulkan11.pNext = ffi.addressof(vulkan12)
     vulkan12.pNext = ffi.addressof(storage_16bit)
@@ -162,6 +177,8 @@ def create_device(
     cooperative_matrix.pNext = ffi.addressof(subgroup_size_control)
     subgroup_size_control.pNext = ffi.addressof(shader_integer_dot_product)
     shader_integer_dot_product.pNext = ffi.addressof(subgroup_uniform_control_flow)
+    subgroup_uniform_control_flow.pNext = ffi.addressof(memory_priority)
+    memory_priority.pNext = ffi.addressof(pageable_device_local_memory)
 
     if "VK_KHR_16bit_storage" in available_extensions and feature_support.storage_buffer_16bit_access:
         extension_names.append("VK_KHR_16bit_storage")
@@ -179,13 +196,26 @@ def create_device(
         extension_names.append("VK_KHR_shader_integer_dot_product")
     if "VK_EXT_subgroup_size_control" in available_extensions and feature_support.subgroup_size_control:
         extension_names.append("VK_EXT_subgroup_size_control")
+    if "VK_EXT_memory_priority" in available_extensions and feature_support.memory_priority:
+        extension_names.append("VK_EXT_memory_priority")
+    if "VK_EXT_pageable_device_local_memory" in available_extensions and feature_support.pageable_device_local_memory:
+        extension_names.append("VK_EXT_pageable_device_local_memory")
+    device_create_pnext = ffi.addressof(features2)
+    if "VK_AMD_memory_overallocation_behavior" in available_extensions:
+        extension_names.append("VK_AMD_memory_overallocation_behavior")
+        memory_overallocation = VkDeviceMemoryOverallocationCreateInfoAMD(
+            sType=VK_STRUCTURE_TYPE_DEVICE_MEMORY_OVERALLOCATION_CREATE_INFO_AMD,
+            pNext=device_create_pnext,
+            overallocationBehavior=VK_MEMORY_OVERALLOCATION_BEHAVIOR_ALLOWED_AMD,
+        )
+        device_create_pnext = ffi.addressof(memory_overallocation)
 
     device_create_info = VkDeviceCreateInfo(
         queueCreateInfoCount=1,
         pQueueCreateInfos=queue_infos,
         enabledExtensionCount=len(extension_names),
         ppEnabledExtensionNames=extension_names or None,
-        pNext=ffi.addressof(features2),
+        pNext=device_create_pnext,
     )
     return vkCreateDevice(physical_device, device_create_info, None)
 

@@ -20,10 +20,10 @@ from models.quantized_klein9b.pytorch_reference import (
     configure_rocm_reference,
 )
 from models.quantized_klein9b.run import (
-    _batched_prc_img,
-    _batched_prc_txt,
     _ensure_ggufs,
     _get_schedule,
+    _latent_tokens_and_ids,
+    _text_ids,
 )
 from models.quantized_klein9b.text_encoder import Qwen3TextEncoder
 from models.quantized_klein9b.tensors.model import create_model_tensors, flux_output, model_tensors
@@ -67,7 +67,7 @@ def compare_flux_steps(
         text_encoder_dir=text_encoder_dir,
         ae_dir=ae_dir,
     )
-    ggufs = _ensure_ggufs(
+    _ensure_ggufs(
         model_dir=model_dirs.flux,
         text_encoder_dir=model_dirs.text_encoder,
         ae_dir=model_dirs.ae,
@@ -80,25 +80,17 @@ def compare_flux_steps(
         ctx_cache=Path(ctx_cache).expanduser().resolve() if ctx_cache is not None else None,
     )
 
-    latent_shape = (1, 128, height // 16, width // 16)
-    generator = torch.Generator(device="cuda").manual_seed(seed)
-    latent = torch.randn(
-        latent_shape,
-        generator=generator,
-        dtype=torch.bfloat16,
-        device="cuda",
-    )
-    img, img_ids = _batched_prc_img(latent)
-    img_np = img.detach().cpu().float().numpy().astype(np.float16)
-    img_ids_np = img_ids.detach().cpu().numpy().astype(np.int64)
-    del latent, img, img_ids
-    torch.cuda.empty_cache()
+    img_np, img_ids_np = _latent_tokens_and_ids(width=width, height=height, seed=seed)
 
     _log("opening Vulkan runtime")
-    create_model_tensors(image_seq_len=img_np.shape[1], text_seq_len=ctx_np.shape[1])
+    create_model_tensors(
+        image_seq_len=img_np.shape[1],
+        text_seq_len=ctx_np.shape[1],
+        include_ae_decode=False,
+    )
     rt = RuntimeSession.open(
         device_index=0,
-        model_dir=ggufs.flux.parent,
+        model_dir=Path(gguf_dir).expanduser().resolve(),
         model_tensors=model_tensors(),
         get_shader=get_shader,
     )
@@ -108,24 +100,24 @@ def compare_flux_steps(
     mean_abs = 0.0
     rms_abs = 0.0
     try:
-        _log("materializing Vulkan weights")
-        rt.materialize_model_weights()
         for step, (t_curr, t_prev) in enumerate(
             zip(timesteps[:-1], timesteps[1:], strict=True),
             start=1,
             ):
             _log(f"step {step}: running Vulkan denoiser")
             inputs = {
-                _tensor_name(model_tensors().flux.x.name): img_np,
                 _tensor_name(model_tensors().flux.x_ids.name): img_ids_np,
                 _tensor_name(model_tensors().flux.timesteps.name): np.array(
                     [t_curr],
                     dtype=np.float16,
                 ),
-                _tensor_name(model_tensors().flux.ctx.name): ctx_np,
                 _tensor_name(model_tensors().flux.ctx_ids.name): ctx_ids_np,
             }
-            with rt.request(inputs=inputs):
+            state = {
+                model_tensors().latent_tokens: img_np,
+                model_tensors().ctx: ctx_np,
+            }
+            with rt.request(inputs=inputs, state=state):
                 with rt.frame("klein9b.flux"):
                     run_flux(rt)
                 expected = reference.run_flux(
@@ -187,13 +179,12 @@ def _load_or_build_context(
         )
     text_encoder = Qwen3TextEncoder(str(text_encoder_dir), device="cuda")
     ctx = text_encoder([prompt]).to(torch.bfloat16)
-    ctx, ctx_ids = _batched_prc_txt(ctx)
     ctx_np = ctx.detach().cpu().float().numpy().astype(np.float16)
-    ctx_ids_np = ctx_ids.detach().cpu().numpy().astype(np.int64)
+    ctx_ids_np = _text_ids()
     if ctx_cache is not None:
         ctx_cache.parent.mkdir(parents=True, exist_ok=True)
         np.savez(ctx_cache, ctx=ctx_np, ctx_ids=ctx_ids_np)
-    del text_encoder, ctx, ctx_ids
+    del text_encoder, ctx
     torch.cuda.empty_cache()
     return ctx_np, ctx_ids_np
 

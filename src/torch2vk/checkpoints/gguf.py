@@ -157,10 +157,10 @@ class GGUFMmap:
         self.path = Path(path)
         self.tensors = dict(tensors)
         self.metadata = dict(metadata)
-        self._mapped_file = _MappedGGUFFile.open(self.path)
+        self._mapped_file: _MappedGGUFFile | None = None
 
     def close(self) -> None:
-        self._mapped_file.close()
+        self.release_mapping()
 
     def __enter__(self) -> "GGUFMmap":
         return self
@@ -177,7 +177,7 @@ class GGUFMmap:
 
     def buffer_slice(self, name: str) -> memoryview:
         entry = self.entry(name)
-        return self._mapped_file.slice(offset=entry.data_offset, size=entry.nbytes)
+        return self._require_mapped_file().slice(offset=entry.data_offset, size=entry.nbytes)
 
     def buffer_rows(self, name: str, *, row_offset: int, row_count: int) -> memoryview:
         entry = self.entry(name)
@@ -195,6 +195,20 @@ class GGUFMmap:
         byte_start = row_offset * row_nbytes
         byte_end = (row_offset + row_count) * row_nbytes
         return full_slice[byte_start:byte_end]
+
+    def release_mapping(self) -> None:
+        mapped_file = self._mapped_file
+        if mapped_file is None:
+            return
+        mapped_file.close()
+        self._mapped_file = None
+
+    def _require_mapped_file(self) -> _MappedGGUFFile:
+        mapped_file = self._mapped_file
+        if mapped_file is None:
+            mapped_file = _MappedGGUFFile.open(self.path)
+            self._mapped_file = mapped_file
+        return mapped_file
 
 
 def open_gguf_mmap(path: str | Path) -> GGUFMmap:

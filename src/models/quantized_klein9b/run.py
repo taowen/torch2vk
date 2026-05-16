@@ -1,4 +1,4 @@
-"""Run the full FLUX.2 Klein 9B text-to-image pipeline."""
+"""Run the FLUX.2 Klein 9B text-to-image pipeline on Vulkan."""
 
 from __future__ import annotations
 
@@ -10,25 +10,30 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
-import torch
-from einops import rearrange
 from PIL import Image
-from safetensors.torch import load_file as load_safetensors
+from transformers import AutoTokenizer
 
-from models.quantized_klein9b.autoencoder import AutoEncoder, AutoEncoderParams
+from models.quantized_klein9b.custom_shaders import (
+    KLEIN9B_CAPTURE_QWEN3_CTX_F16,
+    KLEIN9B_EULER_UPDATE_F16,
+)
+from models.quantized_klein9b.dispatch.ae_decode import run_ae_decode
 from models.quantized_klein9b.dispatch.flux import run_flux
+from models.quantized_klein9b.dispatch.text_embed import run_text_embed
+from models.quantized_klein9b.dispatch.text_layer import run_text_layer
+from models.quantized_klein9b.export import DEFAULT_IMAGE_SEQ_LEN, DEFAULT_TEXT_SEQ_LEN
 from models.quantized_klein9b.export_gguf import (
     DEFAULT_OUTPUT_DIR,
     Klein9BGGUFPaths,
     export_klein9b_q4_k_m_ggufs,
 )
 from models.quantized_klein9b.model_sources import resolve_model_dirs
-from models.quantized_klein9b.text_encoder import Qwen3TextEncoder
 from models.quantized_klein9b.tensors.model import (
     create_model_tensors,
-    flux_output,
+    image_output,
     model_tensors,
 )
+from torch2vk.runtime.rope_table import ROPE_TABLE_F32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
 
@@ -49,8 +54,10 @@ class Klein9BRunResult:
 
 def _get_schedule(num_steps: int, image_seq_len: int) -> list[float]:
     mu = _compute_empirical_mu(image_seq_len, num_steps)
-    timesteps = torch.linspace(1, 0, num_steps + 1)
-    shifted = math.exp(mu) / (math.exp(mu) + (1 / timesteps - 1))
+    timesteps = np.linspace(1.0, 0.0, num_steps + 1, dtype=np.float32)
+    shifted = np.zeros_like(timesteps)
+    nonzero = timesteps > 0.0
+    shifted[nonzero] = math.exp(mu) / (math.exp(mu) + (1.0 / timesteps[nonzero] - 1.0))
     return [float(value) for value in shifted.tolist()]
 
 
@@ -63,80 +70,6 @@ def _compute_empirical_mu(image_seq_len: int, num_steps: int) -> float:
     m_10 = a1 * image_seq_len + b1
     a = (m_200 - m_10) / 190.0
     return float(m_200 - 200.0 * a + a * num_steps)
-
-
-def _prc_txt(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    length = x.shape[0]
-    ids = torch.cartesian_prod(
-        torch.arange(1),
-        torch.arange(1),
-        torch.arange(1),
-        torch.arange(length),
-    )
-    return x, ids.to(x.device)
-
-
-def _batched_prc_txt(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    tokens = []
-    ids = []
-    for item in x:
-        token, token_ids = _prc_txt(item)
-        tokens.append(token)
-        ids.append(token_ids)
-    return torch.stack(tokens), torch.stack(ids)
-
-
-def _prc_img(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    _, height, width = x.shape
-    ids = torch.cartesian_prod(
-        torch.arange(1),
-        torch.arange(height),
-        torch.arange(width),
-        torch.arange(1),
-    )
-    return rearrange(x, "c h w -> (h w) c"), ids.to(x.device)
-
-
-def _batched_prc_img(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    tokens = []
-    ids = []
-    for item in x:
-        token, token_ids = _prc_img(item)
-        tokens.append(token)
-        ids.append(token_ids)
-    return torch.stack(tokens), torch.stack(ids)
-
-
-def _scatter_ids(x: torch.Tensor, x_ids: torch.Tensor) -> torch.Tensor:
-    images = []
-    for data, pos in zip(x, x_ids, strict=True):
-        channels = data.shape[1]
-        t_ids = pos[:, 0].to(torch.int64)
-        h_ids = pos[:, 1].to(torch.int64)
-        w_ids = pos[:, 2].to(torch.int64)
-        t_unique = torch.unique(t_ids, sorted=True)
-        t_remap = torch.zeros((int(torch.max(t_ids)) + 1,), device=data.device, dtype=t_ids.dtype)
-        t_remap[t_unique] = torch.arange(len(t_unique), device=data.device, dtype=t_ids.dtype)
-        t_ids = t_remap[t_ids]
-        t = int(torch.max(t_ids)) + 1
-        h = int(torch.max(h_ids)) + 1
-        w = int(torch.max(w_ids)) + 1
-        flat_ids = t_ids * w * h + h_ids * w + w_ids
-        out = torch.zeros((t * h * w, channels), device=data.device, dtype=data.dtype)
-        out.scatter_(0, flat_ids.unsqueeze(1).expand(-1, channels), data)
-        images.append(rearrange(out, "(t h w) c -> 1 c t h w", t=t, h=h, w=w))
-    return torch.cat(images).squeeze(2)
-
-
-def _load_autoencoder(ae_dir: Path) -> AutoEncoder:
-    weight_path = ae_dir / "ae.safetensors"
-    if not weight_path.is_file():
-        raise FileNotFoundError(f"AutoEncoder weights are missing: {weight_path}")
-    with torch.device("meta"):
-        ae = AutoEncoder(AutoEncoderParams())
-    state_dict = load_safetensors(weight_path, device="cuda")
-    ae.load_state_dict(state_dict, strict=True, assign=True)
-    return ae.to("cuda").eval()
 
 
 def _ensure_ggufs(
@@ -161,10 +94,99 @@ def _ensure_ggufs(
     )
 
 
+def _prepare_input_ids(*, prompt: str, text_encoder_dir: Path) -> np.ndarray:
+    tokenizer = AutoTokenizer.from_pretrained(text_encoder_dir)
+    text = tokenizer.apply_chat_template(
+        [{"role": "user", "content": prompt}],
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=False,
+    )
+    model_inputs = tokenizer(
+        text,
+        return_tensors="np",
+        padding="max_length",
+        truncation=True,
+        max_length=DEFAULT_TEXT_SEQ_LEN,
+    )
+    return np.ascontiguousarray(model_inputs["input_ids"], dtype=np.int64)
+
+
+def _text_ids() -> np.ndarray:
+    ids = np.zeros((1, DEFAULT_TEXT_SEQ_LEN, 4), dtype=np.int64)
+    ids[0, :, 3] = np.arange(DEFAULT_TEXT_SEQ_LEN, dtype=np.int64)
+    return ids
+
+
+def _latent_tokens_and_ids(*, width: int, height: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    latent_h = height // 16
+    latent_w = width // 16
+    rng = np.random.default_rng(seed)
+    tokens = rng.standard_normal((1, latent_h * latent_w, 128)).astype(np.float16)
+    ids = np.zeros((1, latent_h * latent_w, 4), dtype=np.int64)
+    offset = 0
+    for h in range(latent_h):
+        for w in range(latent_w):
+            ids[0, offset, 1] = h
+            ids[0, offset, 2] = w
+            offset += 1
+    return np.ascontiguousarray(tokens), ids
+
+
 def _tensor_name(name: str | None) -> str:
     if name is None:
         raise RuntimeError("Klein9B input tensors must be named before request execution")
     return name
+
+
+def _run_text_encoder(rt: RuntimeSession, *, rope_theta: float) -> float:
+    tensors = model_tensors()
+    start = time.perf_counter()
+    with rt.frame("klein9b.text_encoder"):
+        ROPE_TABLE_F32(
+            rt,
+            start_position=0,
+            theta=rope_theta,
+            cos=tensors.text_rope.cos,
+            sin=tensors.text_rope.sin,
+        )
+        run_text_embed(rt)
+        for layer_idx in range(len(tensors.text_layers)):
+            run_text_layer(rt, layer_idx)
+        KLEIN9B_CAPTURE_QWEN3_CTX_F16(
+            rt,
+            layer_9=tensors.text_layers[8].add_7,
+            layer_18=tensors.text_layers[17].add_7,
+            layer_27=tensors.text_layers[26].add_7,
+            ctx=tensors.ctx,
+        )
+    return time.perf_counter() - start
+
+
+def _run_denoise(rt: RuntimeSession, *, timesteps: list[float]) -> float:
+    tensors = model_tensors()
+    start = time.perf_counter()
+    for step, (t_curr, t_prev) in enumerate(zip(timesteps[:-1], timesteps[1:], strict=True)):
+        rt.register_host_inputs(
+            {tensors.flux.timesteps: np.array([t_curr], dtype=np.float16)}
+        )
+        with rt.frame(f"klein9b.flux.{step:04d}"):
+            run_flux(rt)
+            KLEIN9B_EULER_UPDATE_F16(
+                rt,
+                x=tensors.latent_tokens,
+                pred=tensors.flux.linear_120,
+                dt=float(t_prev - t_curr),
+            )
+    return time.perf_counter() - start
+
+
+def _run_ae_decode(rt: RuntimeSession) -> tuple[float, np.ndarray]:
+    start = time.perf_counter()
+    with rt.frame("klein9b.ae_decode"):
+        run_ae_decode(rt)
+    image = rt.read_request_state(image_output()).astype(np.float32)
+    return time.perf_counter() - start, image
 
 
 def main(
@@ -181,8 +203,8 @@ def main(
     num_steps: int = 4,
     profile_dir: str | Path | None = None,
 ) -> Klein9BRunResult:
-    if width % 16 != 0 or height % 16 != 0:
-        raise ValueError(f"width and height must be divisible by 16, got {width}x{height}")
+    if width != 512 or height != 512:
+        raise ValueError("quantized_klein9b Vulkan AE decode currently supports 512x512 output")
     if num_steps != 4:
         raise ValueError(f"FLUX.2 Klein 9B is distilled for 4 steps, got {num_steps}")
 
@@ -192,71 +214,46 @@ def main(
         ae_dir=ae_dir,
     )
     output_dir = Path(gguf_dir).expanduser().resolve()
-    ggufs = _ensure_ggufs(
+    _ensure_ggufs(
         model_dir=model_dirs.flux,
         text_encoder_dir=model_dirs.text_encoder,
         ae_dir=model_dirs.ae,
         output_dir=output_dir,
     )
 
-    text_start = time.perf_counter()
-    text_encoder = Qwen3TextEncoder(str(model_dirs.text_encoder), device="cuda")
-    ctx = text_encoder([prompt]).to(torch.bfloat16)
-    ctx, ctx_ids = _batched_prc_txt(ctx)
-    text_elapsed = time.perf_counter() - text_start
-    text_encoder = text_encoder.cpu()
-    torch.cuda.empty_cache()
+    input_ids = _prepare_input_ids(prompt=prompt, text_encoder_dir=model_dirs.text_encoder)
+    text_ids = _text_ids()
+    latent_tokens, latent_ids = _latent_tokens_and_ids(width=width, height=height, seed=seed)
+    create_model_tensors(image_seq_len=DEFAULT_IMAGE_SEQ_LEN, text_seq_len=DEFAULT_TEXT_SEQ_LEN)
+    timesteps = _get_schedule(num_steps, DEFAULT_IMAGE_SEQ_LEN)
 
-    latent_shape = (1, 128, height // 16, width // 16)
-    generator = torch.Generator(device="cuda").manual_seed(seed)
-    latent = torch.randn(latent_shape, generator=generator, dtype=torch.bfloat16, device="cuda")
-    img, img_ids = _batched_prc_img(latent)
-
-    create_model_tensors(image_seq_len=img.shape[1], text_seq_len=ctx.shape[1])
     rt = RuntimeSession.open(
         device_index=0,
-        model_dir=ggufs.flux.parent,
+        model_dir=output_dir,
         profile_dir=profile_dir,
         model_tensors=model_tensors(),
         get_shader=get_shader,
     )
-    rt.materialize_model_weights()
-
-    img_np = img.detach().cpu().float().numpy().astype(np.float16)
-    img_ids_np = img_ids.detach().cpu().numpy().astype(np.int64)
-    ctx_np = ctx.detach().cpu().float().numpy().astype(np.float16)
-    ctx_ids_np = ctx_ids.detach().cpu().numpy().astype(np.int64)
-    timesteps = _get_schedule(num_steps, img.shape[1])
-
-    denoise_start = time.perf_counter()
-    for t_curr, t_prev in zip(timesteps[:-1], timesteps[1:], strict=True):
-        inputs = {
-            _tensor_name(model_tensors().flux.x.name): img_np,
-            _tensor_name(model_tensors().flux.x_ids.name): img_ids_np,
-            _tensor_name(model_tensors().flux.timesteps.name): np.array([t_curr], dtype=np.float16),
-            _tensor_name(model_tensors().flux.ctx.name): ctx_np,
-            _tensor_name(model_tensors().flux.ctx_ids.name): ctx_ids_np,
+    try:
+        tensors = model_tensors()
+        request_inputs = {
+            _tensor_name(tensors.input_ids.name): input_ids,
+            _tensor_name(tensors.flux.x_ids.name): latent_ids,
+            _tensor_name(tensors.flux.ctx_ids.name): text_ids,
         }
-        with rt.request(inputs=inputs):
-            with rt.frame("klein9b.flux"):
-                run_flux(rt)
-            pred = rt.read_request_state(flux_output()).astype(np.float32)
-        img_np = (img_np.astype(np.float32) + (t_prev - t_curr) * pred).astype(np.float16)
-    rt.close()
-    denoise_elapsed = time.perf_counter() - denoise_start
+        request_state = {tensors.latent_tokens: latent_tokens}
+        with rt.request(inputs=request_inputs, state=request_state):
+            text_elapsed = _run_text_encoder(rt, rope_theta=1_000_000.0)
+            denoise_elapsed = _run_denoise(rt, timesteps=timesteps)
+            ae_elapsed, image_array = _run_ae_decode(rt)
+    finally:
+        rt.close()
 
-    ae_start = time.perf_counter()
-    ae = _load_autoencoder(model_dirs.ae)
-    img_tokens = torch.from_numpy(img_np).to("cuda", dtype=torch.bfloat16)
-    img_ids_t = torch.from_numpy(img_ids_np).to("cuda")
-    latent_grid = _scatter_ids(img_tokens, img_ids_t)
-    decoded = ae.decode(latent_grid).float().clamp(-1, 1)
-    image_array = rearrange(decoded[0], "c h w -> h w c")
-    image = Image.fromarray((127.5 * (image_array + 1.0)).cpu().byte().numpy())
+    image_array = np.clip(image_array[0].transpose(1, 2, 0), -1.0, 1.0)
+    image = Image.fromarray((127.5 * (image_array + 1.0)).astype(np.uint8))
     output_path = Path(output).expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     image.save(output_path, quality=95, subsampling=0)
-    ae_elapsed = time.perf_counter() - ae_start
 
     result = Klein9BRunResult(
         image_path=str(output_path),

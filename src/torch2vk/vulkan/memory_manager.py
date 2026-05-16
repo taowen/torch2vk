@@ -229,7 +229,14 @@ class DeviceLocalArena:
     def reserved_bytes(self) -> int:
         return sum(root.size for root in self._roots if not root.released)
 
-    def _allocate_root(self, *, size: int, usage_flags: int, pool: str) -> BufferAllocation:
+    def _allocate_root(
+        self,
+        *,
+        size: int,
+        usage_flags: int,
+        pool: str,
+        memory_priority: float | None,
+    ) -> BufferAllocation:
         buffer = create_buffer(
             device_handle=self._device_handle,
             memory_properties=self._memory_properties,
@@ -238,6 +245,7 @@ class DeviceLocalArena:
             size=size,
             usage_flags=usage_flags,
             memory_property_flags=VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            memory_priority=memory_priority,
         )
         root = BufferAllocation(buffer=buffer, pool=pool, offset=0, size_bytes=size, vk_allocation=True)
         self._roots.append(root)
@@ -295,7 +303,14 @@ class DeviceLocalArena:
             )
         return None
 
-    def allocate(self, *, size: int, usage_flags: int, pool: str = "device_local") -> BufferAllocation:
+    def allocate(
+        self,
+        *,
+        size: int,
+        usage_flags: int,
+        pool: str = "device_local",
+        memory_priority: float | None = None,
+    ) -> BufferAllocation:
         if self._closed:
             raise RuntimeError("DeviceLocalArena is closed")
         if size <= 0:
@@ -306,7 +321,12 @@ class DeviceLocalArena:
             if allocation is not None:
                 return allocation
         chunk_bytes = max(_align_up(self._chunk_size, self._alignment), aligned_size)
-        root = self._allocate_root(size=chunk_bytes, usage_flags=usage_flags, pool=f"{pool}:chunk")
+        root = self._allocate_root(
+            size=chunk_bytes,
+            usage_flags=usage_flags,
+            pool=f"{pool}:chunk",
+            memory_priority=memory_priority,
+        )
         new_chunk = _ArenaChunk(root=root, free_ranges=[(0, chunk_bytes)])
         self._chunks_by_usage[usage_flags].append(new_chunk)
         allocation = self._suballocate_from_chunk(chunk=new_chunk, size=size, pool=pool)
@@ -314,12 +334,24 @@ class DeviceLocalArena:
             raise RuntimeError("DeviceLocalArena failed to suballocate from newly created chunk")
         return allocation
 
-    def allocate_dedicated(self, *, size: int, usage_flags: int, pool: str = "device_local:dedicated") -> BufferAllocation:
+    def allocate_dedicated(
+        self,
+        *,
+        size: int,
+        usage_flags: int,
+        pool: str = "device_local:dedicated",
+        memory_priority: float | None = None,
+    ) -> BufferAllocation:
         if self._closed:
             raise RuntimeError("DeviceLocalArena is closed")
         if size <= 0:
             raise ValueError(f"DeviceLocalArena dedicated size must be positive, got {size}")
-        return self._allocate_root(size=size, usage_flags=usage_flags, pool=pool)
+        return self._allocate_root(
+            size=size,
+            usage_flags=usage_flags,
+            pool=pool,
+            memory_priority=memory_priority,
+        )
 
     def close(self) -> None:
         if self._closed:
@@ -830,7 +862,13 @@ class MemoryManager:
             ),
         ))
 
-    def allocate_device_local_buffer(self, size: int, *, usage_flags: int | None = None) -> BufferAllocation:
+    def allocate_device_local_buffer(
+        self,
+        size: int,
+        *,
+        usage_flags: int | None = None,
+        memory_priority: float | None = None,
+    ) -> BufferAllocation:
         resolved_usage_flags = (
             (
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
@@ -844,9 +882,17 @@ class MemoryManager:
         if resolved_usage_flags <= 0:
             raise ValueError(f"Device-local usage_flags must be positive, got {resolved_usage_flags}")
         if self.dedicated_policy.should_dedicate(size=size):
-            allocation = self.device_local_arena.allocate_dedicated(size=size, usage_flags=resolved_usage_flags)
+            allocation = self.device_local_arena.allocate_dedicated(
+                size=size,
+                usage_flags=resolved_usage_flags,
+                memory_priority=memory_priority,
+            )
         else:
-            allocation = self.device_local_arena.allocate(size=size, usage_flags=resolved_usage_flags)
+            allocation = self.device_local_arena.allocate(
+                size=size,
+                usage_flags=resolved_usage_flags,
+                memory_priority=memory_priority,
+            )
         return self._note_allocation("device_local", allocation)
 
     def allocate_host_upload_buffer(self, size: int, *, usage_flags: int | None = None) -> BufferAllocation:

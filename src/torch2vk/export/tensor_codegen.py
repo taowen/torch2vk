@@ -20,7 +20,7 @@ from torch2vk.export.dispatch_codegen import (
     _resolve_all_variants,
 )
 from torch2vk.export.dtype_policy import logical_tensor_dtype, requires_float32_intermediate
-from torch2vk.export.graph import SKIP_OPS, graph_output_names
+from torch2vk.export.graph import SKIP_OPS, graph_output_names, is_alias_op
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
 from torch2vk.quantize import Q4KMQuantizationConfig
 
@@ -61,13 +61,8 @@ def render_tensor_module(classes: list[TensorClassContext]) -> str:
             uses_alias_bindings=uses_alias_bindings,
             uses_q4_k_words_layout=q4_k_m_config is not None
             or _uses_layout_source(classes, "q4_k_words_layout"),
-            uses_q6_k_halfwords_layout=(
-                (
-                    q4_k_m_config is not None
-                    and bool(q4_k_m_config["q6_names"] or q4_k_m_config["q6_prefixes"])
-                )
-                or _uses_layout_source(classes, "q6_k_halfwords_layout")
-            ),
+            uses_q6_k_halfwords_layout=q4_k_m_config is not None
+            or _uses_layout_source(classes, "q6_k_halfwords_layout"),
             uses_q8_0_halfwords_layout=q4_k_m_config is not None
             or _uses_layout_source(classes, "q8_0_halfwords_layout"),
         ).rstrip()
@@ -197,7 +192,8 @@ def generate_tensor_class_source(
                     shape=shape,
                     dtype=dtype,
                     kind=_TensorKind.INTERMEDIATE,
-                    force_float32=requires_float32_intermediate(node),
+                    force_float32=requires_float32_intermediate(node)
+                    or _alias_reads_checkpoint_float32(node),
                 )
 
     output_name = _find_output_name(graph, tensors)
@@ -436,6 +432,17 @@ def _node_dtype(node: Node) -> str:
     if tm is None:
         return ""
     return str(tm.dtype).removeprefix("torch.")
+
+
+def _alias_reads_checkpoint_float32(node: Node) -> bool:
+    if not is_alias_op(node) or _node_dtype(node) != "float32":
+        return False
+    source = node
+    while is_alias_op(source):
+        if not source.args or not isinstance(source.args[0], Node):
+            return False
+        source = source.args[0]
+    return source.op == "placeholder" and source.name.startswith(("p_", "b_"))
 
 
 def _checkpoint_key_expr(

@@ -42,3 +42,11 @@ def ae_q4_k_m_config() -> Q4KMQuantizationConfig:
         gguf_arch="flux2-ae",
         q8_tensor_prefixes=("",),
     )
+
+
+def qwen3_text_encoder_q8_config() -> Q4KMQuantizationConfig:
+    return Q4KMQuantizationConfig(
+        model_name="Qwen3 text encoder",
+        gguf_arch="qwen3",
+        q8_tensor_prefixes=("model.",),
+    )
