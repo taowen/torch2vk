@@ -61,7 +61,6 @@ from torch2vk.export.shader_codegen import (
 from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
     generate_weight_tensor_class_source,
-    layer_workspace_keep_fields,
     render_tensor_module,
 )
 from torch2vk.export.codegen_loop import (
@@ -313,8 +312,6 @@ def main() -> int:
                 dispatch_kwargs=tuple(compare_dispatch_kwargs),
             )
         )
-
-        workspace_keep_fields = ()
         if layer_loop is not None:
             # Looped export: generates parent + layer tensor classes and looped dispatch
             layer_cls_name = "EncoderLayerTensors"
@@ -355,7 +352,6 @@ def main() -> int:
                 shape_exprs=shape_exprs,
             )
             (tensors_dir / f"{tensor_file}.py").write_text(render_tensor_module([tensor_src]))
-            workspace_keep_fields = layer_workspace_keep_fields(tensor_src)
 
             func_src, shader_imports, used_variants = generate_dispatch_function_source(
                 prog,
@@ -401,7 +397,6 @@ def main() -> int:
                 parameters_source=_dispatch_parameters_source(func_name),
                 arguments_source=_dispatch_arguments_source(func_name),
                 uses_quantized_linear_dispatch="run_quantized_linear(" in func_src,
-                workspace_keep_fields=workspace_keep_fields,
             )
         )
 

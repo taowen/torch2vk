@@ -57,7 +57,7 @@ from torch2vk.export import (
     write_shader_file,
 )
 from torch2vk.export.graph import graph_output_names
-from torch2vk.export.tensor_codegen import layer_workspace_keep_fields, render_tensor_module
+from torch2vk.export.tensor_codegen import render_tensor_module
 from torch2vk.quantize import Q4KMQuantizationConfig
 from torch2vk.runtime.shader import ShaderVariant
 
@@ -249,8 +249,6 @@ def main() -> int:
                 dispatch_kwargs=tuple(compare_dispatch_kwargs),
             )
         )
-
-        workspace_keep_fields = ()
         if layer_loop is None:
             tensor_source = generate_tensor_class_source(
                 prog,
@@ -270,7 +268,6 @@ def main() -> int:
                 weight_prefix=weight_prefix,
                 quantization_config=quantization_config,
             )
-            workspace_keep_fields = layer_workspace_keep_fields(tensor_source)
         else:
             parent_source, layer_source = generate_looped_tensor_class_sources(
                 prog,
@@ -328,7 +325,6 @@ def main() -> int:
                 shader_imports=shader_imports,
                 function_source=bind_dispatch_function_to_tensors(function_source),
                 uses_quantized_linear_dispatch="run_quantized_linear(" in function_source,
-                workspace_keep_fields=workspace_keep_fields,
             )
         )
         print(f"  {name}: {len(used_variants)} shaders")

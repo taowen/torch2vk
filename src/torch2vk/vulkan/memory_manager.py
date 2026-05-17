@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib
-from collections import defaultdict, deque
+from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Protocol
@@ -23,7 +23,7 @@ from torch2vk.vulkan.types import TensorSpec
 
 from .abi import VkPhysicalDeviceMemoryProperties
 
-from .allocation import BufferAllocation, BufferSlice, GpuTimelinePoint
+from .allocation import BufferAllocation, BufferSlice
 from .memory_allocator import VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_VALUE, create_buffer, tensor_nbytes
 
 
@@ -361,6 +361,21 @@ class DeviceLocalArena:
             self._roots.pop().close()
         self._chunks_by_usage.clear()
 
+    def release_empty_chunks(self) -> None:
+        for usage_flags, chunks in tuple(self._chunks_by_usage.items()):
+            kept: list[_ArenaChunk] = []
+            for chunk in chunks:
+                if chunk.root.released:
+                    continue
+                if chunk.free_ranges == [(0, chunk.root.size)]:
+                    chunk.root.close()
+                    continue
+                kept.append(chunk)
+            if kept:
+                self._chunks_by_usage[usage_flags] = kept
+            else:
+                del self._chunks_by_usage[usage_flags]
+
 
 @dataclass(slots=True)
 class _HostRingSegment:
@@ -536,47 +551,6 @@ class DedicatedAllocationPolicy:
         return size >= 128 * 1024 * 1024
 
 
-class RetiredAllocationQueue:
-    """Tracks allocations pending safe recycling after GPU completion."""
-
-    def __init__(self) -> None:
-        self._retired: deque[tuple[TensorSpec, BufferAllocation]] = deque()
-
-    def retire(self, *, spec: TensorSpec, allocation: BufferAllocation, last_use: GpuTimelinePoint | None) -> None:
-        allocation.last_use = last_use
-        self._retired.append((spec, allocation))
-
-    def pop_reclaimable(self, *, completed: GpuTimelinePoint | None) -> tuple[tuple[TensorSpec, BufferAllocation], ...]:
-        if not self._retired:
-            return ()
-        if completed is None:
-            reclaimable = tuple(self._retired)
-            self._retired.clear()
-            return reclaimable
-        ready: list[tuple[TensorSpec, BufferAllocation]] = []
-        pending: deque[tuple[TensorSpec, BufferAllocation]] = deque()
-        while self._retired:
-            spec, allocation = self._retired.popleft()
-            last_use = allocation.last_use
-            if (
-                last_use is None
-                or (
-                    last_use.queue_id == completed.queue_id
-                    and last_use.submit_id <= completed.submit_id
-                )
-            ):
-                ready.append((spec, allocation))
-            else:
-                pending.append((spec, allocation))
-        self._retired = pending
-        return tuple(ready)
-
-    def close(self) -> None:
-        while self._retired:
-            _spec, allocation = self._retired.pop()
-            allocation.close()
-
-
 class TemporaryTensorPool:
     """Reusable temporary tensor allocation pool with exact-shape then size-class reuse."""
 
@@ -584,14 +558,10 @@ class TemporaryTensorPool:
         self,
         *,
         allocate_device_local: Callable[[int], BufferAllocation],
-        retire_allocation: Callable[[TensorSpec, BufferAllocation], None],
-        reclaim_retired: Callable[[], None],
         note_reuse: Callable[[BufferAllocation], None],
         note_recycle: Callable[[BufferAllocation], None],
     ) -> None:
         self._allocate_device_local = allocate_device_local
-        self._retire_allocation = retire_allocation
-        self._reclaim_retired = reclaim_retired
         self._note_reuse = note_reuse
         self._note_recycle = note_recycle
         self._free_exact: dict[tuple[str, tuple[int, ...]], list[BufferAllocation]] = defaultdict(list)
@@ -615,7 +585,6 @@ class TemporaryTensorPool:
             raise RuntimeError("TemporaryTensorPool is closed")
         if allocate is not None:
             return allocate(spec, label)
-        self._reclaim_retired()
         exact_key = (spec.dtype, tuple(int(dim) for dim in spec.shape))
         bucket = self._free_exact.get(exact_key)
         if bucket:
@@ -651,7 +620,7 @@ class TemporaryTensorPool:
             allocation.close()
             return
         self._note_recycle(allocation)
-        self._retire_allocation(spec, allocation)
+        self.reclaim(spec=spec, allocation=allocation)
 
     def _remove_from_size_class(self, *, dtype: str, allocation: BufferAllocation) -> None:
         class_key = (dtype, self._size_class(allocation.size))
@@ -677,6 +646,9 @@ class TemporaryTensorPool:
         if self._closed:
             return
         self._closed = True
+        self.release_cached()
+
+    def release_cached(self) -> None:
         closed_ids: set[int] = set()
         for bucket in self._free_exact.values():
             while bucket:
@@ -702,7 +674,6 @@ class MemoryManager:
         require_device_open: Callable[[], None],
         is_device_closed: Callable[[], bool],
     ) -> None:
-        self._queue_id = "compute:0"
         self._last_submitted_submit_id = 0
         self._last_completed_submit_id = 0
         self.device_local_arena = DeviceLocalArena(
@@ -726,11 +697,8 @@ class MemoryManager:
             is_device_closed=is_device_closed,
         )
         self.dedicated_policy = DedicatedAllocationPolicy()
-        self.retired_queue = RetiredAllocationQueue()
         self.temporary_tensor_pool = TemporaryTensorPool(
             allocate_device_local=self.allocate_device_local_buffer,
-            retire_allocation=self._retire_temporary_allocation,
-            reclaim_retired=self.reclaim_retired_allocations,
             note_reuse=lambda allocation: self._note_allocation_reused("device_local", allocation.size),
             note_recycle=lambda allocation: self._note_allocation_recycled("device_local", allocation.size),
         )
@@ -738,25 +706,11 @@ class MemoryManager:
         self._allocation_epoch = 0
         self._closed = False
 
-    def _submitted_timeline_point(self) -> GpuTimelinePoint:
-        return GpuTimelinePoint(
-            queue_id=self._queue_id,
-            submit_id=self._last_submitted_submit_id,
-            fence=None,
-        )
-
-    def _completed_timeline_point(self) -> GpuTimelinePoint:
-        return GpuTimelinePoint(
-            queue_id=self._queue_id,
-            submit_id=self._last_completed_submit_id,
-            fence=None,
-        )
-
     def note_queue_submit_started(self) -> int:
         self._last_submitted_submit_id += 1
         return self._last_submitted_submit_id
 
-    def note_queue_submit_completed(self, submit_id: int | None = None) -> GpuTimelinePoint:
+    def note_queue_submit_completed(self, submit_id: int | None = None) -> None:
         resolved_submit_id = self._last_submitted_submit_id if submit_id is None else int(submit_id)
         if resolved_submit_id > self._last_submitted_submit_id:
             raise ValueError(
@@ -764,32 +718,6 @@ class MemoryManager:
                 f"(last_submitted={self._last_submitted_submit_id})"
             )
         self._last_completed_submit_id = max(self._last_completed_submit_id, resolved_submit_id)
-        self.reclaim_retired_allocations()
-        return self._completed_timeline_point()
-
-    def note_queue_progress(self, *, completed_submit_id: int) -> GpuTimelinePoint:
-        if completed_submit_id < 0:
-            raise ValueError(f"completed_submit_id must be non-negative, got {completed_submit_id}")
-        if completed_submit_id > self._last_submitted_submit_id:
-            raise ValueError(
-                f"completed_submit_id={completed_submit_id} exceeds last_submitted={self._last_submitted_submit_id}"
-            )
-        self._last_completed_submit_id = max(self._last_completed_submit_id, int(completed_submit_id))
-        self.reclaim_retired_allocations()
-        return self._completed_timeline_point()
-
-    def _retire_temporary_allocation(self, spec: TensorSpec, allocation: BufferAllocation) -> None:
-        self.retired_queue.retire(
-            spec=spec,
-            allocation=allocation,
-            last_use=self._submitted_timeline_point(),
-        )
-        self.reclaim_retired_allocations()
-
-    def reclaim_retired_allocations(self) -> None:
-        completed = self._completed_timeline_point()
-        for spec, allocation in self.retired_queue.pop_reclaimable(completed=completed):
-            self.temporary_tensor_pool.reclaim(spec=spec, allocation=allocation)
 
     def _note_allocation(self, pool: str, allocation: BufferAllocation) -> BufferAllocation:
         previous_reserved = _stats_reserved_bytes(self._allocation_stats, pool)
@@ -935,12 +863,16 @@ class MemoryManager:
     def reset_allocation_stats(self) -> None:
         self._allocation_stats = self._stats_with_reserved_bytes(MemoryAllocationStats())
 
+    def release_cached_temporary_allocations(self) -> None:
+        self.temporary_tensor_pool.release_cached()
+        self.device_local_arena.release_empty_chunks()
+        self._allocation_stats = self._stats_with_reserved_bytes(self._allocation_stats)
+
     def close(self) -> None:
         if self._closed:
             return
         self._closed = True
         self.temporary_tensor_pool.close()
-        self.retired_queue.close()
         self.host_readback_ring.close()
         self.host_upload_ring.close()
         self.device_local_arena.close()

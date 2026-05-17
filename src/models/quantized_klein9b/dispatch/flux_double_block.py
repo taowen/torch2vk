@@ -10,10 +10,8 @@ from models.quantized_klein9b.shaders.add_f32_60 import ADD_F32_60
 from models.quantized_klein9b.shaders.add_f32_62 import ADD_F32_62
 from models.quantized_klein9b.shaders.add_scalar_11 import ADD_SCALAR_11
 from models.quantized_klein9b.shaders.add_scalar_14 import ADD_SCALAR_14
-from models.quantized_klein9b.shaders.add_scalar_16 import ADD_SCALAR_16
 from models.quantized_klein9b.shaders.add_scalar_21 import ADD_SCALAR_21
 from models.quantized_klein9b.shaders.add_scalar_23 import ADD_SCALAR_23
-from models.quantized_klein9b.shaders.add_scalar_25 import ADD_SCALAR_25
 from models.quantized_klein9b.shaders.cat_2_f32_27 import CAT_2_F32_27
 from models.quantized_klein9b.shaders.cat_2_f32_28 import CAT_2_F32_28
 from models.quantized_klein9b.shaders.cat_2_f32_29 import CAT_2_F32_29
@@ -74,167 +72,223 @@ def _run_flux_double_block_with_tensors(rt: RuntimeSession, tensors: FluxDoubleB
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.img, output=tensors.layer_norm)
     FLUX_DOUBLE_BLOCK_ADD_SCALAR(rt, x=tensors.img_mod1_scale, output=tensors.add)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.add, y=tensors.layer_norm, output=tensors.mul)
+    rt.release_frame_workspace(tensors.add)
+    rt.release_frame_workspace(tensors.layer_norm)
     ADD_BROADCAST_INNER(rt, x=tensors.mul, y=tensors.img_mod1_shift, output=tensors.add_1)
+    rt.release_frame_workspace(tensors.mul)
     LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_1, weight=tensors.p_img_attn_qkv_weight, output=tensors.linear)
+    rt.release_frame_workspace(tensors.add_1)
     PERMUTE_F32_0D3AB17AE3(rt, x=tensors.reshape, output=tensors.permute)
+    rt.release_frame_workspace(tensors.linear)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute, output=tensors.getitem)
     TUPLE_GETITEM_UNBIND_F32_7(rt, x=tensors.permute, output=tensors.getitem_1)
     TUPLE_GETITEM_UNBIND_F32_8(rt, x=tensors.permute, output=tensors.getitem_2)
+    rt.release_frame_workspace(tensors.permute)
     FLUX_DOUBLE_BLOCK_POW_SCALAR_F32(rt, x=tensors.to_1, output=tensors.pow_1)
     FLUX_DOUBLE_BLOCK_MEAN_DIM_F32(rt, x=tensors.pow_1, output=tensors.mean)
+    rt.release_frame_workspace(tensors.pow_1)
     ADD_SCALAR_11(rt, x=tensors.mean, output=tensors.add_2)
+    rt.release_frame_workspace(tensors.mean)
     FLUX_DOUBLE_BLOCK_RSQRT_F32(rt, x=tensors.add_2, output=tensors.rsqrt)
+    rt.release_frame_workspace(tensors.add_2)
     MUL_BROADCAST_13(rt, x=tensors.to_1, y=tensors.rsqrt, output=tensors.mul_1)
+    rt.release_frame_workspace(tensors.getitem)
+    rt.release_frame_workspace(tensors.rsqrt)
     FLUX_DOUBLE_BLOCK_POW_SCALAR_F32(rt, x=tensors.to_4, output=tensors.pow_2)
     FLUX_DOUBLE_BLOCK_MEAN_DIM_F32(rt, x=tensors.pow_2, output=tensors.mean_1)
+    rt.release_frame_workspace(tensors.pow_2)
     ADD_SCALAR_14(rt, x=tensors.mean_1, output=tensors.add_3)
+    rt.release_frame_workspace(tensors.mean_1)
     FLUX_DOUBLE_BLOCK_RSQRT_F32(rt, x=tensors.add_3, output=tensors.rsqrt_1)
+    rt.release_frame_workspace(tensors.add_3)
     MUL_BROADCAST_15(rt, x=tensors.to_4, y=tensors.rsqrt_1, output=tensors.mul_2)
-    FLUX_DOUBLE_BLOCK_POW_SCALAR_F32(rt, x=tensors.to_6, output=tensors.pow_3)
-    FLUX_DOUBLE_BLOCK_MEAN_DIM_F32(rt, x=tensors.pow_3, output=tensors.mean_2)
-    ADD_SCALAR_16(rt, x=tensors.mean_2, output=tensors.add_4)
-    FLUX_DOUBLE_BLOCK_RSQRT_F32(rt, x=tensors.add_4, output=tensors.rsqrt_2)
+    rt.release_frame_workspace(tensors.getitem_1)
+    rt.release_frame_workspace(tensors.rsqrt_1)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_2, y=tensors.p_img_attn_norm_query_norm_scale, output=tensors.mul_3)
+    rt.release_frame_workspace(tensors.mul_1)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_5, y=tensors.p_img_attn_norm_key_norm_scale, output=tensors.mul_4)
+    rt.release_frame_workspace(tensors.mul_2)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.txt, output=tensors.layer_norm_1)
     FLUX_DOUBLE_BLOCK_ADD_SCALAR(rt, x=tensors.txt_mod1_scale, output=tensors.add_5)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.add_5, y=tensors.layer_norm_1, output=tensors.mul_5)
+    rt.release_frame_workspace(tensors.add_5)
+    rt.release_frame_workspace(tensors.layer_norm_1)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_5, y=tensors.txt_mod1_shift, output=tensors.add_6)
+    rt.release_frame_workspace(tensors.mul_5)
     LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_6, weight=tensors.p_txt_attn_qkv_weight, output=tensors.linear_1)
+    rt.release_frame_workspace(tensors.add_6)
     PERMUTE_F32_8475D3A978(rt, x=tensors.reshape_1, output=tensors.permute_1)
+    rt.release_frame_workspace(tensors.linear_1)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_1, output=tensors.getitem_3)
     TUPLE_GETITEM_UNBIND_F32_19(rt, x=tensors.permute_1, output=tensors.getitem_4)
     TUPLE_GETITEM_UNBIND_F32_20(rt, x=tensors.permute_1, output=tensors.getitem_5)
+    rt.release_frame_workspace(tensors.permute_1)
     FLUX_DOUBLE_BLOCK_POW_SCALAR_F32(rt, x=tensors.to_8, output=tensors.pow_4)
     FLUX_DOUBLE_BLOCK_MEAN_DIM_F32(rt, x=tensors.pow_4, output=tensors.mean_3)
+    rt.release_frame_workspace(tensors.pow_4)
     ADD_SCALAR_21(rt, x=tensors.mean_3, output=tensors.add_7)
+    rt.release_frame_workspace(tensors.mean_3)
     FLUX_DOUBLE_BLOCK_RSQRT_F32(rt, x=tensors.add_7, output=tensors.rsqrt_3)
+    rt.release_frame_workspace(tensors.add_7)
     MUL_BROADCAST_22(rt, x=tensors.to_8, y=tensors.rsqrt_3, output=tensors.mul_6)
+    rt.release_frame_workspace(tensors.getitem_3)
+    rt.release_frame_workspace(tensors.rsqrt_3)
     FLUX_DOUBLE_BLOCK_POW_SCALAR_F32(rt, x=tensors.to_11, output=tensors.pow_5)
     FLUX_DOUBLE_BLOCK_MEAN_DIM_F32(rt, x=tensors.pow_5, output=tensors.mean_4)
+    rt.release_frame_workspace(tensors.pow_5)
     ADD_SCALAR_23(rt, x=tensors.mean_4, output=tensors.add_8)
+    rt.release_frame_workspace(tensors.mean_4)
     FLUX_DOUBLE_BLOCK_RSQRT_F32(rt, x=tensors.add_8, output=tensors.rsqrt_4)
+    rt.release_frame_workspace(tensors.add_8)
     MUL_BROADCAST_24(rt, x=tensors.to_11, y=tensors.rsqrt_4, output=tensors.mul_7)
-    FLUX_DOUBLE_BLOCK_POW_SCALAR_F32(rt, x=tensors.to_13, output=tensors.pow_6)
-    FLUX_DOUBLE_BLOCK_MEAN_DIM_F32(rt, x=tensors.pow_6, output=tensors.mean_5)
-    ADD_SCALAR_25(rt, x=tensors.mean_5, output=tensors.add_9)
-    FLUX_DOUBLE_BLOCK_RSQRT_F32(rt, x=tensors.add_9, output=tensors.rsqrt_5)
+    rt.release_frame_workspace(tensors.getitem_4)
+    rt.release_frame_workspace(tensors.rsqrt_4)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_9, y=tensors.p_txt_attn_norm_query_norm_scale, output=tensors.mul_8)
+    rt.release_frame_workspace(tensors.mul_6)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_12, y=tensors.p_txt_attn_norm_key_norm_scale, output=tensors.mul_9)
+    rt.release_frame_workspace(tensors.mul_7)
     FLUX_DOUBLE_BLOCK_CAT_2_F32(rt, x0=tensors.pe_ctx, x1=tensors.pe, output=tensors.cat)
     CAT_2_F32_27(rt, x0=tensors.mul_8, x1=tensors.mul_3, output=tensors.cat_1)
+    rt.release_frame_workspace(tensors.mul_3)
+    rt.release_frame_workspace(tensors.mul_8)
     CAT_2_F32_28(rt, x0=tensors.mul_9, x1=tensors.mul_4, output=tensors.cat_2)
+    rt.release_frame_workspace(tensors.mul_4)
+    rt.release_frame_workspace(tensors.mul_9)
     CAT_2_F32_29(rt, x0=tensors.getitem_5, x1=tensors.getitem_2, output=tensors.cat_3)
+    rt.release_frame_workspace(tensors.getitem_2)
+    rt.release_frame_workspace(tensors.getitem_5)
     SELECT_FLOAT32(rt, x=tensors.cat, output=tensors.select)
     SELECT_FLOAT32(rt, x=tensors.reshape_2, output=tensors.select_1)
     MUL_BROADCAST_31(rt, x=tensors.select, y=tensors.select_1, output=tensors.mul_10)
+    rt.release_frame_workspace(tensors.select)
+    rt.release_frame_workspace(tensors.select_1)
     SELECT_FLOAT32_32(rt, x=tensors.cat, output=tensors.select_2)
     SELECT_FLOAT32_33(rt, x=tensors.reshape_2, output=tensors.select_3)
+    rt.release_frame_workspace(tensors.cat_1)
     MUL_BROADCAST_34(rt, x=tensors.select_2, y=tensors.select_3, output=tensors.mul_11)
+    rt.release_frame_workspace(tensors.select_2)
+    rt.release_frame_workspace(tensors.select_3)
     FLUX_DOUBLE_BLOCK_ADD_F32(rt, x=tensors.mul_10, y=tensors.mul_11, output=tensors.add_10)
+    rt.release_frame_workspace(tensors.mul_10)
+    rt.release_frame_workspace(tensors.mul_11)
     SELECT_FLOAT32(rt, x=tensors.cat, output=tensors.select_4)
     SELECT_FLOAT32(rt, x=tensors.reshape_3, output=tensors.select_5)
     MUL_BROADCAST_36(rt, x=tensors.select_4, y=tensors.select_5, output=tensors.mul_12)
+    rt.release_frame_workspace(tensors.select_4)
+    rt.release_frame_workspace(tensors.select_5)
     SELECT_FLOAT32_37(rt, x=tensors.cat, output=tensors.select_6)
+    rt.release_frame_workspace(tensors.cat)
     SELECT_FLOAT32_38(rt, x=tensors.reshape_3, output=tensors.select_7)
+    rt.release_frame_workspace(tensors.cat_2)
     MUL_BROADCAST_39(rt, x=tensors.select_6, y=tensors.select_7, output=tensors.mul_13)
+    rt.release_frame_workspace(tensors.select_6)
+    rt.release_frame_workspace(tensors.select_7)
     FLUX_DOUBLE_BLOCK_ADD_F32(rt, x=tensors.mul_12, y=tensors.mul_13, output=tensors.add_11)
+    rt.release_frame_workspace(tensors.mul_12)
+    rt.release_frame_workspace(tensors.mul_13)
     FLUX_DOUBLE_BLOCK_SLICE_F32(rt, x=tensors.type_as, output=tensors.slice_1)
     SLICE_F32_41(rt, x=tensors.type_as, output=tensors.slice_2)
     SLICE_F32_42(rt, x=tensors.type_as, output=tensors.slice_3)
+    rt.release_frame_workspace(tensors.add_10)
     FLUX_DOUBLE_BLOCK_SLICE_F32(rt, x=tensors.type_as_1, output=tensors.slice_4)
     FLUX_DOUBLE_BLOCK_SLICE_F32(rt, x=tensors.cat_3, output=tensors.slice_5)
     SLICE_F32_43(rt, x=tensors.type_as_1, output=tensors.slice_6)
     SLICE_F32_44(rt, x=tensors.cat_3, output=tensors.slice_7)
     SLICE_F32_45(rt, x=tensors.type_as_1, output=tensors.slice_8)
+    rt.release_frame_workspace(tensors.add_11)
     SLICE_F32_46(rt, x=tensors.cat_3, output=tensors.slice_9)
+    rt.release_frame_workspace(tensors.cat_3)
     CAT_2_F32_47(rt, x0=tensors.slice_1, x1=tensors.slice_3, output=tensors.cat_4)
+    rt.release_frame_workspace(tensors.slice_1)
+    rt.release_frame_workspace(tensors.slice_3)
     FLUX_DOUBLE_BLOCK_CAT_3_F32(rt, x0=tensors.slice_4, x1=tensors.slice_6, x2=tensors.slice_8, output=tensors.cat_5)
+    rt.release_frame_workspace(tensors.slice_4)
+    rt.release_frame_workspace(tensors.slice_8)
     FLUX_DOUBLE_BLOCK_CAT_3_F32(rt, x0=tensors.slice_5, x1=tensors.slice_7, x2=tensors.slice_9, output=tensors.cat_6)
+    rt.release_frame_workspace(tensors.slice_5)
+    rt.release_frame_workspace(tensors.slice_9)
     SDPA_F32(rt, q=tensors.cat_4, k=tensors.cat_5, v=tensors.cat_6, output=tensors.scaled_dot_product_attention)
+    rt.release_frame_workspace(tensors.cat_4)
+    rt.release_frame_workspace(tensors.cat_5)
+    rt.release_frame_workspace(tensors.cat_6)
     FLUX_DOUBLE_BLOCK_SLICE_F32(rt, x=tensors.scaled_dot_product_attention, output=tensors.slice_10)
     SLICE_F32_50(rt, x=tensors.scaled_dot_product_attention, output=tensors.slice_11)
+    rt.release_frame_workspace(tensors.scaled_dot_product_attention)
     SDPA_F32(rt, q=tensors.slice_2, k=tensors.slice_6, v=tensors.slice_7, output=tensors.scaled_dot_product_attention_1)
+    rt.release_frame_workspace(tensors.slice_2)
+    rt.release_frame_workspace(tensors.slice_6)
+    rt.release_frame_workspace(tensors.slice_7)
     FLUX_DOUBLE_BLOCK_CAT_3_F32(rt, x0=tensors.slice_10, x1=tensors.scaled_dot_product_attention_1, x2=tensors.slice_11, output=tensors.cat_7)
+    rt.release_frame_workspace(tensors.scaled_dot_product_attention_1)
+    rt.release_frame_workspace(tensors.slice_10)
+    rt.release_frame_workspace(tensors.slice_11)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_7, output=tensors.permute_2)
+    rt.release_frame_workspace(tensors.cat_7)
     SLICE_F32_52(rt, x=tensors.reshape_6, output=tensors.slice_12)
     SLICE_F32_53(rt, x=tensors.reshape_6, output=tensors.slice_13)
+    rt.release_frame_workspace(tensors.permute_2)
     LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_13, weight=tensors.p_img_attn_proj_weight, output=tensors.linear_2)
+    rt.release_frame_workspace(tensors.slice_13)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.img_mod1_gate, y=tensors.linear_2, output=tensors.mul_14)
+    rt.release_frame_workspace(tensors.linear_2)
     ADD_F32_54(rt, x=tensors.img, y=tensors.mul_14, output=tensors.add_12)
+    rt.release_frame_workspace(tensors.mul_14)
     FLUX_DOUBLE_BLOCK_ADD_SCALAR(rt, x=tensors.img_mod2_scale, output=tensors.add_13)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_12, output=tensors.layer_norm_2)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.add_13, y=tensors.layer_norm_2, output=tensors.mul_15)
+    rt.release_frame_workspace(tensors.add_13)
+    rt.release_frame_workspace(tensors.layer_norm_2)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_15, y=tensors.img_mod2_shift, output=tensors.add_14)
+    rt.release_frame_workspace(tensors.mul_15)
     LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_14, weight=tensors.p_img_mlp_0_weight, output=tensors.linear_3)
+    rt.release_frame_workspace(tensors.add_14)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_3, output=tensors.getitem_6)
     TUPLE_GETITEM_SLICE_F32_56(rt, x=tensors.linear_3, output=tensors.getitem_7)
+    rt.release_frame_workspace(tensors.linear_3)
     FLUX_DOUBLE_BLOCK_SILU_F32(rt, x=tensors.getitem_6, output=tensors.silu)
+    rt.release_frame_workspace(tensors.getitem_6)
     FLUX_DOUBLE_BLOCK_MUL_F32(rt, x=tensors.silu, y=tensors.getitem_7, output=tensors.mul_16)
+    rt.release_frame_workspace(tensors.getitem_7)
+    rt.release_frame_workspace(tensors.silu)
     LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_16, weight=tensors.p_img_mlp_2_weight, output=tensors.linear_4)
+    rt.release_frame_workspace(tensors.mul_16)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.img_mod2_gate, y=tensors.linear_4, output=tensors.mul_17)
+    rt.release_frame_workspace(tensors.linear_4)
     ADD_F32_59(rt, x=tensors.add_12, y=tensors.mul_17, output=tensors.add_15)
+    rt.release_frame_workspace(tensors.add_12)
+    rt.release_frame_workspace(tensors.mul_17)
     LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_12, weight=tensors.p_txt_attn_proj_weight, output=tensors.linear_5)
+    rt.release_frame_workspace(tensors.slice_12)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.txt_mod1_gate, y=tensors.linear_5, output=tensors.mul_18)
+    rt.release_frame_workspace(tensors.linear_5)
     ADD_F32_60(rt, x=tensors.txt, y=tensors.mul_18, output=tensors.add_16)
+    rt.release_frame_workspace(tensors.mul_18)
     FLUX_DOUBLE_BLOCK_ADD_SCALAR(rt, x=tensors.txt_mod2_scale, output=tensors.add_17)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_16, output=tensors.layer_norm_3)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.add_17, y=tensors.layer_norm_3, output=tensors.mul_19)
+    rt.release_frame_workspace(tensors.add_17)
+    rt.release_frame_workspace(tensors.layer_norm_3)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_19, y=tensors.txt_mod2_shift, output=tensors.add_18)
+    rt.release_frame_workspace(tensors.mul_19)
     LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_18, weight=tensors.p_txt_mlp_0_weight, output=tensors.linear_6)
+    rt.release_frame_workspace(tensors.add_18)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_6, output=tensors.getitem_8)
     TUPLE_GETITEM_SLICE_F32_61(rt, x=tensors.linear_6, output=tensors.getitem_9)
+    rt.release_frame_workspace(tensors.linear_6)
     FLUX_DOUBLE_BLOCK_SILU_F32(rt, x=tensors.getitem_8, output=tensors.silu_1)
+    rt.release_frame_workspace(tensors.getitem_8)
     FLUX_DOUBLE_BLOCK_MUL_F32(rt, x=tensors.silu_1, y=tensors.getitem_9, output=tensors.mul_20)
+    rt.release_frame_workspace(tensors.getitem_9)
+    rt.release_frame_workspace(tensors.silu_1)
     LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_20, weight=tensors.p_txt_mlp_2_weight, output=tensors.linear_7)
+    rt.release_frame_workspace(tensors.mul_20)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.txt_mod2_gate, y=tensors.linear_7, output=tensors.mul_21)
+    rt.release_frame_workspace(tensors.linear_7)
     ADD_F32_62(rt, x=tensors.add_16, y=tensors.mul_21, output=tensors.add_19)
+    rt.release_frame_workspace(tensors.add_16)
+    rt.release_frame_workspace(tensors.mul_21)
 
 
 def run_flux_double_block(rt: RuntimeSession, layer_idx: int) -> None:
     tensors = model_tensors().flux_double_blocks[layer_idx]
     _run_flux_double_block_with_tensors(rt, tensors)
-    rt.release_layer_workspace(
-        tensors,
-        layer=tensors.to_6.layer or "",
-        keep=(
-            tensors.to_6,
-            tensors.to_13,
-            tensors.rsqrt_2,
-            tensors.rsqrt_5,
-            tensors.to_9,
-            tensors.to_2,
-            tensors.to_12,
-            tensors.to_5,
-            tensors.mul_8,
-            tensors.mul_3,
-            tensors.mul_9,
-            tensors.mul_4,
-            tensors.getitem_5,
-            tensors.getitem_2,
-            tensors.to_14,
-            tensors.to_15,
-            tensors.cat_3,
-            tensors.cat,
-            tensors.type_as,
-            tensors.type_as_1,
-            tensors.reshape_6,
-            tensors.slice_12,
-            tensors.slice_13,
-            tensors.linear_2,
-            tensors.add_12,
-            tensors.add_14,
-            tensors.linear_3,
-            tensors.mul_16,
-            tensors.linear_4,
-            tensors.add_15,
-            tensors.linear_5,
-            tensors.add_16,
-            tensors.add_18,
-            tensors.linear_6,
-            tensors.mul_20,
-            tensors.linear_7,
-            tensors.mul_21,
-            tensors.add_19,
-        ),
-    )

@@ -436,6 +436,19 @@ def release_layer_workspace(
         _release_frame_tensor_allocation(rt, tensor, keep=keep)
 
 
+def release_frame_workspace_tensor(rt: RuntimeSession, tensor: LogicalTensor) -> None:
+    rt._require_open()
+    while tensor.alias_source is not None:
+        tensor = tensor.alias_source
+    if tensor.memory not in {MemoryClass.FRAME_WORKSPACE, MemoryClass.OP_SCRATCH}:
+        return
+    if tensor.lifetime not in {TensorLifetime.FRAME, TensorLifetime.OP}:
+        return
+    if tensor.buffer is None:
+        return
+    _release_frame_tensor_allocation(rt, tensor, keep=())
+
+
 def _expand_alias_keep_tensors(keep: Sequence[LogicalTensor]) -> tuple[LogicalTensor, ...]:
     expanded: list[LogicalTensor] = []
     seen: set[int] = set()

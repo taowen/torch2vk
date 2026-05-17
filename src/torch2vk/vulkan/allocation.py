@@ -20,13 +20,6 @@ class BufferOwner(Protocol):
     def close(self) -> None: ...
 
 
-@dataclass(frozen=True, slots=True)
-class GpuTimelinePoint:
-    queue_id: str
-    submit_id: int
-    fence: object
-
-
 @dataclass(slots=True)
 class BufferAllocation:
     buffer: BufferOwner
@@ -35,7 +28,6 @@ class BufferAllocation:
     size_bytes: int | None = None
     vk_allocation: bool = False
     releaser: Callable[["BufferAllocation"], None] | None = None
-    last_use: GpuTimelinePoint | None = None
     _released: bool = False
 
     @property

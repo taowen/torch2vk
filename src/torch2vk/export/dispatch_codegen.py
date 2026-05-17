@@ -121,7 +121,6 @@ def render_model_dispatch_module(
     parameters_source: str = "",
     arguments_source: str = "",
     uses_quantized_linear_dispatch: bool = False,
-    workspace_keep_fields: tuple[str, ...] = (),
 ) -> str:
     return render_template(
         "model_dispatch_module.py.j2",
@@ -137,7 +136,6 @@ def render_model_dispatch_module(
         parameters_source=parameters_source,
         arguments_source=arguments_source,
         uses_quantized_linear_dispatch=uses_quantized_linear_dispatch,
-        workspace_keep_fields=workspace_keep_fields,
     )
 
 
@@ -537,9 +535,10 @@ def _generate_static_dispatch_function(
     node_variants: dict[str, ShaderVariant],
     *,
     q6_variant_op_names: frozenset[str] = frozenset(),
+    escaped_output_names: tuple[str, ...] | None = None,
 ) -> tuple[list[str], dict[str, str]]:
     ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
-    output_names = graph_output_names(graph)
+    output_names = list(escaped_output_names or tuple(graph_output_names(graph)))
     ops = _prune_dead_ops(ops, output_names)
 
     unsupported = [op for op in ops if isinstance(op, _UnsupportedOp)]
@@ -550,11 +549,16 @@ def _generate_static_dispatch_function(
     shader_imports: dict[str, str] = {}
     lines: list[str] = []
     push_constant_params = _dispatch_push_constant_params(ops)
+    release_fields_by_dispatch_index = _release_fields_by_dispatch_index(
+        ops,
+        output_names=output_names,
+    )
     lines.append(
         f"def {function_name}(rt: RuntimeSession, tensors: {class_name}"
         f"{_push_constant_parameters_source(push_constant_params)}) -> None:"
     )
 
+    dispatch_index = 0
     for op in ops:
         if isinstance(op, _AliasOp):
             continue
@@ -567,10 +571,60 @@ def _generate_static_dispatch_function(
                     indent="    ",
                 )
             )
+            for field_name in release_fields_by_dispatch_index.get(dispatch_index, ()):
+                lines.append(f"    rt.release_frame_workspace(tensors.{field_name})")
+            dispatch_index += 1
     if len(lines) == 1:
         lines.append("    pass")
 
     return lines, shader_imports
+
+
+def _release_fields_by_dispatch_index(
+    ops: list[_Op],
+    *,
+    output_names: list[str],
+) -> dict[int, tuple[str, ...]]:
+    alias_sources = _alias_sources(ops)
+    escaped_outputs = {_canonical_node_name(name, alias_sources) for name in output_names}
+    produced = {
+        _canonical_node_name(op.name, alias_sources)
+        for op in ops
+        if isinstance(op, _DispatchOp)
+    }
+    last_use_by_name: dict[str, int] = {}
+    dispatch_index = 0
+    for op in ops:
+        if not isinstance(op, _DispatchOp):
+            continue
+        for binding in op.bindings.values():
+            node_name = binding.removeprefix("tensors.")
+            last_use_by_name[_canonical_node_name(node_name, alias_sources)] = dispatch_index
+        dispatch_index += 1
+
+    release_fields: dict[int, list[str]] = {}
+    for name in sorted(produced):
+        if name in escaped_outputs:
+            continue
+        release_index = last_use_by_name.get(name)
+        if release_index is None:
+            continue
+        release_fields.setdefault(release_index, []).append(name)
+    return {index: tuple(fields) for index, fields in release_fields.items()}
+
+
+def _alias_sources(ops: list[_Op]) -> dict[str, str]:
+    return {op.dst: op.src for op in ops if isinstance(op, _AliasOp)}
+
+
+def _canonical_node_name(name: str, alias_sources: Mapping[str, str]) -> str:
+    seen: set[str] = set()
+    while name in alias_sources:
+        if name in seen:
+            raise RuntimeError(f"Alias cycle detected for {name!r}")
+        seen.add(name)
+        name = alias_sources[name]
+    return name
 
 
 def _collect_ops(
@@ -809,6 +863,7 @@ def generate_dispatch_function_source(
     registry: ShaderRegistry = DEFAULT_REGISTRY,
     weight_prefix: str = "",
     quantization_config: Q4KMQuantizationConfig | None = None,
+    escaped_output_names: tuple[str, ...] | None = None,
 ) -> tuple[str, dict[str, str], dict[str, ShaderVariant]]:
     """Generate dispatch function with static shader imports.
 
@@ -834,9 +889,10 @@ def generate_dispatch_function_source(
         function_name,
         node_variants,
         q6_variant_op_names=q6_variant_op_names,
+        escaped_output_names=escaped_output_names,
     )
     all_ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
-    output_names = graph_output_names(graph)
+    output_names = list(escaped_output_names or tuple(graph_output_names(graph)))
     live_ops = _prune_dead_ops(all_ops, output_names)
     used_variants: dict[str, ShaderVariant] = {}
     for op in live_ops:

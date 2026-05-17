@@ -189,7 +189,7 @@ def _run_denoise(rt: RuntimeSession, *, timesteps: list[float]) -> float:
                 rt.release_layer_workspace(
                     layer_tensors,
                     layer=f"klein9b.flux.double_block.{layer_idx}",
-                    keep=_flux_double_outputs(layer_tensors),
+                    keep=_flux_double_carry_outputs(layer_tensors),
                 )
                 previous_double = layer_tensors
             final_double = tensors.flux_double_blocks[-1]
@@ -231,8 +231,11 @@ def _flux_prologue_outputs(tensors: QuantizedKlein9BTensors) -> tuple[LogicalTen
     return tuple(getattr(tensors.flux_prologue, name) for name in FLUX_PROLOGUE_OUTPUTS.values())
 
 
-def _flux_double_outputs(tensors: FluxDoubleBlockTensors) -> tuple[LogicalTensor, ...]:
-    return tuple(getattr(tensors, name) for name in FLUX_DOUBLE_BLOCK_OUTPUTS.values())
+def _flux_double_carry_outputs(tensors: FluxDoubleBlockTensors) -> tuple[LogicalTensor, ...]:
+    return (
+        getattr(tensors, FLUX_DOUBLE_BLOCK_OUTPUTS["img"]),
+        getattr(tensors, FLUX_DOUBLE_BLOCK_OUTPUTS["txt"]),
+    )
 
 
 def _run_ae_decode(rt: RuntimeSession) -> tuple[float, np.ndarray]:
@@ -310,6 +313,12 @@ def main(
             text_elapsed = _run_text_encoder(rt, rope_theta=1_000_000.0)
             rt.release_model_weights(tensors.text_embed, *tensors.text_layers)
             denoise_elapsed = _run_denoise(rt, timesteps=timesteps)
+            rt.release_model_weights(
+                tensors.flux_prologue,
+                *tensors.flux_double_blocks,
+                *tensors.flux_single_blocks,
+                tensors.flux_final_layer,
+            )
             ae_elapsed, image_array = _run_ae_decode(rt)
     finally:
         rt.close()

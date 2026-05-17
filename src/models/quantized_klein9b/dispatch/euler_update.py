@@ -12,6 +12,7 @@ from torch2vk.runtime.session import RuntimeSession
 def _run_euler_update_with_tensors(rt: RuntimeSession, tensors: EulerUpdateTensors) -> None:
     EULER_UPDATE_MUL_BROADCAST(rt, x=tensors.view, y=tensors.pred, output=tensors.mul)
     EULER_UPDATE_ADD_F32(rt, x=tensors.x, y=tensors.mul, output=tensors.add)
+    rt.release_frame_workspace(tensors.mul)
 
 
 def run_euler_update(rt: RuntimeSession) -> None:

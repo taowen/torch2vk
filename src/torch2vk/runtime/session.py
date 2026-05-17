@@ -26,6 +26,7 @@ from torch2vk.runtime.logical import (
 from torch2vk.runtime import request_state
 from torch2vk.runtime.materialization import (
     materialize_read,
+    release_frame_workspace_tensor,
     release_layer_workspace as release_layer_workspace_impl,
 )
 from torch2vk.runtime.replay_cache import (
@@ -223,6 +224,7 @@ class RuntimeSession:
                 self.device.wait_pending_submits()
                 self._close_replay_plan_cache()
                 request_state._clear_request_state(self)
+                self.device.memory_manager.release_cached_temporary_allocations()
                 self._inputs.clear()
             finally:
                 self._request_active = False
@@ -286,6 +288,9 @@ class RuntimeSession:
         keep: Sequence[LogicalTensor] = (),
     ) -> None:
         release_layer_workspace_impl(self, layer_tensors, layer=layer, keep=keep)
+
+    def release_frame_workspace(self, tensor: LogicalTensor) -> None:
+        release_frame_workspace_tensor(self, tensor)
 
     def grow_request_state(
         self,
@@ -371,6 +376,7 @@ class RuntimeSession:
                     tensor.descriptor_nbytes = None
                     tensor.alias_source = None
                     tensor.writer = None
+        self.device.memory_manager.release_cached_temporary_allocations()
 
     def build_replay_plan(
         self,

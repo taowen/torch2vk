@@ -438,15 +438,6 @@ def _tensor_entry(
     }
 
 
-def layer_workspace_keep_fields(context: TensorClassContext) -> tuple[str, ...]:
-    if not bool(context.get("layered")):
-        return ()
-    output_names = context.get("output_names")
-    if not isinstance(output_names, tuple):
-        return ()
-    return tuple(name for name in output_names if isinstance(name, str) and name)
-
-
 def _node_shape(
     raw_shape: Iterable[object],
     shape_symbol_exprs: Mapping[str, str],

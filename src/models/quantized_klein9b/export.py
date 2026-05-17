@@ -62,7 +62,7 @@ from torch2vk.export.reference_codegen import (
 )
 from torch2vk.export.registry import DEFAULT_REGISTRY
 from torch2vk.export.graph import graph_output_names
-from torch2vk.export.tensor_codegen import layer_workspace_keep_fields, render_tensor_module
+from torch2vk.export.tensor_codegen import render_tensor_module
 from torch2vk.runtime.shader import ShaderVariant
 
 
@@ -187,6 +187,33 @@ def main() -> int:
         write_shader_file(shaders_dir, variant)
         shader_file_count += 1
 
+    def prepare_dispatch_source(
+        *,
+        func_name: str,
+        func_src: str,
+        shader_imports: dict[str, str],
+        used_variants: dict[str, ShaderVariant],
+    ) -> tuple[str, dict[str, str]]:
+        rename_map: dict[str, str] = {}
+        for variant in used_variants.values():
+            existing = seen_shader_variants.get(variant.name)
+            if existing is None:
+                write_generated_shader(variant)
+                continue
+            if existing.contract == variant.contract:
+                continue
+            renamed = rename_shader_variant(variant, f"{func_name}_{variant.name}")
+            rename_map[variant.name] = renamed.name
+            write_generated_shader(renamed)
+
+        for old_name in sorted(rename_map, key=len, reverse=True):
+            new_name = rename_map[old_name]
+            func_src = re.sub(rf"\b{re.escape(old_name.upper())}\b", new_name.upper(), func_src)
+            if old_name in shader_imports:
+                shader_imports[new_name] = new_name.upper()
+                del shader_imports[old_name]
+        return func_src, shader_imports
+
     reference_functions: list[str] = []
     reference_dispatch_imports: list[str] = []
 
@@ -215,6 +242,8 @@ def main() -> int:
         export_activation_dtype: torch.dtype | None = None,
         export_input_dtype: torch.dtype | None = None,
         tensor_spec_overrides: dict[str, TensorSpecOverride] | None = None,
+        semantic_output_names: tuple[str, ...] = (),
+        runtime_output_semantics: tuple[str, ...] = (),
     ) -> tuple[str, ...]:
         module = module.to(dtype=export_weight_dtype)
         export_dtype = module_floating_dtype(module)
@@ -241,6 +270,14 @@ def main() -> int:
             strict=strict,
         )
         output_names = tuple(graph_output_names(prog.graph_module.graph))
+        escaped_output_names = output_names
+        if runtime_output_semantics:
+            output_by_semantic = _output_map(
+                dispatch_name,
+                output_names,
+                semantic_output_names,
+            )
+            escaped_output_names = tuple(output_by_semantic[name] for name in runtime_output_semantics)
         shape_symbol_exprs = _shape_symbol_exprs(prog, shape_symbol_axes or {})
         func_name = dispatch_name.removeprefix("run_")
         tensor_ctx = generate_tensor_class_source(
@@ -270,25 +307,14 @@ def main() -> int:
             registry=registry,
             weight_prefix=weight_prefix,
             quantization_config=quantization_config,
+            escaped_output_names=escaped_output_names,
         )
-        rename_map: dict[str, str] = {}
-        for variant in used_variants.values():
-            existing = seen_shader_variants.get(variant.name)
-            if existing is None:
-                write_generated_shader(variant)
-                continue
-            if existing.contract == variant.contract:
-                continue
-            renamed = rename_shader_variant(variant, f"{func_name}_{variant.name}")
-            rename_map[variant.name] = renamed.name
-            write_generated_shader(renamed)
-
-        for old_name in sorted(rename_map, key=len, reverse=True):
-            new_name = rename_map[old_name]
-            func_src = re.sub(rf"\b{re.escape(old_name.upper())}\b", new_name.upper(), func_src)
-            if old_name in shader_imports:
-                shader_imports[new_name] = new_name.upper()
-                del shader_imports[old_name]
+        func_src, shader_imports = prepare_dispatch_source(
+            func_name=func_name,
+            func_src=func_src,
+            shader_imports=shader_imports,
+            used_variants=used_variants,
+        )
 
         (dispatch_dir / f"{func_name}.py").write_text(
             render_model_dispatch_module(
@@ -309,7 +335,6 @@ def main() -> int:
                 parameters_source=parameters_source,
                 arguments_source=arguments_source,
                 uses_quantized_linear_dispatch="run_quantized_linear(" in func_src,
-                workspace_keep_fields=layer_workspace_keep_fields(tensor_ctx),
             ),
             encoding="utf-8",
         )
@@ -465,6 +490,8 @@ def main() -> int:
         },
         parameters_source=", layer_idx: int",
         is_layered=True,
+        semantic_output_names=FLUX_DOUBLE_BLOCK_OUTPUT_NAMES,
+        runtime_output_semantics=("img", "txt"),
     )
     export_one(
         dispatch_name="run_flux_join",
@@ -562,6 +589,8 @@ def main() -> int:
         },
         parameters_source=", layer_idx: int",
         is_layered=True,
+        semantic_output_names=FLUX_SINGLE_BLOCK_OUTPUT_NAMES,
+        runtime_output_semantics=("hidden_states",),
     )
     flux_final_layer_output_names = export_one(
         dispatch_name="run_flux_final_layer",
@@ -639,7 +668,7 @@ def main() -> int:
                 dispatch_source="_dispatch_flux_prologue",
                 tensors="model_tensors().flux_prologue",
                 frame_name="klein9b.flux.compare.{step:04d}.prologue",
-                policy="tensor",
+                policy="q8_tensor",
                 input_bindings={
                     "x": "x",
                     "x_ids": "x_ids",
@@ -654,7 +683,7 @@ def main() -> int:
                 dispatch_source="_dispatch_flux_double_block",
                 tensors="model_tensors().flux_double_blocks[layer_idx]",
                 frame_name="klein9b.flux.compare.{step:04d}.double_block.{layer_idx}",
-                policy="tensor",
+                policy="q8_tensor",
                 input_bindings={
                     "img": "img",
                     "txt": "txt",
@@ -673,7 +702,10 @@ def main() -> int:
                     "txt_mod2_scale": "txt_mod2_scale",
                     "txt_mod2_gate": "txt_mod2_gate",
                 },
-                output_bindings=flux_double_block_outputs,
+                output_bindings={
+                    "img": flux_double_block_outputs["img"],
+                    "txt": flux_double_block_outputs["txt"],
+                },
                 dispatch_args=("layer_idx",),
             ),
             render_streaming_compare_function(
@@ -681,7 +713,7 @@ def main() -> int:
                 dispatch_source="_dispatch_flux_single_block",
                 tensors="model_tensors().flux_single_blocks[layer_idx]",
                 frame_name="klein9b.flux.compare.{step:04d}.single_block.{layer_idx}",
-                policy="tensor",
+                policy="q8_tensor",
                 input_bindings={
                     "hidden_states": "hidden_states",
                     "pe": "pe",
@@ -689,7 +721,9 @@ def main() -> int:
                     "mod_scale": "mod_scale",
                     "mod_gate": "mod_gate",
                 },
-                output_bindings=flux_single_block_outputs,
+                output_bindings={
+                    "hidden_states": flux_single_block_outputs["hidden_states"],
+                },
                 dispatch_args=("layer_idx",),
             ),
             render_streaming_compare_function(
@@ -697,7 +731,7 @@ def main() -> int:
                 dispatch_source="_dispatch_flux_final_layer",
                 tensors="model_tensors().flux_final_layer",
                 frame_name="klein9b.flux.compare.{step:04d}.final_layer",
-                policy="tensor",
+                policy="q8_tensor",
                 input_bindings={
                     "hidden_states": "hidden_states",
                     "vec": "vec",

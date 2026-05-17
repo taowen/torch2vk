@@ -12,6 +12,7 @@ from torch2vk.runtime.session import RuntimeSession
 def _run_ae_entry_with_tensors(rt: RuntimeSession, tensors: AEEntryTensors) -> None:
     CAST_F32_TO_F16_C3EA119B28(rt, x=tensors.tokens, output=tensors.to)
     PERMUTE_F32_43FEE4AC2B(rt, x=tensors.to, output=tensors.permute)
+    rt.release_frame_workspace(tensors.to)
 
 
 def _require_ae_entry_tensors() -> AEEntryTensors:

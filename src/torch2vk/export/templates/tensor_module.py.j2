@@ -61,7 +61,7 @@ class {{ cls.class_name }}:
                 checkpoint={{ tensor.checkpoint_expr }},
                 checkpoint_key={{ tensor.checkpoint_key_expr }},
                 reference_key={{ tensor.reference_key_expr }},
-                layer={% if cls.layered %}prefix{% else %}None{% endif %},
+                layer=prefix,
                 spec={{ tensor.spec_source }},
                 layout={{ tensor.layout_source }},
                 role={{ tensor.role }},
