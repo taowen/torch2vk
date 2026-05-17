@@ -42,16 +42,13 @@ from models.quantized_klein9b.quantization import (
     qwen3_text_encoder_q8_config,
 )
 from torch2vk.export import (
-    TensorSpecOverride,
     bind_dispatch_function_to_tensors,
-    cast_floating_tensors,
     clear_python_modules,
     clear_shader_package,
     count_python_modules,
     export_submodule,
     generate_dispatch_function_source,
     generate_tensor_class_source,
-    module_floating_dtype,
     rename_shader_variant,
     render_model_dispatch_module,
     write_shader_file,
@@ -240,28 +237,15 @@ def main() -> int:
         is_layered: bool | None = None,
         export_weight_dtype: torch.dtype = torch.float32,
         export_activation_dtype: torch.dtype | None = None,
-        export_input_dtype: torch.dtype | None = None,
-        tensor_spec_overrides: dict[str, TensorSpecOverride] | None = None,
         semantic_output_names: tuple[str, ...] = (),
         runtime_output_semantics: tuple[str, ...] = (),
     ) -> tuple[str, ...]:
         module = module.to(dtype=export_weight_dtype)
-        export_dtype = module_floating_dtype(module)
-        input_dtype = (
-            export_input_dtype
-            if export_input_dtype is not None
-            else export_activation_dtype
-            if export_activation_dtype is not None
-            else export_dtype
-        )
         registry = (
             DEFAULT_REGISTRY.with_activation_dtype(_torch_dtype_name(export_activation_dtype))
             if export_activation_dtype is not None
             else DEFAULT_REGISTRY
         )
-        if input_dtype is not None:
-            args = cast_floating_tensors(args, input_dtype)
-            kwargs = cast_floating_tensors(kwargs, input_dtype)
         prog = export_submodule(
             module,
             args=args,
@@ -291,7 +275,6 @@ def main() -> int:
             quantization_config=quantization_config,
             shape_exprs=shape_exprs,
             shape_symbol_exprs=shape_symbol_exprs,
-            tensor_spec_overrides=tensor_spec_overrides,
         )
         tensor_source = render_tensor_module([tensor_ctx])
         (tensors_dir / f"{tensor_file}.py").write_text(
@@ -400,28 +383,31 @@ def main() -> int:
         tensor_expr="model_tensors().text_context_capture",
         module=TextContextCaptureModule(),
         args=(
-            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, text_hidden_size, device="meta"),
-            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, text_hidden_size, device="meta"),
-            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, text_hidden_size, device="meta"),
+            torch.zeros(
+                1,
+                DEFAULT_TEXT_SEQ_LEN,
+                text_hidden_size,
+                dtype=torch.float16,
+                device="meta",
+            ),
+            torch.zeros(
+                1,
+                DEFAULT_TEXT_SEQ_LEN,
+                text_hidden_size,
+                dtype=torch.float16,
+                device="meta",
+            ),
+            torch.zeros(
+                1,
+                DEFAULT_TEXT_SEQ_LEN,
+                text_hidden_size,
+                dtype=torch.float16,
+                device="meta",
+            ),
         ),
         checkpoint="text_encoder/model.gguf",
         export_activation_dtype=torch.float32,
-        export_input_dtype=torch.float16,
         shape_exprs={DEFAULT_TEXT_SEQ_LEN: "sequence_length"},
-        tensor_spec_overrides={
-            "layer_9": TensorSpecOverride(
-                dtype="float16",
-                shape=(1, "sequence_length", text_hidden_size),
-            ),
-            "layer_18": TensorSpecOverride(
-                dtype="float16",
-                shape=(1, "sequence_length", text_hidden_size),
-            ),
-            "layer_27": TensorSpecOverride(
-                dtype="float16",
-                shape=(1, "sequence_length", text_hidden_size),
-            ),
-        },
     )
     flux_prologue_output_names = export_one(
         dispatch_name="run_flux_prologue",
@@ -773,14 +759,7 @@ def main() -> int:
         args=(torch.zeros(1, DEFAULT_LATENT_HEIGHT, DEFAULT_LATENT_WIDTH, 128, device="meta"),),
         checkpoint="ae/model.gguf",
         export_activation_dtype=torch.float16,
-        export_input_dtype=torch.float32,
         shape_symbol_axes={"tokens": {1: "latent_height", 2: "latent_width"}},
-        tensor_spec_overrides={
-            "tokens": TensorSpecOverride(
-                dtype="float32",
-                shape=(1, "latent_height", "latent_width", 128),
-            ),
-        },
         dynamic_shapes={
             "tokens": {
                 1: torch.export.Dim("latent_height", min=4, max=256),
@@ -801,7 +780,16 @@ def main() -> int:
         create_function="create_ae_decode",
         tensor_expr="_require_ae_decode_tensors()",
         module=ae_decode,
-        args=(torch.zeros(1, 128, DEFAULT_LATENT_HEIGHT, DEFAULT_LATENT_WIDTH, device="meta"),),
+        args=(
+            torch.zeros(
+                1,
+                128,
+                DEFAULT_LATENT_HEIGHT,
+                DEFAULT_LATENT_WIDTH,
+                dtype=torch.float16,
+                device="meta",
+            ),
+        ),
         checkpoint="ae/model.gguf",
         quantization_config=ae_config,
         export_activation_dtype=torch.float16,

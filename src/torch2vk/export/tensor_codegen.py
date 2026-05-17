@@ -42,13 +42,7 @@ class _TensorMeta:
     dtype: str
     kind: _TensorKind
     force_float32: bool = False
-    exact_dtype: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class TensorSpecOverride:
-    dtype: str
-    shape: tuple[Dim, ...]
+    preserve_dtype: bool = False
 
 
 def render_tensor_module(classes: list[TensorClassContext]) -> str:
@@ -167,7 +161,6 @@ def generate_tensor_class_source(
     quantization_config: Q4KMQuantizationConfig | None = None,
     shape_exprs: Mapping[int, str] | None = None,
     shape_symbol_exprs: Mapping[str, str] | None = None,
-    tensor_spec_overrides: Mapping[str, TensorSpecOverride] | None = None,
 ) -> TensorClassContext:
     """Generate tensor dataclass + factory function context for a single submodule."""
     graph = prog.graph_module.graph
@@ -189,6 +182,7 @@ def generate_tensor_class_source(
                         shape=shape,
                         dtype=dtype,
                         kind=_TensorKind.PARAMETER if is_param else _TensorKind.USER_INPUT,
+                        preserve_dtype=not is_param and _user_input_preserves_graph_dtype(node),
                     )
                     if is_param:
                         param_map[spec.arg.name] = f"{weight_prefix}{spec.target}"
@@ -210,6 +204,7 @@ def generate_tensor_class_source(
                     kind=_TensorKind.INTERMEDIATE,
                     force_float32=requires_float32_intermediate(node)
                     or _alias_reads_checkpoint_float32(node),
+                    preserve_dtype=_preserves_graph_dtype(node) and not is_alias_op(node),
                 )
 
     output_name = _find_output_name(graph, tensors)
@@ -243,16 +238,7 @@ def generate_tensor_class_source(
         is_layered = any(re.search(r"\.layers\.\d+\.", v) for v in param_map.values())
 
     tensor_entries = []
-    spec_overrides = tensor_spec_overrides or {}
     for name, meta in tensors.items():
-        override = spec_overrides.get(name)
-        if override is not None:
-            meta = _TensorMeta(
-                shape=override.shape,
-                dtype=override.dtype,
-                kind=meta.kind,
-                exact_dtype=True,
-            )
         tensor_entries.append(
             _tensor_entry(
                 name=name,
@@ -370,15 +356,7 @@ def _tensor_entry(
     activation_dtype: str = "float16",
 ) -> dict[str, object]:
     kind = meta.kind
-    if meta.exact_dtype:
-        dtype = meta.dtype
-    else:
-        dtype = logical_tensor_dtype(
-            is_parameter=kind == _TensorKind.PARAMETER,
-            dtype=meta.dtype,
-            activation_dtype=activation_dtype,
-            force_float32=meta.force_float32,
-        )
+    dtype = _logical_tensor_dtype(meta, activation_dtype=activation_dtype)
     shape = meta.shape
     layout_source = "CONTIGUOUS_LAYOUT"
     spec_source = (
@@ -399,12 +377,12 @@ def _tensor_entry(
         layout_source = quantized.layout_source
         spec_source = (
             f"_quantized_weight_spec({checkpoint_key}, "
-            f"dtype={logical_tensor_dtype(is_parameter=True, dtype=meta.dtype, activation_dtype=activation_dtype, force_float32=meta.force_float32)!r}, "
+            f"dtype={_logical_tensor_dtype(meta, activation_dtype=activation_dtype)!r}, "
             f"shape={_shape_source(meta.shape, shape_exprs or {}, shape_symbol_exprs or {})})"
         )
         layout_source = (
             f"_quantized_weight_layout({checkpoint_key}, "
-            f"dtype={logical_tensor_dtype(is_parameter=True, dtype=meta.dtype, activation_dtype=activation_dtype, force_float32=meta.force_float32)!r}, "
+            f"dtype={_logical_tensor_dtype(meta, activation_dtype=activation_dtype)!r}, "
             f"shape={_shape_source(meta.shape, shape_exprs or {}, shape_symbol_exprs or {})})"
         )
     if kind == _TensorKind.PARAMETER:
@@ -436,6 +414,17 @@ def _tensor_entry(
         "memory": memory,
         "lifetime": lifetime,
     }
+
+
+def _logical_tensor_dtype(meta: _TensorMeta, *, activation_dtype: str) -> str:
+    if meta.preserve_dtype:
+        return meta.dtype
+    return logical_tensor_dtype(
+        is_parameter=meta.kind == _TensorKind.PARAMETER,
+        dtype=meta.dtype,
+        activation_dtype=activation_dtype,
+        force_float32=meta.force_float32,
+    )
 
 
 def _node_shape(
@@ -523,6 +512,26 @@ def _node_dtype(node: Node) -> str:
     if tm is None:
         return ""
     return str(tm.dtype).removeprefix("torch.")
+
+
+def _preserves_graph_dtype(node: Node) -> bool:
+    return str(node.target) in {
+        "aten.to.dtype",
+        "aten.to.device",
+        "aten.to.dtype_layout",
+        "aten.type_as.default",
+    }
+
+
+def _user_input_preserves_graph_dtype(node: Node) -> bool:
+    if _node_dtype(node) in {"int64", "int32", "uint32"}:
+        return True
+    return any(
+        user.op == "call_function"
+        and _preserves_graph_dtype(user)
+        and not is_alias_op(user)
+        for user in node.users
+    )
 
 
 def _alias_reads_checkpoint_float32(node: Node) -> bool:
