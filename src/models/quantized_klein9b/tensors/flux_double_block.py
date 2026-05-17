@@ -380,7 +380,7 @@ def create_flux_double_block(
     add_19: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> FluxDoubleBlockTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'slice_13', 'add_12', 'to_13', 'to_14', 'to_9', 'linear_3', 'add_19', 'mul_16', 'getitem_5', 'add_14', 'add_18', 'rsqrt_5', 'getitem_2', 'linear_6', 'add_16', 'to_5', 'linear_2', 'mul_9', 'type_as', 'type_as_1', 'slice_12', 'to_6', 'cat_3', 'linear_5', 'mul_20', 'mul_3', 'to_2', 'rsqrt_2', 'linear_4', 'mul_8', 'linear_7', 'mul_21', 'to_15', 'cat', 'add_15', 'to_12', 'reshape_6', 'mul_4'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('to_6', 'to_13', 'rsqrt_2', 'rsqrt_5', 'to_9', 'to_2', 'to_12', 'to_5', 'mul_8', 'mul_3', 'mul_9', 'mul_4', 'getitem_5', 'getitem_2', 'to_14', 'to_15', 'cat_3', 'cat', 'type_as', 'type_as_1', 'reshape_6', 'slice_12', 'slice_13', 'linear_2', 'add_12', 'add_14', 'linear_3', 'mul_16', 'linear_4', 'add_15', 'linear_5', 'add_16', 'add_18', 'linear_6', 'mul_20', 'linear_7', 'mul_21', 'add_19')))
     tensors = FluxDoubleBlockTensors(
         p_img_attn_qkv_weight=_bind_tensor(
             p_img_attn_qkv_weight,

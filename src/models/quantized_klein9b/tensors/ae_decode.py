@@ -168,8 +168,6 @@ class AeDecodeTensors:
     b_bn_running_var: LogicalTensor
     b_bn_running_mean: LogicalTensor
     tokens: LogicalTensor
-    permute: LogicalTensor
-    contiguous: LogicalTensor
     view: LogicalTensor
     add: LogicalTensor
     sqrt: LogicalTensor
@@ -177,7 +175,7 @@ class AeDecodeTensors:
     mul: LogicalTensor
     add_1: LogicalTensor
     reshape: LogicalTensor
-    permute_1: LogicalTensor
+    permute: LogicalTensor
     reshape_1: LogicalTensor
     conv2d: LogicalTensor
     conv2d_1: LogicalTensor
@@ -194,18 +192,18 @@ class AeDecodeTensors:
     conv2d_4: LogicalTensor
     conv2d_5: LogicalTensor
     conv2d_6: LogicalTensor
-    permute_2: LogicalTensor
+    permute_1: LogicalTensor
     reshape_2: LogicalTensor
+    contiguous: LogicalTensor
+    permute_2: LogicalTensor
+    reshape_3: LogicalTensor
     contiguous_1: LogicalTensor
     permute_3: LogicalTensor
-    reshape_3: LogicalTensor
-    contiguous_2: LogicalTensor
-    permute_4: LogicalTensor
     reshape_4: LogicalTensor
-    contiguous_3: LogicalTensor
+    contiguous_2: LogicalTensor
     scaled_dot_product_attention: LogicalTensor
     reshape_5: LogicalTensor
-    permute_5: LogicalTensor
+    permute_4: LogicalTensor
     conv2d_7: LogicalTensor
     add_3: LogicalTensor
     group_norm_3: LogicalTensor
@@ -491,8 +489,6 @@ def create_ae_decode(
     b_bn_running_var: LogicalTensor | None = None,
     b_bn_running_mean: LogicalTensor | None = None,
     tokens: LogicalTensor | None = None,
-    permute: LogicalTensor | None = None,
-    contiguous: LogicalTensor | None = None,
     view: LogicalTensor | None = None,
     add: LogicalTensor | None = None,
     sqrt: LogicalTensor | None = None,
@@ -500,7 +496,7 @@ def create_ae_decode(
     mul: LogicalTensor | None = None,
     add_1: LogicalTensor | None = None,
     reshape: LogicalTensor | None = None,
-    permute_1: LogicalTensor | None = None,
+    permute: LogicalTensor | None = None,
     reshape_1: LogicalTensor | None = None,
     conv2d: LogicalTensor | None = None,
     conv2d_1: LogicalTensor | None = None,
@@ -517,18 +513,18 @@ def create_ae_decode(
     conv2d_4: LogicalTensor | None = None,
     conv2d_5: LogicalTensor | None = None,
     conv2d_6: LogicalTensor | None = None,
-    permute_2: LogicalTensor | None = None,
+    permute_1: LogicalTensor | None = None,
     reshape_2: LogicalTensor | None = None,
+    contiguous: LogicalTensor | None = None,
+    permute_2: LogicalTensor | None = None,
+    reshape_3: LogicalTensor | None = None,
     contiguous_1: LogicalTensor | None = None,
     permute_3: LogicalTensor | None = None,
-    reshape_3: LogicalTensor | None = None,
-    contiguous_2: LogicalTensor | None = None,
-    permute_4: LogicalTensor | None = None,
     reshape_4: LogicalTensor | None = None,
-    contiguous_3: LogicalTensor | None = None,
+    contiguous_2: LogicalTensor | None = None,
     scaled_dot_product_attention: LogicalTensor | None = None,
     reshape_5: LogicalTensor | None = None,
-    permute_5: LogicalTensor | None = None,
+    permute_4: LogicalTensor | None = None,
     conv2d_7: LogicalTensor | None = None,
     add_3: LogicalTensor | None = None,
     group_norm_3: LogicalTensor | None = None,
@@ -663,7 +659,7 @@ def create_ae_decode(
     conv2d_39: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> AeDecodeTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'conv2d_39'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('conv2d_39',)))
     tensors = AeDecodeTensors(
         p_decoder_post_quant_conv_weight=_bind_tensor(
             p_decoder_post_quant_conv_weight,
@@ -2802,42 +2798,12 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key=None,
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, latent_height, latent_width, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, latent_height, latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
                 request_state='tokens' in request_state_outputs,
-            ),
-        ),
-        permute=_bind_tensor(
-            permute,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='permute',
-                layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, latent_height, latent_width)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='permute' in request_state_outputs,
-            ),
-        ),
-        contiguous=_bind_tensor(
-            contiguous,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='contiguous',
-                layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, latent_height, latent_width)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='contiguous' in request_state_outputs,
             ),
         ),
         view=_bind_tensor(
@@ -2945,19 +2911,19 @@ def create_ae_decode(
                 request_state='reshape' in request_state_outputs,
             ),
         ),
-        permute_1=_bind_tensor(
-            permute_1,
+        permute=_bind_tensor(
+            permute,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='permute_1',
+                reference_key='permute',
                 layer=None,
                 spec=TensorSpec(dtype='float16', shape=(1, 32, latent_height, 2, latent_width, 2)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='permute_1' in request_state_outputs,
+                request_state='permute' in request_state_outputs,
             ),
         ),
         reshape_1=_bind_tensor(
@@ -3200,19 +3166,19 @@ def create_ae_decode(
                 request_state='conv2d_6' in request_state_outputs,
             ),
         ),
-        permute_2=_bind_tensor(
-            permute_2,
+        permute_1=_bind_tensor(
+            permute_1,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='permute_2',
+                reference_key='permute_1',
                 layer=None,
                 spec=TensorSpec(dtype='float16', shape=(1, 2*latent_height, 2*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='permute_2' in request_state_outputs,
+                request_state='permute_1' in request_state_outputs,
             ),
         ),
         reshape_2=_bind_tensor(
@@ -3228,6 +3194,51 @@ def create_ae_decode(
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
                 request_state='reshape_2' in request_state_outputs,
+            ),
+        ),
+        contiguous=_bind_tensor(
+            contiguous,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='contiguous',
+                layer=None,
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='contiguous' in request_state_outputs,
+            ),
+        ),
+        permute_2=_bind_tensor(
+            permute_2,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='permute_2',
+                layer=None,
+                spec=TensorSpec(dtype='float16', shape=(1, 2*latent_height, 2*latent_width, 512)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='permute_2' in request_state_outputs,
+            ),
+        ),
+        reshape_3=_bind_tensor(
+            reshape_3,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='reshape_3',
+                layer=None,
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='reshape_3' in request_state_outputs,
             ),
         ),
         contiguous_1=_bind_tensor(
@@ -3260,51 +3271,6 @@ def create_ae_decode(
                 request_state='permute_3' in request_state_outputs,
             ),
         ),
-        reshape_3=_bind_tensor(
-            reshape_3,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='reshape_3',
-                layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='reshape_3' in request_state_outputs,
-            ),
-        ),
-        contiguous_2=_bind_tensor(
-            contiguous_2,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='contiguous_2',
-                layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='contiguous_2' in request_state_outputs,
-            ),
-        ),
-        permute_4=_bind_tensor(
-            permute_4,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='permute_4',
-                layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 2*latent_height, 2*latent_width, 512)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='permute_4' in request_state_outputs,
-            ),
-        ),
         reshape_4=_bind_tensor(
             reshape_4,
             _declare_tensor(
@@ -3320,19 +3286,19 @@ def create_ae_decode(
                 request_state='reshape_4' in request_state_outputs,
             ),
         ),
-        contiguous_3=_bind_tensor(
-            contiguous_3,
+        contiguous_2=_bind_tensor(
+            contiguous_2,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='contiguous_3',
+                reference_key='contiguous_2',
                 layer=None,
                 spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='contiguous_3' in request_state_outputs,
+                request_state='contiguous_2' in request_state_outputs,
             ),
         ),
         scaled_dot_product_attention=_bind_tensor(
@@ -3365,19 +3331,19 @@ def create_ae_decode(
                 request_state='reshape_5' in request_state_outputs,
             ),
         ),
-        permute_5=_bind_tensor(
-            permute_5,
+        permute_4=_bind_tensor(
+            permute_4,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='permute_5',
+                reference_key='permute_4',
                 layer=None,
                 spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='permute_5' in request_state_outputs,
+                request_state='permute_4' in request_state_outputs,
             ),
         ),
         conv2d_7=_bind_tensor(
@@ -5362,17 +5328,16 @@ def create_ae_decode(
         ),
     )
     bind_logical_tensor_names(tensors, prefix)
-    _bind_alias_source(tensors.permute, tensors.contiguous)
     _bind_alias_source(tensors.b_bn_running_var, tensors.view)
     _bind_alias_source(tensors.b_bn_running_mean, tensors.view_1)
     _bind_alias_source(tensors.add_1, tensors.reshape)
-    _bind_alias_source(tensors.permute_1, tensors.reshape_1)
-    _bind_alias_source(tensors.permute_2, tensors.reshape_2)
-    _bind_alias_source(tensors.reshape_2, tensors.contiguous_1)
-    _bind_alias_source(tensors.permute_3, tensors.reshape_3)
-    _bind_alias_source(tensors.reshape_3, tensors.contiguous_2)
-    _bind_alias_source(tensors.permute_4, tensors.reshape_4)
-    _bind_alias_source(tensors.reshape_4, tensors.contiguous_3)
+    _bind_alias_source(tensors.permute, tensors.reshape_1)
+    _bind_alias_source(tensors.permute_1, tensors.reshape_2)
+    _bind_alias_source(tensors.reshape_2, tensors.contiguous)
+    _bind_alias_source(tensors.permute_2, tensors.reshape_3)
+    _bind_alias_source(tensors.reshape_3, tensors.contiguous_1)
+    _bind_alias_source(tensors.permute_3, tensors.reshape_4)
+    _bind_alias_source(tensors.reshape_4, tensors.contiguous_2)
     _bind_alias_source(tensors.scaled_dot_product_attention, tensors.reshape_5)
     _bind_alias_source(tensors.add_4, tensors.to)
     return tensors

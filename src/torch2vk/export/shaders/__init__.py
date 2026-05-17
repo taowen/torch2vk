@@ -4,6 +4,7 @@ from torch2vk.export.shaders.add_f32 import make_add_variant
 from torch2vk.export.shaders.arange_f32 import make_arange_variant
 from torch2vk.export.shaders.argmax_f32 import make_argmax_variant
 from torch2vk.export.shaders.cat_f32 import make_cat_variant
+from torch2vk.export.shaders.cast_f32 import make_cast_variant
 from torch2vk.export.shaders.conv1d_f32 import make_conv1d_variant
 from torch2vk.export.shaders.conv1d_quantized import make_conv1d_q8_0_variant
 from torch2vk.export.shaders.conv2d_f32 import make_conv2d_variant
@@ -80,6 +81,7 @@ __all__ = [
     "make_arange_variant",
     "make_argmax_variant",
     "make_cat_variant",
+    "make_cast_variant",
     "make_conv1d_q8_0_variant",
     "make_conv1d_variant",
     "make_conv_transpose1d_q8_0_variant",

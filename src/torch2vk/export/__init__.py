@@ -30,6 +30,7 @@ from torch2vk.export.reference_codegen import (
 )
 from torch2vk.export.tensor_codegen import (
     TensorClassContext,
+    TensorSpecOverride,
     generate_tensor_class_source,
     generate_weight_tensor_class_source,
 )
@@ -50,6 +51,7 @@ __all__ = [
     "read_checkpoint_dtypes",
     "ReferencePolicy",
     "TensorClassContext",
+    "TensorSpecOverride",
     "bind_dispatch_function_to_tensors",
     "cast_floating_tensors",
     "clear_python_modules",

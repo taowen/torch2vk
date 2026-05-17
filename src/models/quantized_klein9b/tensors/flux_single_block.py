@@ -214,7 +214,7 @@ def create_flux_single_block(
     add_6: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> FluxSingleBlockTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'mul_10', 'add_1', 'reshape_5', 'getitem_1', 'layer_norm', 'linear', 'linear_1', 'add_6', 'to_5', 'type_as', 'mul_9', 'to_4', 'type_as_1', 'to_6', 'to_2', 'to_7', 'getitem_4', 'cat_4', 'to_1'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('layer_norm', 'add_1', 'linear', 'to_1', 'to_4', 'getitem_4', 'to_2', 'to_5', 'to_6', 'to_7', 'type_as', 'type_as_1', 'reshape_5', 'getitem_1', 'mul_9', 'cat_4', 'linear_1', 'mul_10', 'add_6')))
     tensors = FluxSingleBlockTensors(
         p_linear1_weight=_bind_tensor(
             p_linear1_weight,

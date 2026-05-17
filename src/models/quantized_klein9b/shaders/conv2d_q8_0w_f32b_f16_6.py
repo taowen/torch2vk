@@ -1,4 +1,4 @@
-"""Generated shader: conv2d_q8_0w_f32b_f16_12."""
+"""Generated shader: conv2d_q8_0w_f32b_f16_6."""
 
 from __future__ import annotations
 
@@ -22,12 +22,12 @@ from torch2vk.vulkan.types import (
 )
 
 
-CONV2D_Q8_0W_F32B_F16_12 = ShaderVariant(
-    name='conv2d_q8_0w_f32b_f16_12',
+CONV2D_Q8_0W_F32B_F16_6 = ShaderVariant(
+    name='conv2d_q8_0w_f32b_f16_6',
     family='export',
     contract=ShaderContract(
         class_name='ExportConv2dQ8_0WeightF32BiasProgram',
-        shader_name='conv2d_q8_0w_f32b_f16_12',
+        shader_name='conv2d_q8_0w_f32b_f16_6',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -39,7 +39,7 @@ CONV2D_Q8_0W_F32B_F16_12 = ShaderVariant(
                 name='weight',
                 io_kind=IOKind.INPUT,
                 role='weight',
-                contract=TensorContract(dtype='uint16', shape=('Co', 2448,), layout=q8_0_halfwords_layout(logical_k=4608, block_size=32, halfwords_per_block=17)),
+                contract=TensorContract(dtype='uint16', shape=('Co', 153,), layout=q8_0_halfwords_layout(logical_k=288, block_size=32, halfwords_per_block=17)),
             ),
             TensorFieldSpec(
                 name='bias',

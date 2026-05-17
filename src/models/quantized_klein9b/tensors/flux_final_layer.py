@@ -69,7 +69,7 @@ def create_flux_final_layer(
     linear_1: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> FluxFinalLayerTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'linear_1'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('linear_1',)))
     tensors = FluxFinalLayerTensors(
         p_final_layer_linear_weight=_bind_tensor(
             p_final_layer_linear_weight,

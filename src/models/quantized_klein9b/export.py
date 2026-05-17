@@ -17,13 +17,6 @@ from transformers import AutoConfig
 from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM
 
 from models.quantized_klein9b.autoencoder import AutoEncoder, AutoEncoderParams
-from models.quantized_klein9b.custom_shaders import (
-    KLEIN9B_CAPTURE_QWEN3_CTX_F32,
-    KLEIN9B_CAT_PE_F32,
-    KLEIN9B_CAT_TXT_IMG_F32,
-    KLEIN9B_EULER_UPDATE_F32,
-    KLEIN9B_LATENT_F32_TO_F16,
-)
 from models.quantized_klein9b.model_sources import resolve_model_dirs
 from models.quantized_klein9b.pytorch_modules import (
     DoubleStreamBlock,
@@ -38,6 +31,7 @@ from models.quantized_klein9b.quantization import (
     qwen3_text_encoder_q8_config,
 )
 from torch2vk.export import (
+    TensorSpecOverride,
     bind_dispatch_function_to_tensors,
     cast_floating_tensors,
     clear_python_modules,
@@ -78,7 +72,7 @@ class AEDecodeModule(nn.Module):
         self.ps = ae.ps
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
-        z = tokens.permute(0, 3, 1, 2).contiguous()
+        z = tokens
         running_var = self.bn.running_var
         running_mean = self.bn.running_mean
         if running_var is None or running_mean is None:
@@ -93,6 +87,36 @@ class AEDecodeModule(nn.Module):
             pj=self.ps[1],
         )
         return self.decoder(z)
+
+
+class AEEntryModule(nn.Module):
+    def forward(self, tokens: torch.Tensor) -> torch.Tensor:
+        return tokens.to(torch.float16).permute(0, 3, 1, 2).contiguous()
+
+
+class TextContextCaptureModule(nn.Module):
+    def forward(
+        self,
+        layer_9: torch.Tensor,
+        layer_18: torch.Tensor,
+        layer_27: torch.Tensor,
+    ) -> torch.Tensor:
+        return torch.cat((layer_9.float(), layer_18.float(), layer_27.float()), dim=-1)
+
+
+class FluxJoinModule(nn.Module):
+    def forward(self, txt: torch.Tensor, img: torch.Tensor) -> torch.Tensor:
+        return torch.cat((txt, img), dim=1)
+
+
+class FluxPeJoinModule(nn.Module):
+    def forward(self, pe_ctx: torch.Tensor, pe_x: torch.Tensor) -> torch.Tensor:
+        return torch.cat((pe_ctx, pe_x), dim=2)
+
+
+class EulerUpdateModule(nn.Module):
+    def forward(self, x: torch.Tensor, pred: torch.Tensor, dt: torch.Tensor) -> torch.Tensor:
+        return x + dt.view(1, 1, 1) * pred
 
 
 class FluxPrologueModule(nn.Module):
@@ -317,7 +341,13 @@ from models.quantized_klein9b.tensors.ae_decode import (
     AeDecodeTensors,
     create_ae_decode,
 )
+from models.quantized_klein9b.tensors.ae_entry import AE_ENTRY_OUTPUT, AEEntryTensors, create_ae_entry
 from models.quantized_klein9b.tensors.embed_tokens import EmbedTokensTensors, create_embed_tokens
+from models.quantized_klein9b.tensors.euler_update import (
+    EULER_UPDATE_OUTPUT,
+    EulerUpdateTensors,
+    create_euler_update,
+)
 from models.quantized_klein9b.tensors.flux import FLUX_OUTPUT, FluxTensors, create_flux
 from models.quantized_klein9b.tensors.flux_double_block import (
     FluxDoubleBlockTensors,
@@ -335,10 +365,22 @@ from models.quantized_klein9b.tensors.flux_single_block import (
     FluxSingleBlockTensors,
     create_flux_single_block,
 )
+from models.quantized_klein9b.tensors.flux_join import FLUX_JOIN_OUTPUT, FluxJoinTensors, create_flux_join
+from models.quantized_klein9b.tensors.flux_pe_join import (
+    FLUX_PE_JOIN_OUTPUT,
+    FluxPeJoinTensors,
+    create_flux_pe_join,
+)
 from models.quantized_klein9b.tensors.rope import RopeTableTensors, create_rope_table
+from models.quantized_klein9b.tensors.text_context_capture import (
+    TEXT_CONTEXT_CAPTURE_OUTPUT,
+    TextContextCaptureTensors,
+    create_text_context_capture,
+)
 from models.quantized_klein9b.tensors.text_layer import TextLayerTensors, create_text_layer
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.logical import (
+    bind_logical_tensor_alias,
     bind_logical_tensor_names,
     MemoryClass,
     TensorLifetime,
@@ -353,15 +395,20 @@ class QuantizedKlein9BTensors:
     text_rope: RopeTableTensors
     text_embed: EmbedTokensTensors
     text_layers: tuple[TextLayerTensors, ...]
+    text_context_capture: TextContextCaptureTensors
     ctx: LogicalTensor
     latent_tokens: LogicalTensor
+    ae_entry: AEEntryTensors | None
     flux_hidden_states: LogicalTensor
     flux_pe: LogicalTensor
+    flux_join: FluxJoinTensors
+    flux_pe_join: FluxPeJoinTensors
     flux: FluxTensors
     flux_prologue: FluxPrologueTensors
     flux_double_blocks: tuple[FluxDoubleBlockTensors, ...]
     flux_single_blocks: tuple[FluxSingleBlockTensors, ...]
     flux_final_layer: FluxFinalLayerTensors
+    euler_update: EulerUpdateTensors
     ae_decode: AeDecodeTensors | None
 
 
@@ -411,8 +458,16 @@ def create_model_tensors(
         text_hidden = layer_tensors.add_7
     text_layers = tuple(text_layers_list)
     ctx = _request_state_tensor("float32", (1, text_seq_len, text_hidden_size * 3))
+    text_context_capture = create_text_context_capture(
+        "klein9b.text.ctx",
+        sequence_length=text_seq_len,
+        layer_9=text_layers[8].add_7,
+        layer_18=text_layers[17].add_7,
+        layer_27=text_layers[26].add_7,
+        cat=ctx,
+        request_state_outputs=frozenset((TEXT_CONTEXT_CAPTURE_OUTPUT,)),
+    )
     latent_tokens = _request_state_tensor("float32", (1, image_seq_len, 128))
-    ae_tokens = _request_state_tensor("float16", (1, latent_height, latent_width, 128))
     flux_hidden_states = _frame_workspace_tensor(
         "float32",
         (1, text_seq_len + image_seq_len, text_hidden_size),
@@ -469,6 +524,23 @@ def create_model_tensors(
         flux_img = getattr(layer_tensors, FLUX_DOUBLE_BLOCK_OUTPUTS["img"])
         flux_txt = getattr(layer_tensors, FLUX_DOUBLE_BLOCK_OUTPUTS["txt"])
     flux_double_blocks = tuple(flux_double_blocks_list)
+    final_double = flux_double_blocks[-1]
+    flux_join = create_flux_join(
+        "klein9b.flux.join",
+        image_seq_len=image_seq_len,
+        text_seq_len=text_seq_len,
+        txt=getattr(final_double, FLUX_DOUBLE_BLOCK_OUTPUTS["txt"]),
+        img=getattr(final_double, FLUX_DOUBLE_BLOCK_OUTPUTS["img"]),
+        cat=flux_hidden_states,
+    )
+    flux_pe_join = create_flux_pe_join(
+        "klein9b.flux.pe_join",
+        image_seq_len=image_seq_len,
+        text_seq_len=text_seq_len,
+        pe_ctx=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["pe_ctx"]),
+        pe_x=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["pe_x"]),
+        cat=flux_pe,
+    )
     flux_single_hidden = flux_hidden_states
     flux_single_blocks_list: list[FluxSingleBlockTensors] = []
     for layer_idx in range(24):
@@ -493,31 +565,55 @@ def create_model_tensors(
         hidden_states=flux_single_hidden,
         vec=flux_vec,
     )
+    euler_update = create_euler_update(
+        "klein9b.flux.euler_update",
+        image_seq_len=image_seq_len,
+        x=latent_tokens,
+        pred=getattr(flux_final_layer, FLUX_FINAL_LAYER_OUTPUTS["pred"]),
+        add=latent_tokens,
+        request_state_outputs=frozenset((EULER_UPDATE_OUTPUT,)),
+    )
+    ae_entry = None
     ae_decode = (
-        create_ae_decode(
-            "klein9b.ae_decode",
-            latent_height=latent_height,
-            latent_width=latent_width,
-            tokens=ae_tokens,
-            request_state_outputs=frozenset((AE_DECODE_OUTPUT,)),
-        )
+        None
         if include_ae_decode
         else None
     )
+    if include_ae_decode:
+        ae_latent_tokens = _request_state_tensor("float32", (1, latent_height, latent_width, 128))
+        ae_entry = create_ae_entry(
+            "klein9b.ae_entry",
+            latent_height=latent_height,
+            latent_width=latent_width,
+            tokens=ae_latent_tokens,
+        )
+        bind_logical_tensor_alias(latent_tokens, ae_latent_tokens)
+        ae_decode = create_ae_decode(
+            "klein9b.ae_decode",
+            latent_height=latent_height,
+            latent_width=latent_width,
+            tokens=getattr(ae_entry, AE_ENTRY_OUTPUT),
+            request_state_outputs=frozenset((AE_DECODE_OUTPUT,)),
+        )
     _MODEL_TENSORS = QuantizedKlein9BTensors(
         input_ids=input_ids,
         text_rope=text_rope,
         text_embed=text_embed,
         text_layers=text_layers,
+        text_context_capture=text_context_capture,
         ctx=ctx,
         latent_tokens=latent_tokens,
+        ae_entry=ae_entry,
         flux_hidden_states=flux_hidden_states,
         flux_pe=flux_pe,
+        flux_join=flux_join,
+        flux_pe_join=flux_pe_join,
         flux=flux,
         flux_prologue=flux_prologue,
         flux_double_blocks=flux_double_blocks,
         flux_single_blocks=flux_single_blocks,
         flux_final_layer=flux_final_layer,
+        euler_update=euler_update,
         ae_decode=ae_decode,
     )
     bind_logical_tensor_names(_MODEL_TENSORS)
@@ -642,15 +738,6 @@ def main() -> int:
         write_shader_file(shaders_dir, variant)
         shader_file_count += 1
 
-    for custom_variant in (
-        KLEIN9B_CAPTURE_QWEN3_CTX_F32,
-        KLEIN9B_CAT_PE_F32,
-        KLEIN9B_CAT_TXT_IMG_F32,
-        KLEIN9B_EULER_UPDATE_F32,
-        KLEIN9B_LATENT_F32_TO_F16,
-    ):
-        write_generated_shader(custom_variant)
-
     reference_functions: list[str] = []
     reference_dispatch_imports: list[str] = []
 
@@ -677,10 +764,18 @@ def main() -> int:
         is_layered: bool | None = None,
         export_weight_dtype: torch.dtype = torch.float32,
         export_activation_dtype: torch.dtype | None = None,
+        export_input_dtype: torch.dtype | None = None,
+        tensor_spec_overrides: dict[str, TensorSpecOverride] | None = None,
     ) -> tuple[str, ...]:
         module = module.to(dtype=export_weight_dtype)
         export_dtype = module_floating_dtype(module)
-        input_dtype = export_activation_dtype if export_activation_dtype is not None else export_dtype
+        input_dtype = (
+            export_input_dtype
+            if export_input_dtype is not None
+            else export_activation_dtype
+            if export_activation_dtype is not None
+            else export_dtype
+        )
         registry = (
             DEFAULT_REGISTRY.with_activation_dtype(_torch_dtype_name(export_activation_dtype))
             if export_activation_dtype is not None
@@ -710,9 +805,11 @@ def main() -> int:
             quantization_config=quantization_config,
             shape_exprs=shape_exprs,
             shape_symbol_exprs=shape_symbol_exprs,
+            tensor_spec_overrides=tensor_spec_overrides,
         )
+        tensor_source = render_tensor_module([tensor_ctx])
         (tensors_dir / f"{tensor_file}.py").write_text(
-            render_tensor_module([tensor_ctx]),
+            tensor_source,
             encoding="utf-8",
         )
 
@@ -821,6 +918,37 @@ def main() -> int:
         shape_exprs={DEFAULT_TEXT_SEQ_LEN: "sequence_length"},
         parameters_source=", layer_idx: int",
     )
+    export_one(
+        dispatch_name="run_text_context_capture",
+        tensor_file="text_context_capture",
+        tensor_class="TextContextCaptureTensors",
+        create_function="create_text_context_capture",
+        tensor_expr="model_tensors().text_context_capture",
+        module=TextContextCaptureModule(),
+        args=(
+            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, text_hidden_size, device="meta"),
+            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, text_hidden_size, device="meta"),
+            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, text_hidden_size, device="meta"),
+        ),
+        checkpoint="text_encoder/model.gguf",
+        export_activation_dtype=torch.float32,
+        export_input_dtype=torch.float16,
+        shape_exprs={DEFAULT_TEXT_SEQ_LEN: "sequence_length"},
+        tensor_spec_overrides={
+            "layer_9": TensorSpecOverride(
+                dtype="float16",
+                shape=(1, "sequence_length", text_hidden_size),
+            ),
+            "layer_18": TensorSpecOverride(
+                dtype="float16",
+                shape=(1, "sequence_length", text_hidden_size),
+            ),
+            "layer_27": TensorSpecOverride(
+                dtype="float16",
+                shape=(1, "sequence_length", text_hidden_size),
+            ),
+        },
+    )
     flux_prologue_output_names = export_one(
         dispatch_name="run_flux_prologue",
         tensor_file="flux_prologue",
@@ -840,6 +968,7 @@ def main() -> int:
         export_weight_dtype=torch.float16,
         export_activation_dtype=torch.float32,
         shape_exprs={
+            DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
             DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
         },
@@ -889,6 +1018,60 @@ def main() -> int:
         },
         parameters_source=", layer_idx: int",
         is_layered=True,
+    )
+    export_one(
+        dispatch_name="run_flux_join",
+        tensor_file="flux_join",
+        tensor_class="FluxJoinTensors",
+        create_function="create_flux_join",
+        tensor_expr="model_tensors().flux_join",
+        module=FluxJoinModule(),
+        args=(
+            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, flux_params.hidden_size, device="meta"),
+            torch.zeros(1, DEFAULT_IMAGE_SEQ_LEN, flux_params.hidden_size, device="meta"),
+        ),
+        checkpoint="flux/model.gguf",
+        export_activation_dtype=torch.float32,
+        shape_exprs={
+            DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
+            DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
+            DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
+        },
+    )
+    export_one(
+        dispatch_name="run_flux_pe_join",
+        tensor_file="flux_pe_join",
+        tensor_class="FluxPeJoinTensors",
+        create_function="create_flux_pe_join",
+        tensor_expr="model_tensors().flux_pe_join",
+        module=FluxPeJoinModule(),
+        args=(
+            torch.zeros(
+                1,
+                1,
+                DEFAULT_TEXT_SEQ_LEN,
+                flux_params.hidden_size // flux_params.num_heads // 2,
+                2,
+                2,
+                device="meta",
+            ),
+            torch.zeros(
+                1,
+                1,
+                DEFAULT_IMAGE_SEQ_LEN,
+                flux_params.hidden_size // flux_params.num_heads // 2,
+                2,
+                2,
+                device="meta",
+            ),
+        ),
+        checkpoint="flux/model.gguf",
+        export_activation_dtype=torch.float32,
+        shape_exprs={
+            DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
+            DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
+            DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
+        },
     )
     flux_single_block_output_names = export_one(
         dispatch_name="run_flux_single_block",
@@ -959,6 +1142,22 @@ def main() -> int:
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
             DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
         },
+    )
+    export_one(
+        dispatch_name="run_euler_update",
+        tensor_file="euler_update",
+        tensor_class="EulerUpdateTensors",
+        create_function="create_euler_update",
+        tensor_expr="model_tensors().euler_update",
+        module=EulerUpdateModule(),
+        args=(
+            torch.zeros(1, DEFAULT_IMAGE_SEQ_LEN, flux_params.in_channels, device="meta"),
+            torch.zeros(1, DEFAULT_IMAGE_SEQ_LEN, flux_params.in_channels, device="meta"),
+            torch.zeros(1, device="meta"),
+        ),
+        checkpoint="flux/model.gguf",
+        export_activation_dtype=torch.float32,
+        shape_exprs={DEFAULT_IMAGE_SEQ_LEN: "image_seq_len"},
     )
     flux_prologue_outputs = _output_map(
         "flux_prologue",
@@ -1167,20 +1366,52 @@ def main() -> int:
         },
     )
     export_one(
+        dispatch_name="run_ae_entry",
+        tensor_file="ae_entry",
+        tensor_class="AEEntryTensors",
+        create_function="create_ae_entry",
+        tensor_expr="_require_ae_entry_tensors()",
+        module=AEEntryModule(),
+        args=(torch.zeros(1, DEFAULT_LATENT_HEIGHT, DEFAULT_LATENT_WIDTH, 128, device="meta"),),
+        checkpoint="ae/model.gguf",
+        export_activation_dtype=torch.float16,
+        export_input_dtype=torch.float32,
+        shape_symbol_axes={"tokens": {1: "latent_height", 2: "latent_width"}},
+        tensor_spec_overrides={
+            "tokens": TensorSpecOverride(
+                dtype="float32",
+                shape=(1, "latent_height", "latent_width", 128),
+            ),
+        },
+        dynamic_shapes={
+            "tokens": {
+                1: torch.export.Dim("latent_height", min=4, max=256),
+                2: torch.export.Dim("latent_width", min=4, max=256),
+            }
+        },
+        strict=True,
+        extra_dispatch_functions='''def _require_ae_entry_tensors() -> AEEntryTensors:
+    tensors = model_tensors().ae_entry
+    if tensors is None:
+        raise RuntimeError("AE entry tensors were not created")
+    return tensors''',
+    )
+    export_one(
         dispatch_name="run_ae_decode",
         tensor_file="ae_decode",
         tensor_class="AeDecodeTensors",
         create_function="create_ae_decode",
         tensor_expr="_require_ae_decode_tensors()",
         module=ae_decode,
-        args=(torch.zeros(1, DEFAULT_LATENT_HEIGHT, DEFAULT_LATENT_WIDTH, 128, device="meta"),),
+        args=(torch.zeros(1, 128, DEFAULT_LATENT_HEIGHT, DEFAULT_LATENT_WIDTH, device="meta"),),
         checkpoint="ae/model.gguf",
         quantization_config=ae_config,
-        shape_symbol_axes={"tokens": {1: "latent_height", 2: "latent_width"}},
+        export_activation_dtype=torch.float16,
+        shape_symbol_axes={"tokens": {2: "latent_height", 3: "latent_width"}},
         dynamic_shapes={
             "tokens": {
-                1: torch.export.Dim("latent_height", min=4, max=256),
-                2: torch.export.Dim("latent_width", min=4, max=256),
+                2: torch.export.Dim("latent_height", min=4, max=256),
+                3: torch.export.Dim("latent_width", min=4, max=256),
             }
         },
         strict=True,

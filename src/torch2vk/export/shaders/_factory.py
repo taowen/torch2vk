@@ -89,17 +89,18 @@ def _alias_source(node: Node) -> Node:
 
 
 def _is_alias_node(node: Node) -> bool:
-    return str(node.target) in {
+    target = str(node.target)
+    if target in {
         "aten.view.default",
         "aten.unsqueeze.default",
         "aten.reshape.default",
         "aten.contiguous.default",
         "aten._assert_tensor_metadata.default",
-        "aten.to.dtype",
-        "aten.to.device",
-        "aten.to.dtype_layout",
-        "aten.type_as.default",
-    }
+    }:
+        return True
+    if target in {"aten.to.dtype", "aten.to.device", "aten.to.dtype_layout", "aten.type_as.default"}:
+        return node_input_dtype(node, 0) == _node_dtype(node)
+    return False
 
 
 def _node_dtype(node: Node) -> str:

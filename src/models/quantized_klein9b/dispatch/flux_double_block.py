@@ -18,10 +18,10 @@ from models.quantized_klein9b.shaders.cat_2_f32_27 import CAT_2_F32_27
 from models.quantized_klein9b.shaders.cat_2_f32_28 import CAT_2_F32_28
 from models.quantized_klein9b.shaders.cat_2_f32_29 import CAT_2_F32_29
 from models.quantized_klein9b.shaders.cat_2_f32_47 import CAT_2_F32_47
-from models.quantized_klein9b.shaders.cat_3_f32 import CAT_3_F32
 from models.quantized_klein9b.shaders.flux_double_block_add_f32 import FLUX_DOUBLE_BLOCK_ADD_F32
 from models.quantized_klein9b.shaders.flux_double_block_add_scalar import FLUX_DOUBLE_BLOCK_ADD_SCALAR
 from models.quantized_klein9b.shaders.flux_double_block_cat_2_f32 import FLUX_DOUBLE_BLOCK_CAT_2_F32
+from models.quantized_klein9b.shaders.flux_double_block_cat_3_f32 import FLUX_DOUBLE_BLOCK_CAT_3_F32
 from models.quantized_klein9b.shaders.flux_double_block_linear_nobias_f16w_f32 import FLUX_DOUBLE_BLOCK_LINEAR_NOBIAS_F16W_F32
 from models.quantized_klein9b.shaders.flux_double_block_mean_dim_f32 import FLUX_DOUBLE_BLOCK_MEAN_DIM_F32
 from models.quantized_klein9b.shaders.flux_double_block_mul_broadcast import FLUX_DOUBLE_BLOCK_MUL_BROADCAST
@@ -149,13 +149,13 @@ def _run_flux_double_block_with_tensors(rt: RuntimeSession, tensors: FluxDoubleB
     SLICE_F32_45(rt, x=tensors.type_as_1, output=tensors.slice_8)
     SLICE_F32_46(rt, x=tensors.cat_3, output=tensors.slice_9)
     CAT_2_F32_47(rt, x0=tensors.slice_1, x1=tensors.slice_3, output=tensors.cat_4)
-    CAT_3_F32(rt, x0=tensors.slice_4, x1=tensors.slice_6, x2=tensors.slice_8, output=tensors.cat_5)
-    CAT_3_F32(rt, x0=tensors.slice_5, x1=tensors.slice_7, x2=tensors.slice_9, output=tensors.cat_6)
+    FLUX_DOUBLE_BLOCK_CAT_3_F32(rt, x0=tensors.slice_4, x1=tensors.slice_6, x2=tensors.slice_8, output=tensors.cat_5)
+    FLUX_DOUBLE_BLOCK_CAT_3_F32(rt, x0=tensors.slice_5, x1=tensors.slice_7, x2=tensors.slice_9, output=tensors.cat_6)
     SDPA_F32(rt, q=tensors.cat_4, k=tensors.cat_5, v=tensors.cat_6, output=tensors.scaled_dot_product_attention)
     FLUX_DOUBLE_BLOCK_SLICE_F32(rt, x=tensors.scaled_dot_product_attention, output=tensors.slice_10)
     SLICE_F32_50(rt, x=tensors.scaled_dot_product_attention, output=tensors.slice_11)
     SDPA_F32(rt, q=tensors.slice_2, k=tensors.slice_6, v=tensors.slice_7, output=tensors.scaled_dot_product_attention_1)
-    CAT_3_F32(rt, x0=tensors.slice_10, x1=tensors.scaled_dot_product_attention_1, x2=tensors.slice_11, output=tensors.cat_7)
+    FLUX_DOUBLE_BLOCK_CAT_3_F32(rt, x0=tensors.slice_10, x1=tensors.scaled_dot_product_attention_1, x2=tensors.slice_11, output=tensors.cat_7)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_7, output=tensors.permute_2)
     SLICE_F32_52(rt, x=tensors.reshape_6, output=tensors.slice_12)
     SLICE_F32_53(rt, x=tensors.reshape_6, output=tensors.slice_13)

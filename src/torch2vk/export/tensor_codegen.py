@@ -42,6 +42,13 @@ class _TensorMeta:
     dtype: str
     kind: _TensorKind
     force_float32: bool = False
+    exact_dtype: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class TensorSpecOverride:
+    dtype: str
+    shape: tuple[Dim, ...]
 
 
 def render_tensor_module(classes: list[TensorClassContext]) -> str:
@@ -117,7 +124,7 @@ def render_tensor_class(
         "output_name": None if output_name_source is None else output_name_source.strip("'\""),
         "output_name_source": output_name_source,
         "output_names": output_names,
-        "output_names_source": repr(frozenset(output_names)),
+        "output_names_source": f"frozenset({tuple(output_names)!r})",
         "signature": signature,
         "tensors": tuple(tensors),
         "extra_initializers": tuple(extra_initializers),
@@ -160,6 +167,7 @@ def generate_tensor_class_source(
     quantization_config: Q4KMQuantizationConfig | None = None,
     shape_exprs: Mapping[int, str] | None = None,
     shape_symbol_exprs: Mapping[str, str] | None = None,
+    tensor_spec_overrides: Mapping[str, TensorSpecOverride] | None = None,
 ) -> TensorClassContext:
     """Generate tensor dataclass + factory function context for a single submodule."""
     graph = prog.graph_module.graph
@@ -235,7 +243,16 @@ def generate_tensor_class_source(
         is_layered = any(re.search(r"\.layers\.\d+\.", v) for v in param_map.values())
 
     tensor_entries = []
+    spec_overrides = tensor_spec_overrides or {}
     for name, meta in tensors.items():
+        override = spec_overrides.get(name)
+        if override is not None:
+            meta = _TensorMeta(
+                shape=override.shape,
+                dtype=override.dtype,
+                kind=meta.kind,
+                exact_dtype=True,
+            )
         tensor_entries.append(
             _tensor_entry(
                 name=name,
@@ -353,12 +370,15 @@ def _tensor_entry(
     activation_dtype: str = "float16",
 ) -> dict[str, object]:
     kind = meta.kind
-    dtype = logical_tensor_dtype(
-        is_parameter=kind == _TensorKind.PARAMETER,
-        dtype=meta.dtype,
-        activation_dtype=activation_dtype,
-        force_float32=meta.force_float32,
-    )
+    if meta.exact_dtype:
+        dtype = meta.dtype
+    else:
+        dtype = logical_tensor_dtype(
+            is_parameter=kind == _TensorKind.PARAMETER,
+            dtype=meta.dtype,
+            activation_dtype=activation_dtype,
+            force_float32=meta.force_float32,
+        )
     shape = meta.shape
     layout_source = "CONTIGUOUS_LAYOUT"
     spec_source = (

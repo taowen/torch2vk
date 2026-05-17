@@ -18,11 +18,9 @@ from safetensors import safe_open
 
 from models.quantized_klein9b import reference
 from models.quantized_klein9b.autoencoder import AutoEncoder, AutoEncoderParams
-from models.quantized_klein9b.custom_shaders import (
-    KLEIN9B_CAPTURE_QWEN3_CTX_F32,
-    KLEIN9B_LATENT_F32_TO_F16,
-)
 from models.quantized_klein9b.dispatch.ae_decode import run_ae_decode
+from models.quantized_klein9b.dispatch.ae_entry import run_ae_entry
+from models.quantized_klein9b.dispatch.text_context_capture import run_text_context_capture
 from models.quantized_klein9b.dispatch.text_embed import run_text_embed
 from models.quantized_klein9b.dispatch.text_layer import run_text_layer
 from models.quantized_klein9b.export_gguf import DEFAULT_OUTPUT_DIR
@@ -324,13 +322,7 @@ def _compare_text_context(
                 run_text_embed(rt)
                 for layer_idx in range(len(tensors.text_layers)):
                     run_text_layer(rt, layer_idx)
-                KLEIN9B_CAPTURE_QWEN3_CTX_F32(
-                    rt,
-                    layer_9=tensors.text_layers[8].add_7,
-                    layer_18=tensors.text_layers[17].add_7,
-                    layer_27=tensors.text_layers[26].add_7,
-                    ctx=tensors.ctx,
-                )
+                run_text_context_capture(rt)
             actual = rt.read_request_state(tensors.ctx).astype(np.float32)
     finally:
         rt.close()
@@ -518,11 +510,7 @@ def _run_vulkan_ae_decode(
                 ae_decode = model_tensors().ae_decode
                 if ae_decode is None:
                     raise RuntimeError("AE decode tensors were not created")
-                KLEIN9B_LATENT_F32_TO_F16(
-                    rt,
-                    x=model_tensors().latent_tokens,
-                    output=ae_decode.tokens,
-                )
+                run_ae_entry(rt)
                 run_ae_decode(rt)
             return rt.read_request_state(image_output()).astype(np.float32)
     finally:

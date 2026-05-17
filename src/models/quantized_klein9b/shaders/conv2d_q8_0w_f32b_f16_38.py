@@ -39,7 +39,7 @@ CONV2D_Q8_0W_F32B_F16_38 = ShaderVariant(
                 name='weight',
                 io_kind=IOKind.INPUT,
                 role='weight',
-                contract=TensorContract(dtype='uint16', shape=('Co', 2448,), layout=q8_0_halfwords_layout(logical_k=4608, block_size=32, halfwords_per_block=17)),
+                contract=TensorContract(dtype='uint16', shape=('Co', 1224,), layout=q8_0_halfwords_layout(logical_k=2304, block_size=32, halfwords_per_block=17)),
             ),
             TensorFieldSpec(
                 name='bias',

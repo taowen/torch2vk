@@ -6729,7 +6729,7 @@ def create_flux(
     linear_120: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> FluxTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'linear_120'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('linear_120',)))
     tensors = FluxTensors(
         p_img_in_weight=_bind_tensor(
             p_img_in_weight,

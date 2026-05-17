@@ -9,7 +9,13 @@ from models.quantized_klein9b.tensors.ae_decode import (
     AeDecodeTensors,
     create_ae_decode,
 )
+from models.quantized_klein9b.tensors.ae_entry import AE_ENTRY_OUTPUT, AEEntryTensors, create_ae_entry
 from models.quantized_klein9b.tensors.embed_tokens import EmbedTokensTensors, create_embed_tokens
+from models.quantized_klein9b.tensors.euler_update import (
+    EULER_UPDATE_OUTPUT,
+    EulerUpdateTensors,
+    create_euler_update,
+)
 from models.quantized_klein9b.tensors.flux import FLUX_OUTPUT, FluxTensors, create_flux
 from models.quantized_klein9b.tensors.flux_double_block import (
     FluxDoubleBlockTensors,
@@ -27,10 +33,22 @@ from models.quantized_klein9b.tensors.flux_single_block import (
     FluxSingleBlockTensors,
     create_flux_single_block,
 )
+from models.quantized_klein9b.tensors.flux_join import FLUX_JOIN_OUTPUT, FluxJoinTensors, create_flux_join
+from models.quantized_klein9b.tensors.flux_pe_join import (
+    FLUX_PE_JOIN_OUTPUT,
+    FluxPeJoinTensors,
+    create_flux_pe_join,
+)
 from models.quantized_klein9b.tensors.rope import RopeTableTensors, create_rope_table
+from models.quantized_klein9b.tensors.text_context_capture import (
+    TEXT_CONTEXT_CAPTURE_OUTPUT,
+    TextContextCaptureTensors,
+    create_text_context_capture,
+)
 from models.quantized_klein9b.tensors.text_layer import TextLayerTensors, create_text_layer
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.logical import (
+    bind_logical_tensor_alias,
     bind_logical_tensor_names,
     MemoryClass,
     TensorLifetime,
@@ -45,15 +63,20 @@ class QuantizedKlein9BTensors:
     text_rope: RopeTableTensors
     text_embed: EmbedTokensTensors
     text_layers: tuple[TextLayerTensors, ...]
+    text_context_capture: TextContextCaptureTensors
     ctx: LogicalTensor
     latent_tokens: LogicalTensor
+    ae_entry: AEEntryTensors | None
     flux_hidden_states: LogicalTensor
     flux_pe: LogicalTensor
+    flux_join: FluxJoinTensors
+    flux_pe_join: FluxPeJoinTensors
     flux: FluxTensors
     flux_prologue: FluxPrologueTensors
     flux_double_blocks: tuple[FluxDoubleBlockTensors, ...]
     flux_single_blocks: tuple[FluxSingleBlockTensors, ...]
     flux_final_layer: FluxFinalLayerTensors
+    euler_update: EulerUpdateTensors
     ae_decode: AeDecodeTensors | None
 
 
@@ -103,8 +126,16 @@ def create_model_tensors(
         text_hidden = layer_tensors.add_7
     text_layers = tuple(text_layers_list)
     ctx = _request_state_tensor("float32", (1, text_seq_len, text_hidden_size * 3))
+    text_context_capture = create_text_context_capture(
+        "klein9b.text.ctx",
+        sequence_length=text_seq_len,
+        layer_9=text_layers[8].add_7,
+        layer_18=text_layers[17].add_7,
+        layer_27=text_layers[26].add_7,
+        cat=ctx,
+        request_state_outputs=frozenset((TEXT_CONTEXT_CAPTURE_OUTPUT,)),
+    )
     latent_tokens = _request_state_tensor("float32", (1, image_seq_len, 128))
-    ae_tokens = _request_state_tensor("float16", (1, latent_height, latent_width, 128))
     flux_hidden_states = _frame_workspace_tensor(
         "float32",
         (1, text_seq_len + image_seq_len, text_hidden_size),
@@ -161,6 +192,23 @@ def create_model_tensors(
         flux_img = getattr(layer_tensors, FLUX_DOUBLE_BLOCK_OUTPUTS["img"])
         flux_txt = getattr(layer_tensors, FLUX_DOUBLE_BLOCK_OUTPUTS["txt"])
     flux_double_blocks = tuple(flux_double_blocks_list)
+    final_double = flux_double_blocks[-1]
+    flux_join = create_flux_join(
+        "klein9b.flux.join",
+        image_seq_len=image_seq_len,
+        text_seq_len=text_seq_len,
+        txt=getattr(final_double, FLUX_DOUBLE_BLOCK_OUTPUTS["txt"]),
+        img=getattr(final_double, FLUX_DOUBLE_BLOCK_OUTPUTS["img"]),
+        cat=flux_hidden_states,
+    )
+    flux_pe_join = create_flux_pe_join(
+        "klein9b.flux.pe_join",
+        image_seq_len=image_seq_len,
+        text_seq_len=text_seq_len,
+        pe_ctx=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["pe_ctx"]),
+        pe_x=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["pe_x"]),
+        cat=flux_pe,
+    )
     flux_single_hidden = flux_hidden_states
     flux_single_blocks_list: list[FluxSingleBlockTensors] = []
     for layer_idx in range(24):
@@ -185,31 +233,55 @@ def create_model_tensors(
         hidden_states=flux_single_hidden,
         vec=flux_vec,
     )
+    euler_update = create_euler_update(
+        "klein9b.flux.euler_update",
+        image_seq_len=image_seq_len,
+        x=latent_tokens,
+        pred=getattr(flux_final_layer, FLUX_FINAL_LAYER_OUTPUTS["pred"]),
+        add=latent_tokens,
+        request_state_outputs=frozenset((EULER_UPDATE_OUTPUT,)),
+    )
+    ae_entry = None
     ae_decode = (
-        create_ae_decode(
-            "klein9b.ae_decode",
-            latent_height=latent_height,
-            latent_width=latent_width,
-            tokens=ae_tokens,
-            request_state_outputs=frozenset((AE_DECODE_OUTPUT,)),
-        )
+        None
         if include_ae_decode
         else None
     )
+    if include_ae_decode:
+        ae_latent_tokens = _request_state_tensor("float32", (1, latent_height, latent_width, 128))
+        ae_entry = create_ae_entry(
+            "klein9b.ae_entry",
+            latent_height=latent_height,
+            latent_width=latent_width,
+            tokens=ae_latent_tokens,
+        )
+        bind_logical_tensor_alias(latent_tokens, ae_latent_tokens)
+        ae_decode = create_ae_decode(
+            "klein9b.ae_decode",
+            latent_height=latent_height,
+            latent_width=latent_width,
+            tokens=getattr(ae_entry, AE_ENTRY_OUTPUT),
+            request_state_outputs=frozenset((AE_DECODE_OUTPUT,)),
+        )
     _MODEL_TENSORS = QuantizedKlein9BTensors(
         input_ids=input_ids,
         text_rope=text_rope,
         text_embed=text_embed,
         text_layers=text_layers,
+        text_context_capture=text_context_capture,
         ctx=ctx,
         latent_tokens=latent_tokens,
+        ae_entry=ae_entry,
         flux_hidden_states=flux_hidden_states,
         flux_pe=flux_pe,
+        flux_join=flux_join,
+        flux_pe_join=flux_pe_join,
         flux=flux,
         flux_prologue=flux_prologue,
         flux_double_blocks=flux_double_blocks,
         flux_single_blocks=flux_single_blocks,
         flux_final_layer=flux_final_layer,
+        euler_update=euler_update,
         ae_decode=ae_decode,
     )
     bind_logical_tensor_names(_MODEL_TENSORS)

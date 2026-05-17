@@ -1,4 +1,4 @@
-"""Generated shader: cat_3_f32."""
+"""Generated shader: flux_double_block_cat_3_f32."""
 
 from __future__ import annotations
 
@@ -17,53 +17,53 @@ from torch2vk.runtime.shader import (
 )
 
 
-CAT_3_F32 = ShaderVariant(
-    name='cat_3_f32',
+FLUX_DOUBLE_BLOCK_CAT_3_F32 = ShaderVariant(
+    name='flux_double_block_cat_3_f32',
     family='export',
     contract=ShaderContract(
         class_name='ExportCat3Program',
-        shader_name='cat_3_f32',
+        shader_name='flux_double_block_cat_3_f32',
         fields=(
             TensorFieldSpec(
                 name='x0',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('I0_0', 'I0_1', 'I0_2',)),
+                contract=TensorContract(dtype='float32', shape=('I0_0', 'I0_1', 'I0_2', 'I0_3',)),
             ),
             TensorFieldSpec(
                 name='x1',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('I1_0', 'I1_1', 'I1_2',)),
+                contract=TensorContract(dtype='float32', shape=('I1_0', 'I1_1', 'I1_2', 'I1_3',)),
             ),
             TensorFieldSpec(
                 name='x2',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float32', shape=('I2_0', 'I2_1', 'I2_2',)),
+                contract=TensorContract(dtype='float32', shape=('I2_0', 'I2_1', 'I2_2', 'I2_3',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float32', shape=('O0', 'O1', 'O2',)),
+                contract=TensorContract(dtype='float32', shape=('O0', 'O1', 'O2', 'O3',)),
             ),
         ),
         push_constants=PushConstantSpec(
             size=32,
             fields=(
-                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, mul(mul('O0', 'O1'), 'O2'), dynamic=False),
-                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 4, mul('O2', 1), dynamic=False),
-                PushConstantFieldSpec('END0', PushConstantType.UINT32, 8, mul('I0_2', 1), dynamic=False),
-                PushConstantFieldSpec('STRIDE0', PushConstantType.UINT32, 12, mul('I0_2', 1), dynamic=False),
-                PushConstantFieldSpec('END1', PushConstantType.UINT32, 16, add(mul('I0_2', 1), mul('I1_2', 1)), dynamic=False),
-                PushConstantFieldSpec('STRIDE1', PushConstantType.UINT32, 20, mul('I1_2', 1), dynamic=False),
-                PushConstantFieldSpec('END2', PushConstantType.UINT32, 24, add(add(mul('I0_2', 1), mul('I1_2', 1)), mul('I2_2', 1)), dynamic=False),
-                PushConstantFieldSpec('STRIDE2', PushConstantType.UINT32, 28, mul('I2_2', 1), dynamic=False),
+                PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), dynamic=False),
+                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 4, mul('O2', 'O3'), dynamic=False),
+                PushConstantFieldSpec('END0', PushConstantType.UINT32, 8, mul('I0_2', 'I0_3'), dynamic=False),
+                PushConstantFieldSpec('STRIDE0', PushConstantType.UINT32, 12, mul('I0_2', 'I0_3'), dynamic=False),
+                PushConstantFieldSpec('END1', PushConstantType.UINT32, 16, add(mul('I0_2', 'I0_3'), mul('I1_2', 'I1_3')), dynamic=False),
+                PushConstantFieldSpec('STRIDE1', PushConstantType.UINT32, 20, mul('I1_2', 'I1_3'), dynamic=False),
+                PushConstantFieldSpec('END2', PushConstantType.UINT32, 24, add(add(mul('I0_2', 'I0_3'), mul('I1_2', 'I1_3')), mul('I2_2', 'I2_3')), dynamic=False),
+                PushConstantFieldSpec('STRIDE2', PushConstantType.UINT32, 28, mul('I2_2', 'I2_3'), dynamic=False),
             ),
         ),
         params_buffer=None,
-        dispatch=(ceil_div(mul(mul('O0', 'O1'), 'O2'), 256), 1, 1),
+        dispatch=(ceil_div(mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), 256), 1, 1),
     ),
     execution_requirements=None,
     source="""\

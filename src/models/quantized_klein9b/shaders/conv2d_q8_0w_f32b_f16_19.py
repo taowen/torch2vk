@@ -1,4 +1,4 @@
-"""Generated shader: conv2d_q8_0w_f32b_f16_53."""
+"""Generated shader: conv2d_q8_0w_f32b_f16_19."""
 
 from __future__ import annotations
 
@@ -22,12 +22,12 @@ from torch2vk.vulkan.types import (
 )
 
 
-CONV2D_Q8_0W_F32B_F16_53 = ShaderVariant(
-    name='conv2d_q8_0w_f32b_f16_53',
+CONV2D_Q8_0W_F32B_F16_19 = ShaderVariant(
+    name='conv2d_q8_0w_f32b_f16_19',
     family='export',
     contract=ShaderContract(
         class_name='ExportConv2dQ8_0WeightF32BiasProgram',
-        shader_name='conv2d_q8_0w_f32b_f16_53',
+        shader_name='conv2d_q8_0w_f32b_f16_19',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -39,7 +39,7 @@ CONV2D_Q8_0W_F32B_F16_53 = ShaderVariant(
                 name='weight',
                 io_kind=IOKind.INPUT,
                 role='weight',
-                contract=TensorContract(dtype='uint16', shape=('Co', 612,), layout=q8_0_halfwords_layout(logical_k=1152, block_size=32, halfwords_per_block=17)),
+                contract=TensorContract(dtype='uint16', shape=('Co', 272,), layout=q8_0_halfwords_layout(logical_k=512, block_size=32, halfwords_per_block=17)),
             ),
             TensorFieldSpec(
                 name='bias',
@@ -64,12 +64,12 @@ CONV2D_Q8_0W_F32B_F16_53 = ShaderVariant(
                 PushConstantFieldSpec('out_c', PushConstantType.UINT32, 16, 'Co', dynamic=False),
                 PushConstantFieldSpec('out_h', PushConstantType.UINT32, 20, 'Ho', dynamic=False),
                 PushConstantFieldSpec('out_w', PushConstantType.UINT32, 24, 'Wo', dynamic=False),
-                PushConstantFieldSpec('kh', PushConstantType.UINT32, 28, 3, dynamic=False),
-                PushConstantFieldSpec('kw', PushConstantType.UINT32, 32, 3, dynamic=False),
+                PushConstantFieldSpec('kh', PushConstantType.UINT32, 28, 1, dynamic=False),
+                PushConstantFieldSpec('kw', PushConstantType.UINT32, 32, 1, dynamic=False),
                 PushConstantFieldSpec('stride_h', PushConstantType.UINT32, 36, 1, dynamic=False),
                 PushConstantFieldSpec('stride_w', PushConstantType.UINT32, 40, 1, dynamic=False),
-                PushConstantFieldSpec('pad_h', PushConstantType.UINT32, 44, 1, dynamic=False),
-                PushConstantFieldSpec('pad_w', PushConstantType.UINT32, 48, 1, dynamic=False),
+                PushConstantFieldSpec('pad_h', PushConstantType.UINT32, 44, 0, dynamic=False),
+                PushConstantFieldSpec('pad_w', PushConstantType.UINT32, 48, 0, dynamic=False),
             ),
         ),
         params_buffer=None,
