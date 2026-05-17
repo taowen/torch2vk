@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Any, cast
 
 import torch
 from einops import rearrange
@@ -23,7 +24,13 @@ from models.quantized_klein9b.custom_shaders import (
 )
 from models.quantized_klein9b.export_gguf import REPO_ID
 from models.quantized_klein9b.model_sources import resolve_model_dirs
-from models.quantized_klein9b.pytorch_modules import Flux2, Klein9BParams
+from models.quantized_klein9b.pytorch_modules import (
+    DoubleStreamBlock,
+    Flux2,
+    Klein9BParams,
+    SingleStreamBlock,
+    timestep_embedding,
+)
 from models.quantized_klein9b.quantization import (
     ae_q4_k_m_config,
     klein9b_q4_k_m_config,
@@ -48,7 +55,8 @@ from torch2vk.export.reference_codegen import (
     render_exported_reference_function,
     render_reference_module,
 )
-from torch2vk.export.tensor_codegen import layer_workspace_keep_field, render_tensor_module
+from torch2vk.export.graph import graph_output_names
+from torch2vk.export.tensor_codegen import layer_workspace_keep_fields, render_tensor_module
 from torch2vk.runtime.shader import ShaderVariant
 
 
@@ -69,8 +77,7 @@ class AEDecodeModule(nn.Module):
         self.ps = ae.ps
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
-        z = tokens.reshape(1, DEFAULT_LATENT_HEIGHT, DEFAULT_LATENT_WIDTH, 128)
-        z = z.permute(0, 3, 1, 2).contiguous()
+        z = tokens.permute(0, 3, 1, 2).contiguous()
         running_var = self.bn.running_var
         running_mean = self.bn.running_mean
         if running_var is None or running_mean is None:
@@ -87,14 +94,156 @@ class AEDecodeModule(nn.Module):
         return self.decoder(z)
 
 
+class FluxPrologueModule(nn.Module):
+    def __init__(self, flux: Flux2) -> None:
+        super().__init__()
+        self.img_in = flux.img_in
+        self.time_in = flux.time_in
+        self.txt_in = flux.txt_in
+        self.double_stream_modulation_img = flux.double_stream_modulation_img
+        self.double_stream_modulation_txt = flux.double_stream_modulation_txt
+        self.single_stream_modulation = flux.single_stream_modulation
+        self.pe_embedder = flux.pe_embedder
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_ids: torch.Tensor,
+        timesteps: torch.Tensor,
+        ctx: torch.Tensor,
+        ctx_ids: torch.Tensor,
+    ) -> tuple[torch.Tensor, ...]:
+        vec = self.time_in(timestep_embedding(timesteps, 256))
+        img_mod1, img_mod2 = self.double_stream_modulation_img(vec)
+        txt_mod1, txt_mod2 = self.double_stream_modulation_txt(vec)
+        single_mod, _ = self.single_stream_modulation(vec)
+        img = self.img_in(x)
+        txt = self.txt_in(ctx)
+        pe_x = self.pe_embedder(x_ids)
+        pe_ctx = self.pe_embedder(ctx_ids)
+        return (
+            img,
+            txt,
+            pe_x,
+            pe_ctx,
+            vec,
+            *img_mod1,
+            *img_mod2,
+            *txt_mod1,
+            *txt_mod2,
+            *single_mod,
+        )
+
+
+class FluxDoubleBlockModule(DoubleStreamBlock):
+    def __init__(self, block: DoubleStreamBlock) -> None:
+        nn.Module.__init__(self)
+        self.num_heads = block.num_heads
+        self.hidden_size = block.hidden_size
+        self.mlp_mult_factor = block.mlp_mult_factor
+        self.img_norm1 = block.img_norm1
+        self.img_attn = block.img_attn
+        self.img_norm2 = block.img_norm2
+        self.img_mlp = block.img_mlp
+        self.txt_norm1 = block.txt_norm1
+        self.txt_attn = block.txt_attn
+        self.txt_norm2 = block.txt_norm2
+        self.txt_mlp = block.txt_mlp
+
+    def forward(
+        self,
+        img: torch.Tensor,
+        txt: torch.Tensor,
+        pe: torch.Tensor,
+        pe_ctx: torch.Tensor,
+        img_mod1_shift: torch.Tensor,
+        img_mod1_scale: torch.Tensor,
+        img_mod1_gate: torch.Tensor,
+        img_mod2_shift: torch.Tensor,
+        img_mod2_scale: torch.Tensor,
+        img_mod2_gate: torch.Tensor,
+        txt_mod1_shift: torch.Tensor,
+        txt_mod1_scale: torch.Tensor,
+        txt_mod1_gate: torch.Tensor,
+        txt_mod2_shift: torch.Tensor,
+        txt_mod2_scale: torch.Tensor,
+        txt_mod2_gate: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        img_mod = (
+            (img_mod1_shift, img_mod1_scale, img_mod1_gate),
+            (img_mod2_shift, img_mod2_scale, img_mod2_gate),
+        )
+        txt_mod = (
+            (txt_mod1_shift, txt_mod1_scale, txt_mod1_gate),
+            (txt_mod2_shift, txt_mod2_scale, txt_mod2_gate),
+        )
+        img, txt, _ = self.forward_kv_extract(
+            img,
+            txt,
+            pe,
+            pe_ctx,
+            img_mod,
+            txt_mod,
+            num_ref_tokens=0,
+        )
+        return img, txt
+
+
+class FluxSingleBlockModule(SingleStreamBlock):
+    def __init__(self, block: SingleStreamBlock, *, text_seq_len: int) -> None:
+        nn.Module.__init__(self)
+        self.hidden_dim = block.hidden_dim
+        self.num_heads = block.num_heads
+        self.scale = block.scale
+        self.mlp_hidden_dim = block.mlp_hidden_dim
+        self.mlp_mult_factor = block.mlp_mult_factor
+        self.linear1 = block.linear1
+        self.linear2 = block.linear2
+        self.norm = block.norm
+        self.hidden_size = block.hidden_size
+        self.pre_norm = block.pre_norm
+        self.mlp_act = block.mlp_act
+        self.text_seq_len = text_seq_len
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        pe: torch.Tensor,
+        mod_shift: torch.Tensor,
+        mod_scale: torch.Tensor,
+        mod_gate: torch.Tensor,
+    ) -> torch.Tensor:
+        hidden_states, _ = self.forward_kv_extract(
+            hidden_states,
+            pe,
+            (mod_shift, mod_scale, mod_gate),
+            self.text_seq_len,
+            num_ref_tokens=0,
+        )
+        return hidden_states
+
+
+class FluxFinalLayerModule(nn.Module):
+    def __init__(self, flux: Flux2, *, text_seq_len: int) -> None:
+        super().__init__()
+        self.final_layer = flux.final_layer
+        self.text_seq_len = text_seq_len
+
+    def forward(self, hidden_states: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
+        return self.final_layer(hidden_states[:, self.text_seq_len :, ...], vec)
+
+
 def _write_model_tensors_module(
     path: Path,
     *,
-    image_seq_len: int,
     text_seq_len: int,
     num_text_layers: int,
     text_hidden_size: int,
     text_head_dim: int,
+    flux_prologue_outputs: dict[str, str],
+    flux_double_block_outputs: dict[str, str],
+    flux_single_block_outputs: dict[str, str],
+    flux_final_layer_outputs: dict[str, str],
 ) -> None:
     path.write_text(
         f'''"""Generated model-level tensor wiring for FLUX.2 Klein 9B."""
@@ -110,10 +259,27 @@ from models.quantized_klein9b.tensors.ae_decode import (
 )
 from models.quantized_klein9b.tensors.embed_tokens import EmbedTokensTensors, create_embed_tokens
 from models.quantized_klein9b.tensors.flux import FLUX_OUTPUT, FluxTensors, create_flux
+from models.quantized_klein9b.tensors.flux_double_block import (
+    FluxDoubleBlockTensors,
+    create_flux_double_block,
+)
+from models.quantized_klein9b.tensors.flux_final_layer import (
+    FluxFinalLayerTensors,
+    create_flux_final_layer,
+)
+from models.quantized_klein9b.tensors.flux_prologue import (
+    FluxPrologueTensors,
+    create_flux_prologue,
+)
+from models.quantized_klein9b.tensors.flux_single_block import (
+    FluxSingleBlockTensors,
+    create_flux_single_block,
+)
 from models.quantized_klein9b.tensors.rope import RopeTableTensors, create_rope_table
 from models.quantized_klein9b.tensors.text_layer import TextLayerTensors, create_text_layer
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.logical import (
+    bind_logical_tensor_alias,
     bind_logical_tensor_names,
     MemoryClass,
     TensorLifetime,
@@ -131,15 +297,24 @@ class QuantizedKlein9BTensors:
     ctx: LogicalTensor
     latent_tokens: LogicalTensor
     flux: FluxTensors
+    flux_prologue: FluxPrologueTensors
+    flux_double_blocks: tuple[FluxDoubleBlockTensors, ...]
+    flux_single_blocks: tuple[FluxSingleBlockTensors, ...]
+    flux_final_layer: FluxFinalLayerTensors
     ae_decode: AeDecodeTensors | None
 
 
 _MODEL_TENSORS: QuantizedKlein9BTensors | None = None
+FLUX_PROLOGUE_OUTPUTS: dict[str, str] = {flux_prologue_outputs!r}
+FLUX_DOUBLE_BLOCK_OUTPUTS: dict[str, str] = {flux_double_block_outputs!r}
+FLUX_SINGLE_BLOCK_OUTPUTS: dict[str, str] = {flux_single_block_outputs!r}
+FLUX_FINAL_LAYER_OUTPUTS: dict[str, str] = {flux_final_layer_outputs!r}
 
 
 def create_model_tensors(
     *,
-    image_seq_len: int = {image_seq_len},
+    latent_height: int = {DEFAULT_LATENT_HEIGHT},
+    latent_width: int = {DEFAULT_LATENT_WIDTH},
     text_seq_len: int = {text_seq_len},
     num_text_layers: int = {num_text_layers},
     text_hidden_size: int = {text_hidden_size},
@@ -147,6 +322,7 @@ def create_model_tensors(
     include_ae_decode: bool = True,
 ) -> QuantizedKlein9BTensors:
     global _MODEL_TENSORS
+    image_seq_len = latent_height * latent_width
     input_ids = _host_input_tensor("int64", (1, text_seq_len))
     text_rope = create_rope_table(
         "klein9b.text.rope",
@@ -175,6 +351,7 @@ def create_model_tensors(
     text_layers = tuple(text_layers_list)
     ctx = _request_state_tensor("float16", (1, text_seq_len, text_hidden_size * 3))
     latent_tokens = _request_state_tensor("float16", (1, image_seq_len, 128))
+    ae_tokens = _request_state_tensor("float16", (1, latent_height, latent_width, 128))
     flux = create_flux(
         "klein9b.flux",
         image_seq_len=image_seq_len,
@@ -183,10 +360,42 @@ def create_model_tensors(
         ctx=ctx,
         request_state_outputs=frozenset((FLUX_OUTPUT,)),
     )
+    flux_prologue = create_flux_prologue(
+        "klein9b.flux.prologue",
+        image_seq_len=image_seq_len,
+        text_seq_len=text_seq_len,
+        x=latent_tokens,
+        ctx=ctx,
+    )
+    flux_double_blocks = tuple(
+        create_flux_double_block(
+            f"klein9b.flux.double_block.{{layer_idx}}",
+            layer_idx=layer_idx,
+            image_seq_len=image_seq_len,
+            text_seq_len=text_seq_len,
+        )
+        for layer_idx in range(8)
+    )
+    flux_single_blocks = tuple(
+        create_flux_single_block(
+            f"klein9b.flux.single_block.{{layer_idx}}",
+            layer_idx=layer_idx,
+            image_seq_len=image_seq_len,
+            text_seq_len=text_seq_len,
+        )
+        for layer_idx in range(24)
+    )
+    flux_final_layer = create_flux_final_layer(
+        "klein9b.flux.final_layer",
+        image_seq_len=image_seq_len,
+        text_seq_len=text_seq_len,
+    )
     ae_decode = (
         create_ae_decode(
             "klein9b.ae_decode",
-            tokens=latent_tokens,
+            latent_height=latent_height,
+            latent_width=latent_width,
+            tokens=ae_tokens,
             request_state_outputs=frozenset((AE_DECODE_OUTPUT,)),
         )
         if include_ae_decode
@@ -200,9 +409,15 @@ def create_model_tensors(
         ctx=ctx,
         latent_tokens=latent_tokens,
         flux=flux,
+        flux_prologue=flux_prologue,
+        flux_double_blocks=flux_double_blocks,
+        flux_single_blocks=flux_single_blocks,
+        flux_final_layer=flux_final_layer,
         ae_decode=ae_decode,
     )
     bind_logical_tensor_names(_MODEL_TENSORS)
+    if ae_decode is not None:
+        bind_logical_tensor_alias(latent_tokens, ae_decode.tokens)
     return _MODEL_TENSORS
 
 
@@ -247,6 +462,38 @@ def _request_state_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
 
 def _write_init(path: Path) -> None:
     path.write_text('"""Generated package."""\n', encoding="utf-8")
+
+
+def _shape_symbol_exprs(
+    prog: torch.export.ExportedProgram,
+    axes_by_placeholder: dict[str, dict[int, str]],
+) -> dict[str, str]:
+    symbol_exprs: dict[str, str] = {}
+    for node in prog.graph_module.graph.nodes:
+        axes = axes_by_placeholder.get(node.name)
+        if axes is None:
+            continue
+        tensor_meta = node.meta.get("tensor_meta")
+        if tensor_meta is None:
+            raise ValueError(f"Placeholder {node.name!r} is missing tensor_meta")
+        shape = tensor_meta.shape
+        for axis, expression in axes.items():
+            dim_source = str(shape[axis])
+            if dim_source.lstrip("-").isdigit():
+                raise ValueError(
+                    f"Placeholder {node.name!r} axis {axis} is static; "
+                    "expected a dynamic torch.export dimension"
+                )
+            symbol_exprs[dim_source] = expression
+    return symbol_exprs
+
+
+def _output_map(stage: str, names: tuple[str, ...], semantic_names: tuple[str, ...]) -> dict[str, str]:
+    if len(names) != len(semantic_names):
+        raise RuntimeError(
+            f"{stage} exported {len(names)} outputs, expected {len(semantic_names)}: {names}"
+        )
+    return dict(zip(semantic_names, names, strict=True))
 
 
 def main() -> int:
@@ -294,18 +541,30 @@ def main() -> int:
         weight_prefix: str = "",
         quantization_config=None,
         shape_exprs: dict[int, str] | None = None,
+        shape_symbol_axes: dict[str, dict[int, str]] | None = None,
         parameters_source: str = "",
         arguments_source: str = "",
         reference_name: str | None = None,
         reference_policy: ReferencePolicy | None = None,
         extra_dispatch_functions: str = "",
-    ) -> None:
+        dynamic_shapes: dict[str, Any] | tuple[Any, ...] | list[Any] | None = None,
+        strict: bool = False,
+        is_layered: bool | None = None,
+    ) -> tuple[str, ...]:
         module = module.float()
         export_dtype = module_floating_dtype(module)
         if export_dtype is not None:
             args = cast_floating_tensors(args, export_dtype)
             kwargs = cast_floating_tensors(kwargs, export_dtype)
-        prog = export_submodule(module, args=args, kwargs=kwargs)
+        prog = export_submodule(
+            module,
+            args=args,
+            kwargs=kwargs,
+            dynamic_shapes=dynamic_shapes,
+            strict=strict,
+        )
+        output_names = tuple(graph_output_names(prog.graph_module.graph))
+        shape_symbol_exprs = _shape_symbol_exprs(prog, shape_symbol_axes or {})
         func_name = dispatch_name.removeprefix("run_")
         if reference_name is not None and reference_policy is not None:
             reference_functions.append(
@@ -325,8 +584,10 @@ def main() -> int:
             function_name=create_function,
             weight_prefix=weight_prefix,
             checkpoint=checkpoint,
+            is_layered=is_layered,
             quantization_config=quantization_config,
             shape_exprs=shape_exprs,
+            shape_symbol_exprs=shape_symbol_exprs,
         )
         (tensors_dir / f"{tensor_file}.py").write_text(
             render_tensor_module([tensor_ctx]),
@@ -379,11 +640,12 @@ def main() -> int:
                 parameters_source=parameters_source,
                 arguments_source=arguments_source,
                 uses_quantized_linear_dispatch="run_quantized_linear(" in func_src,
-                workspace_keep_field=layer_workspace_keep_field(tensor_ctx),
+                workspace_keep_fields=layer_workspace_keep_fields(tensor_ctx),
             ),
             encoding="utf-8",
         )
         print(f"  {dispatch_name}: {len(used_variants)} shaders")
+        return output_names
 
     print("Exporting FLUX.2 Klein 9B Vulkan modules...")
     flux_params = Klein9BParams()
@@ -436,6 +698,178 @@ def main() -> int:
         shape_exprs={DEFAULT_TEXT_SEQ_LEN: "sequence_length"},
         parameters_source=", layer_idx: int",
     )
+    flux_prologue_output_names = export_one(
+        dispatch_name="run_flux_prologue",
+        tensor_file="flux_prologue",
+        tensor_class="FluxPrologueTensors",
+        create_function="create_flux_prologue",
+        tensor_expr="model_tensors().flux_prologue",
+        module=FluxPrologueModule(flux_model),
+        args=(
+            torch.zeros(1, DEFAULT_IMAGE_SEQ_LEN, flux_params.in_channels, device="meta"),
+            torch.zeros(1, DEFAULT_IMAGE_SEQ_LEN, 4, dtype=torch.long, device="meta"),
+            torch.zeros(1, device="meta"),
+            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, flux_params.context_in_dim, device="meta"),
+            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, 4, dtype=torch.long, device="meta"),
+        ),
+        checkpoint="flux/model.gguf",
+        quantization_config=flux_config,
+        shape_exprs={
+            DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
+            DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
+        },
+    )
+    flux_double_block_output_names = export_one(
+        dispatch_name="run_flux_double_block",
+        tensor_file="flux_double_block",
+        tensor_class="FluxDoubleBlockTensors",
+        create_function="create_flux_double_block",
+        tensor_expr="model_tensors().flux_double_blocks[layer_idx]",
+        module=FluxDoubleBlockModule(cast(DoubleStreamBlock, flux_model.double_blocks[0])),
+        args=(
+            torch.zeros(1, DEFAULT_IMAGE_SEQ_LEN, flux_params.hidden_size, device="meta"),
+            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, flux_params.hidden_size, device="meta"),
+            torch.zeros(
+                1,
+                1,
+                DEFAULT_IMAGE_SEQ_LEN,
+                flux_params.hidden_size // flux_params.num_heads // 2,
+                2,
+                2,
+                device="meta",
+            ),
+            torch.zeros(
+                1,
+                1,
+                DEFAULT_TEXT_SEQ_LEN,
+                flux_params.hidden_size // flux_params.num_heads // 2,
+                2,
+                2,
+                device="meta",
+            ),
+            *(
+                torch.zeros(1, 1, flux_params.hidden_size, device="meta")
+                for _ in range(12)
+            ),
+        ),
+        checkpoint="flux/model.gguf",
+        weight_prefix="double_blocks.0.",
+        quantization_config=flux_config,
+        shape_exprs={
+            DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
+            DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
+            DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
+        },
+        parameters_source=", layer_idx: int",
+        is_layered=True,
+    )
+    flux_single_block_output_names = export_one(
+        dispatch_name="run_flux_single_block",
+        tensor_file="flux_single_block",
+        tensor_class="FluxSingleBlockTensors",
+        create_function="create_flux_single_block",
+        tensor_expr="model_tensors().flux_single_blocks[layer_idx]",
+        module=FluxSingleBlockModule(
+            cast(SingleStreamBlock, flux_model.single_blocks[0]),
+            text_seq_len=DEFAULT_TEXT_SEQ_LEN,
+        ),
+        args=(
+            torch.zeros(
+                1,
+                DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN,
+                flux_params.hidden_size,
+                device="meta",
+            ),
+            torch.zeros(
+                1,
+                1,
+                DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN,
+                flux_params.hidden_size // flux_params.num_heads // 2,
+                2,
+                2,
+                device="meta",
+            ),
+            *(
+                torch.zeros(1, 1, flux_params.hidden_size, device="meta")
+                for _ in range(3)
+            ),
+        ),
+        checkpoint="flux/model.gguf",
+        weight_prefix="single_blocks.0.",
+        quantization_config=flux_config,
+        shape_exprs={
+            DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
+            DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
+            DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
+        },
+        parameters_source=", layer_idx: int",
+        is_layered=True,
+    )
+    flux_final_layer_output_names = export_one(
+        dispatch_name="run_flux_final_layer",
+        tensor_file="flux_final_layer",
+        tensor_class="FluxFinalLayerTensors",
+        create_function="create_flux_final_layer",
+        tensor_expr="model_tensors().flux_final_layer",
+        module=FluxFinalLayerModule(flux_model, text_seq_len=DEFAULT_TEXT_SEQ_LEN),
+        args=(
+            torch.zeros(
+                1,
+                DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN,
+                flux_params.hidden_size,
+                device="meta",
+            ),
+            torch.zeros(1, flux_params.hidden_size, device="meta"),
+        ),
+        checkpoint="flux/model.gguf",
+        quantization_config=flux_config,
+        shape_exprs={
+            DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
+            DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
+            DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
+        },
+    )
+    flux_prologue_outputs = _output_map(
+        "flux_prologue",
+        flux_prologue_output_names,
+        (
+            "img",
+            "txt",
+            "pe_x",
+            "pe_ctx",
+            "vec",
+            "img_mod1_shift",
+            "img_mod1_scale",
+            "img_mod1_gate",
+            "img_mod2_shift",
+            "img_mod2_scale",
+            "img_mod2_gate",
+            "txt_mod1_shift",
+            "txt_mod1_scale",
+            "txt_mod1_gate",
+            "txt_mod2_shift",
+            "txt_mod2_scale",
+            "txt_mod2_gate",
+            "single_mod_shift",
+            "single_mod_scale",
+            "single_mod_gate",
+        ),
+    )
+    flux_double_block_outputs = _output_map(
+        "flux_double_block",
+        flux_double_block_output_names,
+        ("img", "txt"),
+    )
+    flux_single_block_outputs = _output_map(
+        "flux_single_block",
+        flux_single_block_output_names,
+        ("hidden_states",),
+    )
+    flux_final_layer_outputs = _output_map(
+        "flux_final_layer",
+        flux_final_layer_output_names,
+        ("pred",),
+    )
     export_one(
         dispatch_name="run_flux",
         tensor_file="flux",
@@ -467,9 +901,17 @@ def main() -> int:
         create_function="create_ae_decode",
         tensor_expr="_require_ae_decode_tensors()",
         module=ae_decode,
-        args=(torch.zeros(1, DEFAULT_IMAGE_SEQ_LEN, 128, device="meta"),),
+        args=(torch.zeros(1, DEFAULT_LATENT_HEIGHT, DEFAULT_LATENT_WIDTH, 128, device="meta"),),
         checkpoint="ae/model.gguf",
         quantization_config=ae_config,
+        shape_symbol_axes={"tokens": {1: "latent_height", 2: "latent_width"}},
+        dynamic_shapes={
+            "tokens": {
+                1: torch.export.Dim("latent_height", min=4, max=256),
+                2: torch.export.Dim("latent_width", min=4, max=256),
+            }
+        },
+        strict=True,
         extra_dispatch_functions='''def _require_ae_decode_tensors() -> AeDecodeTensors:
     tensors = model_tensors().ae_decode
     if tensors is None:
@@ -503,11 +945,14 @@ def create_rope_table(
     )
     _write_model_tensors_module(
         tensors_dir / "model.py",
-        image_seq_len=DEFAULT_IMAGE_SEQ_LEN,
         text_seq_len=DEFAULT_TEXT_SEQ_LEN,
         num_text_layers=text_layers,
         text_hidden_size=text_hidden_size,
         text_head_dim=text_head_dim,
+        flux_prologue_outputs=flux_prologue_outputs,
+        flux_double_block_outputs=flux_double_block_outputs,
+        flux_single_block_outputs=flux_single_block_outputs,
+        flux_final_layer_outputs=flux_final_layer_outputs,
     )
     _write_init(tensors_dir / "__init__.py")
     _write_init(dispatch_dir / "__init__.py")
@@ -527,6 +972,8 @@ def create_rope_table(
     manifest = {
         "repo_id": REPO_ID,
         "image_seq_len": DEFAULT_IMAGE_SEQ_LEN,
+        "latent_height": DEFAULT_LATENT_HEIGHT,
+        "latent_width": DEFAULT_LATENT_WIDTH,
         "text_seq_len": DEFAULT_TEXT_SEQ_LEN,
         "num_text_layers": text_layers,
         "generated_by": "models.quantized_klein9b.export",

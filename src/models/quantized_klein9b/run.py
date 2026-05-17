@@ -21,7 +21,7 @@ from models.quantized_klein9b.dispatch.ae_decode import run_ae_decode
 from models.quantized_klein9b.dispatch.flux import run_flux
 from models.quantized_klein9b.dispatch.text_embed import run_text_embed
 from models.quantized_klein9b.dispatch.text_layer import run_text_layer
-from models.quantized_klein9b.export import DEFAULT_IMAGE_SEQ_LEN, DEFAULT_TEXT_SEQ_LEN
+from models.quantized_klein9b.export import DEFAULT_TEXT_SEQ_LEN
 from models.quantized_klein9b.export_gguf import (
     DEFAULT_OUTPUT_DIR,
     Klein9BGGUFPaths,
@@ -203,8 +203,8 @@ def main(
     num_steps: int = 4,
     profile_dir: str | Path | None = None,
 ) -> Klein9BRunResult:
-    if width != 512 or height != 512:
-        raise ValueError("quantized_klein9b Vulkan AE decode currently supports 512x512 output")
+    if width % 16 != 0 or height % 16 != 0:
+        raise ValueError(f"width and height must be divisible by 16, got {width}x{height}")
     if num_steps != 4:
         raise ValueError(f"FLUX.2 Klein 9B is distilled for 4 steps, got {num_steps}")
 
@@ -224,8 +224,15 @@ def main(
     input_ids = _prepare_input_ids(prompt=prompt, text_encoder_dir=model_dirs.text_encoder)
     text_ids = _text_ids()
     latent_tokens, latent_ids = _latent_tokens_and_ids(width=width, height=height, seed=seed)
-    create_model_tensors(image_seq_len=DEFAULT_IMAGE_SEQ_LEN, text_seq_len=DEFAULT_TEXT_SEQ_LEN)
-    timesteps = _get_schedule(num_steps, DEFAULT_IMAGE_SEQ_LEN)
+    latent_height = height // 16
+    latent_width = width // 16
+    image_seq_len = latent_height * latent_width
+    create_model_tensors(
+        latent_height=latent_height,
+        latent_width=latent_width,
+        text_seq_len=DEFAULT_TEXT_SEQ_LEN,
+    )
+    timesteps = _get_schedule(num_steps, image_seq_len)
 
     rt = RuntimeSession.open(
         device_index=0,
@@ -244,6 +251,7 @@ def main(
         request_state = {tensors.latent_tokens: latent_tokens}
         with rt.request(inputs=request_inputs, state=request_state):
             text_elapsed = _run_text_encoder(rt, rope_theta=1_000_000.0)
+            rt.release_model_weights(tensors.text_embed, *tensors.text_layers)
             denoise_elapsed = _run_denoise(rt, timesteps=timesteps)
             ae_elapsed, image_array = _run_ae_decode(rt)
     finally:

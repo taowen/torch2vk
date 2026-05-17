@@ -24,7 +24,10 @@ from torch2vk.runtime.logical import (
     collect_named_logical_tensors,
 )
 from torch2vk.runtime import request_state
-from torch2vk.runtime.materialization import release_layer_workspace as release_layer_workspace_impl
+from torch2vk.runtime.materialization import (
+    materialize_read,
+    release_layer_workspace as release_layer_workspace_impl,
+)
 from torch2vk.runtime.replay_cache import (
     cache_replay_plan as cache_replay_plan_impl,
     cached_replay_plans as cached_replay_plans_impl,
@@ -322,6 +325,7 @@ class RuntimeSession:
     def readback(self, tensor: LogicalTensor) -> np.ndarray:
         self._require_open()
         self.device.wait_pending_submits()
+        materialize_read(self, tensor)
         if tensor.buffer is None:
             if tensor_nbytes(tensor.spec) == 0:
                 return self.device.empty_tensor(spec=tensor.spec)
@@ -339,6 +343,34 @@ class RuntimeSession:
         for tensor in collect_named_logical_tensors(self._model_tensors).values():
             if tensor.role is TensorRole.WEIGHT:
                 self._materialize_weight(tensor)
+
+    def release_model_weights(self, *tensor_groups: object) -> None:
+        self._require_open()
+        self.device.wait_pending_submits()
+        released_keys: set[str] = set()
+        for group in tensor_groups:
+            for tensor in collect_named_logical_tensors(group).values():
+                if tensor.role is not TensorRole.WEIGHT:
+                    continue
+                if tensor.checkpoint_key is None:
+                    raise RuntimeError(f"{tensor.name} is a weight tensor without checkpoint_key")
+                released_keys.add(tensor.checkpoint_key)
+        for tensor_key in released_keys:
+            cached = self._weight_cache.pop(tensor_key, None)
+            if cached is not None:
+                cached.buffer.allocation.close()
+        self._model_allocations = [
+            allocation for allocation in self._model_allocations if not allocation.released
+        ]
+        if self._model_tensors is None:
+            return
+        for tensor in collect_named_logical_tensors(self._model_tensors).values():
+            if tensor.role is TensorRole.WEIGHT and tensor.checkpoint_key in released_keys:
+                with tensor.runtime_write_scope():
+                    tensor.buffer = None
+                    tensor.descriptor_nbytes = None
+                    tensor.alias_source = None
+                    tensor.writer = None
 
     def build_replay_plan(
         self,

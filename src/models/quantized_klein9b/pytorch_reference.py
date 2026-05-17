@@ -3,6 +3,7 @@ from __future__ import annotations
 import gc
 from pathlib import Path
 from types import TracebackType
+from collections.abc import Callable, Mapping
 from typing import Protocol, cast
 
 import numpy as np
@@ -20,6 +21,12 @@ from models.quantized_klein9b.pytorch_modules import (
     SingleStreamBlock,
     timestep_embedding,
 )
+
+
+FluxStageCallback = Callable[
+    [str, int | None, Mapping[str, torch.Tensor], Mapping[str, torch.Tensor]],
+    None,
+]
 
 
 class _SafeTensorHandle(Protocol):
@@ -102,6 +109,7 @@ class FluxStreamingReference:
         timesteps: torch.Tensor,
         ctx: torch.Tensor,
         ctx_ids: torch.Tensor,
+        stage_callback: FluxStageCallback | None = None,
     ) -> torch.Tensor:
         params = self.params
         hidden = params.hidden_size
@@ -140,6 +148,40 @@ class FluxStreamingReference:
         )
         pe_x = pe_embedder(img_ids)
         pe_ctx = pe_embedder(ctx_ids)
+        if stage_callback is not None:
+            stage_callback(
+                "prologue",
+                None,
+                {
+                    "x": img,
+                    "x_ids": img_ids,
+                    "timesteps": timesteps,
+                    "ctx": ctx,
+                    "ctx_ids": ctx_ids,
+                },
+                {
+                    "img": img_hidden,
+                    "txt": txt_hidden,
+                    "pe_x": pe_x,
+                    "pe_ctx": pe_ctx,
+                    "vec": vec,
+                    "img_mod1_shift": double_block_mod_img[0][0],
+                    "img_mod1_scale": double_block_mod_img[0][1],
+                    "img_mod1_gate": double_block_mod_img[0][2],
+                    "img_mod2_shift": double_block_mod_img[1][0],
+                    "img_mod2_scale": double_block_mod_img[1][1],
+                    "img_mod2_gate": double_block_mod_img[1][2],
+                    "txt_mod1_shift": double_block_mod_txt[0][0],
+                    "txt_mod1_scale": double_block_mod_txt[0][1],
+                    "txt_mod1_gate": double_block_mod_txt[0][2],
+                    "txt_mod2_shift": double_block_mod_txt[1][0],
+                    "txt_mod2_scale": double_block_mod_txt[1][1],
+                    "txt_mod2_gate": double_block_mod_txt[1][2],
+                    "single_mod_shift": single_block_mod[0],
+                    "single_mod_scale": single_block_mod[1],
+                    "single_mod_gate": single_block_mod[2],
+                },
+            )
 
         for layer_idx in range(params.depth):
             with torch.device("meta"):
@@ -148,6 +190,24 @@ class FluxStreamingReference:
                 DoubleStreamBlock,
                 _load_module(block, self.weights, f"double_blocks.{layer_idx}."),
             )
+            block_inputs = {
+                "img": img_hidden,
+                "txt": txt_hidden,
+                "pe": pe_x,
+                "pe_ctx": pe_ctx,
+                "img_mod1_shift": double_block_mod_img[0][0],
+                "img_mod1_scale": double_block_mod_img[0][1],
+                "img_mod1_gate": double_block_mod_img[0][2],
+                "img_mod2_shift": double_block_mod_img[1][0],
+                "img_mod2_scale": double_block_mod_img[1][1],
+                "img_mod2_gate": double_block_mod_img[1][2],
+                "txt_mod1_shift": double_block_mod_txt[0][0],
+                "txt_mod1_scale": double_block_mod_txt[0][1],
+                "txt_mod1_gate": double_block_mod_txt[0][2],
+                "txt_mod2_shift": double_block_mod_txt[1][0],
+                "txt_mod2_scale": double_block_mod_txt[1][1],
+                "txt_mod2_gate": double_block_mod_txt[1][2],
+            }
             img_hidden, txt_hidden, _ = block.forward_kv_extract(
                 img_hidden,
                 txt_hidden,
@@ -157,6 +217,13 @@ class FluxStreamingReference:
                 double_block_mod_txt,
                 num_ref_tokens=0,
             )
+            if stage_callback is not None:
+                stage_callback(
+                    "double_block",
+                    layer_idx,
+                    block_inputs,
+                    {"img": img_hidden, "txt": txt_hidden},
+                )
             del block
             _release_cuda_cache()
 
@@ -172,6 +239,13 @@ class FluxStreamingReference:
                 SingleStreamBlock,
                 _load_module(block, self.weights, f"single_blocks.{layer_idx}."),
             )
+            block_inputs = {
+                "hidden_states": img_hidden,
+                "pe": pe,
+                "mod_shift": single_block_mod[0],
+                "mod_scale": single_block_mod[1],
+                "mod_gate": single_block_mod[2],
+            }
             img_hidden, _ = block.forward_kv_extract(
                 img_hidden,
                 pe,
@@ -179,9 +253,17 @@ class FluxStreamingReference:
                 num_txt_tokens,
                 num_ref_tokens=0,
             )
+            if stage_callback is not None:
+                stage_callback(
+                    "single_block",
+                    layer_idx,
+                    block_inputs,
+                    {"hidden_states": img_hidden},
+                )
             del block
             _release_cuda_cache()
 
+        final_inputs = {"hidden_states": img_hidden, "vec": vec}
         img_hidden = img_hidden[:, num_txt_tokens:, ...]
         del pe, single_block_mod
         _release_cuda_cache()
@@ -190,6 +272,8 @@ class FluxStreamingReference:
             final_layer = LastLayer(hidden, params.in_channels)
         final_layer = _load_module(final_layer, self.weights, "final_layer.")
         pred = final_layer(img_hidden, vec)
+        if stage_callback is not None:
+            stage_callback("final_layer", None, final_inputs, {"pred": pred})
         del final_layer, img_hidden, vec
         _release_cuda_cache()
         return pred

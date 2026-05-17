@@ -51,7 +51,7 @@ class {{ cls.class_name }}:
 
 {{ cls.signature }}
 {% if cls.uses_request_state_outputs %}
-    _validate_request_state_outputs(request_state_outputs, frozenset(({{ cls.output_name_source }},)))
+    _validate_request_state_outputs(request_state_outputs, {{ cls.output_names_source }})
 {% endif %}
     tensors = {{ cls.class_name }}(
 {% for tensor in cls.tensors %}

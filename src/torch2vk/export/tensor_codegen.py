@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Mapping, TypeAlias, cast
@@ -23,6 +24,7 @@ from torch2vk.export.dtype_policy import logical_tensor_dtype, requires_float32_
 from torch2vk.export.graph import SKIP_OPS, graph_output_names, is_alias_op
 from torch2vk.export.registry import DEFAULT_REGISTRY, ShaderRegistry
 from torch2vk.quantize import Q4KMQuantizationConfig
+from torch2vk.vulkan.types import Dim
 
 
 TensorClassContext: TypeAlias = dict[str, object]
@@ -36,7 +38,7 @@ class _TensorKind(Enum):
 
 @dataclass(frozen=True, slots=True)
 class _TensorMeta:
-    shape: tuple[int, ...]
+    shape: tuple[Dim, ...]
     dtype: str
     kind: _TensorKind
     force_float32: bool = False
@@ -92,6 +94,7 @@ def render_tensor_class(
     fields,
     output_const: str | None,
     output_name_source: str | None,
+    output_names: tuple[str, ...] = (),
     signature: str,
     tensors,
     alias_ops=(),
@@ -113,6 +116,8 @@ def render_tensor_class(
         "output_const": output_const,
         "output_name": None if output_name_source is None else output_name_source.strip("'\""),
         "output_name_source": output_name_source,
+        "output_names": output_names,
+        "output_names_source": repr(frozenset(output_names)),
         "signature": signature,
         "tensors": tuple(tensors),
         "extra_initializers": tuple(extra_initializers),
@@ -154,6 +159,7 @@ def generate_tensor_class_source(
     registry: ShaderRegistry = DEFAULT_REGISTRY,
     quantization_config: Q4KMQuantizationConfig | None = None,
     shape_exprs: Mapping[int, str] | None = None,
+    shape_symbol_exprs: Mapping[str, str] | None = None,
 ) -> TensorClassContext:
     """Generate tensor dataclass + factory function context for a single submodule."""
     graph = prog.graph_module.graph
@@ -168,7 +174,7 @@ def generate_tensor_class_source(
             if node.name == spec.arg.name:
                 tm = node.meta.get("tensor_meta")
                 if tm:
-                    shape = tuple(int(d) for d in tm.shape)
+                    shape = _node_shape(tm.shape, shape_symbol_exprs or {})
                     dtype = _node_dtype(node)
                     is_param = spec.kind in (InputKind.PARAMETER, InputKind.BUFFER)
                     tensors[spec.arg.name] = _TensorMeta(
@@ -188,7 +194,7 @@ def generate_tensor_class_source(
                 continue
             tm = node.meta.get("tensor_meta")
             if tm:
-                shape = tuple(int(d) for d in tm.shape)
+                shape = _node_shape(tm.shape, shape_symbol_exprs or {})
                 dtype = _node_dtype(node)
                 tensors[node.name] = _TensorMeta(
                     shape=shape,
@@ -245,6 +251,7 @@ def generate_tensor_class_source(
                 reference_key="None" if meta.kind != _TensorKind.INTERMEDIATE else repr(name),
                 quantization_config=quantization_config,
                 shape_exprs=shape_exprs,
+                shape_symbol_exprs=shape_symbol_exprs,
                 activation_dtype=registry.activation_dtype,
             )
         )
@@ -257,6 +264,7 @@ def generate_tensor_class_source(
         fields=fields,
         output_const=output_const,
         output_name_source=repr(output_name),
+        output_names=tuple(output_names),
         signature=_tensor_factory_signature(
             function_name,
             class_name,
@@ -302,6 +310,7 @@ def generate_weight_tensor_class_source(
         fields=(field_name,),
         output_const=None,
         output_name_source=None,
+        output_names=(),
         signature=_tensor_factory_signature(
             function_name,
             class_name,
@@ -338,6 +347,7 @@ def _tensor_entry(
     reference_key: str,
     quantization_config: Q4KMQuantizationConfig | None = None,
     shape_exprs: Mapping[int, str] | None = None,
+    shape_symbol_exprs: Mapping[str, str] | None = None,
     activation_dtype: str = "float16",
 ) -> dict[str, object]:
     kind = meta.kind
@@ -349,14 +359,18 @@ def _tensor_entry(
     )
     shape = meta.shape
     layout_source = "CONTIGUOUS_LAYOUT"
-    spec_source = f"TensorSpec(dtype={dtype!r}, shape={_shape_source(shape, shape_exprs or {})})"
+    spec_source = (
+        f"TensorSpec(dtype={dtype!r}, "
+        f"shape={_shape_source(shape, shape_exprs or {}, shape_symbol_exprs or {})})"
+    )
     if kind == _TensorKind.PARAMETER and quantization_config is not None:
         if concrete_checkpoint_key is None:
             raise ValueError(f"parameter tensor {name} is missing checkpoint key")
+        concrete_shape = _concrete_shape(shape)
         quantized = quantization_config.declare_weight(
             checkpoint_key=concrete_checkpoint_key,
             dtype=dtype,
-            shape=shape,
+            shape=concrete_shape,
         )
         dtype = quantized.dtype
         shape = quantized.shape
@@ -364,12 +378,12 @@ def _tensor_entry(
         spec_source = (
             f"_quantized_weight_spec({checkpoint_key}, "
             f"dtype={logical_tensor_dtype(is_parameter=True, dtype=meta.dtype, activation_dtype=activation_dtype, force_float32=meta.force_float32)!r}, "
-            f"shape={_shape_source(meta.shape, shape_exprs or {})})"
+            f"shape={_shape_source(meta.shape, shape_exprs or {}, shape_symbol_exprs or {})})"
         )
         layout_source = (
             f"_quantized_weight_layout({checkpoint_key}, "
             f"dtype={logical_tensor_dtype(is_parameter=True, dtype=meta.dtype, activation_dtype=activation_dtype, force_float32=meta.force_float32)!r}, "
-            f"shape={_shape_source(meta.shape, shape_exprs or {})})"
+            f"shape={_shape_source(meta.shape, shape_exprs or {}, shape_symbol_exprs or {})})"
         )
     if kind == _TensorKind.PARAMETER:
         role = "TensorRole.WEIGHT"
@@ -390,9 +404,11 @@ def _tensor_entry(
         "checkpoint_expr": checkpoint,
         "reference_key_expr": reference_key,
         "dtype_source": repr(dtype),
-        "shape_source": _shape_source(shape, shape_exprs or {}),
+        "shape_source": _shape_source(shape, shape_exprs or {}, shape_symbol_exprs or {}),
         "spec_source": spec_source,
-        "shape_parameters": tuple(_shape_dim_names(shape, shape_exprs or {})),
+        "shape_parameters": tuple(
+            _shape_dim_names(shape, shape_exprs or {}, shape_symbol_exprs or {})
+        ),
         "layout_source": layout_source,
         "role": role,
         "memory": memory,
@@ -400,33 +416,84 @@ def _tensor_entry(
     }
 
 
-def layer_workspace_keep_field(context: TensorClassContext) -> str | None:
+def layer_workspace_keep_fields(context: TensorClassContext) -> tuple[str, ...]:
     if not bool(context.get("layered")):
-        return None
-    output_name = context.get("output_name")
-    if not isinstance(output_name, str) or not output_name:
-        return None
-    return output_name
+        return ()
+    output_names = context.get("output_names")
+    if not isinstance(output_names, tuple):
+        return ()
+    return tuple(name for name in output_names if isinstance(name, str) and name)
 
 
-def _shape_source(shape: tuple[int, ...], shape_exprs: Mapping[int, str]) -> str:
+def _node_shape(
+    raw_shape: Iterable[object],
+    shape_symbol_exprs: Mapping[str, str],
+) -> tuple[Dim, ...]:
+    dims: list[Dim] = []
+    for dim in raw_shape:
+        source = str(dim)
+        if source.lstrip("-").isdigit():
+            dims.append(int(source))
+        else:
+            dims.append(_replace_shape_symbols(source, shape_symbol_exprs))
+    return tuple(dims)
+
+
+def _shape_source(
+    shape: tuple[Dim, ...],
+    shape_exprs: Mapping[int, str],
+    shape_symbol_exprs: Mapping[str, str] | None = None,
+) -> str:
     if not shape:
         return "()"
-    parts = tuple(shape_exprs.get(dim, repr(dim)) for dim in shape)
+    parts = tuple(_shape_dim_source(dim, shape_exprs, shape_symbol_exprs or {}) for dim in shape)
     suffix = "," if len(parts) == 1 else ""
     return "(" + ", ".join(parts) + suffix + ")"
 
 
-def _shape_dim_names(shape: tuple[int, ...], shape_exprs: Mapping[int, str]) -> tuple[str, ...]:
+def _shape_dim_source(
+    dim: Dim,
+    shape_exprs: Mapping[int, str],
+    shape_symbol_exprs: Mapping[str, str],
+) -> str:
+    if isinstance(dim, int):
+        return shape_exprs.get(dim, repr(dim))
+    return _replace_shape_symbols(dim, shape_symbol_exprs)
+
+
+def _replace_shape_symbols(expr: str, shape_symbol_exprs: Mapping[str, str]) -> str:
+    replaced = expr
+    for symbol, source in sorted(shape_symbol_exprs.items(), key=lambda item: len(item[0]), reverse=True):
+        replaced = re.sub(rf"\b{re.escape(symbol)}\b", source, replaced)
+    return replaced
+
+
+def _shape_dim_names(
+    shape: tuple[Dim, ...],
+    shape_exprs: Mapping[int, str],
+    shape_symbol_exprs: Mapping[str, str] | None = None,
+) -> tuple[str, ...]:
     names: list[str] = []
+    symbol_exprs = shape_symbol_exprs or {}
     for dim in shape:
-        expr = shape_exprs.get(dim)
+        expr = _shape_dim_source(dim, shape_exprs, symbol_exprs)
+        if isinstance(dim, int) and dim not in shape_exprs:
+            continue
         if expr is None:
             continue
         for name in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", expr):
             if name not in names:
                 names.append(name)
     return tuple(names)
+
+
+def _concrete_shape(shape: tuple[Dim, ...]) -> tuple[int, ...]:
+    concrete: list[int] = []
+    for dim in shape:
+        if not isinstance(dim, int):
+            raise ValueError(f"Expected concrete parameter shape, got {shape}")
+        concrete.append(dim)
+    return tuple(concrete)
 
 
 def _shape_parameter_names(tensor_entries: list[dict[str, object]]) -> tuple[str, ...]:
@@ -467,8 +534,13 @@ def _checkpoint_key_expr(
         return "None"
     safetensors_key = param_map[name]
     if is_layered:
-        name_template = re.sub(r"\.layers\.(\d+)\.", ".layers.{layer_idx}.", safetensors_key)
-        return f'f"{name_template}"'
+        name_template = re.sub(
+            r"(^|\.)(layers|double_blocks|single_blocks)\.(\d+)\.",
+            r"\1\2.{layer_idx}.",
+            safetensors_key,
+        )
+        if "{layer_idx}" in name_template:
+            return f'f"{name_template}"'
     return f'"{safetensors_key}"'
 
 

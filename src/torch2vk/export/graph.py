@@ -68,10 +68,17 @@ def export_submodule(
     args: tuple[torch.Tensor, ...],
     kwargs: dict[str, Any] | None = None,
     *,
+    dynamic_shapes: dict[str, Any] | tuple[Any, ...] | list[Any] | None = None,
     kv_cache: KVCacheExportHint | None = None,
     strict: bool = False,
 ) -> torch.export.ExportedProgram:
-    prog = torch.export.export(module, args, kwargs=kwargs, strict=strict)
+    prog = torch.export.export(
+        module,
+        args,
+        kwargs=kwargs,
+        dynamic_shapes=dynamic_shapes,
+        strict=strict,
+    )
     if kv_cache is not None:
         _annotate_kv_cache(prog, kv_cache)
     return prog

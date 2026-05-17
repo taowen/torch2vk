@@ -203,7 +203,7 @@ def create_text_layer(
     add_7: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> TextLayerTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('add_7',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'add_7'}))
     tensors = TextLayerTensors(
         p_attn_q_proj_weight=_bind_tensor(
             p_attn_q_proj_weight,

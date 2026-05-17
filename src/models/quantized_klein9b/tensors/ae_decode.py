@@ -27,6 +27,7 @@ from torch2vk.vulkan.types import (
 class AeDecodeTensors:
     p_decoder_post_quant_conv_weight: LogicalTensor
     p_decoder_post_quant_conv_bias: LogicalTensor
+    p_decoder_up_0_block_0_norm1_weight: LogicalTensor
     p_decoder_conv_in_weight: LogicalTensor
     p_decoder_conv_in_bias: LogicalTensor
     p_decoder_mid_block_1_norm1_weight: LogicalTensor
@@ -55,32 +56,58 @@ class AeDecodeTensors:
     p_decoder_mid_block_2_norm2_bias: LogicalTensor
     p_decoder_mid_block_2_conv2_weight: LogicalTensor
     p_decoder_mid_block_2_conv2_bias: LogicalTensor
-    p_decoder_up_0_block_0_norm1_weight: LogicalTensor
-    p_decoder_up_0_block_0_norm1_bias: LogicalTensor
-    p_decoder_up_0_block_0_conv1_weight: LogicalTensor
-    p_decoder_up_0_block_0_conv1_bias: LogicalTensor
-    p_decoder_up_0_block_0_norm2_weight: LogicalTensor
-    p_decoder_up_0_block_0_norm2_bias: LogicalTensor
-    p_decoder_up_0_block_0_conv2_weight: LogicalTensor
-    p_decoder_up_0_block_0_conv2_bias: LogicalTensor
-    p_decoder_up_0_block_0_nin_shortcut_weight: LogicalTensor
-    p_decoder_up_0_block_0_nin_shortcut_bias: LogicalTensor
-    p_decoder_up_0_block_1_norm1_weight: LogicalTensor
-    p_decoder_up_0_block_1_norm1_bias: LogicalTensor
-    p_decoder_up_0_block_1_conv1_weight: LogicalTensor
-    p_decoder_up_0_block_1_conv1_bias: LogicalTensor
-    p_decoder_up_0_block_1_norm2_weight: LogicalTensor
-    p_decoder_up_0_block_1_norm2_bias: LogicalTensor
-    p_decoder_up_0_block_1_conv2_weight: LogicalTensor
-    p_decoder_up_0_block_1_conv2_bias: LogicalTensor
-    p_decoder_up_0_block_2_norm1_weight: LogicalTensor
-    p_decoder_up_0_block_2_norm1_bias: LogicalTensor
-    p_decoder_up_0_block_2_conv1_weight: LogicalTensor
-    p_decoder_up_0_block_2_conv1_bias: LogicalTensor
-    p_decoder_up_0_block_2_norm2_weight: LogicalTensor
-    p_decoder_up_0_block_2_norm2_bias: LogicalTensor
-    p_decoder_up_0_block_2_conv2_weight: LogicalTensor
-    p_decoder_up_0_block_2_conv2_bias: LogicalTensor
+    p_decoder_up_3_block_0_norm1_weight: LogicalTensor
+    p_decoder_up_3_block_0_norm1_bias: LogicalTensor
+    p_decoder_up_3_block_0_conv1_weight: LogicalTensor
+    p_decoder_up_3_block_0_conv1_bias: LogicalTensor
+    p_decoder_up_3_block_0_norm2_weight: LogicalTensor
+    p_decoder_up_3_block_0_norm2_bias: LogicalTensor
+    p_decoder_up_3_block_0_conv2_weight: LogicalTensor
+    p_decoder_up_3_block_0_conv2_bias: LogicalTensor
+    p_decoder_up_3_block_1_norm1_weight: LogicalTensor
+    p_decoder_up_3_block_1_norm1_bias: LogicalTensor
+    p_decoder_up_3_block_1_conv1_weight: LogicalTensor
+    p_decoder_up_3_block_1_conv1_bias: LogicalTensor
+    p_decoder_up_3_block_1_norm2_weight: LogicalTensor
+    p_decoder_up_3_block_1_norm2_bias: LogicalTensor
+    p_decoder_up_3_block_1_conv2_weight: LogicalTensor
+    p_decoder_up_3_block_1_conv2_bias: LogicalTensor
+    p_decoder_up_3_block_2_norm1_weight: LogicalTensor
+    p_decoder_up_3_block_2_norm1_bias: LogicalTensor
+    p_decoder_up_3_block_2_conv1_weight: LogicalTensor
+    p_decoder_up_3_block_2_conv1_bias: LogicalTensor
+    p_decoder_up_3_block_2_norm2_weight: LogicalTensor
+    p_decoder_up_3_block_2_norm2_bias: LogicalTensor
+    p_decoder_up_3_block_2_conv2_weight: LogicalTensor
+    p_decoder_up_3_block_2_conv2_bias: LogicalTensor
+    p_decoder_up_3_upsample_conv_weight: LogicalTensor
+    p_decoder_up_3_upsample_conv_bias: LogicalTensor
+    p_decoder_up_2_block_0_norm1_weight: LogicalTensor
+    p_decoder_up_2_block_0_norm1_bias: LogicalTensor
+    p_decoder_up_2_block_0_conv1_weight: LogicalTensor
+    p_decoder_up_2_block_0_conv1_bias: LogicalTensor
+    p_decoder_up_2_block_0_norm2_weight: LogicalTensor
+    p_decoder_up_2_block_0_norm2_bias: LogicalTensor
+    p_decoder_up_2_block_0_conv2_weight: LogicalTensor
+    p_decoder_up_2_block_0_conv2_bias: LogicalTensor
+    p_decoder_up_2_block_1_norm1_weight: LogicalTensor
+    p_decoder_up_2_block_1_norm1_bias: LogicalTensor
+    p_decoder_up_2_block_1_conv1_weight: LogicalTensor
+    p_decoder_up_2_block_1_conv1_bias: LogicalTensor
+    p_decoder_up_2_block_1_norm2_weight: LogicalTensor
+    p_decoder_up_2_block_1_norm2_bias: LogicalTensor
+    p_decoder_up_2_block_1_conv2_weight: LogicalTensor
+    p_decoder_up_2_block_1_conv2_bias: LogicalTensor
+    p_decoder_up_2_block_2_norm1_weight: LogicalTensor
+    p_decoder_up_2_block_2_norm1_bias: LogicalTensor
+    p_decoder_up_2_block_2_conv1_weight: LogicalTensor
+    p_decoder_up_2_block_2_conv1_bias: LogicalTensor
+    p_decoder_up_2_block_2_norm2_weight: LogicalTensor
+    p_decoder_up_2_block_2_norm2_bias: LogicalTensor
+    p_decoder_up_2_block_2_conv2_weight: LogicalTensor
+    p_decoder_up_2_block_2_conv2_bias: LogicalTensor
+    p_decoder_up_2_upsample_conv_weight: LogicalTensor
+    p_decoder_up_2_upsample_conv_bias: LogicalTensor
     p_decoder_up_1_block_0_norm1_weight: LogicalTensor
     p_decoder_up_1_block_0_norm1_bias: LogicalTensor
     p_decoder_up_1_block_0_conv1_weight: LogicalTensor
@@ -109,66 +136,38 @@ class AeDecodeTensors:
     p_decoder_up_1_block_2_conv2_bias: LogicalTensor
     p_decoder_up_1_upsample_conv_weight: LogicalTensor
     p_decoder_up_1_upsample_conv_bias: LogicalTensor
-    p_decoder_up_2_block_0_norm1_weight: LogicalTensor
-    p_decoder_up_2_block_0_norm1_bias: LogicalTensor
-    p_decoder_up_2_block_0_conv1_weight: LogicalTensor
-    p_decoder_up_2_block_0_conv1_bias: LogicalTensor
-    p_decoder_up_2_block_0_norm2_weight: LogicalTensor
-    p_decoder_up_2_block_0_norm2_bias: LogicalTensor
-    p_decoder_up_2_block_0_conv2_weight: LogicalTensor
-    p_decoder_up_2_block_0_conv2_bias: LogicalTensor
-    p_decoder_up_2_block_1_norm1_weight: LogicalTensor
-    p_decoder_up_2_block_1_norm1_bias: LogicalTensor
-    p_decoder_up_2_block_1_conv1_weight: LogicalTensor
-    p_decoder_up_2_block_1_conv1_bias: LogicalTensor
-    p_decoder_up_2_block_1_norm2_weight: LogicalTensor
-    p_decoder_up_2_block_1_norm2_bias: LogicalTensor
-    p_decoder_up_2_block_1_conv2_weight: LogicalTensor
-    p_decoder_up_2_block_1_conv2_bias: LogicalTensor
-    p_decoder_up_2_block_2_norm1_weight: LogicalTensor
-    p_decoder_up_2_block_2_norm1_bias: LogicalTensor
-    p_decoder_up_2_block_2_conv1_weight: LogicalTensor
-    p_decoder_up_2_block_2_conv1_bias: LogicalTensor
-    p_decoder_up_2_block_2_norm2_weight: LogicalTensor
-    p_decoder_up_2_block_2_norm2_bias: LogicalTensor
-    p_decoder_up_2_block_2_conv2_weight: LogicalTensor
-    p_decoder_up_2_block_2_conv2_bias: LogicalTensor
-    p_decoder_up_2_upsample_conv_weight: LogicalTensor
-    p_decoder_up_2_upsample_conv_bias: LogicalTensor
-    p_decoder_up_3_block_0_norm1_weight: LogicalTensor
-    p_decoder_up_3_block_0_norm1_bias: LogicalTensor
-    p_decoder_up_3_block_0_conv1_weight: LogicalTensor
-    p_decoder_up_3_block_0_conv1_bias: LogicalTensor
-    p_decoder_up_3_block_0_norm2_weight: LogicalTensor
-    p_decoder_up_3_block_0_norm2_bias: LogicalTensor
-    p_decoder_up_3_block_0_conv2_weight: LogicalTensor
-    p_decoder_up_3_block_0_conv2_bias: LogicalTensor
-    p_decoder_up_3_block_1_norm1_weight: LogicalTensor
-    p_decoder_up_3_block_1_norm1_bias: LogicalTensor
-    p_decoder_up_3_block_1_conv1_weight: LogicalTensor
-    p_decoder_up_3_block_1_conv1_bias: LogicalTensor
-    p_decoder_up_3_block_1_norm2_weight: LogicalTensor
-    p_decoder_up_3_block_1_norm2_bias: LogicalTensor
-    p_decoder_up_3_block_1_conv2_weight: LogicalTensor
-    p_decoder_up_3_block_1_conv2_bias: LogicalTensor
-    p_decoder_up_3_block_2_norm1_weight: LogicalTensor
-    p_decoder_up_3_block_2_norm1_bias: LogicalTensor
-    p_decoder_up_3_block_2_conv1_weight: LogicalTensor
-    p_decoder_up_3_block_2_conv1_bias: LogicalTensor
-    p_decoder_up_3_block_2_norm2_weight: LogicalTensor
-    p_decoder_up_3_block_2_norm2_bias: LogicalTensor
-    p_decoder_up_3_block_2_conv2_weight: LogicalTensor
-    p_decoder_up_3_block_2_conv2_bias: LogicalTensor
-    p_decoder_up_3_upsample_conv_weight: LogicalTensor
-    p_decoder_up_3_upsample_conv_bias: LogicalTensor
+    p_decoder_up_0_block_0_norm1_bias: LogicalTensor
+    p_decoder_up_0_block_0_conv1_weight: LogicalTensor
+    p_decoder_up_0_block_0_conv1_bias: LogicalTensor
+    p_decoder_up_0_block_0_norm2_weight: LogicalTensor
+    p_decoder_up_0_block_0_norm2_bias: LogicalTensor
+    p_decoder_up_0_block_0_conv2_weight: LogicalTensor
+    p_decoder_up_0_block_0_conv2_bias: LogicalTensor
+    p_decoder_up_0_block_0_nin_shortcut_weight: LogicalTensor
+    p_decoder_up_0_block_0_nin_shortcut_bias: LogicalTensor
+    p_decoder_up_0_block_1_norm1_weight: LogicalTensor
+    p_decoder_up_0_block_1_norm1_bias: LogicalTensor
+    p_decoder_up_0_block_1_conv1_weight: LogicalTensor
+    p_decoder_up_0_block_1_conv1_bias: LogicalTensor
+    p_decoder_up_0_block_1_norm2_weight: LogicalTensor
+    p_decoder_up_0_block_1_norm2_bias: LogicalTensor
+    p_decoder_up_0_block_1_conv2_weight: LogicalTensor
+    p_decoder_up_0_block_1_conv2_bias: LogicalTensor
+    p_decoder_up_0_block_2_norm1_weight: LogicalTensor
+    p_decoder_up_0_block_2_norm1_bias: LogicalTensor
+    p_decoder_up_0_block_2_conv1_weight: LogicalTensor
+    p_decoder_up_0_block_2_conv1_bias: LogicalTensor
+    p_decoder_up_0_block_2_norm2_weight: LogicalTensor
+    p_decoder_up_0_block_2_norm2_bias: LogicalTensor
+    p_decoder_up_0_block_2_conv2_weight: LogicalTensor
+    p_decoder_up_0_block_2_conv2_bias: LogicalTensor
     p_decoder_norm_out_weight: LogicalTensor
     p_decoder_norm_out_bias: LogicalTensor
     p_decoder_conv_out_weight: LogicalTensor
     p_decoder_conv_out_bias: LogicalTensor
-    b_bn_running_mean: LogicalTensor
     b_bn_running_var: LogicalTensor
+    b_bn_running_mean: LogicalTensor
     tokens: LogicalTensor
-    reshape: LogicalTensor
     permute: LogicalTensor
     contiguous: LogicalTensor
     view: LogicalTensor
@@ -177,18 +176,18 @@ class AeDecodeTensors:
     view_1: LogicalTensor
     mul: LogicalTensor
     add_1: LogicalTensor
-    reshape_1: LogicalTensor
+    reshape: LogicalTensor
     permute_1: LogicalTensor
-    reshape_2: LogicalTensor
+    reshape_1: LogicalTensor
     conv2d: LogicalTensor
     conv2d_1: LogicalTensor
     group_norm: LogicalTensor
     sigmoid: LogicalTensor
-    mul_1: LogicalTensor
+    mul_5: LogicalTensor
     conv2d_2: LogicalTensor
     group_norm_1: LogicalTensor
     sigmoid_1: LogicalTensor
-    mul_2: LogicalTensor
+    mul_8: LogicalTensor
     conv2d_3: LogicalTensor
     add_2: LogicalTensor
     group_norm_2: LogicalTensor
@@ -196,148 +195,148 @@ class AeDecodeTensors:
     conv2d_5: LogicalTensor
     conv2d_6: LogicalTensor
     permute_2: LogicalTensor
-    reshape_3: LogicalTensor
+    reshape_2: LogicalTensor
     contiguous_1: LogicalTensor
     permute_3: LogicalTensor
-    reshape_4: LogicalTensor
+    reshape_3: LogicalTensor
     contiguous_2: LogicalTensor
     permute_4: LogicalTensor
-    reshape_5: LogicalTensor
+    reshape_4: LogicalTensor
     contiguous_3: LogicalTensor
     scaled_dot_product_attention: LogicalTensor
-    reshape_6: LogicalTensor
+    reshape_5: LogicalTensor
     permute_5: LogicalTensor
     conv2d_7: LogicalTensor
     add_3: LogicalTensor
     group_norm_3: LogicalTensor
     sigmoid_2: LogicalTensor
-    mul_3: LogicalTensor
+    mul_17: LogicalTensor
     conv2d_8: LogicalTensor
     group_norm_4: LogicalTensor
     sigmoid_3: LogicalTensor
-    mul_4: LogicalTensor
+    mul_20: LogicalTensor
     conv2d_9: LogicalTensor
     add_4: LogicalTensor
     to: LogicalTensor
     group_norm_5: LogicalTensor
     sigmoid_4: LogicalTensor
-    mul_5: LogicalTensor
+    mul_23: LogicalTensor
     conv2d_10: LogicalTensor
     group_norm_6: LogicalTensor
     sigmoid_5: LogicalTensor
-    mul_6: LogicalTensor
+    mul_26: LogicalTensor
     conv2d_11: LogicalTensor
     add_5: LogicalTensor
     group_norm_7: LogicalTensor
     sigmoid_6: LogicalTensor
-    mul_7: LogicalTensor
+    mul_29: LogicalTensor
     conv2d_12: LogicalTensor
     group_norm_8: LogicalTensor
     sigmoid_7: LogicalTensor
-    mul_8: LogicalTensor
+    mul_32: LogicalTensor
     conv2d_13: LogicalTensor
     add_6: LogicalTensor
     group_norm_9: LogicalTensor
     sigmoid_8: LogicalTensor
-    mul_9: LogicalTensor
+    mul_35: LogicalTensor
     conv2d_14: LogicalTensor
     group_norm_10: LogicalTensor
     sigmoid_9: LogicalTensor
-    mul_10: LogicalTensor
+    mul_38: LogicalTensor
     conv2d_15: LogicalTensor
     add_7: LogicalTensor
     upsample_nearest2d: LogicalTensor
     conv2d_16: LogicalTensor
     group_norm_11: LogicalTensor
     sigmoid_10: LogicalTensor
-    mul_11: LogicalTensor
+    mul_41: LogicalTensor
     conv2d_17: LogicalTensor
     group_norm_12: LogicalTensor
     sigmoid_11: LogicalTensor
-    mul_12: LogicalTensor
+    mul_44: LogicalTensor
     conv2d_18: LogicalTensor
     add_8: LogicalTensor
     group_norm_13: LogicalTensor
     sigmoid_12: LogicalTensor
-    mul_13: LogicalTensor
+    mul_47: LogicalTensor
     conv2d_19: LogicalTensor
     group_norm_14: LogicalTensor
     sigmoid_13: LogicalTensor
-    mul_14: LogicalTensor
+    mul_50: LogicalTensor
     conv2d_20: LogicalTensor
     add_9: LogicalTensor
     group_norm_15: LogicalTensor
     sigmoid_14: LogicalTensor
-    mul_15: LogicalTensor
+    mul_53: LogicalTensor
     conv2d_21: LogicalTensor
     group_norm_16: LogicalTensor
     sigmoid_15: LogicalTensor
-    mul_16: LogicalTensor
+    mul_56: LogicalTensor
     conv2d_22: LogicalTensor
     add_10: LogicalTensor
     upsample_nearest2d_1: LogicalTensor
     conv2d_23: LogicalTensor
     group_norm_17: LogicalTensor
     sigmoid_16: LogicalTensor
-    mul_17: LogicalTensor
+    mul_59: LogicalTensor
     conv2d_24: LogicalTensor
     group_norm_18: LogicalTensor
     sigmoid_17: LogicalTensor
-    mul_18: LogicalTensor
+    mul_62: LogicalTensor
     conv2d_25: LogicalTensor
     conv2d_26: LogicalTensor
     add_11: LogicalTensor
     group_norm_19: LogicalTensor
     sigmoid_18: LogicalTensor
-    mul_19: LogicalTensor
+    mul_65: LogicalTensor
     conv2d_27: LogicalTensor
     group_norm_20: LogicalTensor
     sigmoid_19: LogicalTensor
-    mul_20: LogicalTensor
+    mul_68: LogicalTensor
     conv2d_28: LogicalTensor
     add_12: LogicalTensor
     group_norm_21: LogicalTensor
     sigmoid_20: LogicalTensor
-    mul_21: LogicalTensor
+    mul_71: LogicalTensor
     conv2d_29: LogicalTensor
     group_norm_22: LogicalTensor
     sigmoid_21: LogicalTensor
-    mul_22: LogicalTensor
+    mul_74: LogicalTensor
     conv2d_30: LogicalTensor
     add_13: LogicalTensor
     upsample_nearest2d_2: LogicalTensor
     conv2d_31: LogicalTensor
     group_norm_23: LogicalTensor
     sigmoid_22: LogicalTensor
-    mul_23: LogicalTensor
+    mul_77: LogicalTensor
     conv2d_32: LogicalTensor
     group_norm_24: LogicalTensor
     sigmoid_23: LogicalTensor
-    mul_24: LogicalTensor
+    mul_80: LogicalTensor
     conv2d_33: LogicalTensor
     conv2d_34: LogicalTensor
     add_14: LogicalTensor
     group_norm_25: LogicalTensor
     sigmoid_24: LogicalTensor
-    mul_25: LogicalTensor
+    mul_83: LogicalTensor
     conv2d_35: LogicalTensor
     group_norm_26: LogicalTensor
     sigmoid_25: LogicalTensor
-    mul_26: LogicalTensor
+    mul_86: LogicalTensor
     conv2d_36: LogicalTensor
     add_15: LogicalTensor
     group_norm_27: LogicalTensor
     sigmoid_26: LogicalTensor
-    mul_27: LogicalTensor
+    mul_89: LogicalTensor
     conv2d_37: LogicalTensor
     group_norm_28: LogicalTensor
     sigmoid_27: LogicalTensor
-    mul_28: LogicalTensor
+    mul_92: LogicalTensor
     conv2d_38: LogicalTensor
     add_16: LogicalTensor
     group_norm_29: LogicalTensor
     sigmoid_28: LogicalTensor
-    mul_29: LogicalTensor
+    mul_95: LogicalTensor
     conv2d_39: LogicalTensor
 
 
@@ -347,8 +346,11 @@ AE_DECODE_OUTPUT: str = 'conv2d_39'
 def create_ae_decode(
     prefix: str,
     *,
+    latent_height: int,
+    latent_width: int,
     p_decoder_post_quant_conv_weight: LogicalTensor | None = None,
     p_decoder_post_quant_conv_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_0_norm1_weight: LogicalTensor | None = None,
     p_decoder_conv_in_weight: LogicalTensor | None = None,
     p_decoder_conv_in_bias: LogicalTensor | None = None,
     p_decoder_mid_block_1_norm1_weight: LogicalTensor | None = None,
@@ -377,32 +379,58 @@ def create_ae_decode(
     p_decoder_mid_block_2_norm2_bias: LogicalTensor | None = None,
     p_decoder_mid_block_2_conv2_weight: LogicalTensor | None = None,
     p_decoder_mid_block_2_conv2_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_0_norm1_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_0_norm1_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_0_conv1_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_0_conv1_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_0_norm2_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_0_norm2_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_0_conv2_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_0_conv2_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_0_nin_shortcut_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_0_nin_shortcut_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_1_norm1_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_1_norm1_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_1_conv1_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_1_conv1_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_1_norm2_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_1_norm2_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_1_conv2_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_1_conv2_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_2_norm1_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_2_norm1_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_2_conv1_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_2_conv1_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_2_norm2_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_2_norm2_bias: LogicalTensor | None = None,
-    p_decoder_up_0_block_2_conv2_weight: LogicalTensor | None = None,
-    p_decoder_up_0_block_2_conv2_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_0_norm1_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_0_norm1_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_0_conv1_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_0_conv1_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_0_norm2_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_0_norm2_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_0_conv2_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_0_conv2_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_1_norm1_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_1_norm1_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_1_conv1_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_1_conv1_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_1_norm2_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_1_norm2_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_1_conv2_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_1_conv2_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_2_norm1_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_2_norm1_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_2_conv1_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_2_conv1_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_2_norm2_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_2_norm2_bias: LogicalTensor | None = None,
+    p_decoder_up_3_block_2_conv2_weight: LogicalTensor | None = None,
+    p_decoder_up_3_block_2_conv2_bias: LogicalTensor | None = None,
+    p_decoder_up_3_upsample_conv_weight: LogicalTensor | None = None,
+    p_decoder_up_3_upsample_conv_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_0_norm1_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_0_norm1_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_0_conv1_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_0_conv1_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_0_norm2_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_0_norm2_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_0_conv2_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_0_conv2_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_1_norm1_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_1_norm1_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_1_conv1_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_1_conv1_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_1_norm2_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_1_norm2_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_1_conv2_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_1_conv2_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_2_norm1_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_2_norm1_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_2_conv1_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_2_conv1_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_2_norm2_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_2_norm2_bias: LogicalTensor | None = None,
+    p_decoder_up_2_block_2_conv2_weight: LogicalTensor | None = None,
+    p_decoder_up_2_block_2_conv2_bias: LogicalTensor | None = None,
+    p_decoder_up_2_upsample_conv_weight: LogicalTensor | None = None,
+    p_decoder_up_2_upsample_conv_bias: LogicalTensor | None = None,
     p_decoder_up_1_block_0_norm1_weight: LogicalTensor | None = None,
     p_decoder_up_1_block_0_norm1_bias: LogicalTensor | None = None,
     p_decoder_up_1_block_0_conv1_weight: LogicalTensor | None = None,
@@ -431,66 +459,38 @@ def create_ae_decode(
     p_decoder_up_1_block_2_conv2_bias: LogicalTensor | None = None,
     p_decoder_up_1_upsample_conv_weight: LogicalTensor | None = None,
     p_decoder_up_1_upsample_conv_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_0_norm1_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_0_norm1_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_0_conv1_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_0_conv1_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_0_norm2_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_0_norm2_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_0_conv2_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_0_conv2_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_1_norm1_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_1_norm1_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_1_conv1_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_1_conv1_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_1_norm2_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_1_norm2_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_1_conv2_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_1_conv2_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_2_norm1_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_2_norm1_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_2_conv1_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_2_conv1_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_2_norm2_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_2_norm2_bias: LogicalTensor | None = None,
-    p_decoder_up_2_block_2_conv2_weight: LogicalTensor | None = None,
-    p_decoder_up_2_block_2_conv2_bias: LogicalTensor | None = None,
-    p_decoder_up_2_upsample_conv_weight: LogicalTensor | None = None,
-    p_decoder_up_2_upsample_conv_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_0_norm1_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_0_norm1_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_0_conv1_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_0_conv1_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_0_norm2_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_0_norm2_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_0_conv2_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_0_conv2_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_1_norm1_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_1_norm1_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_1_conv1_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_1_conv1_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_1_norm2_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_1_norm2_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_1_conv2_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_1_conv2_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_2_norm1_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_2_norm1_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_2_conv1_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_2_conv1_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_2_norm2_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_2_norm2_bias: LogicalTensor | None = None,
-    p_decoder_up_3_block_2_conv2_weight: LogicalTensor | None = None,
-    p_decoder_up_3_block_2_conv2_bias: LogicalTensor | None = None,
-    p_decoder_up_3_upsample_conv_weight: LogicalTensor | None = None,
-    p_decoder_up_3_upsample_conv_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_0_norm1_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_0_conv1_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_0_conv1_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_0_norm2_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_0_norm2_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_0_conv2_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_0_conv2_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_0_nin_shortcut_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_0_nin_shortcut_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_1_norm1_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_1_norm1_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_1_conv1_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_1_conv1_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_1_norm2_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_1_norm2_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_1_conv2_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_1_conv2_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_2_norm1_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_2_norm1_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_2_conv1_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_2_conv1_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_2_norm2_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_2_norm2_bias: LogicalTensor | None = None,
+    p_decoder_up_0_block_2_conv2_weight: LogicalTensor | None = None,
+    p_decoder_up_0_block_2_conv2_bias: LogicalTensor | None = None,
     p_decoder_norm_out_weight: LogicalTensor | None = None,
     p_decoder_norm_out_bias: LogicalTensor | None = None,
     p_decoder_conv_out_weight: LogicalTensor | None = None,
     p_decoder_conv_out_bias: LogicalTensor | None = None,
-    b_bn_running_mean: LogicalTensor | None = None,
     b_bn_running_var: LogicalTensor | None = None,
+    b_bn_running_mean: LogicalTensor | None = None,
     tokens: LogicalTensor | None = None,
-    reshape: LogicalTensor | None = None,
     permute: LogicalTensor | None = None,
     contiguous: LogicalTensor | None = None,
     view: LogicalTensor | None = None,
@@ -499,18 +499,18 @@ def create_ae_decode(
     view_1: LogicalTensor | None = None,
     mul: LogicalTensor | None = None,
     add_1: LogicalTensor | None = None,
-    reshape_1: LogicalTensor | None = None,
+    reshape: LogicalTensor | None = None,
     permute_1: LogicalTensor | None = None,
-    reshape_2: LogicalTensor | None = None,
+    reshape_1: LogicalTensor | None = None,
     conv2d: LogicalTensor | None = None,
     conv2d_1: LogicalTensor | None = None,
     group_norm: LogicalTensor | None = None,
     sigmoid: LogicalTensor | None = None,
-    mul_1: LogicalTensor | None = None,
+    mul_5: LogicalTensor | None = None,
     conv2d_2: LogicalTensor | None = None,
     group_norm_1: LogicalTensor | None = None,
     sigmoid_1: LogicalTensor | None = None,
-    mul_2: LogicalTensor | None = None,
+    mul_8: LogicalTensor | None = None,
     conv2d_3: LogicalTensor | None = None,
     add_2: LogicalTensor | None = None,
     group_norm_2: LogicalTensor | None = None,
@@ -518,152 +518,152 @@ def create_ae_decode(
     conv2d_5: LogicalTensor | None = None,
     conv2d_6: LogicalTensor | None = None,
     permute_2: LogicalTensor | None = None,
-    reshape_3: LogicalTensor | None = None,
+    reshape_2: LogicalTensor | None = None,
     contiguous_1: LogicalTensor | None = None,
     permute_3: LogicalTensor | None = None,
-    reshape_4: LogicalTensor | None = None,
+    reshape_3: LogicalTensor | None = None,
     contiguous_2: LogicalTensor | None = None,
     permute_4: LogicalTensor | None = None,
-    reshape_5: LogicalTensor | None = None,
+    reshape_4: LogicalTensor | None = None,
     contiguous_3: LogicalTensor | None = None,
     scaled_dot_product_attention: LogicalTensor | None = None,
-    reshape_6: LogicalTensor | None = None,
+    reshape_5: LogicalTensor | None = None,
     permute_5: LogicalTensor | None = None,
     conv2d_7: LogicalTensor | None = None,
     add_3: LogicalTensor | None = None,
     group_norm_3: LogicalTensor | None = None,
     sigmoid_2: LogicalTensor | None = None,
-    mul_3: LogicalTensor | None = None,
+    mul_17: LogicalTensor | None = None,
     conv2d_8: LogicalTensor | None = None,
     group_norm_4: LogicalTensor | None = None,
     sigmoid_3: LogicalTensor | None = None,
-    mul_4: LogicalTensor | None = None,
+    mul_20: LogicalTensor | None = None,
     conv2d_9: LogicalTensor | None = None,
     add_4: LogicalTensor | None = None,
     to: LogicalTensor | None = None,
     group_norm_5: LogicalTensor | None = None,
     sigmoid_4: LogicalTensor | None = None,
-    mul_5: LogicalTensor | None = None,
+    mul_23: LogicalTensor | None = None,
     conv2d_10: LogicalTensor | None = None,
     group_norm_6: LogicalTensor | None = None,
     sigmoid_5: LogicalTensor | None = None,
-    mul_6: LogicalTensor | None = None,
+    mul_26: LogicalTensor | None = None,
     conv2d_11: LogicalTensor | None = None,
     add_5: LogicalTensor | None = None,
     group_norm_7: LogicalTensor | None = None,
     sigmoid_6: LogicalTensor | None = None,
-    mul_7: LogicalTensor | None = None,
+    mul_29: LogicalTensor | None = None,
     conv2d_12: LogicalTensor | None = None,
     group_norm_8: LogicalTensor | None = None,
     sigmoid_7: LogicalTensor | None = None,
-    mul_8: LogicalTensor | None = None,
+    mul_32: LogicalTensor | None = None,
     conv2d_13: LogicalTensor | None = None,
     add_6: LogicalTensor | None = None,
     group_norm_9: LogicalTensor | None = None,
     sigmoid_8: LogicalTensor | None = None,
-    mul_9: LogicalTensor | None = None,
+    mul_35: LogicalTensor | None = None,
     conv2d_14: LogicalTensor | None = None,
     group_norm_10: LogicalTensor | None = None,
     sigmoid_9: LogicalTensor | None = None,
-    mul_10: LogicalTensor | None = None,
+    mul_38: LogicalTensor | None = None,
     conv2d_15: LogicalTensor | None = None,
     add_7: LogicalTensor | None = None,
     upsample_nearest2d: LogicalTensor | None = None,
     conv2d_16: LogicalTensor | None = None,
     group_norm_11: LogicalTensor | None = None,
     sigmoid_10: LogicalTensor | None = None,
-    mul_11: LogicalTensor | None = None,
+    mul_41: LogicalTensor | None = None,
     conv2d_17: LogicalTensor | None = None,
     group_norm_12: LogicalTensor | None = None,
     sigmoid_11: LogicalTensor | None = None,
-    mul_12: LogicalTensor | None = None,
+    mul_44: LogicalTensor | None = None,
     conv2d_18: LogicalTensor | None = None,
     add_8: LogicalTensor | None = None,
     group_norm_13: LogicalTensor | None = None,
     sigmoid_12: LogicalTensor | None = None,
-    mul_13: LogicalTensor | None = None,
+    mul_47: LogicalTensor | None = None,
     conv2d_19: LogicalTensor | None = None,
     group_norm_14: LogicalTensor | None = None,
     sigmoid_13: LogicalTensor | None = None,
-    mul_14: LogicalTensor | None = None,
+    mul_50: LogicalTensor | None = None,
     conv2d_20: LogicalTensor | None = None,
     add_9: LogicalTensor | None = None,
     group_norm_15: LogicalTensor | None = None,
     sigmoid_14: LogicalTensor | None = None,
-    mul_15: LogicalTensor | None = None,
+    mul_53: LogicalTensor | None = None,
     conv2d_21: LogicalTensor | None = None,
     group_norm_16: LogicalTensor | None = None,
     sigmoid_15: LogicalTensor | None = None,
-    mul_16: LogicalTensor | None = None,
+    mul_56: LogicalTensor | None = None,
     conv2d_22: LogicalTensor | None = None,
     add_10: LogicalTensor | None = None,
     upsample_nearest2d_1: LogicalTensor | None = None,
     conv2d_23: LogicalTensor | None = None,
     group_norm_17: LogicalTensor | None = None,
     sigmoid_16: LogicalTensor | None = None,
-    mul_17: LogicalTensor | None = None,
+    mul_59: LogicalTensor | None = None,
     conv2d_24: LogicalTensor | None = None,
     group_norm_18: LogicalTensor | None = None,
     sigmoid_17: LogicalTensor | None = None,
-    mul_18: LogicalTensor | None = None,
+    mul_62: LogicalTensor | None = None,
     conv2d_25: LogicalTensor | None = None,
     conv2d_26: LogicalTensor | None = None,
     add_11: LogicalTensor | None = None,
     group_norm_19: LogicalTensor | None = None,
     sigmoid_18: LogicalTensor | None = None,
-    mul_19: LogicalTensor | None = None,
+    mul_65: LogicalTensor | None = None,
     conv2d_27: LogicalTensor | None = None,
     group_norm_20: LogicalTensor | None = None,
     sigmoid_19: LogicalTensor | None = None,
-    mul_20: LogicalTensor | None = None,
+    mul_68: LogicalTensor | None = None,
     conv2d_28: LogicalTensor | None = None,
     add_12: LogicalTensor | None = None,
     group_norm_21: LogicalTensor | None = None,
     sigmoid_20: LogicalTensor | None = None,
-    mul_21: LogicalTensor | None = None,
+    mul_71: LogicalTensor | None = None,
     conv2d_29: LogicalTensor | None = None,
     group_norm_22: LogicalTensor | None = None,
     sigmoid_21: LogicalTensor | None = None,
-    mul_22: LogicalTensor | None = None,
+    mul_74: LogicalTensor | None = None,
     conv2d_30: LogicalTensor | None = None,
     add_13: LogicalTensor | None = None,
     upsample_nearest2d_2: LogicalTensor | None = None,
     conv2d_31: LogicalTensor | None = None,
     group_norm_23: LogicalTensor | None = None,
     sigmoid_22: LogicalTensor | None = None,
-    mul_23: LogicalTensor | None = None,
+    mul_77: LogicalTensor | None = None,
     conv2d_32: LogicalTensor | None = None,
     group_norm_24: LogicalTensor | None = None,
     sigmoid_23: LogicalTensor | None = None,
-    mul_24: LogicalTensor | None = None,
+    mul_80: LogicalTensor | None = None,
     conv2d_33: LogicalTensor | None = None,
     conv2d_34: LogicalTensor | None = None,
     add_14: LogicalTensor | None = None,
     group_norm_25: LogicalTensor | None = None,
     sigmoid_24: LogicalTensor | None = None,
-    mul_25: LogicalTensor | None = None,
+    mul_83: LogicalTensor | None = None,
     conv2d_35: LogicalTensor | None = None,
     group_norm_26: LogicalTensor | None = None,
     sigmoid_25: LogicalTensor | None = None,
-    mul_26: LogicalTensor | None = None,
+    mul_86: LogicalTensor | None = None,
     conv2d_36: LogicalTensor | None = None,
     add_15: LogicalTensor | None = None,
     group_norm_27: LogicalTensor | None = None,
     sigmoid_26: LogicalTensor | None = None,
-    mul_27: LogicalTensor | None = None,
+    mul_89: LogicalTensor | None = None,
     conv2d_37: LogicalTensor | None = None,
     group_norm_28: LogicalTensor | None = None,
     sigmoid_27: LogicalTensor | None = None,
-    mul_28: LogicalTensor | None = None,
+    mul_92: LogicalTensor | None = None,
     conv2d_38: LogicalTensor | None = None,
     add_16: LogicalTensor | None = None,
     group_norm_29: LogicalTensor | None = None,
     sigmoid_28: LogicalTensor | None = None,
-    mul_29: LogicalTensor | None = None,
+    mul_95: LogicalTensor | None = None,
     conv2d_39: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> AeDecodeTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('conv2d_39',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'conv2d_39'}))
     tensors = AeDecodeTensors(
         p_decoder_post_quant_conv_weight=_bind_tensor(
             p_decoder_post_quant_conv_weight,
@@ -693,6 +693,21 @@ def create_ae_decode(
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
                 request_state='p_decoder_post_quant_conv_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_0_block_0_norm1_weight=_bind_tensor(
+            p_decoder_up_0_block_0_norm1_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.0.block.0.norm1.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.0.block.0.norm1.weight", dtype='float32', shape=(256,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.0.norm1.weight", dtype='float32', shape=(256,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_0_block_0_norm1_weight' in request_state_outputs,
             ),
         ),
         p_decoder_conv_in_weight=_bind_tensor(
@@ -1115,394 +1130,784 @@ def create_ae_decode(
                 request_state='p_decoder_mid_block_2_conv2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_0_norm1_weight=_bind_tensor(
-            p_decoder_up_0_block_0_norm1_weight,
+        p_decoder_up_3_block_0_norm1_weight=_bind_tensor(
+            p_decoder_up_3_block_0_norm1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.0.norm1.weight",
+                checkpoint_key="decoder.up.3.block.0.norm1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.0.norm1.weight", dtype='float32', shape=(256,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.0.norm1.weight", dtype='float32', shape=(256,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.0.norm1.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.0.norm1.weight", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_0_norm1_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_0_norm1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_0_norm1_bias=_bind_tensor(
-            p_decoder_up_0_block_0_norm1_bias,
+        p_decoder_up_3_block_0_norm1_bias=_bind_tensor(
+            p_decoder_up_3_block_0_norm1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.0.norm1.bias",
+                checkpoint_key="decoder.up.3.block.0.norm1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.0.norm1.bias", dtype='float32', shape=(256,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.0.norm1.bias", dtype='float32', shape=(256,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.0.norm1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.0.norm1.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_0_norm1_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_0_norm1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_0_conv1_weight=_bind_tensor(
-            p_decoder_up_0_block_0_conv1_weight,
+        p_decoder_up_3_block_0_conv1_weight=_bind_tensor(
+            p_decoder_up_3_block_0_conv1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.0.conv1.weight",
+                checkpoint_key="decoder.up.3.block.0.conv1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.0.conv1.weight", dtype='float32', shape=(128, 256, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.0.block.0.conv1.weight", dtype='float32', shape=(128, 256, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.3.block.0.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.3.block.0.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_0_conv1_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_0_conv1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_0_conv1_bias=_bind_tensor(
-            p_decoder_up_0_block_0_conv1_bias,
+        p_decoder_up_3_block_0_conv1_bias=_bind_tensor(
+            p_decoder_up_3_block_0_conv1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.0.conv1.bias",
+                checkpoint_key="decoder.up.3.block.0.conv1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.0.conv1.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.0.conv1.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.0.conv1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.0.conv1.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_0_conv1_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_0_conv1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_0_norm2_weight=_bind_tensor(
-            p_decoder_up_0_block_0_norm2_weight,
+        p_decoder_up_3_block_0_norm2_weight=_bind_tensor(
+            p_decoder_up_3_block_0_norm2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.0.norm2.weight",
+                checkpoint_key="decoder.up.3.block.0.norm2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.0.norm2.weight", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.0.norm2.weight", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.0.norm2.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.0.norm2.weight", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_0_norm2_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_0_norm2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_0_norm2_bias=_bind_tensor(
-            p_decoder_up_0_block_0_norm2_bias,
+        p_decoder_up_3_block_0_norm2_bias=_bind_tensor(
+            p_decoder_up_3_block_0_norm2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.0.norm2.bias",
+                checkpoint_key="decoder.up.3.block.0.norm2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.0.norm2.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.0.norm2.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.0.norm2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.0.norm2.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_0_norm2_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_0_norm2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_0_conv2_weight=_bind_tensor(
-            p_decoder_up_0_block_0_conv2_weight,
+        p_decoder_up_3_block_0_conv2_weight=_bind_tensor(
+            p_decoder_up_3_block_0_conv2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.0.conv2.weight",
+                checkpoint_key="decoder.up.3.block.0.conv2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.0.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.0.block.0.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.3.block.0.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.3.block.0.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_0_conv2_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_0_conv2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_0_conv2_bias=_bind_tensor(
-            p_decoder_up_0_block_0_conv2_bias,
+        p_decoder_up_3_block_0_conv2_bias=_bind_tensor(
+            p_decoder_up_3_block_0_conv2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.0.conv2.bias",
+                checkpoint_key="decoder.up.3.block.0.conv2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.0.conv2.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.0.conv2.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.0.conv2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.0.conv2.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_0_conv2_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_0_conv2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_0_nin_shortcut_weight=_bind_tensor(
-            p_decoder_up_0_block_0_nin_shortcut_weight,
+        p_decoder_up_3_block_1_norm1_weight=_bind_tensor(
+            p_decoder_up_3_block_1_norm1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.0.nin_shortcut.weight",
+                checkpoint_key="decoder.up.3.block.1.norm1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.0.nin_shortcut.weight", dtype='float32', shape=(128, 256, 1, 1)),
-                layout=_quantized_weight_layout("decoder.up.0.block.0.nin_shortcut.weight", dtype='float32', shape=(128, 256, 1, 1)),
+                spec=_quantized_weight_spec("decoder.up.3.block.1.norm1.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.1.norm1.weight", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_0_nin_shortcut_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_1_norm1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_0_nin_shortcut_bias=_bind_tensor(
-            p_decoder_up_0_block_0_nin_shortcut_bias,
+        p_decoder_up_3_block_1_norm1_bias=_bind_tensor(
+            p_decoder_up_3_block_1_norm1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.0.nin_shortcut.bias",
+                checkpoint_key="decoder.up.3.block.1.norm1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.0.nin_shortcut.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.0.nin_shortcut.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.1.norm1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.1.norm1.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_0_nin_shortcut_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_1_norm1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_1_norm1_weight=_bind_tensor(
-            p_decoder_up_0_block_1_norm1_weight,
+        p_decoder_up_3_block_1_conv1_weight=_bind_tensor(
+            p_decoder_up_3_block_1_conv1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.1.norm1.weight",
+                checkpoint_key="decoder.up.3.block.1.conv1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.1.norm1.weight", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.1.norm1.weight", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.1.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.3.block.1.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_1_norm1_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_1_conv1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_1_norm1_bias=_bind_tensor(
-            p_decoder_up_0_block_1_norm1_bias,
+        p_decoder_up_3_block_1_conv1_bias=_bind_tensor(
+            p_decoder_up_3_block_1_conv1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.1.norm1.bias",
+                checkpoint_key="decoder.up.3.block.1.conv1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.1.norm1.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.1.norm1.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.1.conv1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.1.conv1.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_1_norm1_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_1_conv1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_1_conv1_weight=_bind_tensor(
-            p_decoder_up_0_block_1_conv1_weight,
+        p_decoder_up_3_block_1_norm2_weight=_bind_tensor(
+            p_decoder_up_3_block_1_norm2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.1.conv1.weight",
+                checkpoint_key="decoder.up.3.block.1.norm2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.1.conv1.weight", dtype='float32', shape=(128, 128, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.0.block.1.conv1.weight", dtype='float32', shape=(128, 128, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.3.block.1.norm2.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.1.norm2.weight", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_1_conv1_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_1_norm2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_1_conv1_bias=_bind_tensor(
-            p_decoder_up_0_block_1_conv1_bias,
+        p_decoder_up_3_block_1_norm2_bias=_bind_tensor(
+            p_decoder_up_3_block_1_norm2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.1.conv1.bias",
+                checkpoint_key="decoder.up.3.block.1.norm2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.1.conv1.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.1.conv1.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.1.norm2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.1.norm2.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_1_conv1_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_1_norm2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_1_norm2_weight=_bind_tensor(
-            p_decoder_up_0_block_1_norm2_weight,
+        p_decoder_up_3_block_1_conv2_weight=_bind_tensor(
+            p_decoder_up_3_block_1_conv2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.1.norm2.weight",
+                checkpoint_key="decoder.up.3.block.1.conv2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.1.norm2.weight", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.1.norm2.weight", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.1.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.3.block.1.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_1_norm2_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_1_conv2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_1_norm2_bias=_bind_tensor(
-            p_decoder_up_0_block_1_norm2_bias,
+        p_decoder_up_3_block_1_conv2_bias=_bind_tensor(
+            p_decoder_up_3_block_1_conv2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.1.norm2.bias",
+                checkpoint_key="decoder.up.3.block.1.conv2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.1.norm2.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.1.norm2.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.1.conv2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.1.conv2.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_1_norm2_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_1_conv2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_1_conv2_weight=_bind_tensor(
-            p_decoder_up_0_block_1_conv2_weight,
+        p_decoder_up_3_block_2_norm1_weight=_bind_tensor(
+            p_decoder_up_3_block_2_norm1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.1.conv2.weight",
+                checkpoint_key="decoder.up.3.block.2.norm1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.1.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.0.block.1.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.3.block.2.norm1.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.2.norm1.weight", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_1_conv2_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_2_norm1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_1_conv2_bias=_bind_tensor(
-            p_decoder_up_0_block_1_conv2_bias,
+        p_decoder_up_3_block_2_norm1_bias=_bind_tensor(
+            p_decoder_up_3_block_2_norm1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.1.conv2.bias",
+                checkpoint_key="decoder.up.3.block.2.norm1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.1.conv2.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.1.conv2.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.2.norm1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.2.norm1.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_1_conv2_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_2_norm1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_2_norm1_weight=_bind_tensor(
-            p_decoder_up_0_block_2_norm1_weight,
+        p_decoder_up_3_block_2_conv1_weight=_bind_tensor(
+            p_decoder_up_3_block_2_conv1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.2.norm1.weight",
+                checkpoint_key="decoder.up.3.block.2.conv1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.2.norm1.weight", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.2.norm1.weight", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.2.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.3.block.2.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_2_norm1_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_2_conv1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_2_norm1_bias=_bind_tensor(
-            p_decoder_up_0_block_2_norm1_bias,
+        p_decoder_up_3_block_2_conv1_bias=_bind_tensor(
+            p_decoder_up_3_block_2_conv1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.2.norm1.bias",
+                checkpoint_key="decoder.up.3.block.2.conv1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.2.norm1.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.2.norm1.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.2.conv1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.2.conv1.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_2_norm1_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_2_conv1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_2_conv1_weight=_bind_tensor(
-            p_decoder_up_0_block_2_conv1_weight,
+        p_decoder_up_3_block_2_norm2_weight=_bind_tensor(
+            p_decoder_up_3_block_2_norm2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.2.conv1.weight",
+                checkpoint_key="decoder.up.3.block.2.norm2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.2.conv1.weight", dtype='float32', shape=(128, 128, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.0.block.2.conv1.weight", dtype='float32', shape=(128, 128, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.3.block.2.norm2.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.2.norm2.weight", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_2_conv1_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_2_norm2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_2_conv1_bias=_bind_tensor(
-            p_decoder_up_0_block_2_conv1_bias,
+        p_decoder_up_3_block_2_norm2_bias=_bind_tensor(
+            p_decoder_up_3_block_2_norm2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.2.conv1.bias",
+                checkpoint_key="decoder.up.3.block.2.norm2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.2.conv1.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.2.conv1.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.2.norm2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.2.norm2.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_2_conv1_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_2_norm2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_2_norm2_weight=_bind_tensor(
-            p_decoder_up_0_block_2_norm2_weight,
+        p_decoder_up_3_block_2_conv2_weight=_bind_tensor(
+            p_decoder_up_3_block_2_conv2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.2.norm2.weight",
+                checkpoint_key="decoder.up.3.block.2.conv2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.2.norm2.weight", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.2.norm2.weight", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.2.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.3.block.2.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_2_norm2_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_block_2_conv2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_2_norm2_bias=_bind_tensor(
-            p_decoder_up_0_block_2_norm2_bias,
+        p_decoder_up_3_block_2_conv2_bias=_bind_tensor(
+            p_decoder_up_3_block_2_conv2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.2.norm2.bias",
+                checkpoint_key="decoder.up.3.block.2.conv2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.2.norm2.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.2.norm2.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.block.2.conv2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.block.2.conv2.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_2_norm2_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_block_2_conv2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_2_conv2_weight=_bind_tensor(
-            p_decoder_up_0_block_2_conv2_weight,
+        p_decoder_up_3_upsample_conv_weight=_bind_tensor(
+            p_decoder_up_3_upsample_conv_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.2.conv2.weight",
+                checkpoint_key="decoder.up.3.upsample.conv.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.2.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.0.block.2.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.3.upsample.conv.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.3.upsample.conv.weight", dtype='float32', shape=(512, 512, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_2_conv2_weight' in request_state_outputs,
+                request_state='p_decoder_up_3_upsample_conv_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_0_block_2_conv2_bias=_bind_tensor(
-            p_decoder_up_0_block_2_conv2_bias,
+        p_decoder_up_3_upsample_conv_bias=_bind_tensor(
+            p_decoder_up_3_upsample_conv_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.0.block.2.conv2.bias",
+                checkpoint_key="decoder.up.3.upsample.conv.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.0.block.2.conv2.bias", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("decoder.up.0.block.2.conv2.bias", dtype='float32', shape=(128,)),
+                spec=_quantized_weight_spec("decoder.up.3.upsample.conv.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.3.upsample.conv.bias", dtype='float32', shape=(512,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_0_block_2_conv2_bias' in request_state_outputs,
+                request_state='p_decoder_up_3_upsample_conv_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_0_norm1_weight=_bind_tensor(
+            p_decoder_up_2_block_0_norm1_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.0.norm1.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.0.norm1.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.0.norm1.weight", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_0_norm1_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_0_norm1_bias=_bind_tensor(
+            p_decoder_up_2_block_0_norm1_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.0.norm1.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.0.norm1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.0.norm1.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_0_norm1_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_0_conv1_weight=_bind_tensor(
+            p_decoder_up_2_block_0_conv1_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.0.conv1.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.0.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.2.block.0.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_0_conv1_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_0_conv1_bias=_bind_tensor(
+            p_decoder_up_2_block_0_conv1_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.0.conv1.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.0.conv1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.0.conv1.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_0_conv1_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_0_norm2_weight=_bind_tensor(
+            p_decoder_up_2_block_0_norm2_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.0.norm2.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.0.norm2.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.0.norm2.weight", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_0_norm2_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_0_norm2_bias=_bind_tensor(
+            p_decoder_up_2_block_0_norm2_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.0.norm2.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.0.norm2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.0.norm2.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_0_norm2_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_0_conv2_weight=_bind_tensor(
+            p_decoder_up_2_block_0_conv2_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.0.conv2.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.0.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.2.block.0.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_0_conv2_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_0_conv2_bias=_bind_tensor(
+            p_decoder_up_2_block_0_conv2_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.0.conv2.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.0.conv2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.0.conv2.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_0_conv2_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_1_norm1_weight=_bind_tensor(
+            p_decoder_up_2_block_1_norm1_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.1.norm1.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.1.norm1.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.1.norm1.weight", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_1_norm1_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_1_norm1_bias=_bind_tensor(
+            p_decoder_up_2_block_1_norm1_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.1.norm1.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.1.norm1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.1.norm1.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_1_norm1_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_1_conv1_weight=_bind_tensor(
+            p_decoder_up_2_block_1_conv1_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.1.conv1.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.1.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.2.block.1.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_1_conv1_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_1_conv1_bias=_bind_tensor(
+            p_decoder_up_2_block_1_conv1_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.1.conv1.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.1.conv1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.1.conv1.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_1_conv1_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_1_norm2_weight=_bind_tensor(
+            p_decoder_up_2_block_1_norm2_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.1.norm2.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.1.norm2.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.1.norm2.weight", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_1_norm2_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_1_norm2_bias=_bind_tensor(
+            p_decoder_up_2_block_1_norm2_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.1.norm2.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.1.norm2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.1.norm2.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_1_norm2_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_1_conv2_weight=_bind_tensor(
+            p_decoder_up_2_block_1_conv2_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.1.conv2.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.1.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.2.block.1.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_1_conv2_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_1_conv2_bias=_bind_tensor(
+            p_decoder_up_2_block_1_conv2_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.1.conv2.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.1.conv2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.1.conv2.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_1_conv2_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_2_norm1_weight=_bind_tensor(
+            p_decoder_up_2_block_2_norm1_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.2.norm1.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.2.norm1.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.2.norm1.weight", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_2_norm1_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_2_norm1_bias=_bind_tensor(
+            p_decoder_up_2_block_2_norm1_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.2.norm1.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.2.norm1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.2.norm1.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_2_norm1_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_2_conv1_weight=_bind_tensor(
+            p_decoder_up_2_block_2_conv1_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.2.conv1.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.2.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.2.block.2.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_2_conv1_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_2_conv1_bias=_bind_tensor(
+            p_decoder_up_2_block_2_conv1_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.2.conv1.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.2.conv1.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.2.conv1.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_2_conv1_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_2_norm2_weight=_bind_tensor(
+            p_decoder_up_2_block_2_norm2_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.2.norm2.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.2.norm2.weight", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.2.norm2.weight", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_2_norm2_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_2_norm2_bias=_bind_tensor(
+            p_decoder_up_2_block_2_norm2_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.2.norm2.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.2.norm2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.2.norm2.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_2_norm2_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_2_conv2_weight=_bind_tensor(
+            p_decoder_up_2_block_2_conv2_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.2.conv2.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.2.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.2.block.2.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_2_conv2_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_block_2_conv2_bias=_bind_tensor(
+            p_decoder_up_2_block_2_conv2_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.block.2.conv2.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.block.2.conv2.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.block.2.conv2.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_block_2_conv2_bias' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_upsample_conv_weight=_bind_tensor(
+            p_decoder_up_2_upsample_conv_weight,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.upsample.conv.weight",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.upsample.conv.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.2.upsample.conv.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_upsample_conv_weight' in request_state_outputs,
+            ),
+        ),
+        p_decoder_up_2_upsample_conv_bias=_bind_tensor(
+            p_decoder_up_2_upsample_conv_bias,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="decoder.up.2.upsample.conv.bias",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("decoder.up.2.upsample.conv.bias", dtype='float32', shape=(512,)),
+                layout=_quantized_weight_layout("decoder.up.2.upsample.conv.bias", dtype='float32', shape=(512,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='p_decoder_up_2_upsample_conv_bias' in request_state_outputs,
             ),
         ),
         p_decoder_up_1_block_0_norm1_weight=_bind_tensor(
@@ -1925,784 +2330,379 @@ def create_ae_decode(
                 request_state='p_decoder_up_1_upsample_conv_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_0_norm1_weight=_bind_tensor(
-            p_decoder_up_2_block_0_norm1_weight,
+        p_decoder_up_0_block_0_norm1_bias=_bind_tensor(
+            p_decoder_up_0_block_0_norm1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.0.norm1.weight",
+                checkpoint_key="decoder.up.0.block.0.norm1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.0.norm1.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.0.norm1.weight", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.0.norm1.bias", dtype='float32', shape=(256,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.0.norm1.bias", dtype='float32', shape=(256,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_0_norm1_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_0_norm1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_0_norm1_bias=_bind_tensor(
-            p_decoder_up_2_block_0_norm1_bias,
+        p_decoder_up_0_block_0_conv1_weight=_bind_tensor(
+            p_decoder_up_0_block_0_conv1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.0.norm1.bias",
+                checkpoint_key="decoder.up.0.block.0.conv1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.0.norm1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.0.norm1.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.0.conv1.weight", dtype='float32', shape=(128, 256, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.0.block.0.conv1.weight", dtype='float32', shape=(128, 256, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_0_norm1_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_0_conv1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_0_conv1_weight=_bind_tensor(
-            p_decoder_up_2_block_0_conv1_weight,
+        p_decoder_up_0_block_0_conv1_bias=_bind_tensor(
+            p_decoder_up_0_block_0_conv1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.0.conv1.weight",
+                checkpoint_key="decoder.up.0.block.0.conv1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.0.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.2.block.0.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.0.block.0.conv1.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.0.conv1.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_0_conv1_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_0_conv1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_0_conv1_bias=_bind_tensor(
-            p_decoder_up_2_block_0_conv1_bias,
+        p_decoder_up_0_block_0_norm2_weight=_bind_tensor(
+            p_decoder_up_0_block_0_norm2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.0.conv1.bias",
+                checkpoint_key="decoder.up.0.block.0.norm2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.0.conv1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.0.conv1.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.0.norm2.weight", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.0.norm2.weight", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_0_conv1_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_0_norm2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_0_norm2_weight=_bind_tensor(
-            p_decoder_up_2_block_0_norm2_weight,
+        p_decoder_up_0_block_0_norm2_bias=_bind_tensor(
+            p_decoder_up_0_block_0_norm2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.0.norm2.weight",
+                checkpoint_key="decoder.up.0.block.0.norm2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.0.norm2.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.0.norm2.weight", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.0.norm2.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.0.norm2.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_0_norm2_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_0_norm2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_0_norm2_bias=_bind_tensor(
-            p_decoder_up_2_block_0_norm2_bias,
+        p_decoder_up_0_block_0_conv2_weight=_bind_tensor(
+            p_decoder_up_0_block_0_conv2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.0.norm2.bias",
+                checkpoint_key="decoder.up.0.block.0.conv2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.0.norm2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.0.norm2.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.0.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.0.block.0.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_0_norm2_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_0_conv2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_0_conv2_weight=_bind_tensor(
-            p_decoder_up_2_block_0_conv2_weight,
+        p_decoder_up_0_block_0_conv2_bias=_bind_tensor(
+            p_decoder_up_0_block_0_conv2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.0.conv2.weight",
+                checkpoint_key="decoder.up.0.block.0.conv2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.0.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.2.block.0.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.0.block.0.conv2.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.0.conv2.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_0_conv2_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_0_conv2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_0_conv2_bias=_bind_tensor(
-            p_decoder_up_2_block_0_conv2_bias,
+        p_decoder_up_0_block_0_nin_shortcut_weight=_bind_tensor(
+            p_decoder_up_0_block_0_nin_shortcut_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.0.conv2.bias",
+                checkpoint_key="decoder.up.0.block.0.nin_shortcut.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.0.conv2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.0.conv2.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.0.nin_shortcut.weight", dtype='float32', shape=(128, 256, 1, 1)),
+                layout=_quantized_weight_layout("decoder.up.0.block.0.nin_shortcut.weight", dtype='float32', shape=(128, 256, 1, 1)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_0_conv2_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_0_nin_shortcut_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_1_norm1_weight=_bind_tensor(
-            p_decoder_up_2_block_1_norm1_weight,
+        p_decoder_up_0_block_0_nin_shortcut_bias=_bind_tensor(
+            p_decoder_up_0_block_0_nin_shortcut_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.1.norm1.weight",
+                checkpoint_key="decoder.up.0.block.0.nin_shortcut.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.1.norm1.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.1.norm1.weight", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.0.nin_shortcut.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.0.nin_shortcut.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_1_norm1_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_0_nin_shortcut_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_1_norm1_bias=_bind_tensor(
-            p_decoder_up_2_block_1_norm1_bias,
+        p_decoder_up_0_block_1_norm1_weight=_bind_tensor(
+            p_decoder_up_0_block_1_norm1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.1.norm1.bias",
+                checkpoint_key="decoder.up.0.block.1.norm1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.1.norm1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.1.norm1.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.1.norm1.weight", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.1.norm1.weight", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_1_norm1_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_1_norm1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_1_conv1_weight=_bind_tensor(
-            p_decoder_up_2_block_1_conv1_weight,
+        p_decoder_up_0_block_1_norm1_bias=_bind_tensor(
+            p_decoder_up_0_block_1_norm1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.1.conv1.weight",
+                checkpoint_key="decoder.up.0.block.1.norm1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.1.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.2.block.1.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.0.block.1.norm1.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.1.norm1.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_1_conv1_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_1_norm1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_1_conv1_bias=_bind_tensor(
-            p_decoder_up_2_block_1_conv1_bias,
+        p_decoder_up_0_block_1_conv1_weight=_bind_tensor(
+            p_decoder_up_0_block_1_conv1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.1.conv1.bias",
+                checkpoint_key="decoder.up.0.block.1.conv1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.1.conv1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.1.conv1.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.1.conv1.weight", dtype='float32', shape=(128, 128, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.0.block.1.conv1.weight", dtype='float32', shape=(128, 128, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_1_conv1_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_1_conv1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_1_norm2_weight=_bind_tensor(
-            p_decoder_up_2_block_1_norm2_weight,
+        p_decoder_up_0_block_1_conv1_bias=_bind_tensor(
+            p_decoder_up_0_block_1_conv1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.1.norm2.weight",
+                checkpoint_key="decoder.up.0.block.1.conv1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.1.norm2.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.1.norm2.weight", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.1.conv1.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.1.conv1.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_1_norm2_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_1_conv1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_1_norm2_bias=_bind_tensor(
-            p_decoder_up_2_block_1_norm2_bias,
+        p_decoder_up_0_block_1_norm2_weight=_bind_tensor(
+            p_decoder_up_0_block_1_norm2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.1.norm2.bias",
+                checkpoint_key="decoder.up.0.block.1.norm2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.1.norm2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.1.norm2.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.1.norm2.weight", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.1.norm2.weight", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_1_norm2_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_1_norm2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_1_conv2_weight=_bind_tensor(
-            p_decoder_up_2_block_1_conv2_weight,
+        p_decoder_up_0_block_1_norm2_bias=_bind_tensor(
+            p_decoder_up_0_block_1_norm2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.1.conv2.weight",
+                checkpoint_key="decoder.up.0.block.1.norm2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.1.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.2.block.1.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.0.block.1.norm2.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.1.norm2.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_1_conv2_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_1_norm2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_1_conv2_bias=_bind_tensor(
-            p_decoder_up_2_block_1_conv2_bias,
+        p_decoder_up_0_block_1_conv2_weight=_bind_tensor(
+            p_decoder_up_0_block_1_conv2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.1.conv2.bias",
+                checkpoint_key="decoder.up.0.block.1.conv2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.1.conv2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.1.conv2.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.1.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.0.block.1.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_1_conv2_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_1_conv2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_2_norm1_weight=_bind_tensor(
-            p_decoder_up_2_block_2_norm1_weight,
+        p_decoder_up_0_block_1_conv2_bias=_bind_tensor(
+            p_decoder_up_0_block_1_conv2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.2.norm1.weight",
+                checkpoint_key="decoder.up.0.block.1.conv2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.2.norm1.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.2.norm1.weight", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.1.conv2.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.1.conv2.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_2_norm1_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_1_conv2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_2_norm1_bias=_bind_tensor(
-            p_decoder_up_2_block_2_norm1_bias,
+        p_decoder_up_0_block_2_norm1_weight=_bind_tensor(
+            p_decoder_up_0_block_2_norm1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.2.norm1.bias",
+                checkpoint_key="decoder.up.0.block.2.norm1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.2.norm1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.2.norm1.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.2.norm1.weight", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.2.norm1.weight", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_2_norm1_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_2_norm1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_2_conv1_weight=_bind_tensor(
-            p_decoder_up_2_block_2_conv1_weight,
+        p_decoder_up_0_block_2_norm1_bias=_bind_tensor(
+            p_decoder_up_0_block_2_norm1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.2.conv1.weight",
+                checkpoint_key="decoder.up.0.block.2.norm1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.2.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.2.block.2.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.0.block.2.norm1.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.2.norm1.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_2_conv1_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_2_norm1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_2_conv1_bias=_bind_tensor(
-            p_decoder_up_2_block_2_conv1_bias,
+        p_decoder_up_0_block_2_conv1_weight=_bind_tensor(
+            p_decoder_up_0_block_2_conv1_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.2.conv1.bias",
+                checkpoint_key="decoder.up.0.block.2.conv1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.2.conv1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.2.conv1.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.2.conv1.weight", dtype='float32', shape=(128, 128, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.0.block.2.conv1.weight", dtype='float32', shape=(128, 128, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_2_conv1_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_2_conv1_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_2_norm2_weight=_bind_tensor(
-            p_decoder_up_2_block_2_norm2_weight,
+        p_decoder_up_0_block_2_conv1_bias=_bind_tensor(
+            p_decoder_up_0_block_2_conv1_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.2.norm2.weight",
+                checkpoint_key="decoder.up.0.block.2.conv1.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.2.norm2.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.2.norm2.weight", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.2.conv1.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.2.conv1.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_2_norm2_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_2_conv1_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_2_norm2_bias=_bind_tensor(
-            p_decoder_up_2_block_2_norm2_bias,
+        p_decoder_up_0_block_2_norm2_weight=_bind_tensor(
+            p_decoder_up_0_block_2_norm2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.2.norm2.bias",
+                checkpoint_key="decoder.up.0.block.2.norm2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.2.norm2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.2.norm2.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.2.norm2.weight", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.2.norm2.weight", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_2_norm2_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_2_norm2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_2_conv2_weight=_bind_tensor(
-            p_decoder_up_2_block_2_conv2_weight,
+        p_decoder_up_0_block_2_norm2_bias=_bind_tensor(
+            p_decoder_up_0_block_2_norm2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.2.conv2.weight",
+                checkpoint_key="decoder.up.0.block.2.norm2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.2.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.2.block.2.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.0.block.2.norm2.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.2.norm2.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_2_conv2_weight' in request_state_outputs,
+                request_state='p_decoder_up_0_block_2_norm2_bias' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_block_2_conv2_bias=_bind_tensor(
-            p_decoder_up_2_block_2_conv2_bias,
+        p_decoder_up_0_block_2_conv2_weight=_bind_tensor(
+            p_decoder_up_0_block_2_conv2_weight,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.block.2.conv2.bias",
+                checkpoint_key="decoder.up.0.block.2.conv2.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.block.2.conv2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.block.2.conv2.bias", dtype='float32', shape=(512,)),
+                spec=_quantized_weight_spec("decoder.up.0.block.2.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
+                layout=_quantized_weight_layout("decoder.up.0.block.2.conv2.weight", dtype='float32', shape=(128, 128, 3, 3)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_block_2_conv2_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_2_conv2_weight' in request_state_outputs,
             ),
         ),
-        p_decoder_up_2_upsample_conv_weight=_bind_tensor(
-            p_decoder_up_2_upsample_conv_weight,
+        p_decoder_up_0_block_2_conv2_bias=_bind_tensor(
+            p_decoder_up_0_block_2_conv2_bias,
             _declare_tensor(
                 checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.upsample.conv.weight",
+                checkpoint_key="decoder.up.0.block.2.conv2.bias",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.upsample.conv.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.2.upsample.conv.weight", dtype='float32', shape=(512, 512, 3, 3)),
+                spec=_quantized_weight_spec("decoder.up.0.block.2.conv2.bias", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("decoder.up.0.block.2.conv2.bias", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_upsample_conv_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_2_upsample_conv_bias=_bind_tensor(
-            p_decoder_up_2_upsample_conv_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.2.upsample.conv.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.2.upsample.conv.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.2.upsample.conv.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_2_upsample_conv_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_0_norm1_weight=_bind_tensor(
-            p_decoder_up_3_block_0_norm1_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.0.norm1.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.0.norm1.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.0.norm1.weight", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_0_norm1_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_0_norm1_bias=_bind_tensor(
-            p_decoder_up_3_block_0_norm1_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.0.norm1.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.0.norm1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.0.norm1.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_0_norm1_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_0_conv1_weight=_bind_tensor(
-            p_decoder_up_3_block_0_conv1_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.0.conv1.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.0.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.3.block.0.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_0_conv1_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_0_conv1_bias=_bind_tensor(
-            p_decoder_up_3_block_0_conv1_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.0.conv1.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.0.conv1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.0.conv1.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_0_conv1_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_0_norm2_weight=_bind_tensor(
-            p_decoder_up_3_block_0_norm2_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.0.norm2.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.0.norm2.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.0.norm2.weight", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_0_norm2_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_0_norm2_bias=_bind_tensor(
-            p_decoder_up_3_block_0_norm2_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.0.norm2.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.0.norm2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.0.norm2.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_0_norm2_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_0_conv2_weight=_bind_tensor(
-            p_decoder_up_3_block_0_conv2_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.0.conv2.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.0.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.3.block.0.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_0_conv2_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_0_conv2_bias=_bind_tensor(
-            p_decoder_up_3_block_0_conv2_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.0.conv2.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.0.conv2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.0.conv2.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_0_conv2_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_1_norm1_weight=_bind_tensor(
-            p_decoder_up_3_block_1_norm1_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.1.norm1.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.1.norm1.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.1.norm1.weight", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_1_norm1_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_1_norm1_bias=_bind_tensor(
-            p_decoder_up_3_block_1_norm1_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.1.norm1.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.1.norm1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.1.norm1.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_1_norm1_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_1_conv1_weight=_bind_tensor(
-            p_decoder_up_3_block_1_conv1_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.1.conv1.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.1.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.3.block.1.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_1_conv1_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_1_conv1_bias=_bind_tensor(
-            p_decoder_up_3_block_1_conv1_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.1.conv1.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.1.conv1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.1.conv1.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_1_conv1_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_1_norm2_weight=_bind_tensor(
-            p_decoder_up_3_block_1_norm2_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.1.norm2.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.1.norm2.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.1.norm2.weight", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_1_norm2_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_1_norm2_bias=_bind_tensor(
-            p_decoder_up_3_block_1_norm2_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.1.norm2.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.1.norm2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.1.norm2.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_1_norm2_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_1_conv2_weight=_bind_tensor(
-            p_decoder_up_3_block_1_conv2_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.1.conv2.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.1.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.3.block.1.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_1_conv2_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_1_conv2_bias=_bind_tensor(
-            p_decoder_up_3_block_1_conv2_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.1.conv2.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.1.conv2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.1.conv2.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_1_conv2_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_2_norm1_weight=_bind_tensor(
-            p_decoder_up_3_block_2_norm1_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.2.norm1.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.2.norm1.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.2.norm1.weight", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_2_norm1_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_2_norm1_bias=_bind_tensor(
-            p_decoder_up_3_block_2_norm1_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.2.norm1.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.2.norm1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.2.norm1.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_2_norm1_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_2_conv1_weight=_bind_tensor(
-            p_decoder_up_3_block_2_conv1_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.2.conv1.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.2.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.3.block.2.conv1.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_2_conv1_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_2_conv1_bias=_bind_tensor(
-            p_decoder_up_3_block_2_conv1_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.2.conv1.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.2.conv1.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.2.conv1.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_2_conv1_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_2_norm2_weight=_bind_tensor(
-            p_decoder_up_3_block_2_norm2_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.2.norm2.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.2.norm2.weight", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.2.norm2.weight", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_2_norm2_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_2_norm2_bias=_bind_tensor(
-            p_decoder_up_3_block_2_norm2_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.2.norm2.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.2.norm2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.2.norm2.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_2_norm2_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_2_conv2_weight=_bind_tensor(
-            p_decoder_up_3_block_2_conv2_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.2.conv2.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.2.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.3.block.2.conv2.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_2_conv2_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_block_2_conv2_bias=_bind_tensor(
-            p_decoder_up_3_block_2_conv2_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.block.2.conv2.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.block.2.conv2.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.block.2.conv2.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_block_2_conv2_bias' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_upsample_conv_weight=_bind_tensor(
-            p_decoder_up_3_upsample_conv_weight,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.upsample.conv.weight",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.upsample.conv.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                layout=_quantized_weight_layout("decoder.up.3.upsample.conv.weight", dtype='float32', shape=(512, 512, 3, 3)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_upsample_conv_weight' in request_state_outputs,
-            ),
-        ),
-        p_decoder_up_3_upsample_conv_bias=_bind_tensor(
-            p_decoder_up_3_upsample_conv_bias,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="decoder.up.3.upsample.conv.bias",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("decoder.up.3.upsample.conv.bias", dtype='float32', shape=(512,)),
-                layout=_quantized_weight_layout("decoder.up.3.upsample.conv.bias", dtype='float32', shape=(512,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='p_decoder_up_3_upsample_conv_bias' in request_state_outputs,
+                request_state='p_decoder_up_0_block_2_conv2_bias' in request_state_outputs,
             ),
         ),
         p_decoder_norm_out_weight=_bind_tensor(
@@ -2765,21 +2765,6 @@ def create_ae_decode(
                 request_state='p_decoder_conv_out_bias' in request_state_outputs,
             ),
         ),
-        b_bn_running_mean=_bind_tensor(
-            b_bn_running_mean,
-            _declare_tensor(
-                checkpoint='ae/model.gguf',
-                checkpoint_key="bn.running_mean",
-                reference_key=None,
-                layer=None,
-                spec=_quantized_weight_spec("bn.running_mean", dtype='float32', shape=(128,)),
-                layout=_quantized_weight_layout("bn.running_mean", dtype='float32', shape=(128,)),
-                role=TensorRole.WEIGHT,
-                memory=MemoryClass.MODEL_WEIGHT,
-                lifetime=TensorLifetime.MODEL,
-                request_state='b_bn_running_mean' in request_state_outputs,
-            ),
-        ),
         b_bn_running_var=_bind_tensor(
             b_bn_running_var,
             _declare_tensor(
@@ -2795,6 +2780,21 @@ def create_ae_decode(
                 request_state='b_bn_running_var' in request_state_outputs,
             ),
         ),
+        b_bn_running_mean=_bind_tensor(
+            b_bn_running_mean,
+            _declare_tensor(
+                checkpoint='ae/model.gguf',
+                checkpoint_key="bn.running_mean",
+                reference_key=None,
+                layer=None,
+                spec=_quantized_weight_spec("bn.running_mean", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout("bn.running_mean", dtype='float32', shape=(128,)),
+                role=TensorRole.WEIGHT,
+                memory=MemoryClass.MODEL_WEIGHT,
+                lifetime=TensorLifetime.MODEL,
+                request_state='b_bn_running_mean' in request_state_outputs,
+            ),
+        ),
         tokens=_bind_tensor(
             tokens,
             _declare_tensor(
@@ -2802,27 +2802,12 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key=None,
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1024, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, latent_height, latent_width, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
                 lifetime=TensorLifetime.FRAME,
                 request_state='tokens' in request_state_outputs,
-            ),
-        ),
-        reshape=_bind_tensor(
-            reshape,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='reshape',
-                layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 32, 32, 128)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='reshape' in request_state_outputs,
             ),
         ),
         permute=_bind_tensor(
@@ -2832,7 +2817,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='permute',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 32, 32)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, latent_height, latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -2847,7 +2832,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='contiguous',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 32, 32)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, latent_height, latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -2922,7 +2907,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='mul',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 32, 32)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, latent_height, latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -2937,7 +2922,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 32, 32)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, latent_height, latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -2945,19 +2930,19 @@ def create_ae_decode(
                 request_state='add_1' in request_state_outputs,
             ),
         ),
-        reshape_1=_bind_tensor(
-            reshape_1,
+        reshape=_bind_tensor(
+            reshape,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='reshape_1',
+                reference_key='reshape',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 32, 2, 2, 32, 32)),
+                spec=TensorSpec(dtype='float16', shape=(1, 32, 2, 2, latent_height, latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='reshape_1' in request_state_outputs,
+                request_state='reshape' in request_state_outputs,
             ),
         ),
         permute_1=_bind_tensor(
@@ -2967,7 +2952,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='permute_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 32, 32, 2, 32, 2)),
+                spec=TensorSpec(dtype='float16', shape=(1, 32, latent_height, 2, latent_width, 2)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -2975,19 +2960,19 @@ def create_ae_decode(
                 request_state='permute_1' in request_state_outputs,
             ),
         ),
-        reshape_2=_bind_tensor(
-            reshape_2,
+        reshape_1=_bind_tensor(
+            reshape_1,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='reshape_2',
+                reference_key='reshape_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 32, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 32, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='reshape_2' in request_state_outputs,
+                request_state='reshape_1' in request_state_outputs,
             ),
         ),
         conv2d=_bind_tensor(
@@ -2997,7 +2982,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 32, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 32, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3012,7 +2997,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3027,7 +3012,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3042,7 +3027,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3050,19 +3035,19 @@ def create_ae_decode(
                 request_state='sigmoid' in request_state_outputs,
             ),
         ),
-        mul_1=_bind_tensor(
-            mul_1,
+        mul_5=_bind_tensor(
+            mul_5,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_1',
+                reference_key='mul_5',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_1' in request_state_outputs,
+                request_state='mul_5' in request_state_outputs,
             ),
         ),
         conv2d_2=_bind_tensor(
@@ -3072,7 +3057,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_2',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3087,7 +3072,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3102,7 +3087,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3110,19 +3095,19 @@ def create_ae_decode(
                 request_state='sigmoid_1' in request_state_outputs,
             ),
         ),
-        mul_2=_bind_tensor(
-            mul_2,
+        mul_8=_bind_tensor(
+            mul_8,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_2',
+                reference_key='mul_8',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_2' in request_state_outputs,
+                request_state='mul_8' in request_state_outputs,
             ),
         ),
         conv2d_3=_bind_tensor(
@@ -3132,7 +3117,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_3',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3147,7 +3132,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_2',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3162,7 +3147,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_2',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3177,7 +3162,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_4',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3192,7 +3177,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_5',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3207,7 +3192,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_6',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3222,7 +3207,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='permute_2',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 64, 64, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 2*latent_height, 2*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3230,19 +3215,19 @@ def create_ae_decode(
                 request_state='permute_2' in request_state_outputs,
             ),
         ),
-        reshape_3=_bind_tensor(
-            reshape_3,
+        reshape_2=_bind_tensor(
+            reshape_2,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='reshape_3',
+                reference_key='reshape_2',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4096, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='reshape_3' in request_state_outputs,
+                request_state='reshape_2' in request_state_outputs,
             ),
         ),
         contiguous_1=_bind_tensor(
@@ -3252,7 +3237,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='contiguous_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4096, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3267,7 +3252,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='permute_3',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 64, 64, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 2*latent_height, 2*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3275,19 +3260,19 @@ def create_ae_decode(
                 request_state='permute_3' in request_state_outputs,
             ),
         ),
-        reshape_4=_bind_tensor(
-            reshape_4,
+        reshape_3=_bind_tensor(
+            reshape_3,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='reshape_4',
+                reference_key='reshape_3',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4096, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='reshape_4' in request_state_outputs,
+                request_state='reshape_3' in request_state_outputs,
             ),
         ),
         contiguous_2=_bind_tensor(
@@ -3297,7 +3282,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='contiguous_2',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4096, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3312,7 +3297,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='permute_4',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 64, 64, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 2*latent_height, 2*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3320,19 +3305,19 @@ def create_ae_decode(
                 request_state='permute_4' in request_state_outputs,
             ),
         ),
-        reshape_5=_bind_tensor(
-            reshape_5,
+        reshape_4=_bind_tensor(
+            reshape_4,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='reshape_5',
+                reference_key='reshape_4',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4096, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='reshape_5' in request_state_outputs,
+                request_state='reshape_4' in request_state_outputs,
             ),
         ),
         contiguous_3=_bind_tensor(
@@ -3342,7 +3327,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='contiguous_3',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4096, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3357,7 +3342,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='scaled_dot_product_attention',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4096, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 1, 4*latent_height*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3365,19 +3350,19 @@ def create_ae_decode(
                 request_state='scaled_dot_product_attention' in request_state_outputs,
             ),
         ),
-        reshape_6=_bind_tensor(
-            reshape_6,
+        reshape_5=_bind_tensor(
+            reshape_5,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='reshape_6',
+                reference_key='reshape_5',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 64, 64, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 2*latent_height, 2*latent_width, 512)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='reshape_6' in request_state_outputs,
+                request_state='reshape_5' in request_state_outputs,
             ),
         ),
         permute_5=_bind_tensor(
@@ -3387,7 +3372,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='permute_5',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3402,7 +3387,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_7',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3417,7 +3402,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_3',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3432,7 +3417,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_3',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3447,7 +3432,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_2',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3455,19 +3440,19 @@ def create_ae_decode(
                 request_state='sigmoid_2' in request_state_outputs,
             ),
         ),
-        mul_3=_bind_tensor(
-            mul_3,
+        mul_17=_bind_tensor(
+            mul_17,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_3',
+                reference_key='mul_17',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_3' in request_state_outputs,
+                request_state='mul_17' in request_state_outputs,
             ),
         ),
         conv2d_8=_bind_tensor(
@@ -3477,7 +3462,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_8',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3492,7 +3477,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_4',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3507,7 +3492,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_3',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3515,19 +3500,19 @@ def create_ae_decode(
                 request_state='sigmoid_3' in request_state_outputs,
             ),
         ),
-        mul_4=_bind_tensor(
-            mul_4,
+        mul_20=_bind_tensor(
+            mul_20,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_4',
+                reference_key='mul_20',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_4' in request_state_outputs,
+                request_state='mul_20' in request_state_outputs,
             ),
         ),
         conv2d_9=_bind_tensor(
@@ -3537,7 +3522,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_9',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3552,7 +3537,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_4',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3567,7 +3552,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='to',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3582,7 +3567,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_5',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3597,7 +3582,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_4',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3605,19 +3590,19 @@ def create_ae_decode(
                 request_state='sigmoid_4' in request_state_outputs,
             ),
         ),
-        mul_5=_bind_tensor(
-            mul_5,
+        mul_23=_bind_tensor(
+            mul_23,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_5',
+                reference_key='mul_23',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_5' in request_state_outputs,
+                request_state='mul_23' in request_state_outputs,
             ),
         ),
         conv2d_10=_bind_tensor(
@@ -3627,7 +3612,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_10',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3642,7 +3627,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_6',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3657,7 +3642,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_5',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3665,19 +3650,19 @@ def create_ae_decode(
                 request_state='sigmoid_5' in request_state_outputs,
             ),
         ),
-        mul_6=_bind_tensor(
-            mul_6,
+        mul_26=_bind_tensor(
+            mul_26,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_6',
+                reference_key='mul_26',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_6' in request_state_outputs,
+                request_state='mul_26' in request_state_outputs,
             ),
         ),
         conv2d_11=_bind_tensor(
@@ -3687,7 +3672,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_11',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3702,7 +3687,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_5',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3717,7 +3702,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_7',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3732,7 +3717,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_6',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3740,19 +3725,19 @@ def create_ae_decode(
                 request_state='sigmoid_6' in request_state_outputs,
             ),
         ),
-        mul_7=_bind_tensor(
-            mul_7,
+        mul_29=_bind_tensor(
+            mul_29,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_7',
+                reference_key='mul_29',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_7' in request_state_outputs,
+                request_state='mul_29' in request_state_outputs,
             ),
         ),
         conv2d_12=_bind_tensor(
@@ -3762,7 +3747,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_12',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3777,7 +3762,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_8',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3792,7 +3777,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_7',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3800,19 +3785,19 @@ def create_ae_decode(
                 request_state='sigmoid_7' in request_state_outputs,
             ),
         ),
-        mul_8=_bind_tensor(
-            mul_8,
+        mul_32=_bind_tensor(
+            mul_32,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_8',
+                reference_key='mul_32',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_8' in request_state_outputs,
+                request_state='mul_32' in request_state_outputs,
             ),
         ),
         conv2d_13=_bind_tensor(
@@ -3822,7 +3807,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_13',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3837,7 +3822,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_6',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3852,7 +3837,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_9',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3867,7 +3852,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_8',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3875,19 +3860,19 @@ def create_ae_decode(
                 request_state='sigmoid_8' in request_state_outputs,
             ),
         ),
-        mul_9=_bind_tensor(
-            mul_9,
+        mul_35=_bind_tensor(
+            mul_35,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_9',
+                reference_key='mul_35',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_9' in request_state_outputs,
+                request_state='mul_35' in request_state_outputs,
             ),
         ),
         conv2d_14=_bind_tensor(
@@ -3897,7 +3882,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_14',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3912,7 +3897,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_10',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3927,7 +3912,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_9',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3935,19 +3920,19 @@ def create_ae_decode(
                 request_state='sigmoid_9' in request_state_outputs,
             ),
         ),
-        mul_10=_bind_tensor(
-            mul_10,
+        mul_38=_bind_tensor(
+            mul_38,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_10',
+                reference_key='mul_38',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_10' in request_state_outputs,
+                request_state='mul_38' in request_state_outputs,
             ),
         ),
         conv2d_15=_bind_tensor(
@@ -3957,7 +3942,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_15',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3972,7 +3957,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_7',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 64, 64)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 2*latent_height, 2*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -3987,7 +3972,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='upsample_nearest2d',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4002,7 +3987,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_16',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4017,7 +4002,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_11',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4032,7 +4017,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_10',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4040,19 +4025,19 @@ def create_ae_decode(
                 request_state='sigmoid_10' in request_state_outputs,
             ),
         ),
-        mul_11=_bind_tensor(
-            mul_11,
+        mul_41=_bind_tensor(
+            mul_41,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_11',
+                reference_key='mul_41',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_11' in request_state_outputs,
+                request_state='mul_41' in request_state_outputs,
             ),
         ),
         conv2d_17=_bind_tensor(
@@ -4062,7 +4047,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_17',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4077,7 +4062,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_12',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4092,7 +4077,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_11',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4100,19 +4085,19 @@ def create_ae_decode(
                 request_state='sigmoid_11' in request_state_outputs,
             ),
         ),
-        mul_12=_bind_tensor(
-            mul_12,
+        mul_44=_bind_tensor(
+            mul_44,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_12',
+                reference_key='mul_44',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_12' in request_state_outputs,
+                request_state='mul_44' in request_state_outputs,
             ),
         ),
         conv2d_18=_bind_tensor(
@@ -4122,7 +4107,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_18',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4137,7 +4122,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_8',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4152,7 +4137,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_13',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4167,7 +4152,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_12',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4175,19 +4160,19 @@ def create_ae_decode(
                 request_state='sigmoid_12' in request_state_outputs,
             ),
         ),
-        mul_13=_bind_tensor(
-            mul_13,
+        mul_47=_bind_tensor(
+            mul_47,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_13',
+                reference_key='mul_47',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_13' in request_state_outputs,
+                request_state='mul_47' in request_state_outputs,
             ),
         ),
         conv2d_19=_bind_tensor(
@@ -4197,7 +4182,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_19',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4212,7 +4197,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_14',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4227,7 +4212,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_13',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4235,19 +4220,19 @@ def create_ae_decode(
                 request_state='sigmoid_13' in request_state_outputs,
             ),
         ),
-        mul_14=_bind_tensor(
-            mul_14,
+        mul_50=_bind_tensor(
+            mul_50,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_14',
+                reference_key='mul_50',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_14' in request_state_outputs,
+                request_state='mul_50' in request_state_outputs,
             ),
         ),
         conv2d_20=_bind_tensor(
@@ -4257,7 +4242,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_20',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4272,7 +4257,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_9',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4287,7 +4272,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_15',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4302,7 +4287,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_14',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4310,19 +4295,19 @@ def create_ae_decode(
                 request_state='sigmoid_14' in request_state_outputs,
             ),
         ),
-        mul_15=_bind_tensor(
-            mul_15,
+        mul_53=_bind_tensor(
+            mul_53,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_15',
+                reference_key='mul_53',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_15' in request_state_outputs,
+                request_state='mul_53' in request_state_outputs,
             ),
         ),
         conv2d_21=_bind_tensor(
@@ -4332,7 +4317,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_21',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4347,7 +4332,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_16',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4362,7 +4347,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_15',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4370,19 +4355,19 @@ def create_ae_decode(
                 request_state='sigmoid_15' in request_state_outputs,
             ),
         ),
-        mul_16=_bind_tensor(
-            mul_16,
+        mul_56=_bind_tensor(
+            mul_56,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_16',
+                reference_key='mul_56',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_16' in request_state_outputs,
+                request_state='mul_56' in request_state_outputs,
             ),
         ),
         conv2d_22=_bind_tensor(
@@ -4392,7 +4377,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_22',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4407,7 +4392,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_10',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 128, 128)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 4*latent_height, 4*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4422,7 +4407,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='upsample_nearest2d_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4437,7 +4422,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_23',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4452,7 +4437,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_17',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4467,7 +4452,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_16',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4475,19 +4460,19 @@ def create_ae_decode(
                 request_state='sigmoid_16' in request_state_outputs,
             ),
         ),
-        mul_17=_bind_tensor(
-            mul_17,
+        mul_59=_bind_tensor(
+            mul_59,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_17',
+                reference_key='mul_59',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 512, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 512, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_17' in request_state_outputs,
+                request_state='mul_59' in request_state_outputs,
             ),
         ),
         conv2d_24=_bind_tensor(
@@ -4497,7 +4482,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_24',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4512,7 +4497,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_18',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4527,7 +4512,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_17',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4535,19 +4520,19 @@ def create_ae_decode(
                 request_state='sigmoid_17' in request_state_outputs,
             ),
         ),
-        mul_18=_bind_tensor(
-            mul_18,
+        mul_62=_bind_tensor(
+            mul_62,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_18',
+                reference_key='mul_62',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_18' in request_state_outputs,
+                request_state='mul_62' in request_state_outputs,
             ),
         ),
         conv2d_25=_bind_tensor(
@@ -4557,7 +4542,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_25',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4572,7 +4557,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_26',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4587,7 +4572,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_11',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4602,7 +4587,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_19',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4617,7 +4602,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_18',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4625,19 +4610,19 @@ def create_ae_decode(
                 request_state='sigmoid_18' in request_state_outputs,
             ),
         ),
-        mul_19=_bind_tensor(
-            mul_19,
+        mul_65=_bind_tensor(
+            mul_65,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_19',
+                reference_key='mul_65',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_19' in request_state_outputs,
+                request_state='mul_65' in request_state_outputs,
             ),
         ),
         conv2d_27=_bind_tensor(
@@ -4647,7 +4632,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_27',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4662,7 +4647,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_20',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4677,7 +4662,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_19',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4685,19 +4670,19 @@ def create_ae_decode(
                 request_state='sigmoid_19' in request_state_outputs,
             ),
         ),
-        mul_20=_bind_tensor(
-            mul_20,
+        mul_68=_bind_tensor(
+            mul_68,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_20',
+                reference_key='mul_68',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_20' in request_state_outputs,
+                request_state='mul_68' in request_state_outputs,
             ),
         ),
         conv2d_28=_bind_tensor(
@@ -4707,7 +4692,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_28',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4722,7 +4707,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_12',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4737,7 +4722,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_21',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4752,7 +4737,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_20',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4760,19 +4745,19 @@ def create_ae_decode(
                 request_state='sigmoid_20' in request_state_outputs,
             ),
         ),
-        mul_21=_bind_tensor(
-            mul_21,
+        mul_71=_bind_tensor(
+            mul_71,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_21',
+                reference_key='mul_71',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_21' in request_state_outputs,
+                request_state='mul_71' in request_state_outputs,
             ),
         ),
         conv2d_29=_bind_tensor(
@@ -4782,7 +4767,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_29',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4797,7 +4782,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_22',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4812,7 +4797,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_21',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4820,19 +4805,19 @@ def create_ae_decode(
                 request_state='sigmoid_21' in request_state_outputs,
             ),
         ),
-        mul_22=_bind_tensor(
-            mul_22,
+        mul_74=_bind_tensor(
+            mul_74,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_22',
+                reference_key='mul_74',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_22' in request_state_outputs,
+                request_state='mul_74' in request_state_outputs,
             ),
         ),
         conv2d_30=_bind_tensor(
@@ -4842,7 +4827,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_30',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4857,7 +4842,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_13',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 256, 256)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 8*latent_height, 8*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4872,7 +4857,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='upsample_nearest2d_2',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4887,7 +4872,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_31',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4902,7 +4887,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_23',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4917,7 +4902,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_22',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4925,19 +4910,19 @@ def create_ae_decode(
                 request_state='sigmoid_22' in request_state_outputs,
             ),
         ),
-        mul_23=_bind_tensor(
-            mul_23,
+        mul_77=_bind_tensor(
+            mul_77,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_23',
+                reference_key='mul_77',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 256, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 256, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_23' in request_state_outputs,
+                request_state='mul_77' in request_state_outputs,
             ),
         ),
         conv2d_32=_bind_tensor(
@@ -4947,7 +4932,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_32',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4962,7 +4947,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_24',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4977,7 +4962,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_23',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -4985,19 +4970,19 @@ def create_ae_decode(
                 request_state='sigmoid_23' in request_state_outputs,
             ),
         ),
-        mul_24=_bind_tensor(
-            mul_24,
+        mul_80=_bind_tensor(
+            mul_80,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_24',
+                reference_key='mul_80',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_24' in request_state_outputs,
+                request_state='mul_80' in request_state_outputs,
             ),
         ),
         conv2d_33=_bind_tensor(
@@ -5007,7 +4992,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_33',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5022,7 +5007,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_34',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5037,7 +5022,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_14',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5052,7 +5037,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_25',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5067,7 +5052,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_24',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5075,19 +5060,19 @@ def create_ae_decode(
                 request_state='sigmoid_24' in request_state_outputs,
             ),
         ),
-        mul_25=_bind_tensor(
-            mul_25,
+        mul_83=_bind_tensor(
+            mul_83,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_25',
+                reference_key='mul_83',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_25' in request_state_outputs,
+                request_state='mul_83' in request_state_outputs,
             ),
         ),
         conv2d_35=_bind_tensor(
@@ -5097,7 +5082,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_35',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5112,7 +5097,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_26',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5127,7 +5112,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_25',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5135,19 +5120,19 @@ def create_ae_decode(
                 request_state='sigmoid_25' in request_state_outputs,
             ),
         ),
-        mul_26=_bind_tensor(
-            mul_26,
+        mul_86=_bind_tensor(
+            mul_86,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_26',
+                reference_key='mul_86',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_26' in request_state_outputs,
+                request_state='mul_86' in request_state_outputs,
             ),
         ),
         conv2d_36=_bind_tensor(
@@ -5157,7 +5142,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_36',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5172,7 +5157,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_15',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5187,7 +5172,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_27',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5202,7 +5187,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_26',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5210,19 +5195,19 @@ def create_ae_decode(
                 request_state='sigmoid_26' in request_state_outputs,
             ),
         ),
-        mul_27=_bind_tensor(
-            mul_27,
+        mul_89=_bind_tensor(
+            mul_89,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_27',
+                reference_key='mul_89',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_27' in request_state_outputs,
+                request_state='mul_89' in request_state_outputs,
             ),
         ),
         conv2d_37=_bind_tensor(
@@ -5232,7 +5217,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_37',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5247,7 +5232,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_28',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5262,7 +5247,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_27',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5270,19 +5255,19 @@ def create_ae_decode(
                 request_state='sigmoid_27' in request_state_outputs,
             ),
         ),
-        mul_28=_bind_tensor(
-            mul_28,
+        mul_92=_bind_tensor(
+            mul_92,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_28',
+                reference_key='mul_92',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_28' in request_state_outputs,
+                request_state='mul_92' in request_state_outputs,
             ),
         ),
         conv2d_38=_bind_tensor(
@@ -5292,7 +5277,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_38',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5307,7 +5292,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='add_16',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5322,7 +5307,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='group_norm_29',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5337,7 +5322,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='sigmoid_28',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5345,19 +5330,19 @@ def create_ae_decode(
                 request_state='sigmoid_28' in request_state_outputs,
             ),
         ),
-        mul_29=_bind_tensor(
-            mul_29,
+        mul_95=_bind_tensor(
+            mul_95,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='mul_29',
+                reference_key='mul_95',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 128, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 128, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='mul_29' in request_state_outputs,
+                request_state='mul_95' in request_state_outputs,
             ),
         ),
         conv2d_39=_bind_tensor(
@@ -5367,7 +5352,7 @@ def create_ae_decode(
                 checkpoint_key=None,
                 reference_key='conv2d_39',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 3, 512, 512)),
+                spec=TensorSpec(dtype='float16', shape=(1, 3, 16*latent_height, 16*latent_width)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -5377,19 +5362,18 @@ def create_ae_decode(
         ),
     )
     bind_logical_tensor_names(tensors, prefix)
-    _bind_alias_source(tensors.tokens, tensors.reshape)
     _bind_alias_source(tensors.permute, tensors.contiguous)
     _bind_alias_source(tensors.b_bn_running_var, tensors.view)
     _bind_alias_source(tensors.b_bn_running_mean, tensors.view_1)
-    _bind_alias_source(tensors.add_1, tensors.reshape_1)
-    _bind_alias_source(tensors.permute_1, tensors.reshape_2)
-    _bind_alias_source(tensors.permute_2, tensors.reshape_3)
-    _bind_alias_source(tensors.reshape_3, tensors.contiguous_1)
-    _bind_alias_source(tensors.permute_3, tensors.reshape_4)
-    _bind_alias_source(tensors.reshape_4, tensors.contiguous_2)
-    _bind_alias_source(tensors.permute_4, tensors.reshape_5)
-    _bind_alias_source(tensors.reshape_5, tensors.contiguous_3)
-    _bind_alias_source(tensors.scaled_dot_product_attention, tensors.reshape_6)
+    _bind_alias_source(tensors.add_1, tensors.reshape)
+    _bind_alias_source(tensors.permute_1, tensors.reshape_1)
+    _bind_alias_source(tensors.permute_2, tensors.reshape_2)
+    _bind_alias_source(tensors.reshape_2, tensors.contiguous_1)
+    _bind_alias_source(tensors.permute_3, tensors.reshape_3)
+    _bind_alias_source(tensors.reshape_3, tensors.contiguous_2)
+    _bind_alias_source(tensors.permute_4, tensors.reshape_4)
+    _bind_alias_source(tensors.reshape_4, tensors.contiguous_3)
+    _bind_alias_source(tensors.scaled_dot_product_attention, tensors.reshape_5)
     _bind_alias_source(tensors.add_4, tensors.to)
     return tensors
 

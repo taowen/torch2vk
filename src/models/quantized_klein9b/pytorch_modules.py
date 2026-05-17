@@ -641,8 +641,8 @@ class DoubleStreamBlock(nn.Module):
         txt: Tensor,
         pe: Tensor,
         pe_ctx: Tensor,
-        mod_img: tuple[Tensor, Tensor],
-        mod_txt: tuple[Tensor, Tensor],
+        mod_img: tuple[tuple[Tensor, Tensor, Tensor], tuple[Tensor, Tensor, Tensor]],
+        mod_txt: tuple[tuple[Tensor, Tensor, Tensor], tuple[Tensor, Tensor, Tensor]],
         num_ref_tokens: int,
     ) -> tuple[Tensor, Tensor, dict]:
         """Forward with causal attention. img has layout [ref, img]. Extracts ref KV cache."""
@@ -667,8 +667,8 @@ class DoubleStreamBlock(nn.Module):
         txt: Tensor,
         pe: Tensor,
         pe_ctx: Tensor,
-        mod_img: tuple[Tensor, Tensor],
-        mod_txt: tuple[Tensor, Tensor],
+        mod_img: tuple[tuple[Tensor, Tensor, Tensor], tuple[Tensor, Tensor, Tensor]],
+        mod_txt: tuple[tuple[Tensor, Tensor, Tensor], tuple[Tensor, Tensor, Tensor]],
         kv_cache: dict,
     ) -> tuple[Tensor, Tensor]:
         """Forward using cached ref KV. img has layout [img] only (no ref)."""
