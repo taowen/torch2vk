@@ -7,6 +7,153 @@ from einops import rearrange
 from torch import Tensor, nn
 from torch.nn import functional as F
 
+from models.quantized_klein9b.autoencoder import AutoEncoder, AutoEncoderParams
+
+
+FLUX_PROLOGUE_OUTPUT_NAMES = (
+    "img",
+    "txt",
+    "pe_x",
+    "pe_ctx",
+    "vec",
+    "img_mod1_shift",
+    "img_mod1_scale",
+    "img_mod1_gate",
+    "img_mod2_shift",
+    "img_mod2_scale",
+    "img_mod2_gate",
+    "txt_mod1_shift",
+    "txt_mod1_scale",
+    "txt_mod1_gate",
+    "txt_mod2_shift",
+    "txt_mod2_scale",
+    "txt_mod2_gate",
+    "single_mod_shift",
+    "single_mod_scale",
+    "single_mod_gate",
+)
+
+FLUX_DOUBLE_BLOCK_OUTPUT_NAMES = (
+    "img_k_raw",
+    "txt_k_raw",
+    "img_k_rrms",
+    "txt_k_rrms",
+    "txt_q_unit",
+    "img_q_unit",
+    "txt_k_unit",
+    "img_k_unit",
+    "txt_q",
+    "img_q",
+    "txt_k",
+    "img_k",
+    "txt_v",
+    "img_v",
+    "q",
+    "k",
+    "v",
+    "pe_full",
+    "q_rope",
+    "k_rope",
+    "attn",
+    "txt_attn",
+    "img_attn",
+    "img_attn_proj",
+    "img_after_attn",
+    "img_mlp_in",
+    "img_mlp_hidden",
+    "img_mlp_act",
+    "img_mlp_out",
+    "img",
+    "txt_attn_proj",
+    "txt_after_attn",
+    "txt_mlp_in",
+    "txt_mlp_hidden",
+    "txt_mlp_act",
+    "txt_mlp_out",
+    "txt_mlp_gated",
+    "txt",
+)
+
+FLUX_SINGLE_BLOCK_OUTPUT_NAMES = (
+    "pre_norm",
+    "x_mod",
+    "linear1",
+    "q_raw",
+    "k_raw",
+    "v",
+    "q_unit",
+    "k_unit",
+    "q",
+    "k",
+    "q_rope",
+    "k_rope",
+    "attn",
+    "mlp",
+    "mlp_act",
+    "out_input",
+    "linear2",
+    "gated",
+    "hidden_states",
+)
+
+FLUX_FINAL_LAYER_OUTPUT_NAMES = ("pred",)
+
+
+class AEDecodeModule(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        ae = AutoEncoder(AutoEncoderParams())
+        self.decoder = ae.decoder
+        self.bn = ae.bn
+        self.bn_eps = ae.bn_eps
+        self.ps = ae.ps
+
+    def forward(self, tokens: Tensor) -> Tensor:
+        running_var = self.bn.running_var
+        running_mean = self.bn.running_mean
+        if running_var is None or running_mean is None:
+            raise RuntimeError("AutoEncoder BatchNorm running stats are required for decode")
+        scale = torch.sqrt(running_var.view(1, -1, 1, 1) + self.bn_eps)
+        mean = running_mean.view(1, -1, 1, 1)
+        z = tokens * scale + mean
+        z = rearrange(
+            z,
+            "... (c pi pj) i j -> ... c (i pi) (j pj)",
+            pi=self.ps[0],
+            pj=self.ps[1],
+        )
+        return self.decoder(z)
+
+
+class AEEntryModule(nn.Module):
+    def forward(self, tokens: Tensor) -> Tensor:
+        return tokens.to(torch.float16).permute(0, 3, 1, 2).contiguous()
+
+
+class TextContextCaptureModule(nn.Module):
+    def forward(
+        self,
+        layer_9: Tensor,
+        layer_18: Tensor,
+        layer_27: Tensor,
+    ) -> Tensor:
+        return torch.cat((layer_9.float(), layer_18.float(), layer_27.float()), dim=-1)
+
+
+class FluxJoinModule(nn.Module):
+    def forward(self, txt: Tensor, img: Tensor) -> Tensor:
+        return torch.cat((txt, img), dim=1)
+
+
+class FluxPeJoinModule(nn.Module):
+    def forward(self, pe_ctx: Tensor, pe_x: Tensor) -> Tensor:
+        return torch.cat((pe_ctx, pe_x), dim=2)
+
+
+class EulerUpdateModule(nn.Module):
+    def forward(self, x: Tensor, pred: Tensor, dt: Tensor) -> Tensor:
+        return x + dt.view(1, 1, 1) * pred
+
 
 def _rms_norm_unit(x: Tensor, dtype: torch.dtype) -> Tensor:
     x_float = x.float()
@@ -1060,3 +1207,142 @@ def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor) -> tuple[Tensor, Tenso
     xq_out = freqs_cis[..., 0] * xq_[..., 0] + freqs_cis[..., 1] * xq_[..., 1]
     xk_out = freqs_cis[..., 0] * xk_[..., 0] + freqs_cis[..., 1] * xk_[..., 1]
     return xq_out.reshape(*xq.shape).type_as(xq), xk_out.reshape(*xk.shape).type_as(xk)
+
+
+class FluxPrologueModule(nn.Module):
+    def __init__(self, flux: Flux2) -> None:
+        super().__init__()
+        self.img_in = flux.img_in
+        self.time_in = flux.time_in
+        self.txt_in = flux.txt_in
+        self.double_stream_modulation_img = flux.double_stream_modulation_img
+        self.double_stream_modulation_txt = flux.double_stream_modulation_txt
+        self.single_stream_modulation = flux.single_stream_modulation
+        self.pe_embedder = flux.pe_embedder
+
+    def forward(
+        self,
+        x: Tensor,
+        x_ids: Tensor,
+        timesteps: Tensor,
+        ctx: Tensor,
+        ctx_ids: Tensor,
+    ) -> tuple[Tensor, ...]:
+        vec = self.time_in(timestep_embedding(timesteps, 256))
+        img_mod1, img_mod2 = self.double_stream_modulation_img(vec)
+        txt_mod1, txt_mod2 = self.double_stream_modulation_txt(vec)
+        single_mod, _ = self.single_stream_modulation(vec)
+        img = self.img_in(x)
+        txt = self.txt_in(ctx)
+        pe_x = self.pe_embedder(x_ids)
+        pe_ctx = self.pe_embedder(ctx_ids)
+        return (
+            img,
+            txt,
+            pe_x,
+            pe_ctx,
+            vec,
+            *img_mod1,
+            *img_mod2,
+            *txt_mod1,
+            *txt_mod2,
+            *single_mod,
+        )
+
+
+class FluxDoubleBlockModule(DoubleStreamBlock):
+    def __init__(self, block: DoubleStreamBlock) -> None:
+        nn.Module.__init__(self)
+        self.num_heads = block.num_heads
+        self.hidden_size = block.hidden_size
+        self.mlp_mult_factor = block.mlp_mult_factor
+        self.img_norm1 = block.img_norm1
+        self.img_attn = block.img_attn
+        self.img_norm2 = block.img_norm2
+        self.img_mlp = block.img_mlp
+        self.txt_norm1 = block.txt_norm1
+        self.txt_attn = block.txt_attn
+        self.txt_norm2 = block.txt_norm2
+        self.txt_mlp = block.txt_mlp
+
+    def forward(
+        self,
+        img: Tensor,
+        txt: Tensor,
+        pe: Tensor,
+        pe_ctx: Tensor,
+        img_mod1_shift: Tensor,
+        img_mod1_scale: Tensor,
+        img_mod1_gate: Tensor,
+        img_mod2_shift: Tensor,
+        img_mod2_scale: Tensor,
+        img_mod2_gate: Tensor,
+        txt_mod1_shift: Tensor,
+        txt_mod1_scale: Tensor,
+        txt_mod1_gate: Tensor,
+        txt_mod2_shift: Tensor,
+        txt_mod2_scale: Tensor,
+        txt_mod2_gate: Tensor,
+    ) -> tuple[Tensor, ...]:
+        img_mod = (
+            (img_mod1_shift, img_mod1_scale, img_mod1_gate),
+            (img_mod2_shift, img_mod2_scale, img_mod2_gate),
+        )
+        txt_mod = (
+            (txt_mod1_shift, txt_mod1_scale, txt_mod1_gate),
+            (txt_mod2_shift, txt_mod2_scale, txt_mod2_gate),
+        )
+        outputs = self.forward_kv_extract_debug(
+            img,
+            txt,
+            pe,
+            pe_ctx,
+            img_mod,
+            txt_mod,
+            num_ref_tokens=0,
+        )
+        return tuple(outputs[name] for name in FLUX_DOUBLE_BLOCK_OUTPUT_NAMES)
+
+
+class FluxSingleBlockModule(SingleStreamBlock):
+    def __init__(self, block: SingleStreamBlock, *, text_seq_len: int) -> None:
+        nn.Module.__init__(self)
+        self.hidden_dim = block.hidden_dim
+        self.num_heads = block.num_heads
+        self.scale = block.scale
+        self.mlp_hidden_dim = block.mlp_hidden_dim
+        self.mlp_mult_factor = block.mlp_mult_factor
+        self.linear1 = block.linear1
+        self.linear2 = block.linear2
+        self.norm = block.norm
+        self.hidden_size = block.hidden_size
+        self.pre_norm = block.pre_norm
+        self.mlp_act = block.mlp_act
+        self.text_seq_len = text_seq_len
+
+    def forward(
+        self,
+        hidden_states: Tensor,
+        pe: Tensor,
+        mod_shift: Tensor,
+        mod_scale: Tensor,
+        mod_gate: Tensor,
+    ) -> tuple[Tensor, ...]:
+        outputs = self.forward_kv_extract_debug(
+            hidden_states,
+            pe,
+            (mod_shift, mod_scale, mod_gate),
+            self.text_seq_len,
+            num_ref_tokens=0,
+        )
+        return tuple(outputs[name] for name in FLUX_SINGLE_BLOCK_OUTPUT_NAMES)
+
+
+class FluxFinalLayerModule(nn.Module):
+    def __init__(self, flux: Flux2, *, text_seq_len: int) -> None:
+        super().__init__()
+        self.final_layer = flux.final_layer
+        self.text_seq_len = text_seq_len
+
+    def forward(self, hidden_states: Tensor, vec: Tensor) -> Tensor:
+        return self.final_layer(hidden_states[:, self.text_seq_len :, ...], vec)
