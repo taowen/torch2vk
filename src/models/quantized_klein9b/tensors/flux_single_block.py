@@ -223,8 +223,8 @@ def create_flux_single_block(
                 checkpoint_key=f"single_blocks.{layer_idx}.linear1.weight",
                 reference_key=None,
                 layer=prefix,
-                spec=_quantized_weight_spec(f"single_blocks.{layer_idx}.linear1.weight", dtype='float16', shape=(36864, 4096)),
-                layout=_quantized_weight_layout(f"single_blocks.{layer_idx}.linear1.weight", dtype='float16', shape=(36864, 4096)),
+                spec=_quantized_weight_spec(f"single_blocks.{layer_idx}.linear1.weight", dtype='float32', shape=(36864, 4096)),
+                layout=_quantized_weight_layout(f"single_blocks.{layer_idx}.linear1.weight", dtype='float32', shape=(36864, 4096)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -238,8 +238,8 @@ def create_flux_single_block(
                 checkpoint_key=f"single_blocks.{layer_idx}.linear2.weight",
                 reference_key=None,
                 layer=prefix,
-                spec=_quantized_weight_spec(f"single_blocks.{layer_idx}.linear2.weight", dtype='float16', shape=(4096, 16384)),
-                layout=_quantized_weight_layout(f"single_blocks.{layer_idx}.linear2.weight", dtype='float16', shape=(4096, 16384)),
+                spec=_quantized_weight_spec(f"single_blocks.{layer_idx}.linear2.weight", dtype='float32', shape=(4096, 16384)),
+                layout=_quantized_weight_layout(f"single_blocks.{layer_idx}.linear2.weight", dtype='float32', shape=(4096, 16384)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -253,8 +253,8 @@ def create_flux_single_block(
                 checkpoint_key=f"single_blocks.{layer_idx}.norm.query_norm.scale",
                 reference_key=None,
                 layer=prefix,
-                spec=_quantized_weight_spec(f"single_blocks.{layer_idx}.norm.query_norm.scale", dtype='float16', shape=(128,)),
-                layout=_quantized_weight_layout(f"single_blocks.{layer_idx}.norm.query_norm.scale", dtype='float16', shape=(128,)),
+                spec=_quantized_weight_spec(f"single_blocks.{layer_idx}.norm.query_norm.scale", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout(f"single_blocks.{layer_idx}.norm.query_norm.scale", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -268,8 +268,8 @@ def create_flux_single_block(
                 checkpoint_key=f"single_blocks.{layer_idx}.norm.key_norm.scale",
                 reference_key=None,
                 layer=prefix,
-                spec=_quantized_weight_spec(f"single_blocks.{layer_idx}.norm.key_norm.scale", dtype='float16', shape=(128,)),
-                layout=_quantized_weight_layout(f"single_blocks.{layer_idx}.norm.key_norm.scale", dtype='float16', shape=(128,)),
+                spec=_quantized_weight_spec(f"single_blocks.{layer_idx}.norm.key_norm.scale", dtype='float32', shape=(128,)),
+                layout=_quantized_weight_layout(f"single_blocks.{layer_idx}.norm.key_norm.scale", dtype='float32', shape=(128,)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -1558,11 +1558,11 @@ def create_flux_single_block(
 
 
 _F16_TENSOR_NAMES = frozenset(())
-_F16_TENSOR_PREFIXES = ('',)
+_F16_TENSOR_PREFIXES = ()
 _Q6_TENSOR_NAMES = frozenset(())
 _Q6_TENSOR_PREFIXES = ()
 _Q8_TENSOR_NAMES = frozenset(())
-_Q8_TENSOR_PREFIXES = ()
+_Q8_TENSOR_PREFIXES = ('',)
 
 
 def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorSpec:

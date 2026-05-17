@@ -78,8 +78,8 @@ def create_flux_final_layer(
                 checkpoint_key="final_layer.linear.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("final_layer.linear.weight", dtype='float16', shape=(128, 4096)),
-                layout=_quantized_weight_layout("final_layer.linear.weight", dtype='float16', shape=(128, 4096)),
+                spec=_quantized_weight_spec("final_layer.linear.weight", dtype='float32', shape=(128, 4096)),
+                layout=_quantized_weight_layout("final_layer.linear.weight", dtype='float32', shape=(128, 4096)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -93,8 +93,8 @@ def create_flux_final_layer(
                 checkpoint_key="final_layer.adaLN_modulation.1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("final_layer.adaLN_modulation.1.weight", dtype='float16', shape=(8192, 4096)),
-                layout=_quantized_weight_layout("final_layer.adaLN_modulation.1.weight", dtype='float16', shape=(8192, 4096)),
+                spec=_quantized_weight_spec("final_layer.adaLN_modulation.1.weight", dtype='float32', shape=(8192, 4096)),
+                layout=_quantized_weight_layout("final_layer.adaLN_modulation.1.weight", dtype='float32', shape=(8192, 4096)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -319,11 +319,11 @@ def create_flux_final_layer(
 
 
 _F16_TENSOR_NAMES = frozenset(())
-_F16_TENSOR_PREFIXES = ('',)
+_F16_TENSOR_PREFIXES = ()
 _Q6_TENSOR_NAMES = frozenset(())
 _Q6_TENSOR_PREFIXES = ()
 _Q8_TENSOR_NAMES = frozenset(())
-_Q8_TENSOR_PREFIXES = ()
+_Q8_TENSOR_PREFIXES = ('',)
 
 
 def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorSpec:

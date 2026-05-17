@@ -402,8 +402,8 @@ def create_flux_prologue(
                 checkpoint_key="img_in.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("img_in.weight", dtype='float16', shape=(4096, 128)),
-                layout=_quantized_weight_layout("img_in.weight", dtype='float16', shape=(4096, 128)),
+                spec=_quantized_weight_spec("img_in.weight", dtype='float32', shape=(4096, 128)),
+                layout=_quantized_weight_layout("img_in.weight", dtype='float32', shape=(4096, 128)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -417,8 +417,8 @@ def create_flux_prologue(
                 checkpoint_key="time_in.in_layer.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("time_in.in_layer.weight", dtype='float16', shape=(4096, 256)),
-                layout=_quantized_weight_layout("time_in.in_layer.weight", dtype='float16', shape=(4096, 256)),
+                spec=_quantized_weight_spec("time_in.in_layer.weight", dtype='float32', shape=(4096, 256)),
+                layout=_quantized_weight_layout("time_in.in_layer.weight", dtype='float32', shape=(4096, 256)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -432,8 +432,8 @@ def create_flux_prologue(
                 checkpoint_key="time_in.out_layer.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("time_in.out_layer.weight", dtype='float16', shape=(4096, 4096)),
-                layout=_quantized_weight_layout("time_in.out_layer.weight", dtype='float16', shape=(4096, 4096)),
+                spec=_quantized_weight_spec("time_in.out_layer.weight", dtype='float32', shape=(4096, 4096)),
+                layout=_quantized_weight_layout("time_in.out_layer.weight", dtype='float32', shape=(4096, 4096)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -447,8 +447,8 @@ def create_flux_prologue(
                 checkpoint_key="txt_in.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("txt_in.weight", dtype='float16', shape=(4096, 12288)),
-                layout=_quantized_weight_layout("txt_in.weight", dtype='float16', shape=(4096, 12288)),
+                spec=_quantized_weight_spec("txt_in.weight", dtype='float32', shape=(4096, 12288)),
+                layout=_quantized_weight_layout("txt_in.weight", dtype='float32', shape=(4096, 12288)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -462,8 +462,8 @@ def create_flux_prologue(
                 checkpoint_key="double_stream_modulation_img.lin.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("double_stream_modulation_img.lin.weight", dtype='float16', shape=(24576, 4096)),
-                layout=_quantized_weight_layout("double_stream_modulation_img.lin.weight", dtype='float16', shape=(24576, 4096)),
+                spec=_quantized_weight_spec("double_stream_modulation_img.lin.weight", dtype='float32', shape=(24576, 4096)),
+                layout=_quantized_weight_layout("double_stream_modulation_img.lin.weight", dtype='float32', shape=(24576, 4096)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -477,8 +477,8 @@ def create_flux_prologue(
                 checkpoint_key="double_stream_modulation_txt.lin.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("double_stream_modulation_txt.lin.weight", dtype='float16', shape=(24576, 4096)),
-                layout=_quantized_weight_layout("double_stream_modulation_txt.lin.weight", dtype='float16', shape=(24576, 4096)),
+                spec=_quantized_weight_spec("double_stream_modulation_txt.lin.weight", dtype='float32', shape=(24576, 4096)),
+                layout=_quantized_weight_layout("double_stream_modulation_txt.lin.weight", dtype='float32', shape=(24576, 4096)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -492,8 +492,8 @@ def create_flux_prologue(
                 checkpoint_key="single_stream_modulation.lin.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("single_stream_modulation.lin.weight", dtype='float16', shape=(12288, 4096)),
-                layout=_quantized_weight_layout("single_stream_modulation.lin.weight", dtype='float16', shape=(12288, 4096)),
+                spec=_quantized_weight_spec("single_stream_modulation.lin.weight", dtype='float32', shape=(12288, 4096)),
+                layout=_quantized_weight_layout("single_stream_modulation.lin.weight", dtype='float32', shape=(12288, 4096)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -3096,11 +3096,11 @@ def create_flux_prologue(
 
 
 _F16_TENSOR_NAMES = frozenset(())
-_F16_TENSOR_PREFIXES = ('',)
+_F16_TENSOR_PREFIXES = ()
 _Q6_TENSOR_NAMES = frozenset(())
 _Q6_TENSOR_PREFIXES = ()
 _Q8_TENSOR_NAMES = frozenset(())
-_Q8_TENSOR_PREFIXES = ()
+_Q8_TENSOR_PREFIXES = ('',)
 
 
 def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorSpec:

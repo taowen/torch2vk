@@ -414,7 +414,6 @@ def main() -> int:
         ),
         checkpoint="flux/model.gguf",
         quantization_config=flux_config,
-        export_weight_dtype=torch.float16,
         export_activation_dtype=torch.float32,
         shape_exprs={
             DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
@@ -458,7 +457,6 @@ def main() -> int:
         checkpoint="flux/model.gguf",
         weight_prefix="double_blocks.0.",
         quantization_config=flux_config,
-        export_weight_dtype=torch.float16,
         export_activation_dtype=torch.float32,
         shape_exprs={
             DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
@@ -556,7 +554,6 @@ def main() -> int:
         checkpoint="flux/model.gguf",
         weight_prefix="single_blocks.0.",
         quantization_config=flux_config,
-        export_weight_dtype=torch.float16,
         export_activation_dtype=torch.float32,
         shape_exprs={
             DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
@@ -584,7 +581,6 @@ def main() -> int:
         ),
         checkpoint="flux/model.gguf",
         quantization_config=flux_config,
-        export_weight_dtype=torch.float16,
         export_activation_dtype=torch.float32,
         shape_exprs={
             DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
@@ -727,7 +723,6 @@ def main() -> int:
         ),
         checkpoint="flux/model.gguf",
         quantization_config=flux_config,
-        export_weight_dtype=torch.float16,
         export_activation_dtype=torch.float32,
         shape_exprs={
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",

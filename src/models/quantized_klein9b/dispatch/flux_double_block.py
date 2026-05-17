@@ -22,7 +22,6 @@ from models.quantized_klein9b.shaders.flux_double_block_add_f32 import FLUX_DOUB
 from models.quantized_klein9b.shaders.flux_double_block_add_scalar import FLUX_DOUBLE_BLOCK_ADD_SCALAR
 from models.quantized_klein9b.shaders.flux_double_block_cat_2_f32 import FLUX_DOUBLE_BLOCK_CAT_2_F32
 from models.quantized_klein9b.shaders.flux_double_block_cat_3_f32 import FLUX_DOUBLE_BLOCK_CAT_3_F32
-from models.quantized_klein9b.shaders.flux_double_block_linear_nobias_f16w_f32 import FLUX_DOUBLE_BLOCK_LINEAR_NOBIAS_F16W_F32
 from models.quantized_klein9b.shaders.flux_double_block_mean_dim_f32 import FLUX_DOUBLE_BLOCK_MEAN_DIM_F32
 from models.quantized_klein9b.shaders.flux_double_block_mul_broadcast import FLUX_DOUBLE_BLOCK_MUL_BROADCAST
 from models.quantized_klein9b.shaders.flux_double_block_mul_f32 import FLUX_DOUBLE_BLOCK_MUL_F32
@@ -31,6 +30,7 @@ from models.quantized_klein9b.shaders.flux_double_block_rsqrt_f32 import FLUX_DO
 from models.quantized_klein9b.shaders.flux_double_block_silu_f32 import FLUX_DOUBLE_BLOCK_SILU_F32
 from models.quantized_klein9b.shaders.flux_double_block_slice_f32 import FLUX_DOUBLE_BLOCK_SLICE_F32
 from models.quantized_klein9b.shaders.layer_norm_nonew_noneb_f32 import LAYER_NORM_NONEW_NONEB_F32
+from models.quantized_klein9b.shaders.linear_nobias_q8_0_f32_act_f32 import LINEAR_NOBIAS_Q8_0_F32_ACT_F32
 from models.quantized_klein9b.shaders.mul_broadcast_13 import MUL_BROADCAST_13
 from models.quantized_klein9b.shaders.mul_broadcast_15 import MUL_BROADCAST_15
 from models.quantized_klein9b.shaders.mul_broadcast_22 import MUL_BROADCAST_22
@@ -75,7 +75,7 @@ def _run_flux_double_block_with_tensors(rt: RuntimeSession, tensors: FluxDoubleB
     FLUX_DOUBLE_BLOCK_ADD_SCALAR(rt, x=tensors.img_mod1_scale, output=tensors.add)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.add, y=tensors.layer_norm, output=tensors.mul)
     ADD_BROADCAST_INNER(rt, x=tensors.mul, y=tensors.img_mod1_shift, output=tensors.add_1)
-    FLUX_DOUBLE_BLOCK_LINEAR_NOBIAS_F16W_F32(rt, x=tensors.add_1, weight=tensors.p_img_attn_qkv_weight, output=tensors.linear)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_1, weight=tensors.p_img_attn_qkv_weight, output=tensors.linear)
     PERMUTE_F32_0D3AB17AE3(rt, x=tensors.reshape, output=tensors.permute)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute, output=tensors.getitem)
     TUPLE_GETITEM_UNBIND_F32_7(rt, x=tensors.permute, output=tensors.getitem_1)
@@ -100,7 +100,7 @@ def _run_flux_double_block_with_tensors(rt: RuntimeSession, tensors: FluxDoubleB
     FLUX_DOUBLE_BLOCK_ADD_SCALAR(rt, x=tensors.txt_mod1_scale, output=tensors.add_5)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.add_5, y=tensors.layer_norm_1, output=tensors.mul_5)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_5, y=tensors.txt_mod1_shift, output=tensors.add_6)
-    FLUX_DOUBLE_BLOCK_LINEAR_NOBIAS_F16W_F32(rt, x=tensors.add_6, weight=tensors.p_txt_attn_qkv_weight, output=tensors.linear_1)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_6, weight=tensors.p_txt_attn_qkv_weight, output=tensors.linear_1)
     PERMUTE_F32_8475D3A978(rt, x=tensors.reshape_1, output=tensors.permute_1)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_1, output=tensors.getitem_3)
     TUPLE_GETITEM_UNBIND_F32_19(rt, x=tensors.permute_1, output=tensors.getitem_4)
@@ -159,34 +159,34 @@ def _run_flux_double_block_with_tensors(rt: RuntimeSession, tensors: FluxDoubleB
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_7, output=tensors.permute_2)
     SLICE_F32_52(rt, x=tensors.reshape_6, output=tensors.slice_12)
     SLICE_F32_53(rt, x=tensors.reshape_6, output=tensors.slice_13)
-    FLUX_DOUBLE_BLOCK_LINEAR_NOBIAS_F16W_F32(rt, x=tensors.slice_13, weight=tensors.p_img_attn_proj_weight, output=tensors.linear_2)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_13, weight=tensors.p_img_attn_proj_weight, output=tensors.linear_2)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.img_mod1_gate, y=tensors.linear_2, output=tensors.mul_14)
     ADD_F32_54(rt, x=tensors.img, y=tensors.mul_14, output=tensors.add_12)
     FLUX_DOUBLE_BLOCK_ADD_SCALAR(rt, x=tensors.img_mod2_scale, output=tensors.add_13)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_12, output=tensors.layer_norm_2)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.add_13, y=tensors.layer_norm_2, output=tensors.mul_15)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_15, y=tensors.img_mod2_shift, output=tensors.add_14)
-    FLUX_DOUBLE_BLOCK_LINEAR_NOBIAS_F16W_F32(rt, x=tensors.add_14, weight=tensors.p_img_mlp_0_weight, output=tensors.linear_3)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_14, weight=tensors.p_img_mlp_0_weight, output=tensors.linear_3)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_3, output=tensors.getitem_6)
     TUPLE_GETITEM_SLICE_F32_56(rt, x=tensors.linear_3, output=tensors.getitem_7)
     FLUX_DOUBLE_BLOCK_SILU_F32(rt, x=tensors.getitem_6, output=tensors.silu)
     FLUX_DOUBLE_BLOCK_MUL_F32(rt, x=tensors.silu, y=tensors.getitem_7, output=tensors.mul_16)
-    FLUX_DOUBLE_BLOCK_LINEAR_NOBIAS_F16W_F32(rt, x=tensors.mul_16, weight=tensors.p_img_mlp_2_weight, output=tensors.linear_4)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_16, weight=tensors.p_img_mlp_2_weight, output=tensors.linear_4)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.img_mod2_gate, y=tensors.linear_4, output=tensors.mul_17)
     ADD_F32_59(rt, x=tensors.add_12, y=tensors.mul_17, output=tensors.add_15)
-    FLUX_DOUBLE_BLOCK_LINEAR_NOBIAS_F16W_F32(rt, x=tensors.slice_12, weight=tensors.p_txt_attn_proj_weight, output=tensors.linear_5)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_12, weight=tensors.p_txt_attn_proj_weight, output=tensors.linear_5)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.txt_mod1_gate, y=tensors.linear_5, output=tensors.mul_18)
     ADD_F32_60(rt, x=tensors.txt, y=tensors.mul_18, output=tensors.add_16)
     FLUX_DOUBLE_BLOCK_ADD_SCALAR(rt, x=tensors.txt_mod2_scale, output=tensors.add_17)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_16, output=tensors.layer_norm_3)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.add_17, y=tensors.layer_norm_3, output=tensors.mul_19)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_19, y=tensors.txt_mod2_shift, output=tensors.add_18)
-    FLUX_DOUBLE_BLOCK_LINEAR_NOBIAS_F16W_F32(rt, x=tensors.add_18, weight=tensors.p_txt_mlp_0_weight, output=tensors.linear_6)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_18, weight=tensors.p_txt_mlp_0_weight, output=tensors.linear_6)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_6, output=tensors.getitem_8)
     TUPLE_GETITEM_SLICE_F32_61(rt, x=tensors.linear_6, output=tensors.getitem_9)
     FLUX_DOUBLE_BLOCK_SILU_F32(rt, x=tensors.getitem_8, output=tensors.silu_1)
     FLUX_DOUBLE_BLOCK_MUL_F32(rt, x=tensors.silu_1, y=tensors.getitem_9, output=tensors.mul_20)
-    FLUX_DOUBLE_BLOCK_LINEAR_NOBIAS_F16W_F32(rt, x=tensors.mul_20, weight=tensors.p_txt_mlp_2_weight, output=tensors.linear_7)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_20, weight=tensors.p_txt_mlp_2_weight, output=tensors.linear_7)
     FLUX_DOUBLE_BLOCK_MUL_BROADCAST(rt, x=tensors.txt_mod2_gate, y=tensors.linear_7, output=tensors.mul_21)
     ADD_F32_62(rt, x=tensors.add_16, y=tensors.mul_21, output=tensors.add_19)
 

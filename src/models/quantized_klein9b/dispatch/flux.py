@@ -4,261 +4,261 @@ from __future__ import annotations
 
 from models.quantized_klein9b.tensors.model import model_tensors
 from models.quantized_klein9b.shaders.add_broadcast_inner import ADD_BROADCAST_INNER
-from models.quantized_klein9b.shaders.add_f32_1011 import ADD_F32_1011
-from models.quantized_klein9b.shaders.add_f32_1039 import ADD_F32_1039
-from models.quantized_klein9b.shaders.add_f32_1067 import ADD_F32_1067
-from models.quantized_klein9b.shaders.add_f32_1095 import ADD_F32_1095
-from models.quantized_klein9b.shaders.add_f32_1123 import ADD_F32_1123
-from models.quantized_klein9b.shaders.add_f32_1151 import ADD_F32_1151
-from models.quantized_klein9b.shaders.add_f32_1179 import ADD_F32_1179
-from models.quantized_klein9b.shaders.add_f32_1207 import ADD_F32_1207
-from models.quantized_klein9b.shaders.add_f32_1235 import ADD_F32_1235
-from models.quantized_klein9b.shaders.add_f32_143 import ADD_F32_143
-from models.quantized_klein9b.shaders.add_f32_151 import ADD_F32_151
-from models.quantized_klein9b.shaders.add_f32_154 import ADD_F32_154
-from models.quantized_klein9b.shaders.add_f32_161 import ADD_F32_161
+from models.quantized_klein9b.shaders.add_f32_1018 import ADD_F32_1018
+from models.quantized_klein9b.shaders.add_f32_1044 import ADD_F32_1044
+from models.quantized_klein9b.shaders.add_f32_1070 import ADD_F32_1070
+from models.quantized_klein9b.shaders.add_f32_1096 import ADD_F32_1096
+from models.quantized_klein9b.shaders.add_f32_1122 import ADD_F32_1122
+from models.quantized_klein9b.shaders.add_f32_139 import ADD_F32_139
+from models.quantized_klein9b.shaders.add_f32_145 import ADD_F32_145
+from models.quantized_klein9b.shaders.add_f32_147 import ADD_F32_147
+from models.quantized_klein9b.shaders.add_f32_152 import ADD_F32_152
+from models.quantized_klein9b.shaders.add_f32_189 import ADD_F32_189
+from models.quantized_klein9b.shaders.add_f32_194 import ADD_F32_194
+from models.quantized_klein9b.shaders.add_f32_196 import ADD_F32_196
 from models.quantized_klein9b.shaders.add_f32_201 import ADD_F32_201
-from models.quantized_klein9b.shaders.add_f32_208 import ADD_F32_208
-from models.quantized_klein9b.shaders.add_f32_211 import ADD_F32_211
-from models.quantized_klein9b.shaders.add_f32_218 import ADD_F32_218
-from models.quantized_klein9b.shaders.add_f32_258 import ADD_F32_258
-from models.quantized_klein9b.shaders.add_f32_265 import ADD_F32_265
-from models.quantized_klein9b.shaders.add_f32_268 import ADD_F32_268
-from models.quantized_klein9b.shaders.add_f32_275 import ADD_F32_275
-from models.quantized_klein9b.shaders.add_f32_315 import ADD_F32_315
-from models.quantized_klein9b.shaders.add_f32_322 import ADD_F32_322
-from models.quantized_klein9b.shaders.add_f32_325 import ADD_F32_325
-from models.quantized_klein9b.shaders.add_f32_332 import ADD_F32_332
-from models.quantized_klein9b.shaders.add_f32_372 import ADD_F32_372
-from models.quantized_klein9b.shaders.add_f32_379 import ADD_F32_379
-from models.quantized_klein9b.shaders.add_f32_382 import ADD_F32_382
-from models.quantized_klein9b.shaders.add_f32_389 import ADD_F32_389
-from models.quantized_klein9b.shaders.add_f32_429 import ADD_F32_429
-from models.quantized_klein9b.shaders.add_f32_436 import ADD_F32_436
+from models.quantized_klein9b.shaders.add_f32_238 import ADD_F32_238
+from models.quantized_klein9b.shaders.add_f32_243 import ADD_F32_243
+from models.quantized_klein9b.shaders.add_f32_245 import ADD_F32_245
+from models.quantized_klein9b.shaders.add_f32_250 import ADD_F32_250
+from models.quantized_klein9b.shaders.add_f32_287 import ADD_F32_287
+from models.quantized_klein9b.shaders.add_f32_292 import ADD_F32_292
+from models.quantized_klein9b.shaders.add_f32_294 import ADD_F32_294
+from models.quantized_klein9b.shaders.add_f32_299 import ADD_F32_299
+from models.quantized_klein9b.shaders.add_f32_336 import ADD_F32_336
+from models.quantized_klein9b.shaders.add_f32_341 import ADD_F32_341
+from models.quantized_klein9b.shaders.add_f32_343 import ADD_F32_343
+from models.quantized_klein9b.shaders.add_f32_348 import ADD_F32_348
+from models.quantized_klein9b.shaders.add_f32_385 import ADD_F32_385
+from models.quantized_klein9b.shaders.add_f32_390 import ADD_F32_390
+from models.quantized_klein9b.shaders.add_f32_392 import ADD_F32_392
+from models.quantized_klein9b.shaders.add_f32_397 import ADD_F32_397
+from models.quantized_klein9b.shaders.add_f32_434 import ADD_F32_434
 from models.quantized_klein9b.shaders.add_f32_439 import ADD_F32_439
+from models.quantized_klein9b.shaders.add_f32_441 import ADD_F32_441
 from models.quantized_klein9b.shaders.add_f32_446 import ADD_F32_446
-from models.quantized_klein9b.shaders.add_f32_486 import ADD_F32_486
-from models.quantized_klein9b.shaders.add_f32_493 import ADD_F32_493
-from models.quantized_klein9b.shaders.add_f32_496 import ADD_F32_496
-from models.quantized_klein9b.shaders.add_f32_503 import ADD_F32_503
-from models.quantized_klein9b.shaders.add_f32_543 import ADD_F32_543
+from models.quantized_klein9b.shaders.add_f32_483 import ADD_F32_483
+from models.quantized_klein9b.shaders.add_f32_488 import ADD_F32_488
+from models.quantized_klein9b.shaders.add_f32_490 import ADD_F32_490
+from models.quantized_klein9b.shaders.add_f32_495 import ADD_F32_495
+from models.quantized_klein9b.shaders.add_f32_524 import ADD_F32_524
 from models.quantized_klein9b.shaders.add_f32_550 import ADD_F32_550
-from models.quantized_klein9b.shaders.add_f32_553 import ADD_F32_553
-from models.quantized_klein9b.shaders.add_f32_560 import ADD_F32_560
-from models.quantized_klein9b.shaders.add_f32_591 import ADD_F32_591
-from models.quantized_klein9b.shaders.add_f32_619 import ADD_F32_619
-from models.quantized_klein9b.shaders.add_f32_647 import ADD_F32_647
-from models.quantized_klein9b.shaders.add_f32_675 import ADD_F32_675
-from models.quantized_klein9b.shaders.add_f32_703 import ADD_F32_703
-from models.quantized_klein9b.shaders.add_f32_731 import ADD_F32_731
-from models.quantized_klein9b.shaders.add_f32_759 import ADD_F32_759
-from models.quantized_klein9b.shaders.add_f32_787 import ADD_F32_787
-from models.quantized_klein9b.shaders.add_f32_815 import ADD_F32_815
-from models.quantized_klein9b.shaders.add_f32_843 import ADD_F32_843
-from models.quantized_klein9b.shaders.add_f32_871 import ADD_F32_871
-from models.quantized_klein9b.shaders.add_f32_899 import ADD_F32_899
-from models.quantized_klein9b.shaders.add_f32_927 import ADD_F32_927
-from models.quantized_klein9b.shaders.add_f32_955 import ADD_F32_955
-from models.quantized_klein9b.shaders.add_f32_983 import ADD_F32_983
-from models.quantized_klein9b.shaders.add_scalar_1017 import ADD_SCALAR_1017
-from models.quantized_klein9b.shaders.add_scalar_1019 import ADD_SCALAR_1019
-from models.quantized_klein9b.shaders.add_scalar_102 import ADD_SCALAR_102
-from models.quantized_klein9b.shaders.add_scalar_1045 import ADD_SCALAR_1045
-from models.quantized_klein9b.shaders.add_scalar_1047 import ADD_SCALAR_1047
-from models.quantized_klein9b.shaders.add_scalar_1073 import ADD_SCALAR_1073
+from models.quantized_klein9b.shaders.add_f32_576 import ADD_F32_576
+from models.quantized_klein9b.shaders.add_f32_602 import ADD_F32_602
+from models.quantized_klein9b.shaders.add_f32_628 import ADD_F32_628
+from models.quantized_klein9b.shaders.add_f32_654 import ADD_F32_654
+from models.quantized_klein9b.shaders.add_f32_680 import ADD_F32_680
+from models.quantized_klein9b.shaders.add_f32_706 import ADD_F32_706
+from models.quantized_klein9b.shaders.add_f32_732 import ADD_F32_732
+from models.quantized_klein9b.shaders.add_f32_758 import ADD_F32_758
+from models.quantized_klein9b.shaders.add_f32_784 import ADD_F32_784
+from models.quantized_klein9b.shaders.add_f32_810 import ADD_F32_810
+from models.quantized_klein9b.shaders.add_f32_836 import ADD_F32_836
+from models.quantized_klein9b.shaders.add_f32_862 import ADD_F32_862
+from models.quantized_klein9b.shaders.add_f32_888 import ADD_F32_888
+from models.quantized_klein9b.shaders.add_f32_914 import ADD_F32_914
+from models.quantized_klein9b.shaders.add_f32_940 import ADD_F32_940
+from models.quantized_klein9b.shaders.add_f32_966 import ADD_F32_966
+from models.quantized_klein9b.shaders.add_f32_992 import ADD_F32_992
+from models.quantized_klein9b.shaders.add_scalar_100 import ADD_SCALAR_100
+from models.quantized_klein9b.shaders.add_scalar_1023 import ADD_SCALAR_1023
+from models.quantized_klein9b.shaders.add_scalar_1025 import ADD_SCALAR_1025
+from models.quantized_klein9b.shaders.add_scalar_1049 import ADD_SCALAR_1049
+from models.quantized_klein9b.shaders.add_scalar_1051 import ADD_SCALAR_1051
 from models.quantized_klein9b.shaders.add_scalar_1075 import ADD_SCALAR_1075
+from models.quantized_klein9b.shaders.add_scalar_1077 import ADD_SCALAR_1077
+from models.quantized_klein9b.shaders.add_scalar_108 import ADD_SCALAR_108
+from models.quantized_klein9b.shaders.add_scalar_110 import ADD_SCALAR_110
 from models.quantized_klein9b.shaders.add_scalar_1101 import ADD_SCALAR_1101
 from models.quantized_klein9b.shaders.add_scalar_1103 import ADD_SCALAR_1103
-from models.quantized_klein9b.shaders.add_scalar_111 import ADD_SCALAR_111
-from models.quantized_klein9b.shaders.add_scalar_1129 import ADD_SCALAR_1129
-from models.quantized_klein9b.shaders.add_scalar_113 import ADD_SCALAR_113
-from models.quantized_klein9b.shaders.add_scalar_1131 import ADD_SCALAR_1131
-from models.quantized_klein9b.shaders.add_scalar_1157 import ADD_SCALAR_1157
-from models.quantized_klein9b.shaders.add_scalar_1159 import ADD_SCALAR_1159
-from models.quantized_klein9b.shaders.add_scalar_1185 import ADD_SCALAR_1185
-from models.quantized_klein9b.shaders.add_scalar_1187 import ADD_SCALAR_1187
-from models.quantized_klein9b.shaders.add_scalar_1213 import ADD_SCALAR_1213
-from models.quantized_klein9b.shaders.add_scalar_1215 import ADD_SCALAR_1215
+from models.quantized_klein9b.shaders.add_scalar_156 import ADD_SCALAR_156
+from models.quantized_klein9b.shaders.add_scalar_158 import ADD_SCALAR_158
+from models.quantized_klein9b.shaders.add_scalar_164 import ADD_SCALAR_164
 from models.quantized_klein9b.shaders.add_scalar_166 import ADD_SCALAR_166
-from models.quantized_klein9b.shaders.add_scalar_168 import ADD_SCALAR_168
-from models.quantized_klein9b.shaders.add_scalar_175 import ADD_SCALAR_175
-from models.quantized_klein9b.shaders.add_scalar_177 import ADD_SCALAR_177
-from models.quantized_klein9b.shaders.add_scalar_223 import ADD_SCALAR_223
-from models.quantized_klein9b.shaders.add_scalar_225 import ADD_SCALAR_225
-from models.quantized_klein9b.shaders.add_scalar_232 import ADD_SCALAR_232
-from models.quantized_klein9b.shaders.add_scalar_234 import ADD_SCALAR_234
-from models.quantized_klein9b.shaders.add_scalar_280 import ADD_SCALAR_280
-from models.quantized_klein9b.shaders.add_scalar_282 import ADD_SCALAR_282
-from models.quantized_klein9b.shaders.add_scalar_289 import ADD_SCALAR_289
-from models.quantized_klein9b.shaders.add_scalar_291 import ADD_SCALAR_291
-from models.quantized_klein9b.shaders.add_scalar_337 import ADD_SCALAR_337
-from models.quantized_klein9b.shaders.add_scalar_339 import ADD_SCALAR_339
-from models.quantized_klein9b.shaders.add_scalar_346 import ADD_SCALAR_346
-from models.quantized_klein9b.shaders.add_scalar_348 import ADD_SCALAR_348
-from models.quantized_klein9b.shaders.add_scalar_394 import ADD_SCALAR_394
-from models.quantized_klein9b.shaders.add_scalar_396 import ADD_SCALAR_396
+from models.quantized_klein9b.shaders.add_scalar_205 import ADD_SCALAR_205
+from models.quantized_klein9b.shaders.add_scalar_207 import ADD_SCALAR_207
+from models.quantized_klein9b.shaders.add_scalar_213 import ADD_SCALAR_213
+from models.quantized_klein9b.shaders.add_scalar_215 import ADD_SCALAR_215
+from models.quantized_klein9b.shaders.add_scalar_254 import ADD_SCALAR_254
+from models.quantized_klein9b.shaders.add_scalar_256 import ADD_SCALAR_256
+from models.quantized_klein9b.shaders.add_scalar_262 import ADD_SCALAR_262
+from models.quantized_klein9b.shaders.add_scalar_264 import ADD_SCALAR_264
+from models.quantized_klein9b.shaders.add_scalar_303 import ADD_SCALAR_303
+from models.quantized_klein9b.shaders.add_scalar_305 import ADD_SCALAR_305
+from models.quantized_klein9b.shaders.add_scalar_311 import ADD_SCALAR_311
+from models.quantized_klein9b.shaders.add_scalar_313 import ADD_SCALAR_313
+from models.quantized_klein9b.shaders.add_scalar_352 import ADD_SCALAR_352
+from models.quantized_klein9b.shaders.add_scalar_354 import ADD_SCALAR_354
+from models.quantized_klein9b.shaders.add_scalar_360 import ADD_SCALAR_360
+from models.quantized_klein9b.shaders.add_scalar_362 import ADD_SCALAR_362
+from models.quantized_klein9b.shaders.add_scalar_401 import ADD_SCALAR_401
 from models.quantized_klein9b.shaders.add_scalar_403 import ADD_SCALAR_403
-from models.quantized_klein9b.shaders.add_scalar_405 import ADD_SCALAR_405
-from models.quantized_klein9b.shaders.add_scalar_451 import ADD_SCALAR_451
-from models.quantized_klein9b.shaders.add_scalar_453 import ADD_SCALAR_453
+from models.quantized_klein9b.shaders.add_scalar_409 import ADD_SCALAR_409
+from models.quantized_klein9b.shaders.add_scalar_411 import ADD_SCALAR_411
+from models.quantized_klein9b.shaders.add_scalar_450 import ADD_SCALAR_450
+from models.quantized_klein9b.shaders.add_scalar_452 import ADD_SCALAR_452
+from models.quantized_klein9b.shaders.add_scalar_458 import ADD_SCALAR_458
 from models.quantized_klein9b.shaders.add_scalar_460 import ADD_SCALAR_460
-from models.quantized_klein9b.shaders.add_scalar_462 import ADD_SCALAR_462
-from models.quantized_klein9b.shaders.add_scalar_508 import ADD_SCALAR_508
-from models.quantized_klein9b.shaders.add_scalar_510 import ADD_SCALAR_510
-from models.quantized_klein9b.shaders.add_scalar_517 import ADD_SCALAR_517
-from models.quantized_klein9b.shaders.add_scalar_519 import ADD_SCALAR_519
-from models.quantized_klein9b.shaders.add_scalar_569 import ADD_SCALAR_569
-from models.quantized_klein9b.shaders.add_scalar_571 import ADD_SCALAR_571
-from models.quantized_klein9b.shaders.add_scalar_597 import ADD_SCALAR_597
-from models.quantized_klein9b.shaders.add_scalar_599 import ADD_SCALAR_599
-from models.quantized_klein9b.shaders.add_scalar_625 import ADD_SCALAR_625
-from models.quantized_klein9b.shaders.add_scalar_627 import ADD_SCALAR_627
-from models.quantized_klein9b.shaders.add_scalar_653 import ADD_SCALAR_653
-from models.quantized_klein9b.shaders.add_scalar_655 import ADD_SCALAR_655
-from models.quantized_klein9b.shaders.add_scalar_681 import ADD_SCALAR_681
-from models.quantized_klein9b.shaders.add_scalar_683 import ADD_SCALAR_683
-from models.quantized_klein9b.shaders.add_scalar_709 import ADD_SCALAR_709
+from models.quantized_klein9b.shaders.add_scalar_503 import ADD_SCALAR_503
+from models.quantized_klein9b.shaders.add_scalar_505 import ADD_SCALAR_505
+from models.quantized_klein9b.shaders.add_scalar_529 import ADD_SCALAR_529
+from models.quantized_klein9b.shaders.add_scalar_531 import ADD_SCALAR_531
+from models.quantized_klein9b.shaders.add_scalar_555 import ADD_SCALAR_555
+from models.quantized_klein9b.shaders.add_scalar_557 import ADD_SCALAR_557
+from models.quantized_klein9b.shaders.add_scalar_581 import ADD_SCALAR_581
+from models.quantized_klein9b.shaders.add_scalar_583 import ADD_SCALAR_583
+from models.quantized_klein9b.shaders.add_scalar_607 import ADD_SCALAR_607
+from models.quantized_klein9b.shaders.add_scalar_609 import ADD_SCALAR_609
+from models.quantized_klein9b.shaders.add_scalar_633 import ADD_SCALAR_633
+from models.quantized_klein9b.shaders.add_scalar_635 import ADD_SCALAR_635
+from models.quantized_klein9b.shaders.add_scalar_659 import ADD_SCALAR_659
+from models.quantized_klein9b.shaders.add_scalar_661 import ADD_SCALAR_661
+from models.quantized_klein9b.shaders.add_scalar_685 import ADD_SCALAR_685
+from models.quantized_klein9b.shaders.add_scalar_687 import ADD_SCALAR_687
 from models.quantized_klein9b.shaders.add_scalar_711 import ADD_SCALAR_711
+from models.quantized_klein9b.shaders.add_scalar_713 import ADD_SCALAR_713
 from models.quantized_klein9b.shaders.add_scalar_737 import ADD_SCALAR_737
 from models.quantized_klein9b.shaders.add_scalar_739 import ADD_SCALAR_739
+from models.quantized_klein9b.shaders.add_scalar_763 import ADD_SCALAR_763
 from models.quantized_klein9b.shaders.add_scalar_765 import ADD_SCALAR_765
-from models.quantized_klein9b.shaders.add_scalar_767 import ADD_SCALAR_767
-from models.quantized_klein9b.shaders.add_scalar_793 import ADD_SCALAR_793
-from models.quantized_klein9b.shaders.add_scalar_795 import ADD_SCALAR_795
-from models.quantized_klein9b.shaders.add_scalar_821 import ADD_SCALAR_821
-from models.quantized_klein9b.shaders.add_scalar_823 import ADD_SCALAR_823
-from models.quantized_klein9b.shaders.add_scalar_849 import ADD_SCALAR_849
-from models.quantized_klein9b.shaders.add_scalar_851 import ADD_SCALAR_851
-from models.quantized_klein9b.shaders.add_scalar_877 import ADD_SCALAR_877
-from models.quantized_klein9b.shaders.add_scalar_879 import ADD_SCALAR_879
-from models.quantized_klein9b.shaders.add_scalar_905 import ADD_SCALAR_905
-from models.quantized_klein9b.shaders.add_scalar_907 import ADD_SCALAR_907
-from models.quantized_klein9b.shaders.add_scalar_933 import ADD_SCALAR_933
-from models.quantized_klein9b.shaders.add_scalar_935 import ADD_SCALAR_935
-from models.quantized_klein9b.shaders.add_scalar_961 import ADD_SCALAR_961
-from models.quantized_klein9b.shaders.add_scalar_963 import ADD_SCALAR_963
-from models.quantized_klein9b.shaders.add_scalar_989 import ADD_SCALAR_989
-from models.quantized_klein9b.shaders.add_scalar_99 import ADD_SCALAR_99
-from models.quantized_klein9b.shaders.add_scalar_991 import ADD_SCALAR_991
+from models.quantized_klein9b.shaders.add_scalar_789 import ADD_SCALAR_789
+from models.quantized_klein9b.shaders.add_scalar_791 import ADD_SCALAR_791
+from models.quantized_klein9b.shaders.add_scalar_815 import ADD_SCALAR_815
+from models.quantized_klein9b.shaders.add_scalar_817 import ADD_SCALAR_817
+from models.quantized_klein9b.shaders.add_scalar_841 import ADD_SCALAR_841
+from models.quantized_klein9b.shaders.add_scalar_843 import ADD_SCALAR_843
+from models.quantized_klein9b.shaders.add_scalar_867 import ADD_SCALAR_867
+from models.quantized_klein9b.shaders.add_scalar_869 import ADD_SCALAR_869
+from models.quantized_klein9b.shaders.add_scalar_893 import ADD_SCALAR_893
+from models.quantized_klein9b.shaders.add_scalar_895 import ADD_SCALAR_895
+from models.quantized_klein9b.shaders.add_scalar_919 import ADD_SCALAR_919
+from models.quantized_klein9b.shaders.add_scalar_921 import ADD_SCALAR_921
+from models.quantized_klein9b.shaders.add_scalar_945 import ADD_SCALAR_945
+from models.quantized_klein9b.shaders.add_scalar_947 import ADD_SCALAR_947
+from models.quantized_klein9b.shaders.add_scalar_97 import ADD_SCALAR_97
+from models.quantized_klein9b.shaders.add_scalar_971 import ADD_SCALAR_971
+from models.quantized_klein9b.shaders.add_scalar_973 import ADD_SCALAR_973
+from models.quantized_klein9b.shaders.add_scalar_997 import ADD_SCALAR_997
+from models.quantized_klein9b.shaders.add_scalar_999 import ADD_SCALAR_999
 from models.quantized_klein9b.shaders.arange_f32 import ARANGE_F32
 from models.quantized_klein9b.shaders.arange_i64 import ARANGE_I64
-from models.quantized_klein9b.shaders.cat_2_f32_1004 import CAT_2_F32_1004
-from models.quantized_klein9b.shaders.cat_2_f32_1008 import CAT_2_F32_1008
-from models.quantized_klein9b.shaders.cat_2_f32_1032 import CAT_2_F32_1032
-from models.quantized_klein9b.shaders.cat_2_f32_1036 import CAT_2_F32_1036
-from models.quantized_klein9b.shaders.cat_2_f32_1060 import CAT_2_F32_1060
+from models.quantized_klein9b.shaders.cat_2_f32_1012 import CAT_2_F32_1012
+from models.quantized_klein9b.shaders.cat_2_f32_1016 import CAT_2_F32_1016
+from models.quantized_klein9b.shaders.cat_2_f32_1038 import CAT_2_F32_1038
+from models.quantized_klein9b.shaders.cat_2_f32_1042 import CAT_2_F32_1042
 from models.quantized_klein9b.shaders.cat_2_f32_1064 import CAT_2_F32_1064
-from models.quantized_klein9b.shaders.cat_2_f32_1088 import CAT_2_F32_1088
-from models.quantized_klein9b.shaders.cat_2_f32_1092 import CAT_2_F32_1092
+from models.quantized_klein9b.shaders.cat_2_f32_1068 import CAT_2_F32_1068
+from models.quantized_klein9b.shaders.cat_2_f32_1090 import CAT_2_F32_1090
+from models.quantized_klein9b.shaders.cat_2_f32_1094 import CAT_2_F32_1094
 from models.quantized_klein9b.shaders.cat_2_f32_1116 import CAT_2_F32_1116
 from models.quantized_klein9b.shaders.cat_2_f32_1120 import CAT_2_F32_1120
-from models.quantized_klein9b.shaders.cat_2_f32_1144 import CAT_2_F32_1144
-from models.quantized_klein9b.shaders.cat_2_f32_1148 import CAT_2_F32_1148
+from models.quantized_klein9b.shaders.cat_2_f32_113 import CAT_2_F32_113
+from models.quantized_klein9b.shaders.cat_2_f32_114 import CAT_2_F32_114
+from models.quantized_klein9b.shaders.cat_2_f32_115 import CAT_2_F32_115
 from models.quantized_klein9b.shaders.cat_2_f32_116 import CAT_2_F32_116
-from models.quantized_klein9b.shaders.cat_2_f32_117 import CAT_2_F32_117
-from models.quantized_klein9b.shaders.cat_2_f32_1172 import CAT_2_F32_1172
-from models.quantized_klein9b.shaders.cat_2_f32_1176 import CAT_2_F32_1176
-from models.quantized_klein9b.shaders.cat_2_f32_118 import CAT_2_F32_118
-from models.quantized_klein9b.shaders.cat_2_f32_119 import CAT_2_F32_119
-from models.quantized_klein9b.shaders.cat_2_f32_1200 import CAT_2_F32_1200
-from models.quantized_klein9b.shaders.cat_2_f32_1204 import CAT_2_F32_1204
-from models.quantized_klein9b.shaders.cat_2_f32_1228 import CAT_2_F32_1228
-from models.quantized_klein9b.shaders.cat_2_f32_1232 import CAT_2_F32_1232
-from models.quantized_klein9b.shaders.cat_2_f32_134 import CAT_2_F32_134
-from models.quantized_klein9b.shaders.cat_2_f32_180 import CAT_2_F32_180
-from models.quantized_klein9b.shaders.cat_2_f32_181 import CAT_2_F32_181
-from models.quantized_klein9b.shaders.cat_2_f32_182 import CAT_2_F32_182
-from models.quantized_klein9b.shaders.cat_2_f32_183 import CAT_2_F32_183
-from models.quantized_klein9b.shaders.cat_2_f32_195 import CAT_2_F32_195
-from models.quantized_klein9b.shaders.cat_2_f32_237 import CAT_2_F32_237
-from models.quantized_klein9b.shaders.cat_2_f32_238 import CAT_2_F32_238
-from models.quantized_klein9b.shaders.cat_2_f32_239 import CAT_2_F32_239
-from models.quantized_klein9b.shaders.cat_2_f32_240 import CAT_2_F32_240
-from models.quantized_klein9b.shaders.cat_2_f32_252 import CAT_2_F32_252
-from models.quantized_klein9b.shaders.cat_2_f32_294 import CAT_2_F32_294
-from models.quantized_klein9b.shaders.cat_2_f32_295 import CAT_2_F32_295
-from models.quantized_klein9b.shaders.cat_2_f32_296 import CAT_2_F32_296
-from models.quantized_klein9b.shaders.cat_2_f32_297 import CAT_2_F32_297
-from models.quantized_klein9b.shaders.cat_2_f32_309 import CAT_2_F32_309
-from models.quantized_klein9b.shaders.cat_2_f32_351 import CAT_2_F32_351
-from models.quantized_klein9b.shaders.cat_2_f32_352 import CAT_2_F32_352
-from models.quantized_klein9b.shaders.cat_2_f32_353 import CAT_2_F32_353
-from models.quantized_klein9b.shaders.cat_2_f32_354 import CAT_2_F32_354
+from models.quantized_klein9b.shaders.cat_2_f32_131 import CAT_2_F32_131
+from models.quantized_klein9b.shaders.cat_2_f32_169 import CAT_2_F32_169
+from models.quantized_klein9b.shaders.cat_2_f32_170 import CAT_2_F32_170
+from models.quantized_klein9b.shaders.cat_2_f32_171 import CAT_2_F32_171
+from models.quantized_klein9b.shaders.cat_2_f32_172 import CAT_2_F32_172
+from models.quantized_klein9b.shaders.cat_2_f32_184 import CAT_2_F32_184
+from models.quantized_klein9b.shaders.cat_2_f32_218 import CAT_2_F32_218
+from models.quantized_klein9b.shaders.cat_2_f32_219 import CAT_2_F32_219
+from models.quantized_klein9b.shaders.cat_2_f32_220 import CAT_2_F32_220
+from models.quantized_klein9b.shaders.cat_2_f32_221 import CAT_2_F32_221
+from models.quantized_klein9b.shaders.cat_2_f32_233 import CAT_2_F32_233
+from models.quantized_klein9b.shaders.cat_2_f32_267 import CAT_2_F32_267
+from models.quantized_klein9b.shaders.cat_2_f32_268 import CAT_2_F32_268
+from models.quantized_klein9b.shaders.cat_2_f32_269 import CAT_2_F32_269
+from models.quantized_klein9b.shaders.cat_2_f32_270 import CAT_2_F32_270
+from models.quantized_klein9b.shaders.cat_2_f32_282 import CAT_2_F32_282
+from models.quantized_klein9b.shaders.cat_2_f32_316 import CAT_2_F32_316
+from models.quantized_klein9b.shaders.cat_2_f32_317 import CAT_2_F32_317
+from models.quantized_klein9b.shaders.cat_2_f32_318 import CAT_2_F32_318
+from models.quantized_klein9b.shaders.cat_2_f32_319 import CAT_2_F32_319
+from models.quantized_klein9b.shaders.cat_2_f32_331 import CAT_2_F32_331
+from models.quantized_klein9b.shaders.cat_2_f32_365 import CAT_2_F32_365
 from models.quantized_klein9b.shaders.cat_2_f32_366 import CAT_2_F32_366
-from models.quantized_klein9b.shaders.cat_2_f32_408 import CAT_2_F32_408
-from models.quantized_klein9b.shaders.cat_2_f32_409 import CAT_2_F32_409
-from models.quantized_klein9b.shaders.cat_2_f32_410 import CAT_2_F32_410
-from models.quantized_klein9b.shaders.cat_2_f32_411 import CAT_2_F32_411
-from models.quantized_klein9b.shaders.cat_2_f32_423 import CAT_2_F32_423
+from models.quantized_klein9b.shaders.cat_2_f32_367 import CAT_2_F32_367
+from models.quantized_klein9b.shaders.cat_2_f32_368 import CAT_2_F32_368
+from models.quantized_klein9b.shaders.cat_2_f32_380 import CAT_2_F32_380
+from models.quantized_klein9b.shaders.cat_2_f32_414 import CAT_2_F32_414
+from models.quantized_klein9b.shaders.cat_2_f32_415 import CAT_2_F32_415
+from models.quantized_klein9b.shaders.cat_2_f32_416 import CAT_2_F32_416
+from models.quantized_klein9b.shaders.cat_2_f32_417 import CAT_2_F32_417
+from models.quantized_klein9b.shaders.cat_2_f32_429 import CAT_2_F32_429
+from models.quantized_klein9b.shaders.cat_2_f32_463 import CAT_2_F32_463
+from models.quantized_klein9b.shaders.cat_2_f32_464 import CAT_2_F32_464
 from models.quantized_klein9b.shaders.cat_2_f32_465 import CAT_2_F32_465
 from models.quantized_klein9b.shaders.cat_2_f32_466 import CAT_2_F32_466
-from models.quantized_klein9b.shaders.cat_2_f32_467 import CAT_2_F32_467
-from models.quantized_klein9b.shaders.cat_2_f32_468 import CAT_2_F32_468
-from models.quantized_klein9b.shaders.cat_2_f32_480 import CAT_2_F32_480
+from models.quantized_klein9b.shaders.cat_2_f32_478 import CAT_2_F32_478
+from models.quantized_klein9b.shaders.cat_2_f32_496 import CAT_2_F32_496
+from models.quantized_klein9b.shaders.cat_2_f32_497 import CAT_2_F32_497
+from models.quantized_klein9b.shaders.cat_2_f32_518 import CAT_2_F32_518
 from models.quantized_klein9b.shaders.cat_2_f32_522 import CAT_2_F32_522
-from models.quantized_klein9b.shaders.cat_2_f32_523 import CAT_2_F32_523
-from models.quantized_klein9b.shaders.cat_2_f32_524 import CAT_2_F32_524
-from models.quantized_klein9b.shaders.cat_2_f32_525 import CAT_2_F32_525
-from models.quantized_klein9b.shaders.cat_2_f32_537 import CAT_2_F32_537
-from models.quantized_klein9b.shaders.cat_2_f32_561 import CAT_2_F32_561
-from models.quantized_klein9b.shaders.cat_2_f32_562 import CAT_2_F32_562
-from models.quantized_klein9b.shaders.cat_2_f32_584 import CAT_2_F32_584
-from models.quantized_klein9b.shaders.cat_2_f32_588 import CAT_2_F32_588
-from models.quantized_klein9b.shaders.cat_2_f32_612 import CAT_2_F32_612
-from models.quantized_klein9b.shaders.cat_2_f32_616 import CAT_2_F32_616
-from models.quantized_klein9b.shaders.cat_2_f32_640 import CAT_2_F32_640
-from models.quantized_klein9b.shaders.cat_2_f32_644 import CAT_2_F32_644
-from models.quantized_klein9b.shaders.cat_2_f32_668 import CAT_2_F32_668
-from models.quantized_klein9b.shaders.cat_2_f32_672 import CAT_2_F32_672
-from models.quantized_klein9b.shaders.cat_2_f32_696 import CAT_2_F32_696
+from models.quantized_klein9b.shaders.cat_2_f32_544 import CAT_2_F32_544
+from models.quantized_klein9b.shaders.cat_2_f32_548 import CAT_2_F32_548
+from models.quantized_klein9b.shaders.cat_2_f32_570 import CAT_2_F32_570
+from models.quantized_klein9b.shaders.cat_2_f32_574 import CAT_2_F32_574
+from models.quantized_klein9b.shaders.cat_2_f32_596 import CAT_2_F32_596
+from models.quantized_klein9b.shaders.cat_2_f32_600 import CAT_2_F32_600
+from models.quantized_klein9b.shaders.cat_2_f32_622 import CAT_2_F32_622
+from models.quantized_klein9b.shaders.cat_2_f32_626 import CAT_2_F32_626
+from models.quantized_klein9b.shaders.cat_2_f32_648 import CAT_2_F32_648
+from models.quantized_klein9b.shaders.cat_2_f32_652 import CAT_2_F32_652
+from models.quantized_klein9b.shaders.cat_2_f32_674 import CAT_2_F32_674
+from models.quantized_klein9b.shaders.cat_2_f32_678 import CAT_2_F32_678
 from models.quantized_klein9b.shaders.cat_2_f32_700 import CAT_2_F32_700
-from models.quantized_klein9b.shaders.cat_2_f32_724 import CAT_2_F32_724
-from models.quantized_klein9b.shaders.cat_2_f32_728 import CAT_2_F32_728
+from models.quantized_klein9b.shaders.cat_2_f32_704 import CAT_2_F32_704
+from models.quantized_klein9b.shaders.cat_2_f32_726 import CAT_2_F32_726
+from models.quantized_klein9b.shaders.cat_2_f32_730 import CAT_2_F32_730
 from models.quantized_klein9b.shaders.cat_2_f32_752 import CAT_2_F32_752
 from models.quantized_klein9b.shaders.cat_2_f32_756 import CAT_2_F32_756
-from models.quantized_klein9b.shaders.cat_2_f32_780 import CAT_2_F32_780
-from models.quantized_klein9b.shaders.cat_2_f32_784 import CAT_2_F32_784
+from models.quantized_klein9b.shaders.cat_2_f32_778 import CAT_2_F32_778
+from models.quantized_klein9b.shaders.cat_2_f32_782 import CAT_2_F32_782
+from models.quantized_klein9b.shaders.cat_2_f32_804 import CAT_2_F32_804
 from models.quantized_klein9b.shaders.cat_2_f32_808 import CAT_2_F32_808
-from models.quantized_klein9b.shaders.cat_2_f32_812 import CAT_2_F32_812
-from models.quantized_klein9b.shaders.cat_2_f32_836 import CAT_2_F32_836
-from models.quantized_klein9b.shaders.cat_2_f32_840 import CAT_2_F32_840
-from models.quantized_klein9b.shaders.cat_2_f32_864 import CAT_2_F32_864
-from models.quantized_klein9b.shaders.cat_2_f32_868 import CAT_2_F32_868
-from models.quantized_klein9b.shaders.cat_2_f32_892 import CAT_2_F32_892
-from models.quantized_klein9b.shaders.cat_2_f32_896 import CAT_2_F32_896
-from models.quantized_klein9b.shaders.cat_2_f32_920 import CAT_2_F32_920
-from models.quantized_klein9b.shaders.cat_2_f32_924 import CAT_2_F32_924
-from models.quantized_klein9b.shaders.cat_2_f32_948 import CAT_2_F32_948
-from models.quantized_klein9b.shaders.cat_2_f32_952 import CAT_2_F32_952
-from models.quantized_klein9b.shaders.cat_2_f32_976 import CAT_2_F32_976
-from models.quantized_klein9b.shaders.cat_2_f32_980 import CAT_2_F32_980
+from models.quantized_klein9b.shaders.cat_2_f32_830 import CAT_2_F32_830
+from models.quantized_klein9b.shaders.cat_2_f32_834 import CAT_2_F32_834
+from models.quantized_klein9b.shaders.cat_2_f32_856 import CAT_2_F32_856
+from models.quantized_klein9b.shaders.cat_2_f32_860 import CAT_2_F32_860
+from models.quantized_klein9b.shaders.cat_2_f32_882 import CAT_2_F32_882
+from models.quantized_klein9b.shaders.cat_2_f32_886 import CAT_2_F32_886
+from models.quantized_klein9b.shaders.cat_2_f32_908 import CAT_2_F32_908
+from models.quantized_klein9b.shaders.cat_2_f32_912 import CAT_2_F32_912
+from models.quantized_klein9b.shaders.cat_2_f32_934 import CAT_2_F32_934
+from models.quantized_klein9b.shaders.cat_2_f32_938 import CAT_2_F32_938
+from models.quantized_klein9b.shaders.cat_2_f32_960 import CAT_2_F32_960
+from models.quantized_klein9b.shaders.cat_2_f32_964 import CAT_2_F32_964
+from models.quantized_klein9b.shaders.cat_2_f32_986 import CAT_2_F32_986
+from models.quantized_klein9b.shaders.cat_2_f32_990 import CAT_2_F32_990
 from models.quantized_klein9b.shaders.cat_4_f32 import CAT_4_F32
 from models.quantized_klein9b.shaders.cos_f32 import COS_F32
-from models.quantized_klein9b.shaders.cos_f32_33 import COS_F32_33
-from models.quantized_klein9b.shaders.cos_f32_37 import COS_F32_37
-from models.quantized_klein9b.shaders.cos_f32_42 import COS_F32_42
-from models.quantized_klein9b.shaders.cos_f32_45 import COS_F32_45
-from models.quantized_klein9b.shaders.cos_f32_49 import COS_F32_49
-from models.quantized_klein9b.shaders.cos_f32_52 import COS_F32_52
-from models.quantized_klein9b.shaders.cos_f32_56 import COS_F32_56
-from models.quantized_klein9b.shaders.cos_f32_59 import COS_F32_59
-from models.quantized_klein9b.shaders.cos_f32_63 import COS_F32_63
-from models.quantized_klein9b.shaders.cos_f32_66 import COS_F32_66
-from models.quantized_klein9b.shaders.cos_f32_70 import COS_F32_70
-from models.quantized_klein9b.shaders.cos_f32_73 import COS_F32_73
-from models.quantized_klein9b.shaders.cos_f32_77 import COS_F32_77
-from models.quantized_klein9b.shaders.cos_f32_80 import COS_F32_80
-from models.quantized_klein9b.shaders.cos_f32_84 import COS_F32_84
-from models.quantized_klein9b.shaders.cos_f32_87 import COS_F32_87
+from models.quantized_klein9b.shaders.cos_f32_32 import COS_F32_32
+from models.quantized_klein9b.shaders.cos_f32_36 import COS_F32_36
+from models.quantized_klein9b.shaders.cos_f32_41 import COS_F32_41
+from models.quantized_klein9b.shaders.cos_f32_44 import COS_F32_44
+from models.quantized_klein9b.shaders.cos_f32_48 import COS_F32_48
+from models.quantized_klein9b.shaders.cos_f32_51 import COS_F32_51
+from models.quantized_klein9b.shaders.cos_f32_55 import COS_F32_55
+from models.quantized_klein9b.shaders.cos_f32_58 import COS_F32_58
+from models.quantized_klein9b.shaders.cos_f32_62 import COS_F32_62
+from models.quantized_klein9b.shaders.cos_f32_65 import COS_F32_65
+from models.quantized_klein9b.shaders.cos_f32_69 import COS_F32_69
+from models.quantized_klein9b.shaders.cos_f32_72 import COS_F32_72
+from models.quantized_klein9b.shaders.cos_f32_76 import COS_F32_76
+from models.quantized_klein9b.shaders.cos_f32_79 import COS_F32_79
+from models.quantized_klein9b.shaders.cos_f32_83 import COS_F32_83
+from models.quantized_klein9b.shaders.cos_f32_86 import COS_F32_86
 from models.quantized_klein9b.shaders.div_scalar import DIV_SCALAR
-from models.quantized_klein9b.shaders.div_scalar_28 import DIV_SCALAR_28
-from models.quantized_klein9b.shaders.div_scalar_40 import DIV_SCALAR_40
-from models.quantized_klein9b.shaders.div_scalar_47 import DIV_SCALAR_47
-from models.quantized_klein9b.shaders.div_scalar_54 import DIV_SCALAR_54
-from models.quantized_klein9b.shaders.div_scalar_61 import DIV_SCALAR_61
-from models.quantized_klein9b.shaders.div_scalar_68 import DIV_SCALAR_68
-from models.quantized_klein9b.shaders.div_scalar_75 import DIV_SCALAR_75
-from models.quantized_klein9b.shaders.div_scalar_82 import DIV_SCALAR_82
+from models.quantized_klein9b.shaders.div_scalar_27 import DIV_SCALAR_27
+from models.quantized_klein9b.shaders.div_scalar_39 import DIV_SCALAR_39
+from models.quantized_klein9b.shaders.div_scalar_46 import DIV_SCALAR_46
+from models.quantized_klein9b.shaders.div_scalar_53 import DIV_SCALAR_53
+from models.quantized_klein9b.shaders.div_scalar_60 import DIV_SCALAR_60
+from models.quantized_klein9b.shaders.div_scalar_67 import DIV_SCALAR_67
+from models.quantized_klein9b.shaders.div_scalar_74 import DIV_SCALAR_74
+from models.quantized_klein9b.shaders.div_scalar_81 import DIV_SCALAR_81
 from models.quantized_klein9b.shaders.einsum_outer_f32 import EINSUM_OUTER_F32
 from models.quantized_klein9b.shaders.exp_f32 import EXP_F32
 from models.quantized_klein9b.shaders.flux_add_f32 import FLUX_ADD_F32
@@ -274,454 +274,340 @@ from models.quantized_klein9b.shaders.flux_rsqrt_f32 import FLUX_RSQRT_F32
 from models.quantized_klein9b.shaders.flux_silu_f32 import FLUX_SILU_F32
 from models.quantized_klein9b.shaders.flux_slice_f32 import FLUX_SLICE_F32
 from models.quantized_klein9b.shaders.layer_norm_nonew_noneb_f32 import LAYER_NORM_NONEW_NONEB_F32
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32 import LINEAR_NOBIAS_F16W_F32
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1009 import LINEAR_NOBIAS_F16W_F32_1009
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1013 import LINEAR_NOBIAS_F16W_F32_1013
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1037 import LINEAR_NOBIAS_F16W_F32_1037
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1041 import LINEAR_NOBIAS_F16W_F32_1041
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1065 import LINEAR_NOBIAS_F16W_F32_1065
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1069 import LINEAR_NOBIAS_F16W_F32_1069
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_107 import LINEAR_NOBIAS_F16W_F32_107
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1093 import LINEAR_NOBIAS_F16W_F32_1093
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1097 import LINEAR_NOBIAS_F16W_F32_1097
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1121 import LINEAR_NOBIAS_F16W_F32_1121
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1125 import LINEAR_NOBIAS_F16W_F32_1125
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1149 import LINEAR_NOBIAS_F16W_F32_1149
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1153 import LINEAR_NOBIAS_F16W_F32_1153
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1177 import LINEAR_NOBIAS_F16W_F32_1177
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1181 import LINEAR_NOBIAS_F16W_F32_1181
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1205 import LINEAR_NOBIAS_F16W_F32_1205
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1209 import LINEAR_NOBIAS_F16W_F32_1209
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1233 import LINEAR_NOBIAS_F16W_F32_1233
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_1240 import LINEAR_NOBIAS_F16W_F32_1240
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_141 import LINEAR_NOBIAS_F16W_F32_141
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_145 import LINEAR_NOBIAS_F16W_F32_145
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_149 import LINEAR_NOBIAS_F16W_F32_149
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_152 import LINEAR_NOBIAS_F16W_F32_152
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_156 import LINEAR_NOBIAS_F16W_F32_156
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_159 import LINEAR_NOBIAS_F16W_F32_159
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_163 import LINEAR_NOBIAS_F16W_F32_163
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_172 import LINEAR_NOBIAS_F16W_F32_172
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_199 import LINEAR_NOBIAS_F16W_F32_199
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_203 import LINEAR_NOBIAS_F16W_F32_203
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_206 import LINEAR_NOBIAS_F16W_F32_206
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_209 import LINEAR_NOBIAS_F16W_F32_209
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_213 import LINEAR_NOBIAS_F16W_F32_213
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_216 import LINEAR_NOBIAS_F16W_F32_216
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_220 import LINEAR_NOBIAS_F16W_F32_220
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_229 import LINEAR_NOBIAS_F16W_F32_229
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_24 import LINEAR_NOBIAS_F16W_F32_24
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_25 import LINEAR_NOBIAS_F16W_F32_25
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_256 import LINEAR_NOBIAS_F16W_F32_256
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_260 import LINEAR_NOBIAS_F16W_F32_260
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_263 import LINEAR_NOBIAS_F16W_F32_263
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_266 import LINEAR_NOBIAS_F16W_F32_266
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_270 import LINEAR_NOBIAS_F16W_F32_270
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_273 import LINEAR_NOBIAS_F16W_F32_273
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_277 import LINEAR_NOBIAS_F16W_F32_277
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_286 import LINEAR_NOBIAS_F16W_F32_286
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_313 import LINEAR_NOBIAS_F16W_F32_313
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_317 import LINEAR_NOBIAS_F16W_F32_317
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_320 import LINEAR_NOBIAS_F16W_F32_320
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_323 import LINEAR_NOBIAS_F16W_F32_323
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_327 import LINEAR_NOBIAS_F16W_F32_327
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_330 import LINEAR_NOBIAS_F16W_F32_330
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_334 import LINEAR_NOBIAS_F16W_F32_334
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_343 import LINEAR_NOBIAS_F16W_F32_343
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_370 import LINEAR_NOBIAS_F16W_F32_370
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_374 import LINEAR_NOBIAS_F16W_F32_374
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_377 import LINEAR_NOBIAS_F16W_F32_377
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_380 import LINEAR_NOBIAS_F16W_F32_380
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_384 import LINEAR_NOBIAS_F16W_F32_384
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_387 import LINEAR_NOBIAS_F16W_F32_387
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_391 import LINEAR_NOBIAS_F16W_F32_391
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_400 import LINEAR_NOBIAS_F16W_F32_400
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_427 import LINEAR_NOBIAS_F16W_F32_427
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_431 import LINEAR_NOBIAS_F16W_F32_431
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_434 import LINEAR_NOBIAS_F16W_F32_434
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_437 import LINEAR_NOBIAS_F16W_F32_437
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_441 import LINEAR_NOBIAS_F16W_F32_441
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_444 import LINEAR_NOBIAS_F16W_F32_444
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_448 import LINEAR_NOBIAS_F16W_F32_448
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_457 import LINEAR_NOBIAS_F16W_F32_457
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_484 import LINEAR_NOBIAS_F16W_F32_484
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_488 import LINEAR_NOBIAS_F16W_F32_488
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_491 import LINEAR_NOBIAS_F16W_F32_491
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_494 import LINEAR_NOBIAS_F16W_F32_494
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_498 import LINEAR_NOBIAS_F16W_F32_498
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_501 import LINEAR_NOBIAS_F16W_F32_501
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_505 import LINEAR_NOBIAS_F16W_F32_505
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_514 import LINEAR_NOBIAS_F16W_F32_514
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_541 import LINEAR_NOBIAS_F16W_F32_541
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_545 import LINEAR_NOBIAS_F16W_F32_545
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_548 import LINEAR_NOBIAS_F16W_F32_548
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_551 import LINEAR_NOBIAS_F16W_F32_551
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_555 import LINEAR_NOBIAS_F16W_F32_555
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_558 import LINEAR_NOBIAS_F16W_F32_558
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_564 import LINEAR_NOBIAS_F16W_F32_564
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_589 import LINEAR_NOBIAS_F16W_F32_589
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_593 import LINEAR_NOBIAS_F16W_F32_593
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_617 import LINEAR_NOBIAS_F16W_F32_617
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_621 import LINEAR_NOBIAS_F16W_F32_621
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_645 import LINEAR_NOBIAS_F16W_F32_645
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_649 import LINEAR_NOBIAS_F16W_F32_649
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_673 import LINEAR_NOBIAS_F16W_F32_673
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_677 import LINEAR_NOBIAS_F16W_F32_677
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_701 import LINEAR_NOBIAS_F16W_F32_701
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_705 import LINEAR_NOBIAS_F16W_F32_705
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_729 import LINEAR_NOBIAS_F16W_F32_729
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_733 import LINEAR_NOBIAS_F16W_F32_733
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_757 import LINEAR_NOBIAS_F16W_F32_757
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_761 import LINEAR_NOBIAS_F16W_F32_761
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_785 import LINEAR_NOBIAS_F16W_F32_785
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_789 import LINEAR_NOBIAS_F16W_F32_789
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_813 import LINEAR_NOBIAS_F16W_F32_813
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_817 import LINEAR_NOBIAS_F16W_F32_817
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_841 import LINEAR_NOBIAS_F16W_F32_841
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_845 import LINEAR_NOBIAS_F16W_F32_845
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_869 import LINEAR_NOBIAS_F16W_F32_869
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_873 import LINEAR_NOBIAS_F16W_F32_873
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_897 import LINEAR_NOBIAS_F16W_F32_897
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_901 import LINEAR_NOBIAS_F16W_F32_901
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_92 import LINEAR_NOBIAS_F16W_F32_92
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_925 import LINEAR_NOBIAS_F16W_F32_925
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_929 import LINEAR_NOBIAS_F16W_F32_929
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_953 import LINEAR_NOBIAS_F16W_F32_953
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_957 import LINEAR_NOBIAS_F16W_F32_957
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_981 import LINEAR_NOBIAS_F16W_F32_981
-from models.quantized_klein9b.shaders.linear_nobias_f16w_f32_985 import LINEAR_NOBIAS_F16W_F32_985
+from models.quantized_klein9b.shaders.linear_nobias_q8_0_f32_act_f32 import LINEAR_NOBIAS_Q8_0_F32_ACT_F32
+from models.quantized_klein9b.shaders.linear_nobias_q8_0_matvec_f32_act_f32 import LINEAR_NOBIAS_Q8_0_MATVEC_F32_ACT_F32
 from models.quantized_klein9b.shaders.mul_broadcast_1000 import MUL_BROADCAST_1000
+from models.quantized_klein9b.shaders.mul_broadcast_1001 import MUL_BROADCAST_1001
+from models.quantized_klein9b.shaders.mul_broadcast_1004 import MUL_BROADCAST_1004
+from models.quantized_klein9b.shaders.mul_broadcast_1005 import MUL_BROADCAST_1005
+from models.quantized_klein9b.shaders.mul_broadcast_1008 import MUL_BROADCAST_1008
 from models.quantized_klein9b.shaders.mul_broadcast_101 import MUL_BROADCAST_101
-from models.quantized_klein9b.shaders.mul_broadcast_1010 import MUL_BROADCAST_1010
-from models.quantized_klein9b.shaders.mul_broadcast_1012 import MUL_BROADCAST_1012
-from models.quantized_klein9b.shaders.mul_broadcast_1018 import MUL_BROADCAST_1018
-from models.quantized_klein9b.shaders.mul_broadcast_1020 import MUL_BROADCAST_1020
-from models.quantized_klein9b.shaders.mul_broadcast_1021 import MUL_BROADCAST_1021
+from models.quantized_klein9b.shaders.mul_broadcast_1017 import MUL_BROADCAST_1017
+from models.quantized_klein9b.shaders.mul_broadcast_1019 import MUL_BROADCAST_1019
 from models.quantized_klein9b.shaders.mul_broadcast_1024 import MUL_BROADCAST_1024
-from models.quantized_klein9b.shaders.mul_broadcast_1025 import MUL_BROADCAST_1025
-from models.quantized_klein9b.shaders.mul_broadcast_1028 import MUL_BROADCAST_1028
-from models.quantized_klein9b.shaders.mul_broadcast_103 import MUL_BROADCAST_103
-from models.quantized_klein9b.shaders.mul_broadcast_1038 import MUL_BROADCAST_1038
-from models.quantized_klein9b.shaders.mul_broadcast_1040 import MUL_BROADCAST_1040
-from models.quantized_klein9b.shaders.mul_broadcast_1046 import MUL_BROADCAST_1046
-from models.quantized_klein9b.shaders.mul_broadcast_1048 import MUL_BROADCAST_1048
-from models.quantized_klein9b.shaders.mul_broadcast_1049 import MUL_BROADCAST_1049
+from models.quantized_klein9b.shaders.mul_broadcast_1026 import MUL_BROADCAST_1026
+from models.quantized_klein9b.shaders.mul_broadcast_1027 import MUL_BROADCAST_1027
+from models.quantized_klein9b.shaders.mul_broadcast_1030 import MUL_BROADCAST_1030
+from models.quantized_klein9b.shaders.mul_broadcast_1031 import MUL_BROADCAST_1031
+from models.quantized_klein9b.shaders.mul_broadcast_1034 import MUL_BROADCAST_1034
+from models.quantized_klein9b.shaders.mul_broadcast_104 import MUL_BROADCAST_104
+from models.quantized_klein9b.shaders.mul_broadcast_1043 import MUL_BROADCAST_1043
+from models.quantized_klein9b.shaders.mul_broadcast_1045 import MUL_BROADCAST_1045
+from models.quantized_klein9b.shaders.mul_broadcast_1050 import MUL_BROADCAST_1050
 from models.quantized_klein9b.shaders.mul_broadcast_1052 import MUL_BROADCAST_1052
 from models.quantized_klein9b.shaders.mul_broadcast_1053 import MUL_BROADCAST_1053
 from models.quantized_klein9b.shaders.mul_broadcast_1056 import MUL_BROADCAST_1056
-from models.quantized_klein9b.shaders.mul_broadcast_106 import MUL_BROADCAST_106
-from models.quantized_klein9b.shaders.mul_broadcast_1066 import MUL_BROADCAST_1066
-from models.quantized_klein9b.shaders.mul_broadcast_1068 import MUL_BROADCAST_1068
-from models.quantized_klein9b.shaders.mul_broadcast_1074 import MUL_BROADCAST_1074
+from models.quantized_klein9b.shaders.mul_broadcast_1057 import MUL_BROADCAST_1057
+from models.quantized_klein9b.shaders.mul_broadcast_1060 import MUL_BROADCAST_1060
+from models.quantized_klein9b.shaders.mul_broadcast_1069 import MUL_BROADCAST_1069
+from models.quantized_klein9b.shaders.mul_broadcast_1071 import MUL_BROADCAST_1071
 from models.quantized_klein9b.shaders.mul_broadcast_1076 import MUL_BROADCAST_1076
-from models.quantized_klein9b.shaders.mul_broadcast_1077 import MUL_BROADCAST_1077
-from models.quantized_klein9b.shaders.mul_broadcast_1080 import MUL_BROADCAST_1080
-from models.quantized_klein9b.shaders.mul_broadcast_1081 import MUL_BROADCAST_1081
-from models.quantized_klein9b.shaders.mul_broadcast_1084 import MUL_BROADCAST_1084
-from models.quantized_klein9b.shaders.mul_broadcast_1094 import MUL_BROADCAST_1094
-from models.quantized_klein9b.shaders.mul_broadcast_1096 import MUL_BROADCAST_1096
+from models.quantized_klein9b.shaders.mul_broadcast_1078 import MUL_BROADCAST_1078
+from models.quantized_klein9b.shaders.mul_broadcast_1079 import MUL_BROADCAST_1079
+from models.quantized_klein9b.shaders.mul_broadcast_1082 import MUL_BROADCAST_1082
+from models.quantized_klein9b.shaders.mul_broadcast_1083 import MUL_BROADCAST_1083
+from models.quantized_klein9b.shaders.mul_broadcast_1086 import MUL_BROADCAST_1086
+from models.quantized_klein9b.shaders.mul_broadcast_109 import MUL_BROADCAST_109
+from models.quantized_klein9b.shaders.mul_broadcast_1095 import MUL_BROADCAST_1095
+from models.quantized_klein9b.shaders.mul_broadcast_1097 import MUL_BROADCAST_1097
 from models.quantized_klein9b.shaders.mul_broadcast_1102 import MUL_BROADCAST_1102
 from models.quantized_klein9b.shaders.mul_broadcast_1104 import MUL_BROADCAST_1104
 from models.quantized_klein9b.shaders.mul_broadcast_1105 import MUL_BROADCAST_1105
 from models.quantized_klein9b.shaders.mul_broadcast_1108 import MUL_BROADCAST_1108
 from models.quantized_klein9b.shaders.mul_broadcast_1109 import MUL_BROADCAST_1109
+from models.quantized_klein9b.shaders.mul_broadcast_111 import MUL_BROADCAST_111
 from models.quantized_klein9b.shaders.mul_broadcast_1112 import MUL_BROADCAST_1112
-from models.quantized_klein9b.shaders.mul_broadcast_112 import MUL_BROADCAST_112
-from models.quantized_klein9b.shaders.mul_broadcast_1122 import MUL_BROADCAST_1122
-from models.quantized_klein9b.shaders.mul_broadcast_1124 import MUL_BROADCAST_1124
-from models.quantized_klein9b.shaders.mul_broadcast_1130 import MUL_BROADCAST_1130
-from models.quantized_klein9b.shaders.mul_broadcast_1132 import MUL_BROADCAST_1132
-from models.quantized_klein9b.shaders.mul_broadcast_1133 import MUL_BROADCAST_1133
-from models.quantized_klein9b.shaders.mul_broadcast_1136 import MUL_BROADCAST_1136
-from models.quantized_klein9b.shaders.mul_broadcast_1137 import MUL_BROADCAST_1137
-from models.quantized_klein9b.shaders.mul_broadcast_114 import MUL_BROADCAST_114
-from models.quantized_klein9b.shaders.mul_broadcast_1140 import MUL_BROADCAST_1140
-from models.quantized_klein9b.shaders.mul_broadcast_1150 import MUL_BROADCAST_1150
-from models.quantized_klein9b.shaders.mul_broadcast_1152 import MUL_BROADCAST_1152
-from models.quantized_klein9b.shaders.mul_broadcast_1158 import MUL_BROADCAST_1158
-from models.quantized_klein9b.shaders.mul_broadcast_1160 import MUL_BROADCAST_1160
-from models.quantized_klein9b.shaders.mul_broadcast_1161 import MUL_BROADCAST_1161
-from models.quantized_klein9b.shaders.mul_broadcast_1164 import MUL_BROADCAST_1164
-from models.quantized_klein9b.shaders.mul_broadcast_1165 import MUL_BROADCAST_1165
-from models.quantized_klein9b.shaders.mul_broadcast_1168 import MUL_BROADCAST_1168
-from models.quantized_klein9b.shaders.mul_broadcast_1178 import MUL_BROADCAST_1178
-from models.quantized_klein9b.shaders.mul_broadcast_1180 import MUL_BROADCAST_1180
-from models.quantized_klein9b.shaders.mul_broadcast_1186 import MUL_BROADCAST_1186
-from models.quantized_klein9b.shaders.mul_broadcast_1188 import MUL_BROADCAST_1188
-from models.quantized_klein9b.shaders.mul_broadcast_1189 import MUL_BROADCAST_1189
-from models.quantized_klein9b.shaders.mul_broadcast_1192 import MUL_BROADCAST_1192
-from models.quantized_klein9b.shaders.mul_broadcast_1193 import MUL_BROADCAST_1193
-from models.quantized_klein9b.shaders.mul_broadcast_1196 import MUL_BROADCAST_1196
-from models.quantized_klein9b.shaders.mul_broadcast_1206 import MUL_BROADCAST_1206
-from models.quantized_klein9b.shaders.mul_broadcast_1208 import MUL_BROADCAST_1208
+from models.quantized_klein9b.shaders.mul_broadcast_1121 import MUL_BROADCAST_1121
+from models.quantized_klein9b.shaders.mul_broadcast_1126 import MUL_BROADCAST_1126
+from models.quantized_klein9b.shaders.mul_broadcast_118 import MUL_BROADCAST_118
 from models.quantized_klein9b.shaders.mul_broadcast_121 import MUL_BROADCAST_121
-from models.quantized_klein9b.shaders.mul_broadcast_1214 import MUL_BROADCAST_1214
-from models.quantized_klein9b.shaders.mul_broadcast_1216 import MUL_BROADCAST_1216
-from models.quantized_klein9b.shaders.mul_broadcast_1217 import MUL_BROADCAST_1217
-from models.quantized_klein9b.shaders.mul_broadcast_1220 import MUL_BROADCAST_1220
-from models.quantized_klein9b.shaders.mul_broadcast_1221 import MUL_BROADCAST_1221
-from models.quantized_klein9b.shaders.mul_broadcast_1224 import MUL_BROADCAST_1224
-from models.quantized_klein9b.shaders.mul_broadcast_1234 import MUL_BROADCAST_1234
-from models.quantized_klein9b.shaders.mul_broadcast_1239 import MUL_BROADCAST_1239
-from models.quantized_klein9b.shaders.mul_broadcast_124 import MUL_BROADCAST_124
+from models.quantized_klein9b.shaders.mul_broadcast_123 import MUL_BROADCAST_123
 from models.quantized_klein9b.shaders.mul_broadcast_126 import MUL_BROADCAST_126
-from models.quantized_klein9b.shaders.mul_broadcast_129 import MUL_BROADCAST_129
-from models.quantized_klein9b.shaders.mul_broadcast_142 import MUL_BROADCAST_142
+from models.quantized_klein9b.shaders.mul_broadcast_138 import MUL_BROADCAST_138
+from models.quantized_klein9b.shaders.mul_broadcast_140 import MUL_BROADCAST_140
 from models.quantized_klein9b.shaders.mul_broadcast_144 import MUL_BROADCAST_144
-from models.quantized_klein9b.shaders.mul_broadcast_150 import MUL_BROADCAST_150
+from models.quantized_klein9b.shaders.mul_broadcast_146 import MUL_BROADCAST_146
+from models.quantized_klein9b.shaders.mul_broadcast_148 import MUL_BROADCAST_148
+from models.quantized_klein9b.shaders.mul_broadcast_151 import MUL_BROADCAST_151
 from models.quantized_klein9b.shaders.mul_broadcast_153 import MUL_BROADCAST_153
-from models.quantized_klein9b.shaders.mul_broadcast_155 import MUL_BROADCAST_155
-from models.quantized_klein9b.shaders.mul_broadcast_160 import MUL_BROADCAST_160
-from models.quantized_klein9b.shaders.mul_broadcast_162 import MUL_BROADCAST_162
+from models.quantized_klein9b.shaders.mul_broadcast_157 import MUL_BROADCAST_157
+from models.quantized_klein9b.shaders.mul_broadcast_159 import MUL_BROADCAST_159
+from models.quantized_klein9b.shaders.mul_broadcast_161 import MUL_BROADCAST_161
+from models.quantized_klein9b.shaders.mul_broadcast_165 import MUL_BROADCAST_165
 from models.quantized_klein9b.shaders.mul_broadcast_167 import MUL_BROADCAST_167
-from models.quantized_klein9b.shaders.mul_broadcast_169 import MUL_BROADCAST_169
-from models.quantized_klein9b.shaders.mul_broadcast_171 import MUL_BROADCAST_171
+from models.quantized_klein9b.shaders.mul_broadcast_173 import MUL_BROADCAST_173
 from models.quantized_klein9b.shaders.mul_broadcast_176 import MUL_BROADCAST_176
-from models.quantized_klein9b.shaders.mul_broadcast_178 import MUL_BROADCAST_178
-from models.quantized_klein9b.shaders.mul_broadcast_184 import MUL_BROADCAST_184
-from models.quantized_klein9b.shaders.mul_broadcast_187 import MUL_BROADCAST_187
+from models.quantized_klein9b.shaders.mul_broadcast_177 import MUL_BROADCAST_177
+from models.quantized_klein9b.shaders.mul_broadcast_180 import MUL_BROADCAST_180
 from models.quantized_klein9b.shaders.mul_broadcast_188 import MUL_BROADCAST_188
-from models.quantized_klein9b.shaders.mul_broadcast_191 import MUL_BROADCAST_191
+from models.quantized_klein9b.shaders.mul_broadcast_190 import MUL_BROADCAST_190
+from models.quantized_klein9b.shaders.mul_broadcast_193 import MUL_BROADCAST_193
+from models.quantized_klein9b.shaders.mul_broadcast_195 import MUL_BROADCAST_195
+from models.quantized_klein9b.shaders.mul_broadcast_197 import MUL_BROADCAST_197
 from models.quantized_klein9b.shaders.mul_broadcast_200 import MUL_BROADCAST_200
 from models.quantized_klein9b.shaders.mul_broadcast_202 import MUL_BROADCAST_202
-from models.quantized_klein9b.shaders.mul_broadcast_207 import MUL_BROADCAST_207
+from models.quantized_klein9b.shaders.mul_broadcast_206 import MUL_BROADCAST_206
+from models.quantized_klein9b.shaders.mul_broadcast_208 import MUL_BROADCAST_208
 from models.quantized_klein9b.shaders.mul_broadcast_210 import MUL_BROADCAST_210
-from models.quantized_klein9b.shaders.mul_broadcast_212 import MUL_BROADCAST_212
-from models.quantized_klein9b.shaders.mul_broadcast_217 import MUL_BROADCAST_217
-from models.quantized_klein9b.shaders.mul_broadcast_219 import MUL_BROADCAST_219
-from models.quantized_klein9b.shaders.mul_broadcast_224 import MUL_BROADCAST_224
+from models.quantized_klein9b.shaders.mul_broadcast_214 import MUL_BROADCAST_214
+from models.quantized_klein9b.shaders.mul_broadcast_216 import MUL_BROADCAST_216
+from models.quantized_klein9b.shaders.mul_broadcast_222 import MUL_BROADCAST_222
+from models.quantized_klein9b.shaders.mul_broadcast_225 import MUL_BROADCAST_225
 from models.quantized_klein9b.shaders.mul_broadcast_226 import MUL_BROADCAST_226
-from models.quantized_klein9b.shaders.mul_broadcast_228 import MUL_BROADCAST_228
-from models.quantized_klein9b.shaders.mul_broadcast_233 import MUL_BROADCAST_233
-from models.quantized_klein9b.shaders.mul_broadcast_235 import MUL_BROADCAST_235
-from models.quantized_klein9b.shaders.mul_broadcast_241 import MUL_BROADCAST_241
+from models.quantized_klein9b.shaders.mul_broadcast_229 import MUL_BROADCAST_229
+from models.quantized_klein9b.shaders.mul_broadcast_237 import MUL_BROADCAST_237
+from models.quantized_klein9b.shaders.mul_broadcast_239 import MUL_BROADCAST_239
+from models.quantized_klein9b.shaders.mul_broadcast_242 import MUL_BROADCAST_242
 from models.quantized_klein9b.shaders.mul_broadcast_244 import MUL_BROADCAST_244
-from models.quantized_klein9b.shaders.mul_broadcast_245 import MUL_BROADCAST_245
-from models.quantized_klein9b.shaders.mul_broadcast_248 import MUL_BROADCAST_248
+from models.quantized_klein9b.shaders.mul_broadcast_246 import MUL_BROADCAST_246
+from models.quantized_klein9b.shaders.mul_broadcast_249 import MUL_BROADCAST_249
+from models.quantized_klein9b.shaders.mul_broadcast_251 import MUL_BROADCAST_251
+from models.quantized_klein9b.shaders.mul_broadcast_255 import MUL_BROADCAST_255
 from models.quantized_klein9b.shaders.mul_broadcast_257 import MUL_BROADCAST_257
 from models.quantized_klein9b.shaders.mul_broadcast_259 import MUL_BROADCAST_259
-from models.quantized_klein9b.shaders.mul_broadcast_264 import MUL_BROADCAST_264
-from models.quantized_klein9b.shaders.mul_broadcast_267 import MUL_BROADCAST_267
-from models.quantized_klein9b.shaders.mul_broadcast_269 import MUL_BROADCAST_269
+from models.quantized_klein9b.shaders.mul_broadcast_263 import MUL_BROADCAST_263
+from models.quantized_klein9b.shaders.mul_broadcast_265 import MUL_BROADCAST_265
+from models.quantized_klein9b.shaders.mul_broadcast_271 import MUL_BROADCAST_271
 from models.quantized_klein9b.shaders.mul_broadcast_274 import MUL_BROADCAST_274
-from models.quantized_klein9b.shaders.mul_broadcast_276 import MUL_BROADCAST_276
-from models.quantized_klein9b.shaders.mul_broadcast_281 import MUL_BROADCAST_281
-from models.quantized_klein9b.shaders.mul_broadcast_283 import MUL_BROADCAST_283
-from models.quantized_klein9b.shaders.mul_broadcast_285 import MUL_BROADCAST_285
-from models.quantized_klein9b.shaders.mul_broadcast_290 import MUL_BROADCAST_290
-from models.quantized_klein9b.shaders.mul_broadcast_292 import MUL_BROADCAST_292
+from models.quantized_klein9b.shaders.mul_broadcast_275 import MUL_BROADCAST_275
+from models.quantized_klein9b.shaders.mul_broadcast_278 import MUL_BROADCAST_278
+from models.quantized_klein9b.shaders.mul_broadcast_286 import MUL_BROADCAST_286
+from models.quantized_klein9b.shaders.mul_broadcast_288 import MUL_BROADCAST_288
+from models.quantized_klein9b.shaders.mul_broadcast_291 import MUL_BROADCAST_291
+from models.quantized_klein9b.shaders.mul_broadcast_293 import MUL_BROADCAST_293
+from models.quantized_klein9b.shaders.mul_broadcast_295 import MUL_BROADCAST_295
 from models.quantized_klein9b.shaders.mul_broadcast_298 import MUL_BROADCAST_298
-from models.quantized_klein9b.shaders.mul_broadcast_301 import MUL_BROADCAST_301
-from models.quantized_klein9b.shaders.mul_broadcast_302 import MUL_BROADCAST_302
-from models.quantized_klein9b.shaders.mul_broadcast_305 import MUL_BROADCAST_305
+from models.quantized_klein9b.shaders.mul_broadcast_300 import MUL_BROADCAST_300
+from models.quantized_klein9b.shaders.mul_broadcast_304 import MUL_BROADCAST_304
+from models.quantized_klein9b.shaders.mul_broadcast_306 import MUL_BROADCAST_306
+from models.quantized_klein9b.shaders.mul_broadcast_308 import MUL_BROADCAST_308
+from models.quantized_klein9b.shaders.mul_broadcast_312 import MUL_BROADCAST_312
 from models.quantized_klein9b.shaders.mul_broadcast_314 import MUL_BROADCAST_314
-from models.quantized_klein9b.shaders.mul_broadcast_316 import MUL_BROADCAST_316
-from models.quantized_klein9b.shaders.mul_broadcast_321 import MUL_BROADCAST_321
+from models.quantized_klein9b.shaders.mul_broadcast_320 import MUL_BROADCAST_320
+from models.quantized_klein9b.shaders.mul_broadcast_323 import MUL_BROADCAST_323
 from models.quantized_klein9b.shaders.mul_broadcast_324 import MUL_BROADCAST_324
-from models.quantized_klein9b.shaders.mul_broadcast_326 import MUL_BROADCAST_326
-from models.quantized_klein9b.shaders.mul_broadcast_331 import MUL_BROADCAST_331
-from models.quantized_klein9b.shaders.mul_broadcast_333 import MUL_BROADCAST_333
-from models.quantized_klein9b.shaders.mul_broadcast_338 import MUL_BROADCAST_338
+from models.quantized_klein9b.shaders.mul_broadcast_327 import MUL_BROADCAST_327
+from models.quantized_klein9b.shaders.mul_broadcast_335 import MUL_BROADCAST_335
+from models.quantized_klein9b.shaders.mul_broadcast_337 import MUL_BROADCAST_337
 from models.quantized_klein9b.shaders.mul_broadcast_340 import MUL_BROADCAST_340
 from models.quantized_klein9b.shaders.mul_broadcast_342 import MUL_BROADCAST_342
+from models.quantized_klein9b.shaders.mul_broadcast_344 import MUL_BROADCAST_344
 from models.quantized_klein9b.shaders.mul_broadcast_347 import MUL_BROADCAST_347
 from models.quantized_klein9b.shaders.mul_broadcast_349 import MUL_BROADCAST_349
+from models.quantized_klein9b.shaders.mul_broadcast_353 import MUL_BROADCAST_353
 from models.quantized_klein9b.shaders.mul_broadcast_355 import MUL_BROADCAST_355
-from models.quantized_klein9b.shaders.mul_broadcast_358 import MUL_BROADCAST_358
-from models.quantized_klein9b.shaders.mul_broadcast_359 import MUL_BROADCAST_359
-from models.quantized_klein9b.shaders.mul_broadcast_362 import MUL_BROADCAST_362
-from models.quantized_klein9b.shaders.mul_broadcast_371 import MUL_BROADCAST_371
+from models.quantized_klein9b.shaders.mul_broadcast_357 import MUL_BROADCAST_357
+from models.quantized_klein9b.shaders.mul_broadcast_361 import MUL_BROADCAST_361
+from models.quantized_klein9b.shaders.mul_broadcast_363 import MUL_BROADCAST_363
+from models.quantized_klein9b.shaders.mul_broadcast_369 import MUL_BROADCAST_369
+from models.quantized_klein9b.shaders.mul_broadcast_372 import MUL_BROADCAST_372
 from models.quantized_klein9b.shaders.mul_broadcast_373 import MUL_BROADCAST_373
-from models.quantized_klein9b.shaders.mul_broadcast_378 import MUL_BROADCAST_378
-from models.quantized_klein9b.shaders.mul_broadcast_381 import MUL_BROADCAST_381
-from models.quantized_klein9b.shaders.mul_broadcast_383 import MUL_BROADCAST_383
-from models.quantized_klein9b.shaders.mul_broadcast_388 import MUL_BROADCAST_388
-from models.quantized_klein9b.shaders.mul_broadcast_390 import MUL_BROADCAST_390
-from models.quantized_klein9b.shaders.mul_broadcast_395 import MUL_BROADCAST_395
-from models.quantized_klein9b.shaders.mul_broadcast_397 import MUL_BROADCAST_397
-from models.quantized_klein9b.shaders.mul_broadcast_399 import MUL_BROADCAST_399
+from models.quantized_klein9b.shaders.mul_broadcast_376 import MUL_BROADCAST_376
+from models.quantized_klein9b.shaders.mul_broadcast_384 import MUL_BROADCAST_384
+from models.quantized_klein9b.shaders.mul_broadcast_386 import MUL_BROADCAST_386
+from models.quantized_klein9b.shaders.mul_broadcast_389 import MUL_BROADCAST_389
+from models.quantized_klein9b.shaders.mul_broadcast_391 import MUL_BROADCAST_391
+from models.quantized_klein9b.shaders.mul_broadcast_393 import MUL_BROADCAST_393
+from models.quantized_klein9b.shaders.mul_broadcast_396 import MUL_BROADCAST_396
+from models.quantized_klein9b.shaders.mul_broadcast_398 import MUL_BROADCAST_398
+from models.quantized_klein9b.shaders.mul_broadcast_402 import MUL_BROADCAST_402
 from models.quantized_klein9b.shaders.mul_broadcast_404 import MUL_BROADCAST_404
 from models.quantized_klein9b.shaders.mul_broadcast_406 import MUL_BROADCAST_406
+from models.quantized_klein9b.shaders.mul_broadcast_410 import MUL_BROADCAST_410
 from models.quantized_klein9b.shaders.mul_broadcast_412 import MUL_BROADCAST_412
-from models.quantized_klein9b.shaders.mul_broadcast_415 import MUL_BROADCAST_415
-from models.quantized_klein9b.shaders.mul_broadcast_416 import MUL_BROADCAST_416
-from models.quantized_klein9b.shaders.mul_broadcast_419 import MUL_BROADCAST_419
-from models.quantized_klein9b.shaders.mul_broadcast_428 import MUL_BROADCAST_428
-from models.quantized_klein9b.shaders.mul_broadcast_430 import MUL_BROADCAST_430
+from models.quantized_klein9b.shaders.mul_broadcast_418 import MUL_BROADCAST_418
+from models.quantized_klein9b.shaders.mul_broadcast_421 import MUL_BROADCAST_421
+from models.quantized_klein9b.shaders.mul_broadcast_422 import MUL_BROADCAST_422
+from models.quantized_klein9b.shaders.mul_broadcast_425 import MUL_BROADCAST_425
+from models.quantized_klein9b.shaders.mul_broadcast_433 import MUL_BROADCAST_433
 from models.quantized_klein9b.shaders.mul_broadcast_435 import MUL_BROADCAST_435
 from models.quantized_klein9b.shaders.mul_broadcast_438 import MUL_BROADCAST_438
 from models.quantized_klein9b.shaders.mul_broadcast_440 import MUL_BROADCAST_440
+from models.quantized_klein9b.shaders.mul_broadcast_442 import MUL_BROADCAST_442
 from models.quantized_klein9b.shaders.mul_broadcast_445 import MUL_BROADCAST_445
 from models.quantized_klein9b.shaders.mul_broadcast_447 import MUL_BROADCAST_447
-from models.quantized_klein9b.shaders.mul_broadcast_452 import MUL_BROADCAST_452
-from models.quantized_klein9b.shaders.mul_broadcast_454 import MUL_BROADCAST_454
-from models.quantized_klein9b.shaders.mul_broadcast_456 import MUL_BROADCAST_456
+from models.quantized_klein9b.shaders.mul_broadcast_451 import MUL_BROADCAST_451
+from models.quantized_klein9b.shaders.mul_broadcast_453 import MUL_BROADCAST_453
+from models.quantized_klein9b.shaders.mul_broadcast_455 import MUL_BROADCAST_455
+from models.quantized_klein9b.shaders.mul_broadcast_459 import MUL_BROADCAST_459
 from models.quantized_klein9b.shaders.mul_broadcast_461 import MUL_BROADCAST_461
-from models.quantized_klein9b.shaders.mul_broadcast_463 import MUL_BROADCAST_463
-from models.quantized_klein9b.shaders.mul_broadcast_469 import MUL_BROADCAST_469
-from models.quantized_klein9b.shaders.mul_broadcast_472 import MUL_BROADCAST_472
-from models.quantized_klein9b.shaders.mul_broadcast_473 import MUL_BROADCAST_473
-from models.quantized_klein9b.shaders.mul_broadcast_476 import MUL_BROADCAST_476
-from models.quantized_klein9b.shaders.mul_broadcast_485 import MUL_BROADCAST_485
+from models.quantized_klein9b.shaders.mul_broadcast_467 import MUL_BROADCAST_467
+from models.quantized_klein9b.shaders.mul_broadcast_470 import MUL_BROADCAST_470
+from models.quantized_klein9b.shaders.mul_broadcast_471 import MUL_BROADCAST_471
+from models.quantized_klein9b.shaders.mul_broadcast_474 import MUL_BROADCAST_474
+from models.quantized_klein9b.shaders.mul_broadcast_482 import MUL_BROADCAST_482
+from models.quantized_klein9b.shaders.mul_broadcast_484 import MUL_BROADCAST_484
 from models.quantized_klein9b.shaders.mul_broadcast_487 import MUL_BROADCAST_487
-from models.quantized_klein9b.shaders.mul_broadcast_492 import MUL_BROADCAST_492
-from models.quantized_klein9b.shaders.mul_broadcast_495 import MUL_BROADCAST_495
-from models.quantized_klein9b.shaders.mul_broadcast_497 import MUL_BROADCAST_497
-from models.quantized_klein9b.shaders.mul_broadcast_502 import MUL_BROADCAST_502
+from models.quantized_klein9b.shaders.mul_broadcast_489 import MUL_BROADCAST_489
+from models.quantized_klein9b.shaders.mul_broadcast_491 import MUL_BROADCAST_491
+from models.quantized_klein9b.shaders.mul_broadcast_494 import MUL_BROADCAST_494
+from models.quantized_klein9b.shaders.mul_broadcast_498 import MUL_BROADCAST_498
 from models.quantized_klein9b.shaders.mul_broadcast_504 import MUL_BROADCAST_504
-from models.quantized_klein9b.shaders.mul_broadcast_509 import MUL_BROADCAST_509
+from models.quantized_klein9b.shaders.mul_broadcast_506 import MUL_BROADCAST_506
+from models.quantized_klein9b.shaders.mul_broadcast_507 import MUL_BROADCAST_507
+from models.quantized_klein9b.shaders.mul_broadcast_510 import MUL_BROADCAST_510
 from models.quantized_klein9b.shaders.mul_broadcast_511 import MUL_BROADCAST_511
-from models.quantized_klein9b.shaders.mul_broadcast_513 import MUL_BROADCAST_513
-from models.quantized_klein9b.shaders.mul_broadcast_518 import MUL_BROADCAST_518
-from models.quantized_klein9b.shaders.mul_broadcast_520 import MUL_BROADCAST_520
-from models.quantized_klein9b.shaders.mul_broadcast_526 import MUL_BROADCAST_526
-from models.quantized_klein9b.shaders.mul_broadcast_529 import MUL_BROADCAST_529
+from models.quantized_klein9b.shaders.mul_broadcast_514 import MUL_BROADCAST_514
+from models.quantized_klein9b.shaders.mul_broadcast_523 import MUL_BROADCAST_523
+from models.quantized_klein9b.shaders.mul_broadcast_525 import MUL_BROADCAST_525
 from models.quantized_klein9b.shaders.mul_broadcast_530 import MUL_BROADCAST_530
+from models.quantized_klein9b.shaders.mul_broadcast_532 import MUL_BROADCAST_532
 from models.quantized_klein9b.shaders.mul_broadcast_533 import MUL_BROADCAST_533
-from models.quantized_klein9b.shaders.mul_broadcast_542 import MUL_BROADCAST_542
-from models.quantized_klein9b.shaders.mul_broadcast_544 import MUL_BROADCAST_544
+from models.quantized_klein9b.shaders.mul_broadcast_536 import MUL_BROADCAST_536
+from models.quantized_klein9b.shaders.mul_broadcast_537 import MUL_BROADCAST_537
+from models.quantized_klein9b.shaders.mul_broadcast_540 import MUL_BROADCAST_540
 from models.quantized_klein9b.shaders.mul_broadcast_549 import MUL_BROADCAST_549
-from models.quantized_klein9b.shaders.mul_broadcast_552 import MUL_BROADCAST_552
-from models.quantized_klein9b.shaders.mul_broadcast_554 import MUL_BROADCAST_554
+from models.quantized_klein9b.shaders.mul_broadcast_551 import MUL_BROADCAST_551
+from models.quantized_klein9b.shaders.mul_broadcast_556 import MUL_BROADCAST_556
+from models.quantized_klein9b.shaders.mul_broadcast_558 import MUL_BROADCAST_558
 from models.quantized_klein9b.shaders.mul_broadcast_559 import MUL_BROADCAST_559
+from models.quantized_klein9b.shaders.mul_broadcast_562 import MUL_BROADCAST_562
 from models.quantized_klein9b.shaders.mul_broadcast_563 import MUL_BROADCAST_563
-from models.quantized_klein9b.shaders.mul_broadcast_570 import MUL_BROADCAST_570
-from models.quantized_klein9b.shaders.mul_broadcast_572 import MUL_BROADCAST_572
-from models.quantized_klein9b.shaders.mul_broadcast_573 import MUL_BROADCAST_573
-from models.quantized_klein9b.shaders.mul_broadcast_576 import MUL_BROADCAST_576
+from models.quantized_klein9b.shaders.mul_broadcast_566 import MUL_BROADCAST_566
+from models.quantized_klein9b.shaders.mul_broadcast_575 import MUL_BROADCAST_575
 from models.quantized_klein9b.shaders.mul_broadcast_577 import MUL_BROADCAST_577
-from models.quantized_klein9b.shaders.mul_broadcast_580 import MUL_BROADCAST_580
-from models.quantized_klein9b.shaders.mul_broadcast_590 import MUL_BROADCAST_590
+from models.quantized_klein9b.shaders.mul_broadcast_582 import MUL_BROADCAST_582
+from models.quantized_klein9b.shaders.mul_broadcast_584 import MUL_BROADCAST_584
+from models.quantized_klein9b.shaders.mul_broadcast_585 import MUL_BROADCAST_585
+from models.quantized_klein9b.shaders.mul_broadcast_588 import MUL_BROADCAST_588
+from models.quantized_klein9b.shaders.mul_broadcast_589 import MUL_BROADCAST_589
 from models.quantized_klein9b.shaders.mul_broadcast_592 import MUL_BROADCAST_592
-from models.quantized_klein9b.shaders.mul_broadcast_598 import MUL_BROADCAST_598
-from models.quantized_klein9b.shaders.mul_broadcast_600 import MUL_BROADCAST_600
 from models.quantized_klein9b.shaders.mul_broadcast_601 import MUL_BROADCAST_601
-from models.quantized_klein9b.shaders.mul_broadcast_604 import MUL_BROADCAST_604
-from models.quantized_klein9b.shaders.mul_broadcast_605 import MUL_BROADCAST_605
+from models.quantized_klein9b.shaders.mul_broadcast_603 import MUL_BROADCAST_603
 from models.quantized_klein9b.shaders.mul_broadcast_608 import MUL_BROADCAST_608
+from models.quantized_klein9b.shaders.mul_broadcast_610 import MUL_BROADCAST_610
+from models.quantized_klein9b.shaders.mul_broadcast_611 import MUL_BROADCAST_611
+from models.quantized_klein9b.shaders.mul_broadcast_614 import MUL_BROADCAST_614
+from models.quantized_klein9b.shaders.mul_broadcast_615 import MUL_BROADCAST_615
 from models.quantized_klein9b.shaders.mul_broadcast_618 import MUL_BROADCAST_618
-from models.quantized_klein9b.shaders.mul_broadcast_620 import MUL_BROADCAST_620
-from models.quantized_klein9b.shaders.mul_broadcast_626 import MUL_BROADCAST_626
-from models.quantized_klein9b.shaders.mul_broadcast_628 import MUL_BROADCAST_628
+from models.quantized_klein9b.shaders.mul_broadcast_627 import MUL_BROADCAST_627
 from models.quantized_klein9b.shaders.mul_broadcast_629 import MUL_BROADCAST_629
-from models.quantized_klein9b.shaders.mul_broadcast_632 import MUL_BROADCAST_632
-from models.quantized_klein9b.shaders.mul_broadcast_633 import MUL_BROADCAST_633
+from models.quantized_klein9b.shaders.mul_broadcast_634 import MUL_BROADCAST_634
 from models.quantized_klein9b.shaders.mul_broadcast_636 import MUL_BROADCAST_636
-from models.quantized_klein9b.shaders.mul_broadcast_646 import MUL_BROADCAST_646
-from models.quantized_klein9b.shaders.mul_broadcast_648 import MUL_BROADCAST_648
-from models.quantized_klein9b.shaders.mul_broadcast_654 import MUL_BROADCAST_654
-from models.quantized_klein9b.shaders.mul_broadcast_656 import MUL_BROADCAST_656
-from models.quantized_klein9b.shaders.mul_broadcast_657 import MUL_BROADCAST_657
+from models.quantized_klein9b.shaders.mul_broadcast_637 import MUL_BROADCAST_637
+from models.quantized_klein9b.shaders.mul_broadcast_640 import MUL_BROADCAST_640
+from models.quantized_klein9b.shaders.mul_broadcast_641 import MUL_BROADCAST_641
+from models.quantized_klein9b.shaders.mul_broadcast_644 import MUL_BROADCAST_644
+from models.quantized_klein9b.shaders.mul_broadcast_653 import MUL_BROADCAST_653
+from models.quantized_klein9b.shaders.mul_broadcast_655 import MUL_BROADCAST_655
 from models.quantized_klein9b.shaders.mul_broadcast_660 import MUL_BROADCAST_660
-from models.quantized_klein9b.shaders.mul_broadcast_661 import MUL_BROADCAST_661
-from models.quantized_klein9b.shaders.mul_broadcast_664 import MUL_BROADCAST_664
-from models.quantized_klein9b.shaders.mul_broadcast_674 import MUL_BROADCAST_674
-from models.quantized_klein9b.shaders.mul_broadcast_676 import MUL_BROADCAST_676
-from models.quantized_klein9b.shaders.mul_broadcast_682 import MUL_BROADCAST_682
-from models.quantized_klein9b.shaders.mul_broadcast_684 import MUL_BROADCAST_684
-from models.quantized_klein9b.shaders.mul_broadcast_685 import MUL_BROADCAST_685
+from models.quantized_klein9b.shaders.mul_broadcast_662 import MUL_BROADCAST_662
+from models.quantized_klein9b.shaders.mul_broadcast_663 import MUL_BROADCAST_663
+from models.quantized_klein9b.shaders.mul_broadcast_666 import MUL_BROADCAST_666
+from models.quantized_klein9b.shaders.mul_broadcast_667 import MUL_BROADCAST_667
+from models.quantized_klein9b.shaders.mul_broadcast_670 import MUL_BROADCAST_670
+from models.quantized_klein9b.shaders.mul_broadcast_679 import MUL_BROADCAST_679
+from models.quantized_klein9b.shaders.mul_broadcast_681 import MUL_BROADCAST_681
+from models.quantized_klein9b.shaders.mul_broadcast_686 import MUL_BROADCAST_686
 from models.quantized_klein9b.shaders.mul_broadcast_688 import MUL_BROADCAST_688
 from models.quantized_klein9b.shaders.mul_broadcast_689 import MUL_BROADCAST_689
 from models.quantized_klein9b.shaders.mul_broadcast_692 import MUL_BROADCAST_692
-from models.quantized_klein9b.shaders.mul_broadcast_702 import MUL_BROADCAST_702
-from models.quantized_klein9b.shaders.mul_broadcast_704 import MUL_BROADCAST_704
-from models.quantized_klein9b.shaders.mul_broadcast_710 import MUL_BROADCAST_710
+from models.quantized_klein9b.shaders.mul_broadcast_693 import MUL_BROADCAST_693
+from models.quantized_klein9b.shaders.mul_broadcast_696 import MUL_BROADCAST_696
+from models.quantized_klein9b.shaders.mul_broadcast_705 import MUL_BROADCAST_705
+from models.quantized_klein9b.shaders.mul_broadcast_707 import MUL_BROADCAST_707
 from models.quantized_klein9b.shaders.mul_broadcast_712 import MUL_BROADCAST_712
-from models.quantized_klein9b.shaders.mul_broadcast_713 import MUL_BROADCAST_713
-from models.quantized_klein9b.shaders.mul_broadcast_716 import MUL_BROADCAST_716
-from models.quantized_klein9b.shaders.mul_broadcast_717 import MUL_BROADCAST_717
-from models.quantized_klein9b.shaders.mul_broadcast_720 import MUL_BROADCAST_720
-from models.quantized_klein9b.shaders.mul_broadcast_730 import MUL_BROADCAST_730
-from models.quantized_klein9b.shaders.mul_broadcast_732 import MUL_BROADCAST_732
+from models.quantized_klein9b.shaders.mul_broadcast_714 import MUL_BROADCAST_714
+from models.quantized_klein9b.shaders.mul_broadcast_715 import MUL_BROADCAST_715
+from models.quantized_klein9b.shaders.mul_broadcast_718 import MUL_BROADCAST_718
+from models.quantized_klein9b.shaders.mul_broadcast_719 import MUL_BROADCAST_719
+from models.quantized_klein9b.shaders.mul_broadcast_722 import MUL_BROADCAST_722
+from models.quantized_klein9b.shaders.mul_broadcast_731 import MUL_BROADCAST_731
+from models.quantized_klein9b.shaders.mul_broadcast_733 import MUL_BROADCAST_733
 from models.quantized_klein9b.shaders.mul_broadcast_738 import MUL_BROADCAST_738
 from models.quantized_klein9b.shaders.mul_broadcast_740 import MUL_BROADCAST_740
 from models.quantized_klein9b.shaders.mul_broadcast_741 import MUL_BROADCAST_741
 from models.quantized_klein9b.shaders.mul_broadcast_744 import MUL_BROADCAST_744
 from models.quantized_klein9b.shaders.mul_broadcast_745 import MUL_BROADCAST_745
 from models.quantized_klein9b.shaders.mul_broadcast_748 import MUL_BROADCAST_748
-from models.quantized_klein9b.shaders.mul_broadcast_758 import MUL_BROADCAST_758
-from models.quantized_klein9b.shaders.mul_broadcast_760 import MUL_BROADCAST_760
+from models.quantized_klein9b.shaders.mul_broadcast_757 import MUL_BROADCAST_757
+from models.quantized_klein9b.shaders.mul_broadcast_759 import MUL_BROADCAST_759
+from models.quantized_klein9b.shaders.mul_broadcast_764 import MUL_BROADCAST_764
 from models.quantized_klein9b.shaders.mul_broadcast_766 import MUL_BROADCAST_766
-from models.quantized_klein9b.shaders.mul_broadcast_768 import MUL_BROADCAST_768
-from models.quantized_klein9b.shaders.mul_broadcast_769 import MUL_BROADCAST_769
-from models.quantized_klein9b.shaders.mul_broadcast_772 import MUL_BROADCAST_772
-from models.quantized_klein9b.shaders.mul_broadcast_773 import MUL_BROADCAST_773
-from models.quantized_klein9b.shaders.mul_broadcast_776 import MUL_BROADCAST_776
-from models.quantized_klein9b.shaders.mul_broadcast_786 import MUL_BROADCAST_786
-from models.quantized_klein9b.shaders.mul_broadcast_788 import MUL_BROADCAST_788
-from models.quantized_klein9b.shaders.mul_broadcast_794 import MUL_BROADCAST_794
+from models.quantized_klein9b.shaders.mul_broadcast_767 import MUL_BROADCAST_767
+from models.quantized_klein9b.shaders.mul_broadcast_770 import MUL_BROADCAST_770
+from models.quantized_klein9b.shaders.mul_broadcast_771 import MUL_BROADCAST_771
+from models.quantized_klein9b.shaders.mul_broadcast_774 import MUL_BROADCAST_774
+from models.quantized_klein9b.shaders.mul_broadcast_783 import MUL_BROADCAST_783
+from models.quantized_klein9b.shaders.mul_broadcast_785 import MUL_BROADCAST_785
+from models.quantized_klein9b.shaders.mul_broadcast_790 import MUL_BROADCAST_790
+from models.quantized_klein9b.shaders.mul_broadcast_792 import MUL_BROADCAST_792
+from models.quantized_klein9b.shaders.mul_broadcast_793 import MUL_BROADCAST_793
 from models.quantized_klein9b.shaders.mul_broadcast_796 import MUL_BROADCAST_796
 from models.quantized_klein9b.shaders.mul_broadcast_797 import MUL_BROADCAST_797
 from models.quantized_klein9b.shaders.mul_broadcast_800 import MUL_BROADCAST_800
-from models.quantized_klein9b.shaders.mul_broadcast_801 import MUL_BROADCAST_801
-from models.quantized_klein9b.shaders.mul_broadcast_804 import MUL_BROADCAST_804
-from models.quantized_klein9b.shaders.mul_broadcast_814 import MUL_BROADCAST_814
+from models.quantized_klein9b.shaders.mul_broadcast_809 import MUL_BROADCAST_809
+from models.quantized_klein9b.shaders.mul_broadcast_811 import MUL_BROADCAST_811
 from models.quantized_klein9b.shaders.mul_broadcast_816 import MUL_BROADCAST_816
+from models.quantized_klein9b.shaders.mul_broadcast_818 import MUL_BROADCAST_818
+from models.quantized_klein9b.shaders.mul_broadcast_819 import MUL_BROADCAST_819
 from models.quantized_klein9b.shaders.mul_broadcast_822 import MUL_BROADCAST_822
-from models.quantized_klein9b.shaders.mul_broadcast_824 import MUL_BROADCAST_824
-from models.quantized_klein9b.shaders.mul_broadcast_825 import MUL_BROADCAST_825
-from models.quantized_klein9b.shaders.mul_broadcast_828 import MUL_BROADCAST_828
-from models.quantized_klein9b.shaders.mul_broadcast_829 import MUL_BROADCAST_829
-from models.quantized_klein9b.shaders.mul_broadcast_832 import MUL_BROADCAST_832
+from models.quantized_klein9b.shaders.mul_broadcast_823 import MUL_BROADCAST_823
+from models.quantized_klein9b.shaders.mul_broadcast_826 import MUL_BROADCAST_826
+from models.quantized_klein9b.shaders.mul_broadcast_835 import MUL_BROADCAST_835
+from models.quantized_klein9b.shaders.mul_broadcast_837 import MUL_BROADCAST_837
 from models.quantized_klein9b.shaders.mul_broadcast_842 import MUL_BROADCAST_842
 from models.quantized_klein9b.shaders.mul_broadcast_844 import MUL_BROADCAST_844
-from models.quantized_klein9b.shaders.mul_broadcast_850 import MUL_BROADCAST_850
+from models.quantized_klein9b.shaders.mul_broadcast_845 import MUL_BROADCAST_845
+from models.quantized_klein9b.shaders.mul_broadcast_848 import MUL_BROADCAST_848
+from models.quantized_klein9b.shaders.mul_broadcast_849 import MUL_BROADCAST_849
 from models.quantized_klein9b.shaders.mul_broadcast_852 import MUL_BROADCAST_852
-from models.quantized_klein9b.shaders.mul_broadcast_853 import MUL_BROADCAST_853
-from models.quantized_klein9b.shaders.mul_broadcast_856 import MUL_BROADCAST_856
-from models.quantized_klein9b.shaders.mul_broadcast_857 import MUL_BROADCAST_857
-from models.quantized_klein9b.shaders.mul_broadcast_860 import MUL_BROADCAST_860
+from models.quantized_klein9b.shaders.mul_broadcast_861 import MUL_BROADCAST_861
+from models.quantized_klein9b.shaders.mul_broadcast_863 import MUL_BROADCAST_863
+from models.quantized_klein9b.shaders.mul_broadcast_868 import MUL_BROADCAST_868
 from models.quantized_klein9b.shaders.mul_broadcast_870 import MUL_BROADCAST_870
-from models.quantized_klein9b.shaders.mul_broadcast_872 import MUL_BROADCAST_872
+from models.quantized_klein9b.shaders.mul_broadcast_871 import MUL_BROADCAST_871
+from models.quantized_klein9b.shaders.mul_broadcast_874 import MUL_BROADCAST_874
+from models.quantized_klein9b.shaders.mul_broadcast_875 import MUL_BROADCAST_875
 from models.quantized_klein9b.shaders.mul_broadcast_878 import MUL_BROADCAST_878
-from models.quantized_klein9b.shaders.mul_broadcast_880 import MUL_BROADCAST_880
-from models.quantized_klein9b.shaders.mul_broadcast_881 import MUL_BROADCAST_881
-from models.quantized_klein9b.shaders.mul_broadcast_884 import MUL_BROADCAST_884
-from models.quantized_klein9b.shaders.mul_broadcast_885 import MUL_BROADCAST_885
-from models.quantized_klein9b.shaders.mul_broadcast_888 import MUL_BROADCAST_888
-from models.quantized_klein9b.shaders.mul_broadcast_898 import MUL_BROADCAST_898
-from models.quantized_klein9b.shaders.mul_broadcast_90 import MUL_BROADCAST_90
+from models.quantized_klein9b.shaders.mul_broadcast_887 import MUL_BROADCAST_887
+from models.quantized_klein9b.shaders.mul_broadcast_889 import MUL_BROADCAST_889
+from models.quantized_klein9b.shaders.mul_broadcast_89 import MUL_BROADCAST_89
+from models.quantized_klein9b.shaders.mul_broadcast_894 import MUL_BROADCAST_894
+from models.quantized_klein9b.shaders.mul_broadcast_896 import MUL_BROADCAST_896
+from models.quantized_klein9b.shaders.mul_broadcast_897 import MUL_BROADCAST_897
 from models.quantized_klein9b.shaders.mul_broadcast_900 import MUL_BROADCAST_900
-from models.quantized_klein9b.shaders.mul_broadcast_906 import MUL_BROADCAST_906
-from models.quantized_klein9b.shaders.mul_broadcast_908 import MUL_BROADCAST_908
-from models.quantized_klein9b.shaders.mul_broadcast_909 import MUL_BROADCAST_909
-from models.quantized_klein9b.shaders.mul_broadcast_912 import MUL_BROADCAST_912
+from models.quantized_klein9b.shaders.mul_broadcast_901 import MUL_BROADCAST_901
+from models.quantized_klein9b.shaders.mul_broadcast_904 import MUL_BROADCAST_904
 from models.quantized_klein9b.shaders.mul_broadcast_913 import MUL_BROADCAST_913
-from models.quantized_klein9b.shaders.mul_broadcast_916 import MUL_BROADCAST_916
+from models.quantized_klein9b.shaders.mul_broadcast_915 import MUL_BROADCAST_915
+from models.quantized_klein9b.shaders.mul_broadcast_920 import MUL_BROADCAST_920
+from models.quantized_klein9b.shaders.mul_broadcast_922 import MUL_BROADCAST_922
+from models.quantized_klein9b.shaders.mul_broadcast_923 import MUL_BROADCAST_923
 from models.quantized_klein9b.shaders.mul_broadcast_926 import MUL_BROADCAST_926
-from models.quantized_klein9b.shaders.mul_broadcast_928 import MUL_BROADCAST_928
-from models.quantized_klein9b.shaders.mul_broadcast_934 import MUL_BROADCAST_934
-from models.quantized_klein9b.shaders.mul_broadcast_936 import MUL_BROADCAST_936
-from models.quantized_klein9b.shaders.mul_broadcast_937 import MUL_BROADCAST_937
-from models.quantized_klein9b.shaders.mul_broadcast_940 import MUL_BROADCAST_940
+from models.quantized_klein9b.shaders.mul_broadcast_927 import MUL_BROADCAST_927
+from models.quantized_klein9b.shaders.mul_broadcast_930 import MUL_BROADCAST_930
+from models.quantized_klein9b.shaders.mul_broadcast_939 import MUL_BROADCAST_939
 from models.quantized_klein9b.shaders.mul_broadcast_941 import MUL_BROADCAST_941
-from models.quantized_klein9b.shaders.mul_broadcast_944 import MUL_BROADCAST_944
-from models.quantized_klein9b.shaders.mul_broadcast_954 import MUL_BROADCAST_954
+from models.quantized_klein9b.shaders.mul_broadcast_946 import MUL_BROADCAST_946
+from models.quantized_klein9b.shaders.mul_broadcast_948 import MUL_BROADCAST_948
+from models.quantized_klein9b.shaders.mul_broadcast_949 import MUL_BROADCAST_949
+from models.quantized_klein9b.shaders.mul_broadcast_952 import MUL_BROADCAST_952
+from models.quantized_klein9b.shaders.mul_broadcast_953 import MUL_BROADCAST_953
 from models.quantized_klein9b.shaders.mul_broadcast_956 import MUL_BROADCAST_956
-from models.quantized_klein9b.shaders.mul_broadcast_962 import MUL_BROADCAST_962
-from models.quantized_klein9b.shaders.mul_broadcast_964 import MUL_BROADCAST_964
 from models.quantized_klein9b.shaders.mul_broadcast_965 import MUL_BROADCAST_965
-from models.quantized_klein9b.shaders.mul_broadcast_968 import MUL_BROADCAST_968
-from models.quantized_klein9b.shaders.mul_broadcast_969 import MUL_BROADCAST_969
+from models.quantized_klein9b.shaders.mul_broadcast_967 import MUL_BROADCAST_967
 from models.quantized_klein9b.shaders.mul_broadcast_972 import MUL_BROADCAST_972
+from models.quantized_klein9b.shaders.mul_broadcast_974 import MUL_BROADCAST_974
+from models.quantized_klein9b.shaders.mul_broadcast_975 import MUL_BROADCAST_975
+from models.quantized_klein9b.shaders.mul_broadcast_978 import MUL_BROADCAST_978
+from models.quantized_klein9b.shaders.mul_broadcast_979 import MUL_BROADCAST_979
 from models.quantized_klein9b.shaders.mul_broadcast_982 import MUL_BROADCAST_982
-from models.quantized_klein9b.shaders.mul_broadcast_984 import MUL_BROADCAST_984
-from models.quantized_klein9b.shaders.mul_broadcast_990 import MUL_BROADCAST_990
-from models.quantized_klein9b.shaders.mul_broadcast_992 import MUL_BROADCAST_992
+from models.quantized_klein9b.shaders.mul_broadcast_99 import MUL_BROADCAST_99
+from models.quantized_klein9b.shaders.mul_broadcast_991 import MUL_BROADCAST_991
 from models.quantized_klein9b.shaders.mul_broadcast_993 import MUL_BROADCAST_993
-from models.quantized_klein9b.shaders.mul_broadcast_996 import MUL_BROADCAST_996
-from models.quantized_klein9b.shaders.mul_broadcast_997 import MUL_BROADCAST_997
+from models.quantized_klein9b.shaders.mul_broadcast_998 import MUL_BROADCAST_998
 from models.quantized_klein9b.shaders.mul_right_broadcast import MUL_RIGHT_BROADCAST
 from models.quantized_klein9b.shaders.mul_scalar import MUL_SCALAR
 from models.quantized_klein9b.shaders.mul_scalar_2 import MUL_SCALAR_2
-from models.quantized_klein9b.shaders.mul_scalar_31 import MUL_SCALAR_31
-from models.quantized_klein9b.shaders.mul_scalar_41 import MUL_SCALAR_41
-from models.quantized_klein9b.shaders.mul_scalar_48 import MUL_SCALAR_48
-from models.quantized_klein9b.shaders.mul_scalar_55 import MUL_SCALAR_55
-from models.quantized_klein9b.shaders.mul_scalar_62 import MUL_SCALAR_62
-from models.quantized_klein9b.shaders.mul_scalar_69 import MUL_SCALAR_69
-from models.quantized_klein9b.shaders.mul_scalar_76 import MUL_SCALAR_76
-from models.quantized_klein9b.shaders.mul_scalar_83 import MUL_SCALAR_83
+from models.quantized_klein9b.shaders.mul_scalar_30 import MUL_SCALAR_30
+from models.quantized_klein9b.shaders.mul_scalar_40 import MUL_SCALAR_40
+from models.quantized_klein9b.shaders.mul_scalar_47 import MUL_SCALAR_47
+from models.quantized_klein9b.shaders.mul_scalar_54 import MUL_SCALAR_54
+from models.quantized_klein9b.shaders.mul_scalar_61 import MUL_SCALAR_61
+from models.quantized_klein9b.shaders.mul_scalar_68 import MUL_SCALAR_68
+from models.quantized_klein9b.shaders.mul_scalar_75 import MUL_SCALAR_75
+from models.quantized_klein9b.shaders.mul_scalar_82 import MUL_SCALAR_82
 from models.quantized_klein9b.shaders.permute_f32_0d3ab17ae3 import PERMUTE_F32_0D3AB17AE3
 from models.quantized_klein9b.shaders.permute_f32_2731f610b1 import PERMUTE_F32_2731F610B1
 from models.quantized_klein9b.shaders.permute_f32_7ebe673eb3 import PERMUTE_F32_7EBE673EB3
@@ -730,504 +616,504 @@ from models.quantized_klein9b.shaders.pow_base_scalar_f32 import POW_BASE_SCALAR
 from models.quantized_klein9b.shaders.reciprocal_f32 import RECIPROCAL_F32
 from models.quantized_klein9b.shaders.sdpa_f32 import SDPA_F32
 from models.quantized_klein9b.shaders.select_float32 import SELECT_FLOAT32
-from models.quantized_klein9b.shaders.select_float32_1022 import SELECT_FLOAT32_1022
-from models.quantized_klein9b.shaders.select_float32_1023 import SELECT_FLOAT32_1023
-from models.quantized_klein9b.shaders.select_float32_1026 import SELECT_FLOAT32_1026
-from models.quantized_klein9b.shaders.select_float32_1027 import SELECT_FLOAT32_1027
-from models.quantized_klein9b.shaders.select_float32_1050 import SELECT_FLOAT32_1050
-from models.quantized_klein9b.shaders.select_float32_1051 import SELECT_FLOAT32_1051
+from models.quantized_klein9b.shaders.select_float32_1002 import SELECT_FLOAT32_1002
+from models.quantized_klein9b.shaders.select_float32_1003 import SELECT_FLOAT32_1003
+from models.quantized_klein9b.shaders.select_float32_1006 import SELECT_FLOAT32_1006
+from models.quantized_klein9b.shaders.select_float32_1007 import SELECT_FLOAT32_1007
+from models.quantized_klein9b.shaders.select_float32_1028 import SELECT_FLOAT32_1028
+from models.quantized_klein9b.shaders.select_float32_1029 import SELECT_FLOAT32_1029
+from models.quantized_klein9b.shaders.select_float32_1032 import SELECT_FLOAT32_1032
+from models.quantized_klein9b.shaders.select_float32_1033 import SELECT_FLOAT32_1033
 from models.quantized_klein9b.shaders.select_float32_1054 import SELECT_FLOAT32_1054
 from models.quantized_klein9b.shaders.select_float32_1055 import SELECT_FLOAT32_1055
-from models.quantized_klein9b.shaders.select_float32_1078 import SELECT_FLOAT32_1078
-from models.quantized_klein9b.shaders.select_float32_1079 import SELECT_FLOAT32_1079
-from models.quantized_klein9b.shaders.select_float32_1082 import SELECT_FLOAT32_1082
-from models.quantized_klein9b.shaders.select_float32_1083 import SELECT_FLOAT32_1083
+from models.quantized_klein9b.shaders.select_float32_1058 import SELECT_FLOAT32_1058
+from models.quantized_klein9b.shaders.select_float32_1059 import SELECT_FLOAT32_1059
+from models.quantized_klein9b.shaders.select_float32_1080 import SELECT_FLOAT32_1080
+from models.quantized_klein9b.shaders.select_float32_1081 import SELECT_FLOAT32_1081
+from models.quantized_klein9b.shaders.select_float32_1084 import SELECT_FLOAT32_1084
+from models.quantized_klein9b.shaders.select_float32_1085 import SELECT_FLOAT32_1085
 from models.quantized_klein9b.shaders.select_float32_1106 import SELECT_FLOAT32_1106
 from models.quantized_klein9b.shaders.select_float32_1107 import SELECT_FLOAT32_1107
 from models.quantized_klein9b.shaders.select_float32_1110 import SELECT_FLOAT32_1110
 from models.quantized_klein9b.shaders.select_float32_1111 import SELECT_FLOAT32_1111
-from models.quantized_klein9b.shaders.select_float32_1134 import SELECT_FLOAT32_1134
-from models.quantized_klein9b.shaders.select_float32_1135 import SELECT_FLOAT32_1135
-from models.quantized_klein9b.shaders.select_float32_1138 import SELECT_FLOAT32_1138
-from models.quantized_klein9b.shaders.select_float32_1139 import SELECT_FLOAT32_1139
-from models.quantized_klein9b.shaders.select_float32_1162 import SELECT_FLOAT32_1162
-from models.quantized_klein9b.shaders.select_float32_1163 import SELECT_FLOAT32_1163
-from models.quantized_klein9b.shaders.select_float32_1166 import SELECT_FLOAT32_1166
-from models.quantized_klein9b.shaders.select_float32_1167 import SELECT_FLOAT32_1167
-from models.quantized_klein9b.shaders.select_float32_1190 import SELECT_FLOAT32_1190
-from models.quantized_klein9b.shaders.select_float32_1191 import SELECT_FLOAT32_1191
-from models.quantized_klein9b.shaders.select_float32_1194 import SELECT_FLOAT32_1194
-from models.quantized_klein9b.shaders.select_float32_1195 import SELECT_FLOAT32_1195
-from models.quantized_klein9b.shaders.select_float32_1218 import SELECT_FLOAT32_1218
-from models.quantized_klein9b.shaders.select_float32_1219 import SELECT_FLOAT32_1219
-from models.quantized_klein9b.shaders.select_float32_122 import SELECT_FLOAT32_122
-from models.quantized_klein9b.shaders.select_float32_1222 import SELECT_FLOAT32_1222
-from models.quantized_klein9b.shaders.select_float32_1223 import SELECT_FLOAT32_1223
-from models.quantized_klein9b.shaders.select_float32_123 import SELECT_FLOAT32_123
-from models.quantized_klein9b.shaders.select_float32_127 import SELECT_FLOAT32_127
-from models.quantized_klein9b.shaders.select_float32_128 import SELECT_FLOAT32_128
-from models.quantized_klein9b.shaders.select_float32_185 import SELECT_FLOAT32_185
-from models.quantized_klein9b.shaders.select_float32_186 import SELECT_FLOAT32_186
-from models.quantized_klein9b.shaders.select_float32_189 import SELECT_FLOAT32_189
-from models.quantized_klein9b.shaders.select_float32_190 import SELECT_FLOAT32_190
-from models.quantized_klein9b.shaders.select_float32_242 import SELECT_FLOAT32_242
-from models.quantized_klein9b.shaders.select_float32_243 import SELECT_FLOAT32_243
-from models.quantized_klein9b.shaders.select_float32_246 import SELECT_FLOAT32_246
-from models.quantized_klein9b.shaders.select_float32_247 import SELECT_FLOAT32_247
-from models.quantized_klein9b.shaders.select_float32_299 import SELECT_FLOAT32_299
-from models.quantized_klein9b.shaders.select_float32_300 import SELECT_FLOAT32_300
-from models.quantized_klein9b.shaders.select_float32_303 import SELECT_FLOAT32_303
-from models.quantized_klein9b.shaders.select_float32_304 import SELECT_FLOAT32_304
-from models.quantized_klein9b.shaders.select_float32_356 import SELECT_FLOAT32_356
-from models.quantized_klein9b.shaders.select_float32_357 import SELECT_FLOAT32_357
-from models.quantized_klein9b.shaders.select_float32_360 import SELECT_FLOAT32_360
-from models.quantized_klein9b.shaders.select_float32_361 import SELECT_FLOAT32_361
-from models.quantized_klein9b.shaders.select_float32_413 import SELECT_FLOAT32_413
-from models.quantized_klein9b.shaders.select_float32_414 import SELECT_FLOAT32_414
-from models.quantized_klein9b.shaders.select_float32_417 import SELECT_FLOAT32_417
-from models.quantized_klein9b.shaders.select_float32_418 import SELECT_FLOAT32_418
-from models.quantized_klein9b.shaders.select_float32_470 import SELECT_FLOAT32_470
-from models.quantized_klein9b.shaders.select_float32_471 import SELECT_FLOAT32_471
-from models.quantized_klein9b.shaders.select_float32_474 import SELECT_FLOAT32_474
-from models.quantized_klein9b.shaders.select_float32_475 import SELECT_FLOAT32_475
-from models.quantized_klein9b.shaders.select_float32_527 import SELECT_FLOAT32_527
-from models.quantized_klein9b.shaders.select_float32_528 import SELECT_FLOAT32_528
-from models.quantized_klein9b.shaders.select_float32_531 import SELECT_FLOAT32_531
-from models.quantized_klein9b.shaders.select_float32_532 import SELECT_FLOAT32_532
-from models.quantized_klein9b.shaders.select_float32_574 import SELECT_FLOAT32_574
-from models.quantized_klein9b.shaders.select_float32_575 import SELECT_FLOAT32_575
-from models.quantized_klein9b.shaders.select_float32_578 import SELECT_FLOAT32_578
-from models.quantized_klein9b.shaders.select_float32_579 import SELECT_FLOAT32_579
-from models.quantized_klein9b.shaders.select_float32_602 import SELECT_FLOAT32_602
-from models.quantized_klein9b.shaders.select_float32_603 import SELECT_FLOAT32_603
-from models.quantized_klein9b.shaders.select_float32_606 import SELECT_FLOAT32_606
-from models.quantized_klein9b.shaders.select_float32_607 import SELECT_FLOAT32_607
-from models.quantized_klein9b.shaders.select_float32_630 import SELECT_FLOAT32_630
-from models.quantized_klein9b.shaders.select_float32_631 import SELECT_FLOAT32_631
-from models.quantized_klein9b.shaders.select_float32_634 import SELECT_FLOAT32_634
-from models.quantized_klein9b.shaders.select_float32_635 import SELECT_FLOAT32_635
-from models.quantized_klein9b.shaders.select_float32_658 import SELECT_FLOAT32_658
-from models.quantized_klein9b.shaders.select_float32_659 import SELECT_FLOAT32_659
-from models.quantized_klein9b.shaders.select_float32_662 import SELECT_FLOAT32_662
-from models.quantized_klein9b.shaders.select_float32_663 import SELECT_FLOAT32_663
-from models.quantized_klein9b.shaders.select_float32_686 import SELECT_FLOAT32_686
-from models.quantized_klein9b.shaders.select_float32_687 import SELECT_FLOAT32_687
+from models.quantized_klein9b.shaders.select_float32_119 import SELECT_FLOAT32_119
+from models.quantized_klein9b.shaders.select_float32_120 import SELECT_FLOAT32_120
+from models.quantized_klein9b.shaders.select_float32_124 import SELECT_FLOAT32_124
+from models.quantized_klein9b.shaders.select_float32_125 import SELECT_FLOAT32_125
+from models.quantized_klein9b.shaders.select_float32_174 import SELECT_FLOAT32_174
+from models.quantized_klein9b.shaders.select_float32_175 import SELECT_FLOAT32_175
+from models.quantized_klein9b.shaders.select_float32_178 import SELECT_FLOAT32_178
+from models.quantized_klein9b.shaders.select_float32_179 import SELECT_FLOAT32_179
+from models.quantized_klein9b.shaders.select_float32_223 import SELECT_FLOAT32_223
+from models.quantized_klein9b.shaders.select_float32_224 import SELECT_FLOAT32_224
+from models.quantized_klein9b.shaders.select_float32_227 import SELECT_FLOAT32_227
+from models.quantized_klein9b.shaders.select_float32_228 import SELECT_FLOAT32_228
+from models.quantized_klein9b.shaders.select_float32_272 import SELECT_FLOAT32_272
+from models.quantized_klein9b.shaders.select_float32_273 import SELECT_FLOAT32_273
+from models.quantized_klein9b.shaders.select_float32_276 import SELECT_FLOAT32_276
+from models.quantized_klein9b.shaders.select_float32_277 import SELECT_FLOAT32_277
+from models.quantized_klein9b.shaders.select_float32_321 import SELECT_FLOAT32_321
+from models.quantized_klein9b.shaders.select_float32_322 import SELECT_FLOAT32_322
+from models.quantized_klein9b.shaders.select_float32_325 import SELECT_FLOAT32_325
+from models.quantized_klein9b.shaders.select_float32_326 import SELECT_FLOAT32_326
+from models.quantized_klein9b.shaders.select_float32_370 import SELECT_FLOAT32_370
+from models.quantized_klein9b.shaders.select_float32_371 import SELECT_FLOAT32_371
+from models.quantized_klein9b.shaders.select_float32_374 import SELECT_FLOAT32_374
+from models.quantized_klein9b.shaders.select_float32_375 import SELECT_FLOAT32_375
+from models.quantized_klein9b.shaders.select_float32_419 import SELECT_FLOAT32_419
+from models.quantized_klein9b.shaders.select_float32_420 import SELECT_FLOAT32_420
+from models.quantized_klein9b.shaders.select_float32_423 import SELECT_FLOAT32_423
+from models.quantized_klein9b.shaders.select_float32_424 import SELECT_FLOAT32_424
+from models.quantized_klein9b.shaders.select_float32_468 import SELECT_FLOAT32_468
+from models.quantized_klein9b.shaders.select_float32_469 import SELECT_FLOAT32_469
+from models.quantized_klein9b.shaders.select_float32_472 import SELECT_FLOAT32_472
+from models.quantized_klein9b.shaders.select_float32_473 import SELECT_FLOAT32_473
+from models.quantized_klein9b.shaders.select_float32_508 import SELECT_FLOAT32_508
+from models.quantized_klein9b.shaders.select_float32_509 import SELECT_FLOAT32_509
+from models.quantized_klein9b.shaders.select_float32_512 import SELECT_FLOAT32_512
+from models.quantized_klein9b.shaders.select_float32_513 import SELECT_FLOAT32_513
+from models.quantized_klein9b.shaders.select_float32_534 import SELECT_FLOAT32_534
+from models.quantized_klein9b.shaders.select_float32_535 import SELECT_FLOAT32_535
+from models.quantized_klein9b.shaders.select_float32_538 import SELECT_FLOAT32_538
+from models.quantized_klein9b.shaders.select_float32_539 import SELECT_FLOAT32_539
+from models.quantized_klein9b.shaders.select_float32_560 import SELECT_FLOAT32_560
+from models.quantized_klein9b.shaders.select_float32_561 import SELECT_FLOAT32_561
+from models.quantized_klein9b.shaders.select_float32_564 import SELECT_FLOAT32_564
+from models.quantized_klein9b.shaders.select_float32_565 import SELECT_FLOAT32_565
+from models.quantized_klein9b.shaders.select_float32_586 import SELECT_FLOAT32_586
+from models.quantized_klein9b.shaders.select_float32_587 import SELECT_FLOAT32_587
+from models.quantized_klein9b.shaders.select_float32_590 import SELECT_FLOAT32_590
+from models.quantized_klein9b.shaders.select_float32_591 import SELECT_FLOAT32_591
+from models.quantized_klein9b.shaders.select_float32_612 import SELECT_FLOAT32_612
+from models.quantized_klein9b.shaders.select_float32_613 import SELECT_FLOAT32_613
+from models.quantized_klein9b.shaders.select_float32_616 import SELECT_FLOAT32_616
+from models.quantized_klein9b.shaders.select_float32_617 import SELECT_FLOAT32_617
+from models.quantized_klein9b.shaders.select_float32_638 import SELECT_FLOAT32_638
+from models.quantized_klein9b.shaders.select_float32_639 import SELECT_FLOAT32_639
+from models.quantized_klein9b.shaders.select_float32_642 import SELECT_FLOAT32_642
+from models.quantized_klein9b.shaders.select_float32_643 import SELECT_FLOAT32_643
+from models.quantized_klein9b.shaders.select_float32_664 import SELECT_FLOAT32_664
+from models.quantized_klein9b.shaders.select_float32_665 import SELECT_FLOAT32_665
+from models.quantized_klein9b.shaders.select_float32_668 import SELECT_FLOAT32_668
+from models.quantized_klein9b.shaders.select_float32_669 import SELECT_FLOAT32_669
 from models.quantized_klein9b.shaders.select_float32_690 import SELECT_FLOAT32_690
 from models.quantized_klein9b.shaders.select_float32_691 import SELECT_FLOAT32_691
-from models.quantized_klein9b.shaders.select_float32_714 import SELECT_FLOAT32_714
-from models.quantized_klein9b.shaders.select_float32_715 import SELECT_FLOAT32_715
-from models.quantized_klein9b.shaders.select_float32_718 import SELECT_FLOAT32_718
-from models.quantized_klein9b.shaders.select_float32_719 import SELECT_FLOAT32_719
+from models.quantized_klein9b.shaders.select_float32_694 import SELECT_FLOAT32_694
+from models.quantized_klein9b.shaders.select_float32_695 import SELECT_FLOAT32_695
+from models.quantized_klein9b.shaders.select_float32_716 import SELECT_FLOAT32_716
+from models.quantized_klein9b.shaders.select_float32_717 import SELECT_FLOAT32_717
+from models.quantized_klein9b.shaders.select_float32_720 import SELECT_FLOAT32_720
+from models.quantized_klein9b.shaders.select_float32_721 import SELECT_FLOAT32_721
 from models.quantized_klein9b.shaders.select_float32_742 import SELECT_FLOAT32_742
 from models.quantized_klein9b.shaders.select_float32_743 import SELECT_FLOAT32_743
 from models.quantized_klein9b.shaders.select_float32_746 import SELECT_FLOAT32_746
 from models.quantized_klein9b.shaders.select_float32_747 import SELECT_FLOAT32_747
-from models.quantized_klein9b.shaders.select_float32_770 import SELECT_FLOAT32_770
-from models.quantized_klein9b.shaders.select_float32_771 import SELECT_FLOAT32_771
-from models.quantized_klein9b.shaders.select_float32_774 import SELECT_FLOAT32_774
-from models.quantized_klein9b.shaders.select_float32_775 import SELECT_FLOAT32_775
+from models.quantized_klein9b.shaders.select_float32_768 import SELECT_FLOAT32_768
+from models.quantized_klein9b.shaders.select_float32_769 import SELECT_FLOAT32_769
+from models.quantized_klein9b.shaders.select_float32_772 import SELECT_FLOAT32_772
+from models.quantized_klein9b.shaders.select_float32_773 import SELECT_FLOAT32_773
+from models.quantized_klein9b.shaders.select_float32_794 import SELECT_FLOAT32_794
+from models.quantized_klein9b.shaders.select_float32_795 import SELECT_FLOAT32_795
 from models.quantized_klein9b.shaders.select_float32_798 import SELECT_FLOAT32_798
 from models.quantized_klein9b.shaders.select_float32_799 import SELECT_FLOAT32_799
-from models.quantized_klein9b.shaders.select_float32_802 import SELECT_FLOAT32_802
-from models.quantized_klein9b.shaders.select_float32_803 import SELECT_FLOAT32_803
-from models.quantized_klein9b.shaders.select_float32_826 import SELECT_FLOAT32_826
-from models.quantized_klein9b.shaders.select_float32_827 import SELECT_FLOAT32_827
-from models.quantized_klein9b.shaders.select_float32_830 import SELECT_FLOAT32_830
-from models.quantized_klein9b.shaders.select_float32_831 import SELECT_FLOAT32_831
-from models.quantized_klein9b.shaders.select_float32_854 import SELECT_FLOAT32_854
-from models.quantized_klein9b.shaders.select_float32_855 import SELECT_FLOAT32_855
-from models.quantized_klein9b.shaders.select_float32_858 import SELECT_FLOAT32_858
-from models.quantized_klein9b.shaders.select_float32_859 import SELECT_FLOAT32_859
-from models.quantized_klein9b.shaders.select_float32_882 import SELECT_FLOAT32_882
-from models.quantized_klein9b.shaders.select_float32_883 import SELECT_FLOAT32_883
-from models.quantized_klein9b.shaders.select_float32_886 import SELECT_FLOAT32_886
-from models.quantized_klein9b.shaders.select_float32_887 import SELECT_FLOAT32_887
-from models.quantized_klein9b.shaders.select_float32_910 import SELECT_FLOAT32_910
-from models.quantized_klein9b.shaders.select_float32_911 import SELECT_FLOAT32_911
-from models.quantized_klein9b.shaders.select_float32_914 import SELECT_FLOAT32_914
-from models.quantized_klein9b.shaders.select_float32_915 import SELECT_FLOAT32_915
-from models.quantized_klein9b.shaders.select_float32_938 import SELECT_FLOAT32_938
-from models.quantized_klein9b.shaders.select_float32_939 import SELECT_FLOAT32_939
-from models.quantized_klein9b.shaders.select_float32_942 import SELECT_FLOAT32_942
-from models.quantized_klein9b.shaders.select_float32_943 import SELECT_FLOAT32_943
-from models.quantized_klein9b.shaders.select_float32_966 import SELECT_FLOAT32_966
-from models.quantized_klein9b.shaders.select_float32_967 import SELECT_FLOAT32_967
-from models.quantized_klein9b.shaders.select_float32_970 import SELECT_FLOAT32_970
-from models.quantized_klein9b.shaders.select_float32_971 import SELECT_FLOAT32_971
-from models.quantized_klein9b.shaders.select_float32_994 import SELECT_FLOAT32_994
-from models.quantized_klein9b.shaders.select_float32_995 import SELECT_FLOAT32_995
-from models.quantized_klein9b.shaders.select_float32_998 import SELECT_FLOAT32_998
-from models.quantized_klein9b.shaders.select_float32_999 import SELECT_FLOAT32_999
+from models.quantized_klein9b.shaders.select_float32_820 import SELECT_FLOAT32_820
+from models.quantized_klein9b.shaders.select_float32_821 import SELECT_FLOAT32_821
+from models.quantized_klein9b.shaders.select_float32_824 import SELECT_FLOAT32_824
+from models.quantized_klein9b.shaders.select_float32_825 import SELECT_FLOAT32_825
+from models.quantized_klein9b.shaders.select_float32_846 import SELECT_FLOAT32_846
+from models.quantized_klein9b.shaders.select_float32_847 import SELECT_FLOAT32_847
+from models.quantized_klein9b.shaders.select_float32_850 import SELECT_FLOAT32_850
+from models.quantized_klein9b.shaders.select_float32_851 import SELECT_FLOAT32_851
+from models.quantized_klein9b.shaders.select_float32_872 import SELECT_FLOAT32_872
+from models.quantized_klein9b.shaders.select_float32_873 import SELECT_FLOAT32_873
+from models.quantized_klein9b.shaders.select_float32_876 import SELECT_FLOAT32_876
+from models.quantized_klein9b.shaders.select_float32_877 import SELECT_FLOAT32_877
+from models.quantized_klein9b.shaders.select_float32_898 import SELECT_FLOAT32_898
+from models.quantized_klein9b.shaders.select_float32_899 import SELECT_FLOAT32_899
+from models.quantized_klein9b.shaders.select_float32_902 import SELECT_FLOAT32_902
+from models.quantized_klein9b.shaders.select_float32_903 import SELECT_FLOAT32_903
+from models.quantized_klein9b.shaders.select_float32_924 import SELECT_FLOAT32_924
+from models.quantized_klein9b.shaders.select_float32_925 import SELECT_FLOAT32_925
+from models.quantized_klein9b.shaders.select_float32_928 import SELECT_FLOAT32_928
+from models.quantized_klein9b.shaders.select_float32_929 import SELECT_FLOAT32_929
+from models.quantized_klein9b.shaders.select_float32_950 import SELECT_FLOAT32_950
+from models.quantized_klein9b.shaders.select_float32_951 import SELECT_FLOAT32_951
+from models.quantized_klein9b.shaders.select_float32_954 import SELECT_FLOAT32_954
+from models.quantized_klein9b.shaders.select_float32_955 import SELECT_FLOAT32_955
+from models.quantized_klein9b.shaders.select_float32_976 import SELECT_FLOAT32_976
+from models.quantized_klein9b.shaders.select_float32_977 import SELECT_FLOAT32_977
+from models.quantized_klein9b.shaders.select_float32_980 import SELECT_FLOAT32_980
+from models.quantized_klein9b.shaders.select_float32_981 import SELECT_FLOAT32_981
 from models.quantized_klein9b.shaders.select_int64 import SELECT_INT64
-from models.quantized_klein9b.shaders.select_int64_39 import SELECT_INT64_39
-from models.quantized_klein9b.shaders.select_int64_46 import SELECT_INT64_46
-from models.quantized_klein9b.shaders.select_int64_53 import SELECT_INT64_53
-from models.quantized_klein9b.shaders.select_int64_67 import SELECT_INT64_67
-from models.quantized_klein9b.shaders.select_int64_74 import SELECT_INT64_74
-from models.quantized_klein9b.shaders.select_int64_81 import SELECT_INT64_81
-from models.quantized_klein9b.shaders.silu_f32_1007 import SILU_F32_1007
-from models.quantized_klein9b.shaders.silu_f32_1035 import SILU_F32_1035
-from models.quantized_klein9b.shaders.silu_f32_1063 import SILU_F32_1063
-from models.quantized_klein9b.shaders.silu_f32_1091 import SILU_F32_1091
+from models.quantized_klein9b.shaders.select_int64_38 import SELECT_INT64_38
+from models.quantized_klein9b.shaders.select_int64_45 import SELECT_INT64_45
+from models.quantized_klein9b.shaders.select_int64_52 import SELECT_INT64_52
+from models.quantized_klein9b.shaders.select_int64_66 import SELECT_INT64_66
+from models.quantized_klein9b.shaders.select_int64_73 import SELECT_INT64_73
+from models.quantized_klein9b.shaders.select_int64_80 import SELECT_INT64_80
+from models.quantized_klein9b.shaders.silu_f32_1015 import SILU_F32_1015
+from models.quantized_klein9b.shaders.silu_f32_1041 import SILU_F32_1041
+from models.quantized_klein9b.shaders.silu_f32_1067 import SILU_F32_1067
+from models.quantized_klein9b.shaders.silu_f32_1093 import SILU_F32_1093
 from models.quantized_klein9b.shaders.silu_f32_1119 import SILU_F32_1119
-from models.quantized_klein9b.shaders.silu_f32_1147 import SILU_F32_1147
-from models.quantized_klein9b.shaders.silu_f32_1175 import SILU_F32_1175
-from models.quantized_klein9b.shaders.silu_f32_1203 import SILU_F32_1203
-from models.quantized_klein9b.shaders.silu_f32_1231 import SILU_F32_1231
-from models.quantized_klein9b.shaders.silu_f32_147 import SILU_F32_147
-from models.quantized_klein9b.shaders.silu_f32_158 import SILU_F32_158
-from models.quantized_klein9b.shaders.silu_f32_205 import SILU_F32_205
-from models.quantized_klein9b.shaders.silu_f32_215 import SILU_F32_215
-from models.quantized_klein9b.shaders.silu_f32_262 import SILU_F32_262
-from models.quantized_klein9b.shaders.silu_f32_272 import SILU_F32_272
-from models.quantized_klein9b.shaders.silu_f32_319 import SILU_F32_319
-from models.quantized_klein9b.shaders.silu_f32_329 import SILU_F32_329
-from models.quantized_klein9b.shaders.silu_f32_376 import SILU_F32_376
-from models.quantized_klein9b.shaders.silu_f32_386 import SILU_F32_386
-from models.quantized_klein9b.shaders.silu_f32_433 import SILU_F32_433
-from models.quantized_klein9b.shaders.silu_f32_443 import SILU_F32_443
-from models.quantized_klein9b.shaders.silu_f32_490 import SILU_F32_490
-from models.quantized_klein9b.shaders.silu_f32_500 import SILU_F32_500
+from models.quantized_klein9b.shaders.silu_f32_142 import SILU_F32_142
+from models.quantized_klein9b.shaders.silu_f32_150 import SILU_F32_150
+from models.quantized_klein9b.shaders.silu_f32_192 import SILU_F32_192
+from models.quantized_klein9b.shaders.silu_f32_199 import SILU_F32_199
+from models.quantized_klein9b.shaders.silu_f32_241 import SILU_F32_241
+from models.quantized_klein9b.shaders.silu_f32_248 import SILU_F32_248
+from models.quantized_klein9b.shaders.silu_f32_290 import SILU_F32_290
+from models.quantized_klein9b.shaders.silu_f32_297 import SILU_F32_297
+from models.quantized_klein9b.shaders.silu_f32_339 import SILU_F32_339
+from models.quantized_klein9b.shaders.silu_f32_346 import SILU_F32_346
+from models.quantized_klein9b.shaders.silu_f32_388 import SILU_F32_388
+from models.quantized_klein9b.shaders.silu_f32_395 import SILU_F32_395
+from models.quantized_klein9b.shaders.silu_f32_437 import SILU_F32_437
+from models.quantized_klein9b.shaders.silu_f32_444 import SILU_F32_444
+from models.quantized_klein9b.shaders.silu_f32_486 import SILU_F32_486
+from models.quantized_klein9b.shaders.silu_f32_493 import SILU_F32_493
+from models.quantized_klein9b.shaders.silu_f32_521 import SILU_F32_521
 from models.quantized_klein9b.shaders.silu_f32_547 import SILU_F32_547
-from models.quantized_klein9b.shaders.silu_f32_557 import SILU_F32_557
-from models.quantized_klein9b.shaders.silu_f32_587 import SILU_F32_587
-from models.quantized_klein9b.shaders.silu_f32_615 import SILU_F32_615
-from models.quantized_klein9b.shaders.silu_f32_643 import SILU_F32_643
-from models.quantized_klein9b.shaders.silu_f32_671 import SILU_F32_671
-from models.quantized_klein9b.shaders.silu_f32_699 import SILU_F32_699
-from models.quantized_klein9b.shaders.silu_f32_727 import SILU_F32_727
+from models.quantized_klein9b.shaders.silu_f32_573 import SILU_F32_573
+from models.quantized_klein9b.shaders.silu_f32_599 import SILU_F32_599
+from models.quantized_klein9b.shaders.silu_f32_625 import SILU_F32_625
+from models.quantized_klein9b.shaders.silu_f32_651 import SILU_F32_651
+from models.quantized_klein9b.shaders.silu_f32_677 import SILU_F32_677
+from models.quantized_klein9b.shaders.silu_f32_703 import SILU_F32_703
+from models.quantized_klein9b.shaders.silu_f32_729 import SILU_F32_729
 from models.quantized_klein9b.shaders.silu_f32_755 import SILU_F32_755
-from models.quantized_klein9b.shaders.silu_f32_783 import SILU_F32_783
-from models.quantized_klein9b.shaders.silu_f32_811 import SILU_F32_811
-from models.quantized_klein9b.shaders.silu_f32_839 import SILU_F32_839
-from models.quantized_klein9b.shaders.silu_f32_867 import SILU_F32_867
-from models.quantized_klein9b.shaders.silu_f32_895 import SILU_F32_895
-from models.quantized_klein9b.shaders.silu_f32_923 import SILU_F32_923
-from models.quantized_klein9b.shaders.silu_f32_951 import SILU_F32_951
-from models.quantized_klein9b.shaders.silu_f32_979 import SILU_F32_979
+from models.quantized_klein9b.shaders.silu_f32_781 import SILU_F32_781
+from models.quantized_klein9b.shaders.silu_f32_807 import SILU_F32_807
+from models.quantized_klein9b.shaders.silu_f32_833 import SILU_F32_833
+from models.quantized_klein9b.shaders.silu_f32_859 import SILU_F32_859
+from models.quantized_klein9b.shaders.silu_f32_885 import SILU_F32_885
+from models.quantized_klein9b.shaders.silu_f32_911 import SILU_F32_911
+from models.quantized_klein9b.shaders.silu_f32_937 import SILU_F32_937
+from models.quantized_klein9b.shaders.silu_f32_963 import SILU_F32_963
+from models.quantized_klein9b.shaders.silu_f32_989 import SILU_F32_989
 from models.quantized_klein9b.shaders.sin_f32 import SIN_F32
-from models.quantized_klein9b.shaders.sin_f32_34 import SIN_F32_34
-from models.quantized_klein9b.shaders.sin_f32_36 import SIN_F32_36
+from models.quantized_klein9b.shaders.sin_f32_33 import SIN_F32_33
+from models.quantized_klein9b.shaders.sin_f32_35 import SIN_F32_35
+from models.quantized_klein9b.shaders.sin_f32_42 import SIN_F32_42
 from models.quantized_klein9b.shaders.sin_f32_43 import SIN_F32_43
-from models.quantized_klein9b.shaders.sin_f32_44 import SIN_F32_44
+from models.quantized_klein9b.shaders.sin_f32_49 import SIN_F32_49
 from models.quantized_klein9b.shaders.sin_f32_50 import SIN_F32_50
-from models.quantized_klein9b.shaders.sin_f32_51 import SIN_F32_51
+from models.quantized_klein9b.shaders.sin_f32_56 import SIN_F32_56
 from models.quantized_klein9b.shaders.sin_f32_57 import SIN_F32_57
-from models.quantized_klein9b.shaders.sin_f32_58 import SIN_F32_58
+from models.quantized_klein9b.shaders.sin_f32_63 import SIN_F32_63
 from models.quantized_klein9b.shaders.sin_f32_64 import SIN_F32_64
-from models.quantized_klein9b.shaders.sin_f32_65 import SIN_F32_65
+from models.quantized_klein9b.shaders.sin_f32_70 import SIN_F32_70
 from models.quantized_klein9b.shaders.sin_f32_71 import SIN_F32_71
-from models.quantized_klein9b.shaders.sin_f32_72 import SIN_F32_72
+from models.quantized_klein9b.shaders.sin_f32_77 import SIN_F32_77
 from models.quantized_klein9b.shaders.sin_f32_78 import SIN_F32_78
-from models.quantized_klein9b.shaders.sin_f32_79 import SIN_F32_79
+from models.quantized_klein9b.shaders.sin_f32_84 import SIN_F32_84
 from models.quantized_klein9b.shaders.sin_f32_85 import SIN_F32_85
-from models.quantized_klein9b.shaders.sin_f32_86 import SIN_F32_86
-from models.quantized_klein9b.shaders.slice_f32_1001 import SLICE_F32_1001
-from models.quantized_klein9b.shaders.slice_f32_1002 import SLICE_F32_1002
-from models.quantized_klein9b.shaders.slice_f32_1003 import SLICE_F32_1003
-from models.quantized_klein9b.shaders.slice_f32_1005 import SLICE_F32_1005
-from models.quantized_klein9b.shaders.slice_f32_1029 import SLICE_F32_1029
-from models.quantized_klein9b.shaders.slice_f32_1030 import SLICE_F32_1030
-from models.quantized_klein9b.shaders.slice_f32_1031 import SLICE_F32_1031
-from models.quantized_klein9b.shaders.slice_f32_1033 import SLICE_F32_1033
-from models.quantized_klein9b.shaders.slice_f32_1057 import SLICE_F32_1057
-from models.quantized_klein9b.shaders.slice_f32_1058 import SLICE_F32_1058
-from models.quantized_klein9b.shaders.slice_f32_1059 import SLICE_F32_1059
+from models.quantized_klein9b.shaders.slice_f32_1009 import SLICE_F32_1009
+from models.quantized_klein9b.shaders.slice_f32_1010 import SLICE_F32_1010
+from models.quantized_klein9b.shaders.slice_f32_1011 import SLICE_F32_1011
+from models.quantized_klein9b.shaders.slice_f32_1013 import SLICE_F32_1013
+from models.quantized_klein9b.shaders.slice_f32_1035 import SLICE_F32_1035
+from models.quantized_klein9b.shaders.slice_f32_1036 import SLICE_F32_1036
+from models.quantized_klein9b.shaders.slice_f32_1037 import SLICE_F32_1037
+from models.quantized_klein9b.shaders.slice_f32_1039 import SLICE_F32_1039
 from models.quantized_klein9b.shaders.slice_f32_1061 import SLICE_F32_1061
-from models.quantized_klein9b.shaders.slice_f32_1085 import SLICE_F32_1085
-from models.quantized_klein9b.shaders.slice_f32_1086 import SLICE_F32_1086
+from models.quantized_klein9b.shaders.slice_f32_1062 import SLICE_F32_1062
+from models.quantized_klein9b.shaders.slice_f32_1063 import SLICE_F32_1063
+from models.quantized_klein9b.shaders.slice_f32_1065 import SLICE_F32_1065
 from models.quantized_klein9b.shaders.slice_f32_1087 import SLICE_F32_1087
+from models.quantized_klein9b.shaders.slice_f32_1088 import SLICE_F32_1088
 from models.quantized_klein9b.shaders.slice_f32_1089 import SLICE_F32_1089
+from models.quantized_klein9b.shaders.slice_f32_1091 import SLICE_F32_1091
 from models.quantized_klein9b.shaders.slice_f32_1113 import SLICE_F32_1113
 from models.quantized_klein9b.shaders.slice_f32_1114 import SLICE_F32_1114
 from models.quantized_klein9b.shaders.slice_f32_1115 import SLICE_F32_1115
 from models.quantized_klein9b.shaders.slice_f32_1117 import SLICE_F32_1117
-from models.quantized_klein9b.shaders.slice_f32_1141 import SLICE_F32_1141
-from models.quantized_klein9b.shaders.slice_f32_1142 import SLICE_F32_1142
-from models.quantized_klein9b.shaders.slice_f32_1143 import SLICE_F32_1143
-from models.quantized_klein9b.shaders.slice_f32_1145 import SLICE_F32_1145
-from models.quantized_klein9b.shaders.slice_f32_1169 import SLICE_F32_1169
-from models.quantized_klein9b.shaders.slice_f32_1170 import SLICE_F32_1170
-from models.quantized_klein9b.shaders.slice_f32_1171 import SLICE_F32_1171
-from models.quantized_klein9b.shaders.slice_f32_1173 import SLICE_F32_1173
-from models.quantized_klein9b.shaders.slice_f32_1197 import SLICE_F32_1197
-from models.quantized_klein9b.shaders.slice_f32_1198 import SLICE_F32_1198
-from models.quantized_klein9b.shaders.slice_f32_1199 import SLICE_F32_1199
-from models.quantized_klein9b.shaders.slice_f32_1201 import SLICE_F32_1201
-from models.quantized_klein9b.shaders.slice_f32_1225 import SLICE_F32_1225
-from models.quantized_klein9b.shaders.slice_f32_1226 import SLICE_F32_1226
-from models.quantized_klein9b.shaders.slice_f32_1227 import SLICE_F32_1227
-from models.quantized_klein9b.shaders.slice_f32_1229 import SLICE_F32_1229
-from models.quantized_klein9b.shaders.slice_f32_1236 import SLICE_F32_1236
-from models.quantized_klein9b.shaders.slice_f32_131 import SLICE_F32_131
-from models.quantized_klein9b.shaders.slice_f32_132 import SLICE_F32_132
-from models.quantized_klein9b.shaders.slice_f32_133 import SLICE_F32_133
+from models.quantized_klein9b.shaders.slice_f32_1123 import SLICE_F32_1123
+from models.quantized_klein9b.shaders.slice_f32_128 import SLICE_F32_128
+from models.quantized_klein9b.shaders.slice_f32_129 import SLICE_F32_129
+from models.quantized_klein9b.shaders.slice_f32_130 import SLICE_F32_130
+from models.quantized_klein9b.shaders.slice_f32_134 import SLICE_F32_134
+from models.quantized_klein9b.shaders.slice_f32_136 import SLICE_F32_136
 from models.quantized_klein9b.shaders.slice_f32_137 import SLICE_F32_137
-from models.quantized_klein9b.shaders.slice_f32_139 import SLICE_F32_139
-from models.quantized_klein9b.shaders.slice_f32_140 import SLICE_F32_140
-from models.quantized_klein9b.shaders.slice_f32_192 import SLICE_F32_192
-from models.quantized_klein9b.shaders.slice_f32_193 import SLICE_F32_193
-from models.quantized_klein9b.shaders.slice_f32_194 import SLICE_F32_194
-from models.quantized_klein9b.shaders.slice_f32_196 import SLICE_F32_196
-from models.quantized_klein9b.shaders.slice_f32_197 import SLICE_F32_197
-from models.quantized_klein9b.shaders.slice_f32_198 import SLICE_F32_198
-from models.quantized_klein9b.shaders.slice_f32_249 import SLICE_F32_249
-from models.quantized_klein9b.shaders.slice_f32_250 import SLICE_F32_250
-from models.quantized_klein9b.shaders.slice_f32_251 import SLICE_F32_251
-from models.quantized_klein9b.shaders.slice_f32_253 import SLICE_F32_253
-from models.quantized_klein9b.shaders.slice_f32_254 import SLICE_F32_254
-from models.quantized_klein9b.shaders.slice_f32_255 import SLICE_F32_255
-from models.quantized_klein9b.shaders.slice_f32_306 import SLICE_F32_306
-from models.quantized_klein9b.shaders.slice_f32_307 import SLICE_F32_307
-from models.quantized_klein9b.shaders.slice_f32_308 import SLICE_F32_308
-from models.quantized_klein9b.shaders.slice_f32_310 import SLICE_F32_310
-from models.quantized_klein9b.shaders.slice_f32_311 import SLICE_F32_311
-from models.quantized_klein9b.shaders.slice_f32_312 import SLICE_F32_312
-from models.quantized_klein9b.shaders.slice_f32_363 import SLICE_F32_363
-from models.quantized_klein9b.shaders.slice_f32_364 import SLICE_F32_364
-from models.quantized_klein9b.shaders.slice_f32_365 import SLICE_F32_365
-from models.quantized_klein9b.shaders.slice_f32_367 import SLICE_F32_367
-from models.quantized_klein9b.shaders.slice_f32_368 import SLICE_F32_368
-from models.quantized_klein9b.shaders.slice_f32_369 import SLICE_F32_369
-from models.quantized_klein9b.shaders.slice_f32_420 import SLICE_F32_420
-from models.quantized_klein9b.shaders.slice_f32_421 import SLICE_F32_421
-from models.quantized_klein9b.shaders.slice_f32_422 import SLICE_F32_422
-from models.quantized_klein9b.shaders.slice_f32_424 import SLICE_F32_424
-from models.quantized_klein9b.shaders.slice_f32_425 import SLICE_F32_425
+from models.quantized_klein9b.shaders.slice_f32_181 import SLICE_F32_181
+from models.quantized_klein9b.shaders.slice_f32_182 import SLICE_F32_182
+from models.quantized_klein9b.shaders.slice_f32_183 import SLICE_F32_183
+from models.quantized_klein9b.shaders.slice_f32_185 import SLICE_F32_185
+from models.quantized_klein9b.shaders.slice_f32_186 import SLICE_F32_186
+from models.quantized_klein9b.shaders.slice_f32_187 import SLICE_F32_187
+from models.quantized_klein9b.shaders.slice_f32_230 import SLICE_F32_230
+from models.quantized_klein9b.shaders.slice_f32_231 import SLICE_F32_231
+from models.quantized_klein9b.shaders.slice_f32_232 import SLICE_F32_232
+from models.quantized_klein9b.shaders.slice_f32_234 import SLICE_F32_234
+from models.quantized_klein9b.shaders.slice_f32_235 import SLICE_F32_235
+from models.quantized_klein9b.shaders.slice_f32_236 import SLICE_F32_236
+from models.quantized_klein9b.shaders.slice_f32_279 import SLICE_F32_279
+from models.quantized_klein9b.shaders.slice_f32_280 import SLICE_F32_280
+from models.quantized_klein9b.shaders.slice_f32_281 import SLICE_F32_281
+from models.quantized_klein9b.shaders.slice_f32_283 import SLICE_F32_283
+from models.quantized_klein9b.shaders.slice_f32_284 import SLICE_F32_284
+from models.quantized_klein9b.shaders.slice_f32_285 import SLICE_F32_285
+from models.quantized_klein9b.shaders.slice_f32_328 import SLICE_F32_328
+from models.quantized_klein9b.shaders.slice_f32_329 import SLICE_F32_329
+from models.quantized_klein9b.shaders.slice_f32_330 import SLICE_F32_330
+from models.quantized_klein9b.shaders.slice_f32_332 import SLICE_F32_332
+from models.quantized_klein9b.shaders.slice_f32_333 import SLICE_F32_333
+from models.quantized_klein9b.shaders.slice_f32_334 import SLICE_F32_334
+from models.quantized_klein9b.shaders.slice_f32_377 import SLICE_F32_377
+from models.quantized_klein9b.shaders.slice_f32_378 import SLICE_F32_378
+from models.quantized_klein9b.shaders.slice_f32_379 import SLICE_F32_379
+from models.quantized_klein9b.shaders.slice_f32_381 import SLICE_F32_381
+from models.quantized_klein9b.shaders.slice_f32_382 import SLICE_F32_382
+from models.quantized_klein9b.shaders.slice_f32_383 import SLICE_F32_383
 from models.quantized_klein9b.shaders.slice_f32_426 import SLICE_F32_426
+from models.quantized_klein9b.shaders.slice_f32_427 import SLICE_F32_427
+from models.quantized_klein9b.shaders.slice_f32_428 import SLICE_F32_428
+from models.quantized_klein9b.shaders.slice_f32_430 import SLICE_F32_430
+from models.quantized_klein9b.shaders.slice_f32_431 import SLICE_F32_431
+from models.quantized_klein9b.shaders.slice_f32_432 import SLICE_F32_432
+from models.quantized_klein9b.shaders.slice_f32_475 import SLICE_F32_475
+from models.quantized_klein9b.shaders.slice_f32_476 import SLICE_F32_476
 from models.quantized_klein9b.shaders.slice_f32_477 import SLICE_F32_477
-from models.quantized_klein9b.shaders.slice_f32_478 import SLICE_F32_478
 from models.quantized_klein9b.shaders.slice_f32_479 import SLICE_F32_479
+from models.quantized_klein9b.shaders.slice_f32_480 import SLICE_F32_480
 from models.quantized_klein9b.shaders.slice_f32_481 import SLICE_F32_481
-from models.quantized_klein9b.shaders.slice_f32_482 import SLICE_F32_482
-from models.quantized_klein9b.shaders.slice_f32_483 import SLICE_F32_483
-from models.quantized_klein9b.shaders.slice_f32_534 import SLICE_F32_534
-from models.quantized_klein9b.shaders.slice_f32_535 import SLICE_F32_535
-from models.quantized_klein9b.shaders.slice_f32_536 import SLICE_F32_536
-from models.quantized_klein9b.shaders.slice_f32_538 import SLICE_F32_538
-from models.quantized_klein9b.shaders.slice_f32_539 import SLICE_F32_539
-from models.quantized_klein9b.shaders.slice_f32_540 import SLICE_F32_540
-from models.quantized_klein9b.shaders.slice_f32_581 import SLICE_F32_581
-from models.quantized_klein9b.shaders.slice_f32_582 import SLICE_F32_582
-from models.quantized_klein9b.shaders.slice_f32_583 import SLICE_F32_583
-from models.quantized_klein9b.shaders.slice_f32_585 import SLICE_F32_585
-from models.quantized_klein9b.shaders.slice_f32_609 import SLICE_F32_609
-from models.quantized_klein9b.shaders.slice_f32_610 import SLICE_F32_610
-from models.quantized_klein9b.shaders.slice_f32_611 import SLICE_F32_611
-from models.quantized_klein9b.shaders.slice_f32_613 import SLICE_F32_613
-from models.quantized_klein9b.shaders.slice_f32_637 import SLICE_F32_637
-from models.quantized_klein9b.shaders.slice_f32_638 import SLICE_F32_638
-from models.quantized_klein9b.shaders.slice_f32_639 import SLICE_F32_639
-from models.quantized_klein9b.shaders.slice_f32_641 import SLICE_F32_641
-from models.quantized_klein9b.shaders.slice_f32_665 import SLICE_F32_665
-from models.quantized_klein9b.shaders.slice_f32_666 import SLICE_F32_666
-from models.quantized_klein9b.shaders.slice_f32_667 import SLICE_F32_667
-from models.quantized_klein9b.shaders.slice_f32_669 import SLICE_F32_669
-from models.quantized_klein9b.shaders.slice_f32_693 import SLICE_F32_693
-from models.quantized_klein9b.shaders.slice_f32_694 import SLICE_F32_694
-from models.quantized_klein9b.shaders.slice_f32_695 import SLICE_F32_695
+from models.quantized_klein9b.shaders.slice_f32_515 import SLICE_F32_515
+from models.quantized_klein9b.shaders.slice_f32_516 import SLICE_F32_516
+from models.quantized_klein9b.shaders.slice_f32_517 import SLICE_F32_517
+from models.quantized_klein9b.shaders.slice_f32_519 import SLICE_F32_519
+from models.quantized_klein9b.shaders.slice_f32_541 import SLICE_F32_541
+from models.quantized_klein9b.shaders.slice_f32_542 import SLICE_F32_542
+from models.quantized_klein9b.shaders.slice_f32_543 import SLICE_F32_543
+from models.quantized_klein9b.shaders.slice_f32_545 import SLICE_F32_545
+from models.quantized_klein9b.shaders.slice_f32_567 import SLICE_F32_567
+from models.quantized_klein9b.shaders.slice_f32_568 import SLICE_F32_568
+from models.quantized_klein9b.shaders.slice_f32_569 import SLICE_F32_569
+from models.quantized_klein9b.shaders.slice_f32_571 import SLICE_F32_571
+from models.quantized_klein9b.shaders.slice_f32_593 import SLICE_F32_593
+from models.quantized_klein9b.shaders.slice_f32_594 import SLICE_F32_594
+from models.quantized_klein9b.shaders.slice_f32_595 import SLICE_F32_595
+from models.quantized_klein9b.shaders.slice_f32_597 import SLICE_F32_597
+from models.quantized_klein9b.shaders.slice_f32_619 import SLICE_F32_619
+from models.quantized_klein9b.shaders.slice_f32_620 import SLICE_F32_620
+from models.quantized_klein9b.shaders.slice_f32_621 import SLICE_F32_621
+from models.quantized_klein9b.shaders.slice_f32_623 import SLICE_F32_623
+from models.quantized_klein9b.shaders.slice_f32_645 import SLICE_F32_645
+from models.quantized_klein9b.shaders.slice_f32_646 import SLICE_F32_646
+from models.quantized_klein9b.shaders.slice_f32_647 import SLICE_F32_647
+from models.quantized_klein9b.shaders.slice_f32_649 import SLICE_F32_649
+from models.quantized_klein9b.shaders.slice_f32_671 import SLICE_F32_671
+from models.quantized_klein9b.shaders.slice_f32_672 import SLICE_F32_672
+from models.quantized_klein9b.shaders.slice_f32_673 import SLICE_F32_673
+from models.quantized_klein9b.shaders.slice_f32_675 import SLICE_F32_675
 from models.quantized_klein9b.shaders.slice_f32_697 import SLICE_F32_697
-from models.quantized_klein9b.shaders.slice_f32_721 import SLICE_F32_721
-from models.quantized_klein9b.shaders.slice_f32_722 import SLICE_F32_722
+from models.quantized_klein9b.shaders.slice_f32_698 import SLICE_F32_698
+from models.quantized_klein9b.shaders.slice_f32_699 import SLICE_F32_699
+from models.quantized_klein9b.shaders.slice_f32_701 import SLICE_F32_701
 from models.quantized_klein9b.shaders.slice_f32_723 import SLICE_F32_723
+from models.quantized_klein9b.shaders.slice_f32_724 import SLICE_F32_724
 from models.quantized_klein9b.shaders.slice_f32_725 import SLICE_F32_725
+from models.quantized_klein9b.shaders.slice_f32_727 import SLICE_F32_727
 from models.quantized_klein9b.shaders.slice_f32_749 import SLICE_F32_749
 from models.quantized_klein9b.shaders.slice_f32_750 import SLICE_F32_750
 from models.quantized_klein9b.shaders.slice_f32_751 import SLICE_F32_751
 from models.quantized_klein9b.shaders.slice_f32_753 import SLICE_F32_753
+from models.quantized_klein9b.shaders.slice_f32_775 import SLICE_F32_775
+from models.quantized_klein9b.shaders.slice_f32_776 import SLICE_F32_776
 from models.quantized_klein9b.shaders.slice_f32_777 import SLICE_F32_777
-from models.quantized_klein9b.shaders.slice_f32_778 import SLICE_F32_778
 from models.quantized_klein9b.shaders.slice_f32_779 import SLICE_F32_779
-from models.quantized_klein9b.shaders.slice_f32_781 import SLICE_F32_781
+from models.quantized_klein9b.shaders.slice_f32_801 import SLICE_F32_801
+from models.quantized_klein9b.shaders.slice_f32_802 import SLICE_F32_802
+from models.quantized_klein9b.shaders.slice_f32_803 import SLICE_F32_803
 from models.quantized_klein9b.shaders.slice_f32_805 import SLICE_F32_805
-from models.quantized_klein9b.shaders.slice_f32_806 import SLICE_F32_806
-from models.quantized_klein9b.shaders.slice_f32_807 import SLICE_F32_807
-from models.quantized_klein9b.shaders.slice_f32_809 import SLICE_F32_809
-from models.quantized_klein9b.shaders.slice_f32_833 import SLICE_F32_833
-from models.quantized_klein9b.shaders.slice_f32_834 import SLICE_F32_834
-from models.quantized_klein9b.shaders.slice_f32_835 import SLICE_F32_835
-from models.quantized_klein9b.shaders.slice_f32_837 import SLICE_F32_837
-from models.quantized_klein9b.shaders.slice_f32_861 import SLICE_F32_861
-from models.quantized_klein9b.shaders.slice_f32_862 import SLICE_F32_862
-from models.quantized_klein9b.shaders.slice_f32_863 import SLICE_F32_863
-from models.quantized_klein9b.shaders.slice_f32_865 import SLICE_F32_865
-from models.quantized_klein9b.shaders.slice_f32_889 import SLICE_F32_889
-from models.quantized_klein9b.shaders.slice_f32_890 import SLICE_F32_890
-from models.quantized_klein9b.shaders.slice_f32_891 import SLICE_F32_891
-from models.quantized_klein9b.shaders.slice_f32_893 import SLICE_F32_893
-from models.quantized_klein9b.shaders.slice_f32_917 import SLICE_F32_917
-from models.quantized_klein9b.shaders.slice_f32_918 import SLICE_F32_918
-from models.quantized_klein9b.shaders.slice_f32_919 import SLICE_F32_919
-from models.quantized_klein9b.shaders.slice_f32_921 import SLICE_F32_921
-from models.quantized_klein9b.shaders.slice_f32_945 import SLICE_F32_945
-from models.quantized_klein9b.shaders.slice_f32_946 import SLICE_F32_946
-from models.quantized_klein9b.shaders.slice_f32_947 import SLICE_F32_947
-from models.quantized_klein9b.shaders.slice_f32_949 import SLICE_F32_949
-from models.quantized_klein9b.shaders.slice_f32_973 import SLICE_F32_973
-from models.quantized_klein9b.shaders.slice_f32_974 import SLICE_F32_974
-from models.quantized_klein9b.shaders.slice_f32_975 import SLICE_F32_975
-from models.quantized_klein9b.shaders.slice_f32_977 import SLICE_F32_977
+from models.quantized_klein9b.shaders.slice_f32_827 import SLICE_F32_827
+from models.quantized_klein9b.shaders.slice_f32_828 import SLICE_F32_828
+from models.quantized_klein9b.shaders.slice_f32_829 import SLICE_F32_829
+from models.quantized_klein9b.shaders.slice_f32_831 import SLICE_F32_831
+from models.quantized_klein9b.shaders.slice_f32_853 import SLICE_F32_853
+from models.quantized_klein9b.shaders.slice_f32_854 import SLICE_F32_854
+from models.quantized_klein9b.shaders.slice_f32_855 import SLICE_F32_855
+from models.quantized_klein9b.shaders.slice_f32_857 import SLICE_F32_857
+from models.quantized_klein9b.shaders.slice_f32_879 import SLICE_F32_879
+from models.quantized_klein9b.shaders.slice_f32_880 import SLICE_F32_880
+from models.quantized_klein9b.shaders.slice_f32_881 import SLICE_F32_881
+from models.quantized_klein9b.shaders.slice_f32_883 import SLICE_F32_883
+from models.quantized_klein9b.shaders.slice_f32_905 import SLICE_F32_905
+from models.quantized_klein9b.shaders.slice_f32_906 import SLICE_F32_906
+from models.quantized_klein9b.shaders.slice_f32_907 import SLICE_F32_907
+from models.quantized_klein9b.shaders.slice_f32_909 import SLICE_F32_909
+from models.quantized_klein9b.shaders.slice_f32_931 import SLICE_F32_931
+from models.quantized_klein9b.shaders.slice_f32_932 import SLICE_F32_932
+from models.quantized_klein9b.shaders.slice_f32_933 import SLICE_F32_933
+from models.quantized_klein9b.shaders.slice_f32_935 import SLICE_F32_935
+from models.quantized_klein9b.shaders.slice_f32_957 import SLICE_F32_957
+from models.quantized_klein9b.shaders.slice_f32_958 import SLICE_F32_958
+from models.quantized_klein9b.shaders.slice_f32_959 import SLICE_F32_959
+from models.quantized_klein9b.shaders.slice_f32_961 import SLICE_F32_961
+from models.quantized_klein9b.shaders.slice_f32_983 import SLICE_F32_983
+from models.quantized_klein9b.shaders.slice_f32_984 import SLICE_F32_984
+from models.quantized_klein9b.shaders.slice_f32_985 import SLICE_F32_985
+from models.quantized_klein9b.shaders.slice_f32_987 import SLICE_F32_987
 from models.quantized_klein9b.shaders.stack_4_f32 import STACK_4_F32
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32 import TUPLE_GETITEM_SLICE_F32
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1006 import TUPLE_GETITEM_SLICE_F32_1006
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1014 import TUPLE_GETITEM_SLICE_F32_1014
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1034 import TUPLE_GETITEM_SLICE_F32_1034
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1042 import TUPLE_GETITEM_SLICE_F32_1042
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1062 import TUPLE_GETITEM_SLICE_F32_1062
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1070 import TUPLE_GETITEM_SLICE_F32_1070
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1090 import TUPLE_GETITEM_SLICE_F32_1090
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1020 import TUPLE_GETITEM_SLICE_F32_1020
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1040 import TUPLE_GETITEM_SLICE_F32_1040
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1046 import TUPLE_GETITEM_SLICE_F32_1046
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1066 import TUPLE_GETITEM_SLICE_F32_1066
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1072 import TUPLE_GETITEM_SLICE_F32_1072
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1092 import TUPLE_GETITEM_SLICE_F32_1092
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1098 import TUPLE_GETITEM_SLICE_F32_1098
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1118 import TUPLE_GETITEM_SLICE_F32_1118
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1126 import TUPLE_GETITEM_SLICE_F32_1126
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1146 import TUPLE_GETITEM_SLICE_F32_1146
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1154 import TUPLE_GETITEM_SLICE_F32_1154
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1174 import TUPLE_GETITEM_SLICE_F32_1174
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1182 import TUPLE_GETITEM_SLICE_F32_1182
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1124 import TUPLE_GETITEM_SLICE_F32_1124
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1125 import TUPLE_GETITEM_SLICE_F32_1125
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_12 import TUPLE_GETITEM_SLICE_F32_12
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1202 import TUPLE_GETITEM_SLICE_F32_1202
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1210 import TUPLE_GETITEM_SLICE_F32_1210
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1230 import TUPLE_GETITEM_SLICE_F32_1230
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1237 import TUPLE_GETITEM_SLICE_F32_1237
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_1238 import TUPLE_GETITEM_SLICE_F32_1238
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_13 import TUPLE_GETITEM_SLICE_F32_13
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_14 import TUPLE_GETITEM_SLICE_F32_14
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_146 import TUPLE_GETITEM_SLICE_F32_146
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_141 import TUPLE_GETITEM_SLICE_F32_141
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_149 import TUPLE_GETITEM_SLICE_F32_149
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_15 import TUPLE_GETITEM_SLICE_F32_15
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_157 import TUPLE_GETITEM_SLICE_F32_157
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_16 import TUPLE_GETITEM_SLICE_F32_16
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_17 import TUPLE_GETITEM_SLICE_F32_17
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_18 import TUPLE_GETITEM_SLICE_F32_18
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_19 import TUPLE_GETITEM_SLICE_F32_19
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_191 import TUPLE_GETITEM_SLICE_F32_191
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_198 import TUPLE_GETITEM_SLICE_F32_198
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_20 import TUPLE_GETITEM_SLICE_F32_20
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_204 import TUPLE_GETITEM_SLICE_F32_204
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_21 import TUPLE_GETITEM_SLICE_F32_21
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_214 import TUPLE_GETITEM_SLICE_F32_214
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_22 import TUPLE_GETITEM_SLICE_F32_22
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_23 import TUPLE_GETITEM_SLICE_F32_23
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_261 import TUPLE_GETITEM_SLICE_F32_261
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_271 import TUPLE_GETITEM_SLICE_F32_271
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_318 import TUPLE_GETITEM_SLICE_F32_318
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_328 import TUPLE_GETITEM_SLICE_F32_328
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_375 import TUPLE_GETITEM_SLICE_F32_375
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_385 import TUPLE_GETITEM_SLICE_F32_385
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_432 import TUPLE_GETITEM_SLICE_F32_432
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_442 import TUPLE_GETITEM_SLICE_F32_442
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_489 import TUPLE_GETITEM_SLICE_F32_489
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_240 import TUPLE_GETITEM_SLICE_F32_240
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_247 import TUPLE_GETITEM_SLICE_F32_247
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_289 import TUPLE_GETITEM_SLICE_F32_289
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_296 import TUPLE_GETITEM_SLICE_F32_296
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_338 import TUPLE_GETITEM_SLICE_F32_338
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_345 import TUPLE_GETITEM_SLICE_F32_345
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_387 import TUPLE_GETITEM_SLICE_F32_387
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_394 import TUPLE_GETITEM_SLICE_F32_394
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_436 import TUPLE_GETITEM_SLICE_F32_436
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_443 import TUPLE_GETITEM_SLICE_F32_443
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_485 import TUPLE_GETITEM_SLICE_F32_485
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_492 import TUPLE_GETITEM_SLICE_F32_492
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_499 import TUPLE_GETITEM_SLICE_F32_499
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_520 import TUPLE_GETITEM_SLICE_F32_520
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_526 import TUPLE_GETITEM_SLICE_F32_526
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_546 import TUPLE_GETITEM_SLICE_F32_546
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_556 import TUPLE_GETITEM_SLICE_F32_556
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_565 import TUPLE_GETITEM_SLICE_F32_565
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_586 import TUPLE_GETITEM_SLICE_F32_586
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_594 import TUPLE_GETITEM_SLICE_F32_594
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_614 import TUPLE_GETITEM_SLICE_F32_614
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_622 import TUPLE_GETITEM_SLICE_F32_622
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_642 import TUPLE_GETITEM_SLICE_F32_642
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_552 import TUPLE_GETITEM_SLICE_F32_552
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_572 import TUPLE_GETITEM_SLICE_F32_572
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_578 import TUPLE_GETITEM_SLICE_F32_578
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_598 import TUPLE_GETITEM_SLICE_F32_598
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_604 import TUPLE_GETITEM_SLICE_F32_604
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_624 import TUPLE_GETITEM_SLICE_F32_624
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_630 import TUPLE_GETITEM_SLICE_F32_630
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_650 import TUPLE_GETITEM_SLICE_F32_650
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_670 import TUPLE_GETITEM_SLICE_F32_670
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_678 import TUPLE_GETITEM_SLICE_F32_678
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_698 import TUPLE_GETITEM_SLICE_F32_698
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_706 import TUPLE_GETITEM_SLICE_F32_706
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_726 import TUPLE_GETITEM_SLICE_F32_726
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_656 import TUPLE_GETITEM_SLICE_F32_656
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_676 import TUPLE_GETITEM_SLICE_F32_676
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_682 import TUPLE_GETITEM_SLICE_F32_682
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_702 import TUPLE_GETITEM_SLICE_F32_702
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_708 import TUPLE_GETITEM_SLICE_F32_708
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_728 import TUPLE_GETITEM_SLICE_F32_728
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_734 import TUPLE_GETITEM_SLICE_F32_734
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_754 import TUPLE_GETITEM_SLICE_F32_754
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_762 import TUPLE_GETITEM_SLICE_F32_762
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_782 import TUPLE_GETITEM_SLICE_F32_782
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_790 import TUPLE_GETITEM_SLICE_F32_790
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_810 import TUPLE_GETITEM_SLICE_F32_810
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_818 import TUPLE_GETITEM_SLICE_F32_818
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_760 import TUPLE_GETITEM_SLICE_F32_760
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_780 import TUPLE_GETITEM_SLICE_F32_780
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_786 import TUPLE_GETITEM_SLICE_F32_786
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_806 import TUPLE_GETITEM_SLICE_F32_806
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_812 import TUPLE_GETITEM_SLICE_F32_812
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_832 import TUPLE_GETITEM_SLICE_F32_832
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_838 import TUPLE_GETITEM_SLICE_F32_838
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_846 import TUPLE_GETITEM_SLICE_F32_846
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_866 import TUPLE_GETITEM_SLICE_F32_866
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_874 import TUPLE_GETITEM_SLICE_F32_874
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_894 import TUPLE_GETITEM_SLICE_F32_894
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_902 import TUPLE_GETITEM_SLICE_F32_902
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_922 import TUPLE_GETITEM_SLICE_F32_922
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_930 import TUPLE_GETITEM_SLICE_F32_930
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_950 import TUPLE_GETITEM_SLICE_F32_950
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_958 import TUPLE_GETITEM_SLICE_F32_958
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_978 import TUPLE_GETITEM_SLICE_F32_978
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_986 import TUPLE_GETITEM_SLICE_F32_986
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_858 import TUPLE_GETITEM_SLICE_F32_858
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_864 import TUPLE_GETITEM_SLICE_F32_864
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_884 import TUPLE_GETITEM_SLICE_F32_884
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_890 import TUPLE_GETITEM_SLICE_F32_890
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_910 import TUPLE_GETITEM_SLICE_F32_910
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_916 import TUPLE_GETITEM_SLICE_F32_916
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_936 import TUPLE_GETITEM_SLICE_F32_936
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_942 import TUPLE_GETITEM_SLICE_F32_942
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_962 import TUPLE_GETITEM_SLICE_F32_962
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_968 import TUPLE_GETITEM_SLICE_F32_968
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_988 import TUPLE_GETITEM_SLICE_F32_988
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_994 import TUPLE_GETITEM_SLICE_F32_994
 from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32 import TUPLE_GETITEM_UNBIND_F32
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1015 import TUPLE_GETITEM_UNBIND_F32_1015
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1016 import TUPLE_GETITEM_UNBIND_F32_1016
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1043 import TUPLE_GETITEM_UNBIND_F32_1043
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1044 import TUPLE_GETITEM_UNBIND_F32_1044
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1071 import TUPLE_GETITEM_UNBIND_F32_1071
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1072 import TUPLE_GETITEM_UNBIND_F32_1072
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_109 import TUPLE_GETITEM_UNBIND_F32_109
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1021 import TUPLE_GETITEM_UNBIND_F32_1021
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1022 import TUPLE_GETITEM_UNBIND_F32_1022
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1047 import TUPLE_GETITEM_UNBIND_F32_1047
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1048 import TUPLE_GETITEM_UNBIND_F32_1048
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_106 import TUPLE_GETITEM_UNBIND_F32_106
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_107 import TUPLE_GETITEM_UNBIND_F32_107
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1073 import TUPLE_GETITEM_UNBIND_F32_1073
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1074 import TUPLE_GETITEM_UNBIND_F32_1074
 from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1099 import TUPLE_GETITEM_UNBIND_F32_1099
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_110 import TUPLE_GETITEM_UNBIND_F32_110
 from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1100 import TUPLE_GETITEM_UNBIND_F32_1100
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1127 import TUPLE_GETITEM_UNBIND_F32_1127
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1128 import TUPLE_GETITEM_UNBIND_F32_1128
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1155 import TUPLE_GETITEM_UNBIND_F32_1155
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1156 import TUPLE_GETITEM_UNBIND_F32_1156
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1183 import TUPLE_GETITEM_UNBIND_F32_1183
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1184 import TUPLE_GETITEM_UNBIND_F32_1184
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1211 import TUPLE_GETITEM_UNBIND_F32_1211
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_1212 import TUPLE_GETITEM_UNBIND_F32_1212
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_164 import TUPLE_GETITEM_UNBIND_F32_164
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_165 import TUPLE_GETITEM_UNBIND_F32_165
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_173 import TUPLE_GETITEM_UNBIND_F32_173
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_174 import TUPLE_GETITEM_UNBIND_F32_174
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_221 import TUPLE_GETITEM_UNBIND_F32_221
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_222 import TUPLE_GETITEM_UNBIND_F32_222
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_230 import TUPLE_GETITEM_UNBIND_F32_230
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_231 import TUPLE_GETITEM_UNBIND_F32_231
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_278 import TUPLE_GETITEM_UNBIND_F32_278
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_279 import TUPLE_GETITEM_UNBIND_F32_279
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_287 import TUPLE_GETITEM_UNBIND_F32_287
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_288 import TUPLE_GETITEM_UNBIND_F32_288
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_335 import TUPLE_GETITEM_UNBIND_F32_335
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_336 import TUPLE_GETITEM_UNBIND_F32_336
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_344 import TUPLE_GETITEM_UNBIND_F32_344
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_345 import TUPLE_GETITEM_UNBIND_F32_345
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_392 import TUPLE_GETITEM_UNBIND_F32_392
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_393 import TUPLE_GETITEM_UNBIND_F32_393
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_401 import TUPLE_GETITEM_UNBIND_F32_401
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_402 import TUPLE_GETITEM_UNBIND_F32_402
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_154 import TUPLE_GETITEM_UNBIND_F32_154
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_155 import TUPLE_GETITEM_UNBIND_F32_155
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_162 import TUPLE_GETITEM_UNBIND_F32_162
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_163 import TUPLE_GETITEM_UNBIND_F32_163
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_203 import TUPLE_GETITEM_UNBIND_F32_203
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_204 import TUPLE_GETITEM_UNBIND_F32_204
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_211 import TUPLE_GETITEM_UNBIND_F32_211
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_212 import TUPLE_GETITEM_UNBIND_F32_212
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_252 import TUPLE_GETITEM_UNBIND_F32_252
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_253 import TUPLE_GETITEM_UNBIND_F32_253
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_260 import TUPLE_GETITEM_UNBIND_F32_260
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_261 import TUPLE_GETITEM_UNBIND_F32_261
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_301 import TUPLE_GETITEM_UNBIND_F32_301
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_302 import TUPLE_GETITEM_UNBIND_F32_302
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_309 import TUPLE_GETITEM_UNBIND_F32_309
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_310 import TUPLE_GETITEM_UNBIND_F32_310
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_350 import TUPLE_GETITEM_UNBIND_F32_350
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_351 import TUPLE_GETITEM_UNBIND_F32_351
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_358 import TUPLE_GETITEM_UNBIND_F32_358
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_359 import TUPLE_GETITEM_UNBIND_F32_359
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_399 import TUPLE_GETITEM_UNBIND_F32_399
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_400 import TUPLE_GETITEM_UNBIND_F32_400
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_407 import TUPLE_GETITEM_UNBIND_F32_407
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_408 import TUPLE_GETITEM_UNBIND_F32_408
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_448 import TUPLE_GETITEM_UNBIND_F32_448
 from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_449 import TUPLE_GETITEM_UNBIND_F32_449
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_450 import TUPLE_GETITEM_UNBIND_F32_450
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_458 import TUPLE_GETITEM_UNBIND_F32_458
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_459 import TUPLE_GETITEM_UNBIND_F32_459
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_506 import TUPLE_GETITEM_UNBIND_F32_506
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_507 import TUPLE_GETITEM_UNBIND_F32_507
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_515 import TUPLE_GETITEM_UNBIND_F32_515
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_516 import TUPLE_GETITEM_UNBIND_F32_516
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_567 import TUPLE_GETITEM_UNBIND_F32_567
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_568 import TUPLE_GETITEM_UNBIND_F32_568
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_595 import TUPLE_GETITEM_UNBIND_F32_595
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_596 import TUPLE_GETITEM_UNBIND_F32_596
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_623 import TUPLE_GETITEM_UNBIND_F32_623
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_624 import TUPLE_GETITEM_UNBIND_F32_624
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_651 import TUPLE_GETITEM_UNBIND_F32_651
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_652 import TUPLE_GETITEM_UNBIND_F32_652
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_679 import TUPLE_GETITEM_UNBIND_F32_679
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_680 import TUPLE_GETITEM_UNBIND_F32_680
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_707 import TUPLE_GETITEM_UNBIND_F32_707
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_708 import TUPLE_GETITEM_UNBIND_F32_708
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_456 import TUPLE_GETITEM_UNBIND_F32_456
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_457 import TUPLE_GETITEM_UNBIND_F32_457
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_501 import TUPLE_GETITEM_UNBIND_F32_501
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_502 import TUPLE_GETITEM_UNBIND_F32_502
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_527 import TUPLE_GETITEM_UNBIND_F32_527
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_528 import TUPLE_GETITEM_UNBIND_F32_528
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_553 import TUPLE_GETITEM_UNBIND_F32_553
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_554 import TUPLE_GETITEM_UNBIND_F32_554
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_579 import TUPLE_GETITEM_UNBIND_F32_579
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_580 import TUPLE_GETITEM_UNBIND_F32_580
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_605 import TUPLE_GETITEM_UNBIND_F32_605
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_606 import TUPLE_GETITEM_UNBIND_F32_606
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_631 import TUPLE_GETITEM_UNBIND_F32_631
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_632 import TUPLE_GETITEM_UNBIND_F32_632
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_657 import TUPLE_GETITEM_UNBIND_F32_657
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_658 import TUPLE_GETITEM_UNBIND_F32_658
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_683 import TUPLE_GETITEM_UNBIND_F32_683
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_684 import TUPLE_GETITEM_UNBIND_F32_684
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_709 import TUPLE_GETITEM_UNBIND_F32_709
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_710 import TUPLE_GETITEM_UNBIND_F32_710
 from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_735 import TUPLE_GETITEM_UNBIND_F32_735
 from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_736 import TUPLE_GETITEM_UNBIND_F32_736
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_763 import TUPLE_GETITEM_UNBIND_F32_763
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_764 import TUPLE_GETITEM_UNBIND_F32_764
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_791 import TUPLE_GETITEM_UNBIND_F32_791
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_792 import TUPLE_GETITEM_UNBIND_F32_792
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_819 import TUPLE_GETITEM_UNBIND_F32_819
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_820 import TUPLE_GETITEM_UNBIND_F32_820
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_847 import TUPLE_GETITEM_UNBIND_F32_847
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_848 import TUPLE_GETITEM_UNBIND_F32_848
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_875 import TUPLE_GETITEM_UNBIND_F32_875
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_876 import TUPLE_GETITEM_UNBIND_F32_876
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_903 import TUPLE_GETITEM_UNBIND_F32_903
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_904 import TUPLE_GETITEM_UNBIND_F32_904
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_931 import TUPLE_GETITEM_UNBIND_F32_931
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_932 import TUPLE_GETITEM_UNBIND_F32_932
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_95 import TUPLE_GETITEM_UNBIND_F32_95
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_959 import TUPLE_GETITEM_UNBIND_F32_959
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_96 import TUPLE_GETITEM_UNBIND_F32_96
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_960 import TUPLE_GETITEM_UNBIND_F32_960
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_987 import TUPLE_GETITEM_UNBIND_F32_987
-from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_988 import TUPLE_GETITEM_UNBIND_F32_988
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_761 import TUPLE_GETITEM_UNBIND_F32_761
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_762 import TUPLE_GETITEM_UNBIND_F32_762
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_787 import TUPLE_GETITEM_UNBIND_F32_787
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_788 import TUPLE_GETITEM_UNBIND_F32_788
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_813 import TUPLE_GETITEM_UNBIND_F32_813
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_814 import TUPLE_GETITEM_UNBIND_F32_814
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_839 import TUPLE_GETITEM_UNBIND_F32_839
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_840 import TUPLE_GETITEM_UNBIND_F32_840
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_865 import TUPLE_GETITEM_UNBIND_F32_865
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_866 import TUPLE_GETITEM_UNBIND_F32_866
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_891 import TUPLE_GETITEM_UNBIND_F32_891
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_892 import TUPLE_GETITEM_UNBIND_F32_892
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_917 import TUPLE_GETITEM_UNBIND_F32_917
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_918 import TUPLE_GETITEM_UNBIND_F32_918
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_93 import TUPLE_GETITEM_UNBIND_F32_93
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_94 import TUPLE_GETITEM_UNBIND_F32_94
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_943 import TUPLE_GETITEM_UNBIND_F32_943
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_944 import TUPLE_GETITEM_UNBIND_F32_944
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_969 import TUPLE_GETITEM_UNBIND_F32_969
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_970 import TUPLE_GETITEM_UNBIND_F32_970
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_995 import TUPLE_GETITEM_UNBIND_F32_995
+from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_996 import TUPLE_GETITEM_UNBIND_F32_996
 from models.quantized_klein9b.tensors.flux import FluxTensors
 from torch2vk.runtime.session import RuntimeSession
 
@@ -1242,11 +1128,11 @@ def _run_flux_with_tensors(rt: RuntimeSession, tensors: FluxTensors) -> None:
     COS_F32(rt, x=tensors.mul_2, output=tensors.cos)
     SIN_F32(rt, x=tensors.mul_2, output=tensors.sin)
     FLUX_CAT_2_F32(rt, x0=tensors.cos, x1=tensors.sin, output=tensors.cat)
-    LINEAR_NOBIAS_F16W_F32(rt, x=tensors.to_1, weight=tensors.p_time_in_in_layer_weight, output=tensors.linear)
+    LINEAR_NOBIAS_Q8_0_MATVEC_F32_ACT_F32(rt, x=tensors.to_1, weight=tensors.p_time_in_in_layer_weight, output=tensors.linear)
     FLUX_SILU_F32(rt, x=tensors.linear, output=tensors.silu)
-    LINEAR_NOBIAS_F16W_F32(rt, x=tensors.silu, weight=tensors.p_time_in_out_layer_weight, output=tensors.linear_1)
+    LINEAR_NOBIAS_Q8_0_MATVEC_F32_ACT_F32(rt, x=tensors.silu, weight=tensors.p_time_in_out_layer_weight, output=tensors.linear_1)
     FLUX_SILU_F32(rt, x=tensors.linear_1, output=tensors.silu_1)
-    LINEAR_NOBIAS_F16W_F32(rt, x=tensors.silu_1, weight=tensors.p_double_stream_modulation_img_lin_weight, output=tensors.linear_2)
+    LINEAR_NOBIAS_Q8_0_MATVEC_F32_ACT_F32(rt, x=tensors.silu_1, weight=tensors.p_double_stream_modulation_img_lin_weight, output=tensors.linear_2)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.unsqueeze_2, output=tensors.getitem)
     TUPLE_GETITEM_SLICE_F32_12(rt, x=tensors.unsqueeze_2, output=tensors.getitem_1)
     TUPLE_GETITEM_SLICE_F32_13(rt, x=tensors.unsqueeze_2, output=tensors.getitem_2)
@@ -1254,7 +1140,7 @@ def _run_flux_with_tensors(rt: RuntimeSession, tensors: FluxTensors) -> None:
     TUPLE_GETITEM_SLICE_F32_15(rt, x=tensors.unsqueeze_2, output=tensors.getitem_4)
     TUPLE_GETITEM_SLICE_F32_16(rt, x=tensors.unsqueeze_2, output=tensors.getitem_5)
     FLUX_SILU_F32(rt, x=tensors.linear_1, output=tensors.silu_2)
-    LINEAR_NOBIAS_F16W_F32(rt, x=tensors.silu_2, weight=tensors.p_double_stream_modulation_txt_lin_weight, output=tensors.linear_3)
+    LINEAR_NOBIAS_Q8_0_MATVEC_F32_ACT_F32(rt, x=tensors.silu_2, weight=tensors.p_double_stream_modulation_txt_lin_weight, output=tensors.linear_3)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.unsqueeze_3, output=tensors.getitem_6)
     TUPLE_GETITEM_SLICE_F32_17(rt, x=tensors.unsqueeze_3, output=tensors.getitem_7)
     TUPLE_GETITEM_SLICE_F32_18(rt, x=tensors.unsqueeze_3, output=tensors.getitem_8)
@@ -1262,2522 +1148,2522 @@ def _run_flux_with_tensors(rt: RuntimeSession, tensors: FluxTensors) -> None:
     TUPLE_GETITEM_SLICE_F32_20(rt, x=tensors.unsqueeze_3, output=tensors.getitem_10)
     TUPLE_GETITEM_SLICE_F32_21(rt, x=tensors.unsqueeze_3, output=tensors.getitem_11)
     FLUX_SILU_F32(rt, x=tensors.linear_1, output=tensors.silu_3)
-    LINEAR_NOBIAS_F16W_F32(rt, x=tensors.silu_3, weight=tensors.p_single_stream_modulation_lin_weight, output=tensors.linear_4)
+    LINEAR_NOBIAS_Q8_0_MATVEC_F32_ACT_F32(rt, x=tensors.silu_3, weight=tensors.p_single_stream_modulation_lin_weight, output=tensors.linear_4)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.unsqueeze_4, output=tensors.getitem_12)
     TUPLE_GETITEM_SLICE_F32_22(rt, x=tensors.unsqueeze_4, output=tensors.getitem_13)
     TUPLE_GETITEM_SLICE_F32_23(rt, x=tensors.unsqueeze_4, output=tensors.getitem_14)
-    LINEAR_NOBIAS_F16W_F32_24(rt, x=tensors.x, weight=tensors.p_img_in_weight, output=tensors.linear_5)
-    LINEAR_NOBIAS_F16W_F32_25(rt, x=tensors.ctx, weight=tensors.p_txt_in_weight, output=tensors.linear_6)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.x, weight=tensors.p_img_in_weight, output=tensors.linear_5)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.ctx, weight=tensors.p_txt_in_weight, output=tensors.linear_6)
     SELECT_INT64(rt, x=tensors.x_ids, output=tensors.select)
     ARANGE_I64(rt, output=tensors.arange_1)
-    DIV_SCALAR_28(rt, x=tensors.arange_1, output=tensors.div_1)
+    DIV_SCALAR_27(rt, x=tensors.arange_1, output=tensors.div_1)
     POW_BASE_SCALAR_F32(rt, x=tensors.div_1, output=tensors.pow_1)
     RECIPROCAL_F32(rt, x=tensors.pow_1, output=tensors.reciprocal)
-    MUL_SCALAR_31(rt, x=tensors.reciprocal, output=tensors.mul_3)
+    MUL_SCALAR_30(rt, x=tensors.reciprocal, output=tensors.mul_3)
     EINSUM_OUTER_F32(rt, x=tensors.select, y=tensors.mul_3, output=tensors.einsum)
-    COS_F32_33(rt, x=tensors.einsum, output=tensors.cos_1)
-    SIN_F32_34(rt, x=tensors.einsum, output=tensors.sin_1)
+    COS_F32_32(rt, x=tensors.einsum, output=tensors.cos_1)
+    SIN_F32_33(rt, x=tensors.einsum, output=tensors.sin_1)
     FLUX_NEG_F32(rt, x=tensors.sin_1, output=tensors.neg)
-    SIN_F32_36(rt, x=tensors.einsum, output=tensors.sin_2)
-    COS_F32_37(rt, x=tensors.einsum, output=tensors.cos_2)
+    SIN_F32_35(rt, x=tensors.einsum, output=tensors.sin_2)
+    COS_F32_36(rt, x=tensors.einsum, output=tensors.cos_2)
     STACK_4_F32(rt, x0=tensors.cos_1, x1=tensors.neg, x2=tensors.sin_2, x3=tensors.cos_2, output=tensors.stack)
-    SELECT_INT64_39(rt, x=tensors.x_ids, output=tensors.select_1)
+    SELECT_INT64_38(rt, x=tensors.x_ids, output=tensors.select_1)
     ARANGE_I64(rt, output=tensors.arange_2)
-    DIV_SCALAR_40(rt, x=tensors.arange_2, output=tensors.div_2)
+    DIV_SCALAR_39(rt, x=tensors.arange_2, output=tensors.div_2)
     POW_BASE_SCALAR_F32(rt, x=tensors.div_2, output=tensors.pow_2)
     RECIPROCAL_F32(rt, x=tensors.pow_2, output=tensors.reciprocal_1)
-    MUL_SCALAR_41(rt, x=tensors.reciprocal_1, output=tensors.mul_4)
+    MUL_SCALAR_40(rt, x=tensors.reciprocal_1, output=tensors.mul_4)
     EINSUM_OUTER_F32(rt, x=tensors.select_1, y=tensors.mul_4, output=tensors.einsum_1)
-    COS_F32_42(rt, x=tensors.einsum_1, output=tensors.cos_3)
-    SIN_F32_43(rt, x=tensors.einsum_1, output=tensors.sin_3)
+    COS_F32_41(rt, x=tensors.einsum_1, output=tensors.cos_3)
+    SIN_F32_42(rt, x=tensors.einsum_1, output=tensors.sin_3)
     FLUX_NEG_F32(rt, x=tensors.sin_3, output=tensors.neg_1)
-    SIN_F32_44(rt, x=tensors.einsum_1, output=tensors.sin_4)
-    COS_F32_45(rt, x=tensors.einsum_1, output=tensors.cos_4)
+    SIN_F32_43(rt, x=tensors.einsum_1, output=tensors.sin_4)
+    COS_F32_44(rt, x=tensors.einsum_1, output=tensors.cos_4)
     STACK_4_F32(rt, x0=tensors.cos_3, x1=tensors.neg_1, x2=tensors.sin_4, x3=tensors.cos_4, output=tensors.stack_1)
-    SELECT_INT64_46(rt, x=tensors.x_ids, output=tensors.select_2)
+    SELECT_INT64_45(rt, x=tensors.x_ids, output=tensors.select_2)
     ARANGE_I64(rt, output=tensors.arange_3)
-    DIV_SCALAR_47(rt, x=tensors.arange_3, output=tensors.div_3)
+    DIV_SCALAR_46(rt, x=tensors.arange_3, output=tensors.div_3)
     POW_BASE_SCALAR_F32(rt, x=tensors.div_3, output=tensors.pow_3)
     RECIPROCAL_F32(rt, x=tensors.pow_3, output=tensors.reciprocal_2)
-    MUL_SCALAR_48(rt, x=tensors.reciprocal_2, output=tensors.mul_5)
+    MUL_SCALAR_47(rt, x=tensors.reciprocal_2, output=tensors.mul_5)
     EINSUM_OUTER_F32(rt, x=tensors.select_2, y=tensors.mul_5, output=tensors.einsum_2)
-    COS_F32_49(rt, x=tensors.einsum_2, output=tensors.cos_5)
-    SIN_F32_50(rt, x=tensors.einsum_2, output=tensors.sin_5)
+    COS_F32_48(rt, x=tensors.einsum_2, output=tensors.cos_5)
+    SIN_F32_49(rt, x=tensors.einsum_2, output=tensors.sin_5)
     FLUX_NEG_F32(rt, x=tensors.sin_5, output=tensors.neg_2)
-    SIN_F32_51(rt, x=tensors.einsum_2, output=tensors.sin_6)
-    COS_F32_52(rt, x=tensors.einsum_2, output=tensors.cos_6)
+    SIN_F32_50(rt, x=tensors.einsum_2, output=tensors.sin_6)
+    COS_F32_51(rt, x=tensors.einsum_2, output=tensors.cos_6)
     STACK_4_F32(rt, x0=tensors.cos_5, x1=tensors.neg_2, x2=tensors.sin_6, x3=tensors.cos_6, output=tensors.stack_2)
-    SELECT_INT64_53(rt, x=tensors.x_ids, output=tensors.select_3)
+    SELECT_INT64_52(rt, x=tensors.x_ids, output=tensors.select_3)
     ARANGE_I64(rt, output=tensors.arange_4)
-    DIV_SCALAR_54(rt, x=tensors.arange_4, output=tensors.div_4)
+    DIV_SCALAR_53(rt, x=tensors.arange_4, output=tensors.div_4)
     POW_BASE_SCALAR_F32(rt, x=tensors.div_4, output=tensors.pow_4)
     RECIPROCAL_F32(rt, x=tensors.pow_4, output=tensors.reciprocal_3)
-    MUL_SCALAR_55(rt, x=tensors.reciprocal_3, output=tensors.mul_6)
+    MUL_SCALAR_54(rt, x=tensors.reciprocal_3, output=tensors.mul_6)
     EINSUM_OUTER_F32(rt, x=tensors.select_3, y=tensors.mul_6, output=tensors.einsum_3)
-    COS_F32_56(rt, x=tensors.einsum_3, output=tensors.cos_7)
-    SIN_F32_57(rt, x=tensors.einsum_3, output=tensors.sin_7)
+    COS_F32_55(rt, x=tensors.einsum_3, output=tensors.cos_7)
+    SIN_F32_56(rt, x=tensors.einsum_3, output=tensors.sin_7)
     FLUX_NEG_F32(rt, x=tensors.sin_7, output=tensors.neg_3)
-    SIN_F32_58(rt, x=tensors.einsum_3, output=tensors.sin_8)
-    COS_F32_59(rt, x=tensors.einsum_3, output=tensors.cos_8)
+    SIN_F32_57(rt, x=tensors.einsum_3, output=tensors.sin_8)
+    COS_F32_58(rt, x=tensors.einsum_3, output=tensors.cos_8)
     STACK_4_F32(rt, x0=tensors.cos_7, x1=tensors.neg_3, x2=tensors.sin_8, x3=tensors.cos_8, output=tensors.stack_3)
     CAT_4_F32(rt, x0=tensors.to_2, x1=tensors.to_3, x2=tensors.to_4, x3=tensors.to_5, output=tensors.cat_1)
     SELECT_INT64(rt, x=tensors.ctx_ids, output=tensors.select_4)
     ARANGE_I64(rt, output=tensors.arange_5)
-    DIV_SCALAR_61(rt, x=tensors.arange_5, output=tensors.div_5)
+    DIV_SCALAR_60(rt, x=tensors.arange_5, output=tensors.div_5)
     POW_BASE_SCALAR_F32(rt, x=tensors.div_5, output=tensors.pow_5)
     RECIPROCAL_F32(rt, x=tensors.pow_5, output=tensors.reciprocal_4)
-    MUL_SCALAR_62(rt, x=tensors.reciprocal_4, output=tensors.mul_7)
+    MUL_SCALAR_61(rt, x=tensors.reciprocal_4, output=tensors.mul_7)
     EINSUM_OUTER_F32(rt, x=tensors.select_4, y=tensors.mul_7, output=tensors.einsum_4)
-    COS_F32_63(rt, x=tensors.einsum_4, output=tensors.cos_9)
-    SIN_F32_64(rt, x=tensors.einsum_4, output=tensors.sin_9)
+    COS_F32_62(rt, x=tensors.einsum_4, output=tensors.cos_9)
+    SIN_F32_63(rt, x=tensors.einsum_4, output=tensors.sin_9)
     FLUX_NEG_F32(rt, x=tensors.sin_9, output=tensors.neg_4)
-    SIN_F32_65(rt, x=tensors.einsum_4, output=tensors.sin_10)
-    COS_F32_66(rt, x=tensors.einsum_4, output=tensors.cos_10)
+    SIN_F32_64(rt, x=tensors.einsum_4, output=tensors.sin_10)
+    COS_F32_65(rt, x=tensors.einsum_4, output=tensors.cos_10)
     STACK_4_F32(rt, x0=tensors.cos_9, x1=tensors.neg_4, x2=tensors.sin_10, x3=tensors.cos_10, output=tensors.stack_4)
-    SELECT_INT64_67(rt, x=tensors.ctx_ids, output=tensors.select_5)
+    SELECT_INT64_66(rt, x=tensors.ctx_ids, output=tensors.select_5)
     ARANGE_I64(rt, output=tensors.arange_6)
-    DIV_SCALAR_68(rt, x=tensors.arange_6, output=tensors.div_6)
+    DIV_SCALAR_67(rt, x=tensors.arange_6, output=tensors.div_6)
     POW_BASE_SCALAR_F32(rt, x=tensors.div_6, output=tensors.pow_6)
     RECIPROCAL_F32(rt, x=tensors.pow_6, output=tensors.reciprocal_5)
-    MUL_SCALAR_69(rt, x=tensors.reciprocal_5, output=tensors.mul_8)
+    MUL_SCALAR_68(rt, x=tensors.reciprocal_5, output=tensors.mul_8)
     EINSUM_OUTER_F32(rt, x=tensors.select_5, y=tensors.mul_8, output=tensors.einsum_5)
-    COS_F32_70(rt, x=tensors.einsum_5, output=tensors.cos_11)
-    SIN_F32_71(rt, x=tensors.einsum_5, output=tensors.sin_11)
+    COS_F32_69(rt, x=tensors.einsum_5, output=tensors.cos_11)
+    SIN_F32_70(rt, x=tensors.einsum_5, output=tensors.sin_11)
     FLUX_NEG_F32(rt, x=tensors.sin_11, output=tensors.neg_5)
-    SIN_F32_72(rt, x=tensors.einsum_5, output=tensors.sin_12)
-    COS_F32_73(rt, x=tensors.einsum_5, output=tensors.cos_12)
+    SIN_F32_71(rt, x=tensors.einsum_5, output=tensors.sin_12)
+    COS_F32_72(rt, x=tensors.einsum_5, output=tensors.cos_12)
     STACK_4_F32(rt, x0=tensors.cos_11, x1=tensors.neg_5, x2=tensors.sin_12, x3=tensors.cos_12, output=tensors.stack_5)
-    SELECT_INT64_74(rt, x=tensors.ctx_ids, output=tensors.select_6)
+    SELECT_INT64_73(rt, x=tensors.ctx_ids, output=tensors.select_6)
     ARANGE_I64(rt, output=tensors.arange_7)
-    DIV_SCALAR_75(rt, x=tensors.arange_7, output=tensors.div_7)
+    DIV_SCALAR_74(rt, x=tensors.arange_7, output=tensors.div_7)
     POW_BASE_SCALAR_F32(rt, x=tensors.div_7, output=tensors.pow_7)
     RECIPROCAL_F32(rt, x=tensors.pow_7, output=tensors.reciprocal_6)
-    MUL_SCALAR_76(rt, x=tensors.reciprocal_6, output=tensors.mul_9)
+    MUL_SCALAR_75(rt, x=tensors.reciprocal_6, output=tensors.mul_9)
     EINSUM_OUTER_F32(rt, x=tensors.select_6, y=tensors.mul_9, output=tensors.einsum_6)
-    COS_F32_77(rt, x=tensors.einsum_6, output=tensors.cos_13)
-    SIN_F32_78(rt, x=tensors.einsum_6, output=tensors.sin_13)
+    COS_F32_76(rt, x=tensors.einsum_6, output=tensors.cos_13)
+    SIN_F32_77(rt, x=tensors.einsum_6, output=tensors.sin_13)
     FLUX_NEG_F32(rt, x=tensors.sin_13, output=tensors.neg_6)
-    SIN_F32_79(rt, x=tensors.einsum_6, output=tensors.sin_14)
-    COS_F32_80(rt, x=tensors.einsum_6, output=tensors.cos_14)
+    SIN_F32_78(rt, x=tensors.einsum_6, output=tensors.sin_14)
+    COS_F32_79(rt, x=tensors.einsum_6, output=tensors.cos_14)
     STACK_4_F32(rt, x0=tensors.cos_13, x1=tensors.neg_6, x2=tensors.sin_14, x3=tensors.cos_14, output=tensors.stack_6)
-    SELECT_INT64_81(rt, x=tensors.ctx_ids, output=tensors.select_7)
+    SELECT_INT64_80(rt, x=tensors.ctx_ids, output=tensors.select_7)
     ARANGE_I64(rt, output=tensors.arange_8)
-    DIV_SCALAR_82(rt, x=tensors.arange_8, output=tensors.div_8)
+    DIV_SCALAR_81(rt, x=tensors.arange_8, output=tensors.div_8)
     POW_BASE_SCALAR_F32(rt, x=tensors.div_8, output=tensors.pow_8)
     RECIPROCAL_F32(rt, x=tensors.pow_8, output=tensors.reciprocal_7)
-    MUL_SCALAR_83(rt, x=tensors.reciprocal_7, output=tensors.mul_10)
+    MUL_SCALAR_82(rt, x=tensors.reciprocal_7, output=tensors.mul_10)
     EINSUM_OUTER_F32(rt, x=tensors.select_7, y=tensors.mul_10, output=tensors.einsum_7)
-    COS_F32_84(rt, x=tensors.einsum_7, output=tensors.cos_15)
-    SIN_F32_85(rt, x=tensors.einsum_7, output=tensors.sin_15)
+    COS_F32_83(rt, x=tensors.einsum_7, output=tensors.cos_15)
+    SIN_F32_84(rt, x=tensors.einsum_7, output=tensors.sin_15)
     FLUX_NEG_F32(rt, x=tensors.sin_15, output=tensors.neg_7)
-    SIN_F32_86(rt, x=tensors.einsum_7, output=tensors.sin_16)
-    COS_F32_87(rt, x=tensors.einsum_7, output=tensors.cos_16)
+    SIN_F32_85(rt, x=tensors.einsum_7, output=tensors.sin_16)
+    COS_F32_86(rt, x=tensors.einsum_7, output=tensors.cos_16)
     STACK_4_F32(rt, x0=tensors.cos_15, x1=tensors.neg_7, x2=tensors.sin_16, x3=tensors.cos_16, output=tensors.stack_7)
     CAT_4_F32(rt, x0=tensors.to_6, x1=tensors.to_7, x2=tensors.to_8, x3=tensors.to_9, output=tensors.cat_2)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.linear_5, output=tensors.layer_norm)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_1, output=tensors.add)
-    MUL_BROADCAST_90(rt, x=tensors.add, y=tensors.layer_norm, output=tensors.mul_11)
+    MUL_BROADCAST_89(rt, x=tensors.add, y=tensors.layer_norm, output=tensors.mul_11)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_11, y=tensors.getitem, output=tensors.add_1)
-    LINEAR_NOBIAS_F16W_F32_92(rt, x=tensors.add_1, weight=tensors.p_double_blocks_0_img_attn_qkv_weight, output=tensors.linear_7)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_1, weight=tensors.p_double_blocks_0_img_attn_qkv_weight, output=tensors.linear_7)
     PERMUTE_F32_0D3AB17AE3(rt, x=tensors.reshape_8, output=tensors.permute)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute, output=tensors.getitem_15)
-    TUPLE_GETITEM_UNBIND_F32_95(rt, x=tensors.permute, output=tensors.getitem_16)
-    TUPLE_GETITEM_UNBIND_F32_96(rt, x=tensors.permute, output=tensors.getitem_17)
+    TUPLE_GETITEM_UNBIND_F32_93(rt, x=tensors.permute, output=tensors.getitem_16)
+    TUPLE_GETITEM_UNBIND_F32_94(rt, x=tensors.permute, output=tensors.getitem_17)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_11, output=tensors.pow_9)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_9, output=tensors.mean)
-    ADD_SCALAR_99(rt, x=tensors.mean, output=tensors.add_2)
+    ADD_SCALAR_97(rt, x=tensors.mean, output=tensors.add_2)
     FLUX_RSQRT_F32(rt, x=tensors.add_2, output=tensors.rsqrt)
-    MUL_BROADCAST_101(rt, x=tensors.to_11, y=tensors.rsqrt, output=tensors.mul_12)
+    MUL_BROADCAST_99(rt, x=tensors.to_11, y=tensors.rsqrt, output=tensors.mul_12)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_14, output=tensors.pow_10)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_10, output=tensors.mean_1)
-    ADD_SCALAR_102(rt, x=tensors.mean_1, output=tensors.add_3)
+    ADD_SCALAR_100(rt, x=tensors.mean_1, output=tensors.add_3)
     FLUX_RSQRT_F32(rt, x=tensors.add_3, output=tensors.rsqrt_1)
-    MUL_BROADCAST_103(rt, x=tensors.to_14, y=tensors.rsqrt_1, output=tensors.mul_13)
+    MUL_BROADCAST_101(rt, x=tensors.to_14, y=tensors.rsqrt_1, output=tensors.mul_13)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_12, y=tensors.p_double_blocks_0_img_attn_norm_query_norm_scale, output=tensors.mul_14)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_15, y=tensors.p_double_blocks_0_img_attn_norm_key_norm_scale, output=tensors.mul_15)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.linear_6, output=tensors.layer_norm_1)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_7, output=tensors.add_5)
-    MUL_BROADCAST_106(rt, x=tensors.add_5, y=tensors.layer_norm_1, output=tensors.mul_16)
+    MUL_BROADCAST_104(rt, x=tensors.add_5, y=tensors.layer_norm_1, output=tensors.mul_16)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_16, y=tensors.getitem_6, output=tensors.add_6)
-    LINEAR_NOBIAS_F16W_F32_107(rt, x=tensors.add_6, weight=tensors.p_double_blocks_0_txt_attn_qkv_weight, output=tensors.linear_8)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_6, weight=tensors.p_double_blocks_0_txt_attn_qkv_weight, output=tensors.linear_8)
     PERMUTE_F32_8475D3A978(rt, x=tensors.reshape_9, output=tensors.permute_1)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_1, output=tensors.getitem_18)
-    TUPLE_GETITEM_UNBIND_F32_109(rt, x=tensors.permute_1, output=tensors.getitem_19)
-    TUPLE_GETITEM_UNBIND_F32_110(rt, x=tensors.permute_1, output=tensors.getitem_20)
+    TUPLE_GETITEM_UNBIND_F32_106(rt, x=tensors.permute_1, output=tensors.getitem_19)
+    TUPLE_GETITEM_UNBIND_F32_107(rt, x=tensors.permute_1, output=tensors.getitem_20)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_18, output=tensors.pow_12)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_12, output=tensors.mean_3)
-    ADD_SCALAR_111(rt, x=tensors.mean_3, output=tensors.add_7)
+    ADD_SCALAR_108(rt, x=tensors.mean_3, output=tensors.add_7)
     FLUX_RSQRT_F32(rt, x=tensors.add_7, output=tensors.rsqrt_3)
-    MUL_BROADCAST_112(rt, x=tensors.to_18, y=tensors.rsqrt_3, output=tensors.mul_17)
+    MUL_BROADCAST_109(rt, x=tensors.to_18, y=tensors.rsqrt_3, output=tensors.mul_17)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_21, output=tensors.pow_13)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_13, output=tensors.mean_4)
-    ADD_SCALAR_113(rt, x=tensors.mean_4, output=tensors.add_8)
+    ADD_SCALAR_110(rt, x=tensors.mean_4, output=tensors.add_8)
     FLUX_RSQRT_F32(rt, x=tensors.add_8, output=tensors.rsqrt_4)
-    MUL_BROADCAST_114(rt, x=tensors.to_21, y=tensors.rsqrt_4, output=tensors.mul_18)
+    MUL_BROADCAST_111(rt, x=tensors.to_21, y=tensors.rsqrt_4, output=tensors.mul_18)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_19, y=tensors.p_double_blocks_0_txt_attn_norm_query_norm_scale, output=tensors.mul_19)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_22, y=tensors.p_double_blocks_0_txt_attn_norm_key_norm_scale, output=tensors.mul_20)
-    CAT_2_F32_116(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_3)
-    CAT_2_F32_117(rt, x0=tensors.mul_19, x1=tensors.mul_14, output=tensors.cat_4)
-    CAT_2_F32_118(rt, x0=tensors.mul_20, x1=tensors.mul_15, output=tensors.cat_5)
-    CAT_2_F32_119(rt, x0=tensors.getitem_20, x1=tensors.getitem_17, output=tensors.cat_6)
+    CAT_2_F32_113(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_3)
+    CAT_2_F32_114(rt, x0=tensors.mul_19, x1=tensors.mul_14, output=tensors.cat_4)
+    CAT_2_F32_115(rt, x0=tensors.mul_20, x1=tensors.mul_15, output=tensors.cat_5)
+    CAT_2_F32_116(rt, x0=tensors.getitem_20, x1=tensors.getitem_17, output=tensors.cat_6)
     SELECT_FLOAT32(rt, x=tensors.cat_3, output=tensors.select_8)
     SELECT_FLOAT32(rt, x=tensors.reshape_10, output=tensors.select_9)
-    MUL_BROADCAST_121(rt, x=tensors.select_8, y=tensors.select_9, output=tensors.mul_21)
-    SELECT_FLOAT32_122(rt, x=tensors.cat_3, output=tensors.select_10)
-    SELECT_FLOAT32_123(rt, x=tensors.reshape_10, output=tensors.select_11)
-    MUL_BROADCAST_124(rt, x=tensors.select_10, y=tensors.select_11, output=tensors.mul_22)
+    MUL_BROADCAST_118(rt, x=tensors.select_8, y=tensors.select_9, output=tensors.mul_21)
+    SELECT_FLOAT32_119(rt, x=tensors.cat_3, output=tensors.select_10)
+    SELECT_FLOAT32_120(rt, x=tensors.reshape_10, output=tensors.select_11)
+    MUL_BROADCAST_121(rt, x=tensors.select_10, y=tensors.select_11, output=tensors.mul_22)
     FLUX_ADD_F32(rt, x=tensors.mul_21, y=tensors.mul_22, output=tensors.add_10)
     SELECT_FLOAT32(rt, x=tensors.cat_3, output=tensors.select_12)
     SELECT_FLOAT32(rt, x=tensors.reshape_11, output=tensors.select_13)
-    MUL_BROADCAST_126(rt, x=tensors.select_12, y=tensors.select_13, output=tensors.mul_23)
-    SELECT_FLOAT32_127(rt, x=tensors.cat_3, output=tensors.select_14)
-    SELECT_FLOAT32_128(rt, x=tensors.reshape_11, output=tensors.select_15)
-    MUL_BROADCAST_129(rt, x=tensors.select_14, y=tensors.select_15, output=tensors.mul_24)
+    MUL_BROADCAST_123(rt, x=tensors.select_12, y=tensors.select_13, output=tensors.mul_23)
+    SELECT_FLOAT32_124(rt, x=tensors.cat_3, output=tensors.select_14)
+    SELECT_FLOAT32_125(rt, x=tensors.reshape_11, output=tensors.select_15)
+    MUL_BROADCAST_126(rt, x=tensors.select_14, y=tensors.select_15, output=tensors.mul_24)
     FLUX_ADD_F32(rt, x=tensors.mul_23, y=tensors.mul_24, output=tensors.add_11)
-    SLICE_F32_131(rt, x=tensors.type_as, output=tensors.slice_3)
+    SLICE_F32_128(rt, x=tensors.type_as, output=tensors.slice_3)
     FLUX_SLICE_F32(rt, x=tensors.type_as, output=tensors.slice_4)
     FLUX_SLICE_F32(rt, x=tensors.type_as, output=tensors.slice_5)
-    SLICE_F32_132(rt, x=tensors.type_as_1, output=tensors.slice_6)
-    SLICE_F32_133(rt, x=tensors.cat_6, output=tensors.slice_7)
+    SLICE_F32_129(rt, x=tensors.type_as_1, output=tensors.slice_6)
+    SLICE_F32_130(rt, x=tensors.cat_6, output=tensors.slice_7)
     FLUX_SLICE_F32(rt, x=tensors.type_as_1, output=tensors.slice_8)
     FLUX_SLICE_F32(rt, x=tensors.cat_6, output=tensors.slice_9)
     FLUX_SLICE_F32(rt, x=tensors.type_as_1, output=tensors.slice_10)
     FLUX_SLICE_F32(rt, x=tensors.cat_6, output=tensors.slice_11)
-    CAT_2_F32_134(rt, x0=tensors.slice_3, x1=tensors.slice_5, output=tensors.cat_7)
+    CAT_2_F32_131(rt, x0=tensors.slice_3, x1=tensors.slice_5, output=tensors.cat_7)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_6, x1=tensors.slice_8, x2=tensors.slice_10, output=tensors.cat_8)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_7, x1=tensors.slice_9, x2=tensors.slice_11, output=tensors.cat_9)
     SDPA_F32(rt, q=tensors.cat_7, k=tensors.cat_8, v=tensors.cat_9, output=tensors.scaled_dot_product_attention)
-    SLICE_F32_137(rt, x=tensors.scaled_dot_product_attention, output=tensors.slice_12)
+    SLICE_F32_134(rt, x=tensors.scaled_dot_product_attention, output=tensors.slice_12)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention, output=tensors.slice_13)
     SDPA_F32(rt, q=tensors.slice_4, k=tensors.slice_8, v=tensors.slice_9, output=tensors.scaled_dot_product_attention_1)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_12, x1=tensors.scaled_dot_product_attention_1, x2=tensors.slice_13, output=tensors.cat_10)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_10, output=tensors.permute_2)
-    SLICE_F32_139(rt, x=tensors.reshape_14, output=tensors.slice_14)
-    SLICE_F32_140(rt, x=tensors.reshape_14, output=tensors.slice_15)
-    LINEAR_NOBIAS_F16W_F32_141(rt, x=tensors.slice_15, weight=tensors.p_double_blocks_0_img_attn_proj_weight, output=tensors.linear_9)
-    MUL_BROADCAST_142(rt, x=tensors.getitem_2, y=tensors.linear_9, output=tensors.mul_25)
-    ADD_F32_143(rt, x=tensors.linear_5, y=tensors.mul_25, output=tensors.add_12)
+    SLICE_F32_136(rt, x=tensors.reshape_14, output=tensors.slice_14)
+    SLICE_F32_137(rt, x=tensors.reshape_14, output=tensors.slice_15)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_15, weight=tensors.p_double_blocks_0_img_attn_proj_weight, output=tensors.linear_9)
+    MUL_BROADCAST_138(rt, x=tensors.getitem_2, y=tensors.linear_9, output=tensors.mul_25)
+    ADD_F32_139(rt, x=tensors.linear_5, y=tensors.mul_25, output=tensors.add_12)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_4, output=tensors.add_13)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_12, output=tensors.layer_norm_2)
-    MUL_BROADCAST_144(rt, x=tensors.add_13, y=tensors.layer_norm_2, output=tensors.mul_26)
+    MUL_BROADCAST_140(rt, x=tensors.add_13, y=tensors.layer_norm_2, output=tensors.mul_26)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_26, y=tensors.getitem_3, output=tensors.add_14)
-    LINEAR_NOBIAS_F16W_F32_145(rt, x=tensors.add_14, weight=tensors.p_double_blocks_0_img_mlp_0_weight, output=tensors.linear_10)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_14, weight=tensors.p_double_blocks_0_img_mlp_0_weight, output=tensors.linear_10)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_10, output=tensors.getitem_21)
-    TUPLE_GETITEM_SLICE_F32_146(rt, x=tensors.linear_10, output=tensors.getitem_22)
-    SILU_F32_147(rt, x=tensors.getitem_21, output=tensors.silu_4)
+    TUPLE_GETITEM_SLICE_F32_141(rt, x=tensors.linear_10, output=tensors.getitem_22)
+    SILU_F32_142(rt, x=tensors.getitem_21, output=tensors.silu_4)
     FLUX_MUL_F32(rt, x=tensors.silu_4, y=tensors.getitem_22, output=tensors.mul_27)
-    LINEAR_NOBIAS_F16W_F32_149(rt, x=tensors.mul_27, weight=tensors.p_double_blocks_0_img_mlp_2_weight, output=tensors.linear_11)
-    MUL_BROADCAST_150(rt, x=tensors.getitem_5, y=tensors.linear_11, output=tensors.mul_28)
-    ADD_F32_151(rt, x=tensors.add_12, y=tensors.mul_28, output=tensors.add_15)
-    LINEAR_NOBIAS_F16W_F32_152(rt, x=tensors.slice_14, weight=tensors.p_double_blocks_0_txt_attn_proj_weight, output=tensors.linear_12)
-    MUL_BROADCAST_153(rt, x=tensors.getitem_8, y=tensors.linear_12, output=tensors.mul_29)
-    ADD_F32_154(rt, x=tensors.linear_6, y=tensors.mul_29, output=tensors.add_16)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_27, weight=tensors.p_double_blocks_0_img_mlp_2_weight, output=tensors.linear_11)
+    MUL_BROADCAST_144(rt, x=tensors.getitem_5, y=tensors.linear_11, output=tensors.mul_28)
+    ADD_F32_145(rt, x=tensors.add_12, y=tensors.mul_28, output=tensors.add_15)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_14, weight=tensors.p_double_blocks_0_txt_attn_proj_weight, output=tensors.linear_12)
+    MUL_BROADCAST_146(rt, x=tensors.getitem_8, y=tensors.linear_12, output=tensors.mul_29)
+    ADD_F32_147(rt, x=tensors.linear_6, y=tensors.mul_29, output=tensors.add_16)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_10, output=tensors.add_17)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_16, output=tensors.layer_norm_3)
-    MUL_BROADCAST_155(rt, x=tensors.add_17, y=tensors.layer_norm_3, output=tensors.mul_30)
+    MUL_BROADCAST_148(rt, x=tensors.add_17, y=tensors.layer_norm_3, output=tensors.mul_30)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_30, y=tensors.getitem_9, output=tensors.add_18)
-    LINEAR_NOBIAS_F16W_F32_156(rt, x=tensors.add_18, weight=tensors.p_double_blocks_0_txt_mlp_0_weight, output=tensors.linear_13)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_18, weight=tensors.p_double_blocks_0_txt_mlp_0_weight, output=tensors.linear_13)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_13, output=tensors.getitem_23)
-    TUPLE_GETITEM_SLICE_F32_157(rt, x=tensors.linear_13, output=tensors.getitem_24)
-    SILU_F32_158(rt, x=tensors.getitem_23, output=tensors.silu_5)
+    TUPLE_GETITEM_SLICE_F32_149(rt, x=tensors.linear_13, output=tensors.getitem_24)
+    SILU_F32_150(rt, x=tensors.getitem_23, output=tensors.silu_5)
     FLUX_MUL_F32(rt, x=tensors.silu_5, y=tensors.getitem_24, output=tensors.mul_31)
-    LINEAR_NOBIAS_F16W_F32_159(rt, x=tensors.mul_31, weight=tensors.p_double_blocks_0_txt_mlp_2_weight, output=tensors.linear_14)
-    MUL_BROADCAST_160(rt, x=tensors.getitem_11, y=tensors.linear_14, output=tensors.mul_32)
-    ADD_F32_161(rt, x=tensors.add_16, y=tensors.mul_32, output=tensors.add_19)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_31, weight=tensors.p_double_blocks_0_txt_mlp_2_weight, output=tensors.linear_14)
+    MUL_BROADCAST_151(rt, x=tensors.getitem_11, y=tensors.linear_14, output=tensors.mul_32)
+    ADD_F32_152(rt, x=tensors.add_16, y=tensors.mul_32, output=tensors.add_19)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_15, output=tensors.layer_norm_4)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_1, output=tensors.add_20)
-    MUL_BROADCAST_162(rt, x=tensors.add_20, y=tensors.layer_norm_4, output=tensors.mul_33)
+    MUL_BROADCAST_153(rt, x=tensors.add_20, y=tensors.layer_norm_4, output=tensors.mul_33)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_33, y=tensors.getitem, output=tensors.add_21)
-    LINEAR_NOBIAS_F16W_F32_163(rt, x=tensors.add_21, weight=tensors.p_double_blocks_1_img_attn_qkv_weight, output=tensors.linear_15)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_21, weight=tensors.p_double_blocks_1_img_attn_qkv_weight, output=tensors.linear_15)
     PERMUTE_F32_0D3AB17AE3(rt, x=tensors.reshape_15, output=tensors.permute_3)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_3, output=tensors.getitem_25)
-    TUPLE_GETITEM_UNBIND_F32_164(rt, x=tensors.permute_3, output=tensors.getitem_26)
-    TUPLE_GETITEM_UNBIND_F32_165(rt, x=tensors.permute_3, output=tensors.getitem_27)
+    TUPLE_GETITEM_UNBIND_F32_154(rt, x=tensors.permute_3, output=tensors.getitem_26)
+    TUPLE_GETITEM_UNBIND_F32_155(rt, x=tensors.permute_3, output=tensors.getitem_27)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_27, output=tensors.pow_15)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_15, output=tensors.mean_6)
-    ADD_SCALAR_166(rt, x=tensors.mean_6, output=tensors.add_22)
+    ADD_SCALAR_156(rt, x=tensors.mean_6, output=tensors.add_22)
     FLUX_RSQRT_F32(rt, x=tensors.add_22, output=tensors.rsqrt_6)
-    MUL_BROADCAST_167(rt, x=tensors.to_27, y=tensors.rsqrt_6, output=tensors.mul_34)
+    MUL_BROADCAST_157(rt, x=tensors.to_27, y=tensors.rsqrt_6, output=tensors.mul_34)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_30, output=tensors.pow_16)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_16, output=tensors.mean_7)
-    ADD_SCALAR_168(rt, x=tensors.mean_7, output=tensors.add_23)
+    ADD_SCALAR_158(rt, x=tensors.mean_7, output=tensors.add_23)
     FLUX_RSQRT_F32(rt, x=tensors.add_23, output=tensors.rsqrt_7)
-    MUL_BROADCAST_169(rt, x=tensors.to_30, y=tensors.rsqrt_7, output=tensors.mul_35)
+    MUL_BROADCAST_159(rt, x=tensors.to_30, y=tensors.rsqrt_7, output=tensors.mul_35)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_28, y=tensors.p_double_blocks_1_img_attn_norm_query_norm_scale, output=tensors.mul_36)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_31, y=tensors.p_double_blocks_1_img_attn_norm_key_norm_scale, output=tensors.mul_37)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_19, output=tensors.layer_norm_5)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_7, output=tensors.add_25)
-    MUL_BROADCAST_171(rt, x=tensors.add_25, y=tensors.layer_norm_5, output=tensors.mul_38)
+    MUL_BROADCAST_161(rt, x=tensors.add_25, y=tensors.layer_norm_5, output=tensors.mul_38)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_38, y=tensors.getitem_6, output=tensors.add_26)
-    LINEAR_NOBIAS_F16W_F32_172(rt, x=tensors.add_26, weight=tensors.p_double_blocks_1_txt_attn_qkv_weight, output=tensors.linear_16)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_26, weight=tensors.p_double_blocks_1_txt_attn_qkv_weight, output=tensors.linear_16)
     PERMUTE_F32_8475D3A978(rt, x=tensors.reshape_16, output=tensors.permute_4)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_4, output=tensors.getitem_28)
-    TUPLE_GETITEM_UNBIND_F32_173(rt, x=tensors.permute_4, output=tensors.getitem_29)
-    TUPLE_GETITEM_UNBIND_F32_174(rt, x=tensors.permute_4, output=tensors.getitem_30)
+    TUPLE_GETITEM_UNBIND_F32_162(rt, x=tensors.permute_4, output=tensors.getitem_29)
+    TUPLE_GETITEM_UNBIND_F32_163(rt, x=tensors.permute_4, output=tensors.getitem_30)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_34, output=tensors.pow_18)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_18, output=tensors.mean_9)
-    ADD_SCALAR_175(rt, x=tensors.mean_9, output=tensors.add_27)
+    ADD_SCALAR_164(rt, x=tensors.mean_9, output=tensors.add_27)
     FLUX_RSQRT_F32(rt, x=tensors.add_27, output=tensors.rsqrt_9)
-    MUL_BROADCAST_176(rt, x=tensors.to_34, y=tensors.rsqrt_9, output=tensors.mul_39)
+    MUL_BROADCAST_165(rt, x=tensors.to_34, y=tensors.rsqrt_9, output=tensors.mul_39)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_37, output=tensors.pow_19)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_19, output=tensors.mean_10)
-    ADD_SCALAR_177(rt, x=tensors.mean_10, output=tensors.add_28)
+    ADD_SCALAR_166(rt, x=tensors.mean_10, output=tensors.add_28)
     FLUX_RSQRT_F32(rt, x=tensors.add_28, output=tensors.rsqrt_10)
-    MUL_BROADCAST_178(rt, x=tensors.to_37, y=tensors.rsqrt_10, output=tensors.mul_40)
+    MUL_BROADCAST_167(rt, x=tensors.to_37, y=tensors.rsqrt_10, output=tensors.mul_40)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_35, y=tensors.p_double_blocks_1_txt_attn_norm_query_norm_scale, output=tensors.mul_41)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_38, y=tensors.p_double_blocks_1_txt_attn_norm_key_norm_scale, output=tensors.mul_42)
-    CAT_2_F32_180(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_11)
-    CAT_2_F32_181(rt, x0=tensors.mul_41, x1=tensors.mul_36, output=tensors.cat_12)
-    CAT_2_F32_182(rt, x0=tensors.mul_42, x1=tensors.mul_37, output=tensors.cat_13)
-    CAT_2_F32_183(rt, x0=tensors.getitem_30, x1=tensors.getitem_27, output=tensors.cat_14)
+    CAT_2_F32_169(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_11)
+    CAT_2_F32_170(rt, x0=tensors.mul_41, x1=tensors.mul_36, output=tensors.cat_12)
+    CAT_2_F32_171(rt, x0=tensors.mul_42, x1=tensors.mul_37, output=tensors.cat_13)
+    CAT_2_F32_172(rt, x0=tensors.getitem_30, x1=tensors.getitem_27, output=tensors.cat_14)
     SELECT_FLOAT32(rt, x=tensors.cat_11, output=tensors.select_16)
     SELECT_FLOAT32(rt, x=tensors.reshape_17, output=tensors.select_17)
-    MUL_BROADCAST_184(rt, x=tensors.select_16, y=tensors.select_17, output=tensors.mul_43)
-    SELECT_FLOAT32_185(rt, x=tensors.cat_11, output=tensors.select_18)
-    SELECT_FLOAT32_186(rt, x=tensors.reshape_17, output=tensors.select_19)
-    MUL_BROADCAST_187(rt, x=tensors.select_18, y=tensors.select_19, output=tensors.mul_44)
+    MUL_BROADCAST_173(rt, x=tensors.select_16, y=tensors.select_17, output=tensors.mul_43)
+    SELECT_FLOAT32_174(rt, x=tensors.cat_11, output=tensors.select_18)
+    SELECT_FLOAT32_175(rt, x=tensors.reshape_17, output=tensors.select_19)
+    MUL_BROADCAST_176(rt, x=tensors.select_18, y=tensors.select_19, output=tensors.mul_44)
     FLUX_ADD_F32(rt, x=tensors.mul_43, y=tensors.mul_44, output=tensors.add_30)
     SELECT_FLOAT32(rt, x=tensors.cat_11, output=tensors.select_20)
     SELECT_FLOAT32(rt, x=tensors.reshape_18, output=tensors.select_21)
-    MUL_BROADCAST_188(rt, x=tensors.select_20, y=tensors.select_21, output=tensors.mul_45)
-    SELECT_FLOAT32_189(rt, x=tensors.cat_11, output=tensors.select_22)
-    SELECT_FLOAT32_190(rt, x=tensors.reshape_18, output=tensors.select_23)
-    MUL_BROADCAST_191(rt, x=tensors.select_22, y=tensors.select_23, output=tensors.mul_46)
+    MUL_BROADCAST_177(rt, x=tensors.select_20, y=tensors.select_21, output=tensors.mul_45)
+    SELECT_FLOAT32_178(rt, x=tensors.cat_11, output=tensors.select_22)
+    SELECT_FLOAT32_179(rt, x=tensors.reshape_18, output=tensors.select_23)
+    MUL_BROADCAST_180(rt, x=tensors.select_22, y=tensors.select_23, output=tensors.mul_46)
     FLUX_ADD_F32(rt, x=tensors.mul_45, y=tensors.mul_46, output=tensors.add_31)
-    SLICE_F32_192(rt, x=tensors.type_as_2, output=tensors.slice_18)
+    SLICE_F32_181(rt, x=tensors.type_as_2, output=tensors.slice_18)
     FLUX_SLICE_F32(rt, x=tensors.type_as_2, output=tensors.slice_19)
     FLUX_SLICE_F32(rt, x=tensors.type_as_2, output=tensors.slice_20)
-    SLICE_F32_193(rt, x=tensors.type_as_3, output=tensors.slice_21)
-    SLICE_F32_194(rt, x=tensors.cat_14, output=tensors.slice_22)
+    SLICE_F32_182(rt, x=tensors.type_as_3, output=tensors.slice_21)
+    SLICE_F32_183(rt, x=tensors.cat_14, output=tensors.slice_22)
     FLUX_SLICE_F32(rt, x=tensors.type_as_3, output=tensors.slice_23)
     FLUX_SLICE_F32(rt, x=tensors.cat_14, output=tensors.slice_24)
     FLUX_SLICE_F32(rt, x=tensors.type_as_3, output=tensors.slice_25)
     FLUX_SLICE_F32(rt, x=tensors.cat_14, output=tensors.slice_26)
-    CAT_2_F32_195(rt, x0=tensors.slice_18, x1=tensors.slice_20, output=tensors.cat_15)
+    CAT_2_F32_184(rt, x0=tensors.slice_18, x1=tensors.slice_20, output=tensors.cat_15)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_21, x1=tensors.slice_23, x2=tensors.slice_25, output=tensors.cat_16)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_22, x1=tensors.slice_24, x2=tensors.slice_26, output=tensors.cat_17)
     SDPA_F32(rt, q=tensors.cat_15, k=tensors.cat_16, v=tensors.cat_17, output=tensors.scaled_dot_product_attention_2)
-    SLICE_F32_196(rt, x=tensors.scaled_dot_product_attention_2, output=tensors.slice_27)
+    SLICE_F32_185(rt, x=tensors.scaled_dot_product_attention_2, output=tensors.slice_27)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_2, output=tensors.slice_28)
     SDPA_F32(rt, q=tensors.slice_19, k=tensors.slice_23, v=tensors.slice_24, output=tensors.scaled_dot_product_attention_3)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_27, x1=tensors.scaled_dot_product_attention_3, x2=tensors.slice_28, output=tensors.cat_18)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_18, output=tensors.permute_5)
-    SLICE_F32_197(rt, x=tensors.reshape_21, output=tensors.slice_29)
-    SLICE_F32_198(rt, x=tensors.reshape_21, output=tensors.slice_30)
-    LINEAR_NOBIAS_F16W_F32_199(rt, x=tensors.slice_30, weight=tensors.p_double_blocks_1_img_attn_proj_weight, output=tensors.linear_17)
-    MUL_BROADCAST_200(rt, x=tensors.getitem_2, y=tensors.linear_17, output=tensors.mul_47)
-    ADD_F32_201(rt, x=tensors.add_15, y=tensors.mul_47, output=tensors.add_32)
+    SLICE_F32_186(rt, x=tensors.reshape_21, output=tensors.slice_29)
+    SLICE_F32_187(rt, x=tensors.reshape_21, output=tensors.slice_30)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_30, weight=tensors.p_double_blocks_1_img_attn_proj_weight, output=tensors.linear_17)
+    MUL_BROADCAST_188(rt, x=tensors.getitem_2, y=tensors.linear_17, output=tensors.mul_47)
+    ADD_F32_189(rt, x=tensors.add_15, y=tensors.mul_47, output=tensors.add_32)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_4, output=tensors.add_33)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_32, output=tensors.layer_norm_6)
-    MUL_BROADCAST_202(rt, x=tensors.add_33, y=tensors.layer_norm_6, output=tensors.mul_48)
+    MUL_BROADCAST_190(rt, x=tensors.add_33, y=tensors.layer_norm_6, output=tensors.mul_48)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_48, y=tensors.getitem_3, output=tensors.add_34)
-    LINEAR_NOBIAS_F16W_F32_203(rt, x=tensors.add_34, weight=tensors.p_double_blocks_1_img_mlp_0_weight, output=tensors.linear_18)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_34, weight=tensors.p_double_blocks_1_img_mlp_0_weight, output=tensors.linear_18)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_18, output=tensors.getitem_31)
-    TUPLE_GETITEM_SLICE_F32_204(rt, x=tensors.linear_18, output=tensors.getitem_32)
-    SILU_F32_205(rt, x=tensors.getitem_31, output=tensors.silu_6)
+    TUPLE_GETITEM_SLICE_F32_191(rt, x=tensors.linear_18, output=tensors.getitem_32)
+    SILU_F32_192(rt, x=tensors.getitem_31, output=tensors.silu_6)
     FLUX_MUL_F32(rt, x=tensors.silu_6, y=tensors.getitem_32, output=tensors.mul_49)
-    LINEAR_NOBIAS_F16W_F32_206(rt, x=tensors.mul_49, weight=tensors.p_double_blocks_1_img_mlp_2_weight, output=tensors.linear_19)
-    MUL_BROADCAST_207(rt, x=tensors.getitem_5, y=tensors.linear_19, output=tensors.mul_50)
-    ADD_F32_208(rt, x=tensors.add_32, y=tensors.mul_50, output=tensors.add_35)
-    LINEAR_NOBIAS_F16W_F32_209(rt, x=tensors.slice_29, weight=tensors.p_double_blocks_1_txt_attn_proj_weight, output=tensors.linear_20)
-    MUL_BROADCAST_210(rt, x=tensors.getitem_8, y=tensors.linear_20, output=tensors.mul_51)
-    ADD_F32_211(rt, x=tensors.add_19, y=tensors.mul_51, output=tensors.add_36)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_49, weight=tensors.p_double_blocks_1_img_mlp_2_weight, output=tensors.linear_19)
+    MUL_BROADCAST_193(rt, x=tensors.getitem_5, y=tensors.linear_19, output=tensors.mul_50)
+    ADD_F32_194(rt, x=tensors.add_32, y=tensors.mul_50, output=tensors.add_35)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_29, weight=tensors.p_double_blocks_1_txt_attn_proj_weight, output=tensors.linear_20)
+    MUL_BROADCAST_195(rt, x=tensors.getitem_8, y=tensors.linear_20, output=tensors.mul_51)
+    ADD_F32_196(rt, x=tensors.add_19, y=tensors.mul_51, output=tensors.add_36)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_10, output=tensors.add_37)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_36, output=tensors.layer_norm_7)
-    MUL_BROADCAST_212(rt, x=tensors.add_37, y=tensors.layer_norm_7, output=tensors.mul_52)
+    MUL_BROADCAST_197(rt, x=tensors.add_37, y=tensors.layer_norm_7, output=tensors.mul_52)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_52, y=tensors.getitem_9, output=tensors.add_38)
-    LINEAR_NOBIAS_F16W_F32_213(rt, x=tensors.add_38, weight=tensors.p_double_blocks_1_txt_mlp_0_weight, output=tensors.linear_21)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_38, weight=tensors.p_double_blocks_1_txt_mlp_0_weight, output=tensors.linear_21)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_21, output=tensors.getitem_33)
-    TUPLE_GETITEM_SLICE_F32_214(rt, x=tensors.linear_21, output=tensors.getitem_34)
-    SILU_F32_215(rt, x=tensors.getitem_33, output=tensors.silu_7)
+    TUPLE_GETITEM_SLICE_F32_198(rt, x=tensors.linear_21, output=tensors.getitem_34)
+    SILU_F32_199(rt, x=tensors.getitem_33, output=tensors.silu_7)
     FLUX_MUL_F32(rt, x=tensors.silu_7, y=tensors.getitem_34, output=tensors.mul_53)
-    LINEAR_NOBIAS_F16W_F32_216(rt, x=tensors.mul_53, weight=tensors.p_double_blocks_1_txt_mlp_2_weight, output=tensors.linear_22)
-    MUL_BROADCAST_217(rt, x=tensors.getitem_11, y=tensors.linear_22, output=tensors.mul_54)
-    ADD_F32_218(rt, x=tensors.add_36, y=tensors.mul_54, output=tensors.add_39)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_53, weight=tensors.p_double_blocks_1_txt_mlp_2_weight, output=tensors.linear_22)
+    MUL_BROADCAST_200(rt, x=tensors.getitem_11, y=tensors.linear_22, output=tensors.mul_54)
+    ADD_F32_201(rt, x=tensors.add_36, y=tensors.mul_54, output=tensors.add_39)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_35, output=tensors.layer_norm_8)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_1, output=tensors.add_40)
-    MUL_BROADCAST_219(rt, x=tensors.add_40, y=tensors.layer_norm_8, output=tensors.mul_55)
+    MUL_BROADCAST_202(rt, x=tensors.add_40, y=tensors.layer_norm_8, output=tensors.mul_55)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_55, y=tensors.getitem, output=tensors.add_41)
-    LINEAR_NOBIAS_F16W_F32_220(rt, x=tensors.add_41, weight=tensors.p_double_blocks_2_img_attn_qkv_weight, output=tensors.linear_23)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_41, weight=tensors.p_double_blocks_2_img_attn_qkv_weight, output=tensors.linear_23)
     PERMUTE_F32_0D3AB17AE3(rt, x=tensors.reshape_22, output=tensors.permute_6)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_6, output=tensors.getitem_35)
-    TUPLE_GETITEM_UNBIND_F32_221(rt, x=tensors.permute_6, output=tensors.getitem_36)
-    TUPLE_GETITEM_UNBIND_F32_222(rt, x=tensors.permute_6, output=tensors.getitem_37)
+    TUPLE_GETITEM_UNBIND_F32_203(rt, x=tensors.permute_6, output=tensors.getitem_36)
+    TUPLE_GETITEM_UNBIND_F32_204(rt, x=tensors.permute_6, output=tensors.getitem_37)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_43, output=tensors.pow_21)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_21, output=tensors.mean_12)
-    ADD_SCALAR_223(rt, x=tensors.mean_12, output=tensors.add_42)
+    ADD_SCALAR_205(rt, x=tensors.mean_12, output=tensors.add_42)
     FLUX_RSQRT_F32(rt, x=tensors.add_42, output=tensors.rsqrt_12)
-    MUL_BROADCAST_224(rt, x=tensors.to_43, y=tensors.rsqrt_12, output=tensors.mul_56)
+    MUL_BROADCAST_206(rt, x=tensors.to_43, y=tensors.rsqrt_12, output=tensors.mul_56)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_46, output=tensors.pow_22)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_22, output=tensors.mean_13)
-    ADD_SCALAR_225(rt, x=tensors.mean_13, output=tensors.add_43)
+    ADD_SCALAR_207(rt, x=tensors.mean_13, output=tensors.add_43)
     FLUX_RSQRT_F32(rt, x=tensors.add_43, output=tensors.rsqrt_13)
-    MUL_BROADCAST_226(rt, x=tensors.to_46, y=tensors.rsqrt_13, output=tensors.mul_57)
+    MUL_BROADCAST_208(rt, x=tensors.to_46, y=tensors.rsqrt_13, output=tensors.mul_57)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_44, y=tensors.p_double_blocks_2_img_attn_norm_query_norm_scale, output=tensors.mul_58)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_47, y=tensors.p_double_blocks_2_img_attn_norm_key_norm_scale, output=tensors.mul_59)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_39, output=tensors.layer_norm_9)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_7, output=tensors.add_45)
-    MUL_BROADCAST_228(rt, x=tensors.add_45, y=tensors.layer_norm_9, output=tensors.mul_60)
+    MUL_BROADCAST_210(rt, x=tensors.add_45, y=tensors.layer_norm_9, output=tensors.mul_60)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_60, y=tensors.getitem_6, output=tensors.add_46)
-    LINEAR_NOBIAS_F16W_F32_229(rt, x=tensors.add_46, weight=tensors.p_double_blocks_2_txt_attn_qkv_weight, output=tensors.linear_24)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_46, weight=tensors.p_double_blocks_2_txt_attn_qkv_weight, output=tensors.linear_24)
     PERMUTE_F32_8475D3A978(rt, x=tensors.reshape_23, output=tensors.permute_7)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_7, output=tensors.getitem_38)
-    TUPLE_GETITEM_UNBIND_F32_230(rt, x=tensors.permute_7, output=tensors.getitem_39)
-    TUPLE_GETITEM_UNBIND_F32_231(rt, x=tensors.permute_7, output=tensors.getitem_40)
+    TUPLE_GETITEM_UNBIND_F32_211(rt, x=tensors.permute_7, output=tensors.getitem_39)
+    TUPLE_GETITEM_UNBIND_F32_212(rt, x=tensors.permute_7, output=tensors.getitem_40)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_50, output=tensors.pow_24)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_24, output=tensors.mean_15)
-    ADD_SCALAR_232(rt, x=tensors.mean_15, output=tensors.add_47)
+    ADD_SCALAR_213(rt, x=tensors.mean_15, output=tensors.add_47)
     FLUX_RSQRT_F32(rt, x=tensors.add_47, output=tensors.rsqrt_15)
-    MUL_BROADCAST_233(rt, x=tensors.to_50, y=tensors.rsqrt_15, output=tensors.mul_61)
+    MUL_BROADCAST_214(rt, x=tensors.to_50, y=tensors.rsqrt_15, output=tensors.mul_61)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_53, output=tensors.pow_25)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_25, output=tensors.mean_16)
-    ADD_SCALAR_234(rt, x=tensors.mean_16, output=tensors.add_48)
+    ADD_SCALAR_215(rt, x=tensors.mean_16, output=tensors.add_48)
     FLUX_RSQRT_F32(rt, x=tensors.add_48, output=tensors.rsqrt_16)
-    MUL_BROADCAST_235(rt, x=tensors.to_53, y=tensors.rsqrt_16, output=tensors.mul_62)
+    MUL_BROADCAST_216(rt, x=tensors.to_53, y=tensors.rsqrt_16, output=tensors.mul_62)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_51, y=tensors.p_double_blocks_2_txt_attn_norm_query_norm_scale, output=tensors.mul_63)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_54, y=tensors.p_double_blocks_2_txt_attn_norm_key_norm_scale, output=tensors.mul_64)
-    CAT_2_F32_237(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_19)
-    CAT_2_F32_238(rt, x0=tensors.mul_63, x1=tensors.mul_58, output=tensors.cat_20)
-    CAT_2_F32_239(rt, x0=tensors.mul_64, x1=tensors.mul_59, output=tensors.cat_21)
-    CAT_2_F32_240(rt, x0=tensors.getitem_40, x1=tensors.getitem_37, output=tensors.cat_22)
+    CAT_2_F32_218(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_19)
+    CAT_2_F32_219(rt, x0=tensors.mul_63, x1=tensors.mul_58, output=tensors.cat_20)
+    CAT_2_F32_220(rt, x0=tensors.mul_64, x1=tensors.mul_59, output=tensors.cat_21)
+    CAT_2_F32_221(rt, x0=tensors.getitem_40, x1=tensors.getitem_37, output=tensors.cat_22)
     SELECT_FLOAT32(rt, x=tensors.cat_19, output=tensors.select_24)
     SELECT_FLOAT32(rt, x=tensors.reshape_24, output=tensors.select_25)
-    MUL_BROADCAST_241(rt, x=tensors.select_24, y=tensors.select_25, output=tensors.mul_65)
-    SELECT_FLOAT32_242(rt, x=tensors.cat_19, output=tensors.select_26)
-    SELECT_FLOAT32_243(rt, x=tensors.reshape_24, output=tensors.select_27)
-    MUL_BROADCAST_244(rt, x=tensors.select_26, y=tensors.select_27, output=tensors.mul_66)
+    MUL_BROADCAST_222(rt, x=tensors.select_24, y=tensors.select_25, output=tensors.mul_65)
+    SELECT_FLOAT32_223(rt, x=tensors.cat_19, output=tensors.select_26)
+    SELECT_FLOAT32_224(rt, x=tensors.reshape_24, output=tensors.select_27)
+    MUL_BROADCAST_225(rt, x=tensors.select_26, y=tensors.select_27, output=tensors.mul_66)
     FLUX_ADD_F32(rt, x=tensors.mul_65, y=tensors.mul_66, output=tensors.add_50)
     SELECT_FLOAT32(rt, x=tensors.cat_19, output=tensors.select_28)
     SELECT_FLOAT32(rt, x=tensors.reshape_25, output=tensors.select_29)
-    MUL_BROADCAST_245(rt, x=tensors.select_28, y=tensors.select_29, output=tensors.mul_67)
-    SELECT_FLOAT32_246(rt, x=tensors.cat_19, output=tensors.select_30)
-    SELECT_FLOAT32_247(rt, x=tensors.reshape_25, output=tensors.select_31)
-    MUL_BROADCAST_248(rt, x=tensors.select_30, y=tensors.select_31, output=tensors.mul_68)
+    MUL_BROADCAST_226(rt, x=tensors.select_28, y=tensors.select_29, output=tensors.mul_67)
+    SELECT_FLOAT32_227(rt, x=tensors.cat_19, output=tensors.select_30)
+    SELECT_FLOAT32_228(rt, x=tensors.reshape_25, output=tensors.select_31)
+    MUL_BROADCAST_229(rt, x=tensors.select_30, y=tensors.select_31, output=tensors.mul_68)
     FLUX_ADD_F32(rt, x=tensors.mul_67, y=tensors.mul_68, output=tensors.add_51)
-    SLICE_F32_249(rt, x=tensors.type_as_4, output=tensors.slice_33)
+    SLICE_F32_230(rt, x=tensors.type_as_4, output=tensors.slice_33)
     FLUX_SLICE_F32(rt, x=tensors.type_as_4, output=tensors.slice_34)
     FLUX_SLICE_F32(rt, x=tensors.type_as_4, output=tensors.slice_35)
-    SLICE_F32_250(rt, x=tensors.type_as_5, output=tensors.slice_36)
-    SLICE_F32_251(rt, x=tensors.cat_22, output=tensors.slice_37)
+    SLICE_F32_231(rt, x=tensors.type_as_5, output=tensors.slice_36)
+    SLICE_F32_232(rt, x=tensors.cat_22, output=tensors.slice_37)
     FLUX_SLICE_F32(rt, x=tensors.type_as_5, output=tensors.slice_38)
     FLUX_SLICE_F32(rt, x=tensors.cat_22, output=tensors.slice_39)
     FLUX_SLICE_F32(rt, x=tensors.type_as_5, output=tensors.slice_40)
     FLUX_SLICE_F32(rt, x=tensors.cat_22, output=tensors.slice_41)
-    CAT_2_F32_252(rt, x0=tensors.slice_33, x1=tensors.slice_35, output=tensors.cat_23)
+    CAT_2_F32_233(rt, x0=tensors.slice_33, x1=tensors.slice_35, output=tensors.cat_23)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_36, x1=tensors.slice_38, x2=tensors.slice_40, output=tensors.cat_24)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_37, x1=tensors.slice_39, x2=tensors.slice_41, output=tensors.cat_25)
     SDPA_F32(rt, q=tensors.cat_23, k=tensors.cat_24, v=tensors.cat_25, output=tensors.scaled_dot_product_attention_4)
-    SLICE_F32_253(rt, x=tensors.scaled_dot_product_attention_4, output=tensors.slice_42)
+    SLICE_F32_234(rt, x=tensors.scaled_dot_product_attention_4, output=tensors.slice_42)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_4, output=tensors.slice_43)
     SDPA_F32(rt, q=tensors.slice_34, k=tensors.slice_38, v=tensors.slice_39, output=tensors.scaled_dot_product_attention_5)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_42, x1=tensors.scaled_dot_product_attention_5, x2=tensors.slice_43, output=tensors.cat_26)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_26, output=tensors.permute_8)
-    SLICE_F32_254(rt, x=tensors.reshape_28, output=tensors.slice_44)
-    SLICE_F32_255(rt, x=tensors.reshape_28, output=tensors.slice_45)
-    LINEAR_NOBIAS_F16W_F32_256(rt, x=tensors.slice_45, weight=tensors.p_double_blocks_2_img_attn_proj_weight, output=tensors.linear_25)
-    MUL_BROADCAST_257(rt, x=tensors.getitem_2, y=tensors.linear_25, output=tensors.mul_69)
-    ADD_F32_258(rt, x=tensors.add_35, y=tensors.mul_69, output=tensors.add_52)
+    SLICE_F32_235(rt, x=tensors.reshape_28, output=tensors.slice_44)
+    SLICE_F32_236(rt, x=tensors.reshape_28, output=tensors.slice_45)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_45, weight=tensors.p_double_blocks_2_img_attn_proj_weight, output=tensors.linear_25)
+    MUL_BROADCAST_237(rt, x=tensors.getitem_2, y=tensors.linear_25, output=tensors.mul_69)
+    ADD_F32_238(rt, x=tensors.add_35, y=tensors.mul_69, output=tensors.add_52)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_4, output=tensors.add_53)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_52, output=tensors.layer_norm_10)
-    MUL_BROADCAST_259(rt, x=tensors.add_53, y=tensors.layer_norm_10, output=tensors.mul_70)
+    MUL_BROADCAST_239(rt, x=tensors.add_53, y=tensors.layer_norm_10, output=tensors.mul_70)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_70, y=tensors.getitem_3, output=tensors.add_54)
-    LINEAR_NOBIAS_F16W_F32_260(rt, x=tensors.add_54, weight=tensors.p_double_blocks_2_img_mlp_0_weight, output=tensors.linear_26)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_54, weight=tensors.p_double_blocks_2_img_mlp_0_weight, output=tensors.linear_26)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_26, output=tensors.getitem_41)
-    TUPLE_GETITEM_SLICE_F32_261(rt, x=tensors.linear_26, output=tensors.getitem_42)
-    SILU_F32_262(rt, x=tensors.getitem_41, output=tensors.silu_8)
+    TUPLE_GETITEM_SLICE_F32_240(rt, x=tensors.linear_26, output=tensors.getitem_42)
+    SILU_F32_241(rt, x=tensors.getitem_41, output=tensors.silu_8)
     FLUX_MUL_F32(rt, x=tensors.silu_8, y=tensors.getitem_42, output=tensors.mul_71)
-    LINEAR_NOBIAS_F16W_F32_263(rt, x=tensors.mul_71, weight=tensors.p_double_blocks_2_img_mlp_2_weight, output=tensors.linear_27)
-    MUL_BROADCAST_264(rt, x=tensors.getitem_5, y=tensors.linear_27, output=tensors.mul_72)
-    ADD_F32_265(rt, x=tensors.add_52, y=tensors.mul_72, output=tensors.add_55)
-    LINEAR_NOBIAS_F16W_F32_266(rt, x=tensors.slice_44, weight=tensors.p_double_blocks_2_txt_attn_proj_weight, output=tensors.linear_28)
-    MUL_BROADCAST_267(rt, x=tensors.getitem_8, y=tensors.linear_28, output=tensors.mul_73)
-    ADD_F32_268(rt, x=tensors.add_39, y=tensors.mul_73, output=tensors.add_56)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_71, weight=tensors.p_double_blocks_2_img_mlp_2_weight, output=tensors.linear_27)
+    MUL_BROADCAST_242(rt, x=tensors.getitem_5, y=tensors.linear_27, output=tensors.mul_72)
+    ADD_F32_243(rt, x=tensors.add_52, y=tensors.mul_72, output=tensors.add_55)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_44, weight=tensors.p_double_blocks_2_txt_attn_proj_weight, output=tensors.linear_28)
+    MUL_BROADCAST_244(rt, x=tensors.getitem_8, y=tensors.linear_28, output=tensors.mul_73)
+    ADD_F32_245(rt, x=tensors.add_39, y=tensors.mul_73, output=tensors.add_56)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_10, output=tensors.add_57)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_56, output=tensors.layer_norm_11)
-    MUL_BROADCAST_269(rt, x=tensors.add_57, y=tensors.layer_norm_11, output=tensors.mul_74)
+    MUL_BROADCAST_246(rt, x=tensors.add_57, y=tensors.layer_norm_11, output=tensors.mul_74)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_74, y=tensors.getitem_9, output=tensors.add_58)
-    LINEAR_NOBIAS_F16W_F32_270(rt, x=tensors.add_58, weight=tensors.p_double_blocks_2_txt_mlp_0_weight, output=tensors.linear_29)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_58, weight=tensors.p_double_blocks_2_txt_mlp_0_weight, output=tensors.linear_29)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_29, output=tensors.getitem_43)
-    TUPLE_GETITEM_SLICE_F32_271(rt, x=tensors.linear_29, output=tensors.getitem_44)
-    SILU_F32_272(rt, x=tensors.getitem_43, output=tensors.silu_9)
+    TUPLE_GETITEM_SLICE_F32_247(rt, x=tensors.linear_29, output=tensors.getitem_44)
+    SILU_F32_248(rt, x=tensors.getitem_43, output=tensors.silu_9)
     FLUX_MUL_F32(rt, x=tensors.silu_9, y=tensors.getitem_44, output=tensors.mul_75)
-    LINEAR_NOBIAS_F16W_F32_273(rt, x=tensors.mul_75, weight=tensors.p_double_blocks_2_txt_mlp_2_weight, output=tensors.linear_30)
-    MUL_BROADCAST_274(rt, x=tensors.getitem_11, y=tensors.linear_30, output=tensors.mul_76)
-    ADD_F32_275(rt, x=tensors.add_56, y=tensors.mul_76, output=tensors.add_59)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_75, weight=tensors.p_double_blocks_2_txt_mlp_2_weight, output=tensors.linear_30)
+    MUL_BROADCAST_249(rt, x=tensors.getitem_11, y=tensors.linear_30, output=tensors.mul_76)
+    ADD_F32_250(rt, x=tensors.add_56, y=tensors.mul_76, output=tensors.add_59)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_55, output=tensors.layer_norm_12)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_1, output=tensors.add_60)
-    MUL_BROADCAST_276(rt, x=tensors.add_60, y=tensors.layer_norm_12, output=tensors.mul_77)
+    MUL_BROADCAST_251(rt, x=tensors.add_60, y=tensors.layer_norm_12, output=tensors.mul_77)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_77, y=tensors.getitem, output=tensors.add_61)
-    LINEAR_NOBIAS_F16W_F32_277(rt, x=tensors.add_61, weight=tensors.p_double_blocks_3_img_attn_qkv_weight, output=tensors.linear_31)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_61, weight=tensors.p_double_blocks_3_img_attn_qkv_weight, output=tensors.linear_31)
     PERMUTE_F32_0D3AB17AE3(rt, x=tensors.reshape_29, output=tensors.permute_9)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_9, output=tensors.getitem_45)
-    TUPLE_GETITEM_UNBIND_F32_278(rt, x=tensors.permute_9, output=tensors.getitem_46)
-    TUPLE_GETITEM_UNBIND_F32_279(rt, x=tensors.permute_9, output=tensors.getitem_47)
+    TUPLE_GETITEM_UNBIND_F32_252(rt, x=tensors.permute_9, output=tensors.getitem_46)
+    TUPLE_GETITEM_UNBIND_F32_253(rt, x=tensors.permute_9, output=tensors.getitem_47)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_59, output=tensors.pow_27)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_27, output=tensors.mean_18)
-    ADD_SCALAR_280(rt, x=tensors.mean_18, output=tensors.add_62)
+    ADD_SCALAR_254(rt, x=tensors.mean_18, output=tensors.add_62)
     FLUX_RSQRT_F32(rt, x=tensors.add_62, output=tensors.rsqrt_18)
-    MUL_BROADCAST_281(rt, x=tensors.to_59, y=tensors.rsqrt_18, output=tensors.mul_78)
+    MUL_BROADCAST_255(rt, x=tensors.to_59, y=tensors.rsqrt_18, output=tensors.mul_78)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_62, output=tensors.pow_28)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_28, output=tensors.mean_19)
-    ADD_SCALAR_282(rt, x=tensors.mean_19, output=tensors.add_63)
+    ADD_SCALAR_256(rt, x=tensors.mean_19, output=tensors.add_63)
     FLUX_RSQRT_F32(rt, x=tensors.add_63, output=tensors.rsqrt_19)
-    MUL_BROADCAST_283(rt, x=tensors.to_62, y=tensors.rsqrt_19, output=tensors.mul_79)
+    MUL_BROADCAST_257(rt, x=tensors.to_62, y=tensors.rsqrt_19, output=tensors.mul_79)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_60, y=tensors.p_double_blocks_3_img_attn_norm_query_norm_scale, output=tensors.mul_80)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_63, y=tensors.p_double_blocks_3_img_attn_norm_key_norm_scale, output=tensors.mul_81)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_59, output=tensors.layer_norm_13)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_7, output=tensors.add_65)
-    MUL_BROADCAST_285(rt, x=tensors.add_65, y=tensors.layer_norm_13, output=tensors.mul_82)
+    MUL_BROADCAST_259(rt, x=tensors.add_65, y=tensors.layer_norm_13, output=tensors.mul_82)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_82, y=tensors.getitem_6, output=tensors.add_66)
-    LINEAR_NOBIAS_F16W_F32_286(rt, x=tensors.add_66, weight=tensors.p_double_blocks_3_txt_attn_qkv_weight, output=tensors.linear_32)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_66, weight=tensors.p_double_blocks_3_txt_attn_qkv_weight, output=tensors.linear_32)
     PERMUTE_F32_8475D3A978(rt, x=tensors.reshape_30, output=tensors.permute_10)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_10, output=tensors.getitem_48)
-    TUPLE_GETITEM_UNBIND_F32_287(rt, x=tensors.permute_10, output=tensors.getitem_49)
-    TUPLE_GETITEM_UNBIND_F32_288(rt, x=tensors.permute_10, output=tensors.getitem_50)
+    TUPLE_GETITEM_UNBIND_F32_260(rt, x=tensors.permute_10, output=tensors.getitem_49)
+    TUPLE_GETITEM_UNBIND_F32_261(rt, x=tensors.permute_10, output=tensors.getitem_50)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_66, output=tensors.pow_30)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_30, output=tensors.mean_21)
-    ADD_SCALAR_289(rt, x=tensors.mean_21, output=tensors.add_67)
+    ADD_SCALAR_262(rt, x=tensors.mean_21, output=tensors.add_67)
     FLUX_RSQRT_F32(rt, x=tensors.add_67, output=tensors.rsqrt_21)
-    MUL_BROADCAST_290(rt, x=tensors.to_66, y=tensors.rsqrt_21, output=tensors.mul_83)
+    MUL_BROADCAST_263(rt, x=tensors.to_66, y=tensors.rsqrt_21, output=tensors.mul_83)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_69, output=tensors.pow_31)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_31, output=tensors.mean_22)
-    ADD_SCALAR_291(rt, x=tensors.mean_22, output=tensors.add_68)
+    ADD_SCALAR_264(rt, x=tensors.mean_22, output=tensors.add_68)
     FLUX_RSQRT_F32(rt, x=tensors.add_68, output=tensors.rsqrt_22)
-    MUL_BROADCAST_292(rt, x=tensors.to_69, y=tensors.rsqrt_22, output=tensors.mul_84)
+    MUL_BROADCAST_265(rt, x=tensors.to_69, y=tensors.rsqrt_22, output=tensors.mul_84)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_67, y=tensors.p_double_blocks_3_txt_attn_norm_query_norm_scale, output=tensors.mul_85)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_70, y=tensors.p_double_blocks_3_txt_attn_norm_key_norm_scale, output=tensors.mul_86)
-    CAT_2_F32_294(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_27)
-    CAT_2_F32_295(rt, x0=tensors.mul_85, x1=tensors.mul_80, output=tensors.cat_28)
-    CAT_2_F32_296(rt, x0=tensors.mul_86, x1=tensors.mul_81, output=tensors.cat_29)
-    CAT_2_F32_297(rt, x0=tensors.getitem_50, x1=tensors.getitem_47, output=tensors.cat_30)
+    CAT_2_F32_267(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_27)
+    CAT_2_F32_268(rt, x0=tensors.mul_85, x1=tensors.mul_80, output=tensors.cat_28)
+    CAT_2_F32_269(rt, x0=tensors.mul_86, x1=tensors.mul_81, output=tensors.cat_29)
+    CAT_2_F32_270(rt, x0=tensors.getitem_50, x1=tensors.getitem_47, output=tensors.cat_30)
     SELECT_FLOAT32(rt, x=tensors.cat_27, output=tensors.select_32)
     SELECT_FLOAT32(rt, x=tensors.reshape_31, output=tensors.select_33)
-    MUL_BROADCAST_298(rt, x=tensors.select_32, y=tensors.select_33, output=tensors.mul_87)
-    SELECT_FLOAT32_299(rt, x=tensors.cat_27, output=tensors.select_34)
-    SELECT_FLOAT32_300(rt, x=tensors.reshape_31, output=tensors.select_35)
-    MUL_BROADCAST_301(rt, x=tensors.select_34, y=tensors.select_35, output=tensors.mul_88)
+    MUL_BROADCAST_271(rt, x=tensors.select_32, y=tensors.select_33, output=tensors.mul_87)
+    SELECT_FLOAT32_272(rt, x=tensors.cat_27, output=tensors.select_34)
+    SELECT_FLOAT32_273(rt, x=tensors.reshape_31, output=tensors.select_35)
+    MUL_BROADCAST_274(rt, x=tensors.select_34, y=tensors.select_35, output=tensors.mul_88)
     FLUX_ADD_F32(rt, x=tensors.mul_87, y=tensors.mul_88, output=tensors.add_70)
     SELECT_FLOAT32(rt, x=tensors.cat_27, output=tensors.select_36)
     SELECT_FLOAT32(rt, x=tensors.reshape_32, output=tensors.select_37)
-    MUL_BROADCAST_302(rt, x=tensors.select_36, y=tensors.select_37, output=tensors.mul_89)
-    SELECT_FLOAT32_303(rt, x=tensors.cat_27, output=tensors.select_38)
-    SELECT_FLOAT32_304(rt, x=tensors.reshape_32, output=tensors.select_39)
-    MUL_BROADCAST_305(rt, x=tensors.select_38, y=tensors.select_39, output=tensors.mul_90)
+    MUL_BROADCAST_275(rt, x=tensors.select_36, y=tensors.select_37, output=tensors.mul_89)
+    SELECT_FLOAT32_276(rt, x=tensors.cat_27, output=tensors.select_38)
+    SELECT_FLOAT32_277(rt, x=tensors.reshape_32, output=tensors.select_39)
+    MUL_BROADCAST_278(rt, x=tensors.select_38, y=tensors.select_39, output=tensors.mul_90)
     FLUX_ADD_F32(rt, x=tensors.mul_89, y=tensors.mul_90, output=tensors.add_71)
-    SLICE_F32_306(rt, x=tensors.type_as_6, output=tensors.slice_48)
+    SLICE_F32_279(rt, x=tensors.type_as_6, output=tensors.slice_48)
     FLUX_SLICE_F32(rt, x=tensors.type_as_6, output=tensors.slice_49)
     FLUX_SLICE_F32(rt, x=tensors.type_as_6, output=tensors.slice_50)
-    SLICE_F32_307(rt, x=tensors.type_as_7, output=tensors.slice_51)
-    SLICE_F32_308(rt, x=tensors.cat_30, output=tensors.slice_52)
+    SLICE_F32_280(rt, x=tensors.type_as_7, output=tensors.slice_51)
+    SLICE_F32_281(rt, x=tensors.cat_30, output=tensors.slice_52)
     FLUX_SLICE_F32(rt, x=tensors.type_as_7, output=tensors.slice_53)
     FLUX_SLICE_F32(rt, x=tensors.cat_30, output=tensors.slice_54)
     FLUX_SLICE_F32(rt, x=tensors.type_as_7, output=tensors.slice_55)
     FLUX_SLICE_F32(rt, x=tensors.cat_30, output=tensors.slice_56)
-    CAT_2_F32_309(rt, x0=tensors.slice_48, x1=tensors.slice_50, output=tensors.cat_31)
+    CAT_2_F32_282(rt, x0=tensors.slice_48, x1=tensors.slice_50, output=tensors.cat_31)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_51, x1=tensors.slice_53, x2=tensors.slice_55, output=tensors.cat_32)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_52, x1=tensors.slice_54, x2=tensors.slice_56, output=tensors.cat_33)
     SDPA_F32(rt, q=tensors.cat_31, k=tensors.cat_32, v=tensors.cat_33, output=tensors.scaled_dot_product_attention_6)
-    SLICE_F32_310(rt, x=tensors.scaled_dot_product_attention_6, output=tensors.slice_57)
+    SLICE_F32_283(rt, x=tensors.scaled_dot_product_attention_6, output=tensors.slice_57)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_6, output=tensors.slice_58)
     SDPA_F32(rt, q=tensors.slice_49, k=tensors.slice_53, v=tensors.slice_54, output=tensors.scaled_dot_product_attention_7)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_57, x1=tensors.scaled_dot_product_attention_7, x2=tensors.slice_58, output=tensors.cat_34)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_34, output=tensors.permute_11)
-    SLICE_F32_311(rt, x=tensors.reshape_35, output=tensors.slice_59)
-    SLICE_F32_312(rt, x=tensors.reshape_35, output=tensors.slice_60)
-    LINEAR_NOBIAS_F16W_F32_313(rt, x=tensors.slice_60, weight=tensors.p_double_blocks_3_img_attn_proj_weight, output=tensors.linear_33)
-    MUL_BROADCAST_314(rt, x=tensors.getitem_2, y=tensors.linear_33, output=tensors.mul_91)
-    ADD_F32_315(rt, x=tensors.add_55, y=tensors.mul_91, output=tensors.add_72)
+    SLICE_F32_284(rt, x=tensors.reshape_35, output=tensors.slice_59)
+    SLICE_F32_285(rt, x=tensors.reshape_35, output=tensors.slice_60)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_60, weight=tensors.p_double_blocks_3_img_attn_proj_weight, output=tensors.linear_33)
+    MUL_BROADCAST_286(rt, x=tensors.getitem_2, y=tensors.linear_33, output=tensors.mul_91)
+    ADD_F32_287(rt, x=tensors.add_55, y=tensors.mul_91, output=tensors.add_72)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_4, output=tensors.add_73)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_72, output=tensors.layer_norm_14)
-    MUL_BROADCAST_316(rt, x=tensors.add_73, y=tensors.layer_norm_14, output=tensors.mul_92)
+    MUL_BROADCAST_288(rt, x=tensors.add_73, y=tensors.layer_norm_14, output=tensors.mul_92)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_92, y=tensors.getitem_3, output=tensors.add_74)
-    LINEAR_NOBIAS_F16W_F32_317(rt, x=tensors.add_74, weight=tensors.p_double_blocks_3_img_mlp_0_weight, output=tensors.linear_34)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_74, weight=tensors.p_double_blocks_3_img_mlp_0_weight, output=tensors.linear_34)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_34, output=tensors.getitem_51)
-    TUPLE_GETITEM_SLICE_F32_318(rt, x=tensors.linear_34, output=tensors.getitem_52)
-    SILU_F32_319(rt, x=tensors.getitem_51, output=tensors.silu_10)
+    TUPLE_GETITEM_SLICE_F32_289(rt, x=tensors.linear_34, output=tensors.getitem_52)
+    SILU_F32_290(rt, x=tensors.getitem_51, output=tensors.silu_10)
     FLUX_MUL_F32(rt, x=tensors.silu_10, y=tensors.getitem_52, output=tensors.mul_93)
-    LINEAR_NOBIAS_F16W_F32_320(rt, x=tensors.mul_93, weight=tensors.p_double_blocks_3_img_mlp_2_weight, output=tensors.linear_35)
-    MUL_BROADCAST_321(rt, x=tensors.getitem_5, y=tensors.linear_35, output=tensors.mul_94)
-    ADD_F32_322(rt, x=tensors.add_72, y=tensors.mul_94, output=tensors.add_75)
-    LINEAR_NOBIAS_F16W_F32_323(rt, x=tensors.slice_59, weight=tensors.p_double_blocks_3_txt_attn_proj_weight, output=tensors.linear_36)
-    MUL_BROADCAST_324(rt, x=tensors.getitem_8, y=tensors.linear_36, output=tensors.mul_95)
-    ADD_F32_325(rt, x=tensors.add_59, y=tensors.mul_95, output=tensors.add_76)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_93, weight=tensors.p_double_blocks_3_img_mlp_2_weight, output=tensors.linear_35)
+    MUL_BROADCAST_291(rt, x=tensors.getitem_5, y=tensors.linear_35, output=tensors.mul_94)
+    ADD_F32_292(rt, x=tensors.add_72, y=tensors.mul_94, output=tensors.add_75)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_59, weight=tensors.p_double_blocks_3_txt_attn_proj_weight, output=tensors.linear_36)
+    MUL_BROADCAST_293(rt, x=tensors.getitem_8, y=tensors.linear_36, output=tensors.mul_95)
+    ADD_F32_294(rt, x=tensors.add_59, y=tensors.mul_95, output=tensors.add_76)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_10, output=tensors.add_77)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_76, output=tensors.layer_norm_15)
-    MUL_BROADCAST_326(rt, x=tensors.add_77, y=tensors.layer_norm_15, output=tensors.mul_96)
+    MUL_BROADCAST_295(rt, x=tensors.add_77, y=tensors.layer_norm_15, output=tensors.mul_96)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_96, y=tensors.getitem_9, output=tensors.add_78)
-    LINEAR_NOBIAS_F16W_F32_327(rt, x=tensors.add_78, weight=tensors.p_double_blocks_3_txt_mlp_0_weight, output=tensors.linear_37)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_78, weight=tensors.p_double_blocks_3_txt_mlp_0_weight, output=tensors.linear_37)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_37, output=tensors.getitem_53)
-    TUPLE_GETITEM_SLICE_F32_328(rt, x=tensors.linear_37, output=tensors.getitem_54)
-    SILU_F32_329(rt, x=tensors.getitem_53, output=tensors.silu_11)
+    TUPLE_GETITEM_SLICE_F32_296(rt, x=tensors.linear_37, output=tensors.getitem_54)
+    SILU_F32_297(rt, x=tensors.getitem_53, output=tensors.silu_11)
     FLUX_MUL_F32(rt, x=tensors.silu_11, y=tensors.getitem_54, output=tensors.mul_97)
-    LINEAR_NOBIAS_F16W_F32_330(rt, x=tensors.mul_97, weight=tensors.p_double_blocks_3_txt_mlp_2_weight, output=tensors.linear_38)
-    MUL_BROADCAST_331(rt, x=tensors.getitem_11, y=tensors.linear_38, output=tensors.mul_98)
-    ADD_F32_332(rt, x=tensors.add_76, y=tensors.mul_98, output=tensors.add_79)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_97, weight=tensors.p_double_blocks_3_txt_mlp_2_weight, output=tensors.linear_38)
+    MUL_BROADCAST_298(rt, x=tensors.getitem_11, y=tensors.linear_38, output=tensors.mul_98)
+    ADD_F32_299(rt, x=tensors.add_76, y=tensors.mul_98, output=tensors.add_79)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_75, output=tensors.layer_norm_16)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_1, output=tensors.add_80)
-    MUL_BROADCAST_333(rt, x=tensors.add_80, y=tensors.layer_norm_16, output=tensors.mul_99)
+    MUL_BROADCAST_300(rt, x=tensors.add_80, y=tensors.layer_norm_16, output=tensors.mul_99)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_99, y=tensors.getitem, output=tensors.add_81)
-    LINEAR_NOBIAS_F16W_F32_334(rt, x=tensors.add_81, weight=tensors.p_double_blocks_4_img_attn_qkv_weight, output=tensors.linear_39)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_81, weight=tensors.p_double_blocks_4_img_attn_qkv_weight, output=tensors.linear_39)
     PERMUTE_F32_0D3AB17AE3(rt, x=tensors.reshape_36, output=tensors.permute_12)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_12, output=tensors.getitem_55)
-    TUPLE_GETITEM_UNBIND_F32_335(rt, x=tensors.permute_12, output=tensors.getitem_56)
-    TUPLE_GETITEM_UNBIND_F32_336(rt, x=tensors.permute_12, output=tensors.getitem_57)
+    TUPLE_GETITEM_UNBIND_F32_301(rt, x=tensors.permute_12, output=tensors.getitem_56)
+    TUPLE_GETITEM_UNBIND_F32_302(rt, x=tensors.permute_12, output=tensors.getitem_57)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_75, output=tensors.pow_33)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_33, output=tensors.mean_24)
-    ADD_SCALAR_337(rt, x=tensors.mean_24, output=tensors.add_82)
+    ADD_SCALAR_303(rt, x=tensors.mean_24, output=tensors.add_82)
     FLUX_RSQRT_F32(rt, x=tensors.add_82, output=tensors.rsqrt_24)
-    MUL_BROADCAST_338(rt, x=tensors.to_75, y=tensors.rsqrt_24, output=tensors.mul_100)
+    MUL_BROADCAST_304(rt, x=tensors.to_75, y=tensors.rsqrt_24, output=tensors.mul_100)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_78, output=tensors.pow_34)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_34, output=tensors.mean_25)
-    ADD_SCALAR_339(rt, x=tensors.mean_25, output=tensors.add_83)
+    ADD_SCALAR_305(rt, x=tensors.mean_25, output=tensors.add_83)
     FLUX_RSQRT_F32(rt, x=tensors.add_83, output=tensors.rsqrt_25)
-    MUL_BROADCAST_340(rt, x=tensors.to_78, y=tensors.rsqrt_25, output=tensors.mul_101)
+    MUL_BROADCAST_306(rt, x=tensors.to_78, y=tensors.rsqrt_25, output=tensors.mul_101)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_76, y=tensors.p_double_blocks_4_img_attn_norm_query_norm_scale, output=tensors.mul_102)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_79, y=tensors.p_double_blocks_4_img_attn_norm_key_norm_scale, output=tensors.mul_103)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_79, output=tensors.layer_norm_17)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_7, output=tensors.add_85)
-    MUL_BROADCAST_342(rt, x=tensors.add_85, y=tensors.layer_norm_17, output=tensors.mul_104)
+    MUL_BROADCAST_308(rt, x=tensors.add_85, y=tensors.layer_norm_17, output=tensors.mul_104)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_104, y=tensors.getitem_6, output=tensors.add_86)
-    LINEAR_NOBIAS_F16W_F32_343(rt, x=tensors.add_86, weight=tensors.p_double_blocks_4_txt_attn_qkv_weight, output=tensors.linear_40)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_86, weight=tensors.p_double_blocks_4_txt_attn_qkv_weight, output=tensors.linear_40)
     PERMUTE_F32_8475D3A978(rt, x=tensors.reshape_37, output=tensors.permute_13)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_13, output=tensors.getitem_58)
-    TUPLE_GETITEM_UNBIND_F32_344(rt, x=tensors.permute_13, output=tensors.getitem_59)
-    TUPLE_GETITEM_UNBIND_F32_345(rt, x=tensors.permute_13, output=tensors.getitem_60)
+    TUPLE_GETITEM_UNBIND_F32_309(rt, x=tensors.permute_13, output=tensors.getitem_59)
+    TUPLE_GETITEM_UNBIND_F32_310(rt, x=tensors.permute_13, output=tensors.getitem_60)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_82, output=tensors.pow_36)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_36, output=tensors.mean_27)
-    ADD_SCALAR_346(rt, x=tensors.mean_27, output=tensors.add_87)
+    ADD_SCALAR_311(rt, x=tensors.mean_27, output=tensors.add_87)
     FLUX_RSQRT_F32(rt, x=tensors.add_87, output=tensors.rsqrt_27)
-    MUL_BROADCAST_347(rt, x=tensors.to_82, y=tensors.rsqrt_27, output=tensors.mul_105)
+    MUL_BROADCAST_312(rt, x=tensors.to_82, y=tensors.rsqrt_27, output=tensors.mul_105)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_85, output=tensors.pow_37)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_37, output=tensors.mean_28)
-    ADD_SCALAR_348(rt, x=tensors.mean_28, output=tensors.add_88)
+    ADD_SCALAR_313(rt, x=tensors.mean_28, output=tensors.add_88)
     FLUX_RSQRT_F32(rt, x=tensors.add_88, output=tensors.rsqrt_28)
-    MUL_BROADCAST_349(rt, x=tensors.to_85, y=tensors.rsqrt_28, output=tensors.mul_106)
+    MUL_BROADCAST_314(rt, x=tensors.to_85, y=tensors.rsqrt_28, output=tensors.mul_106)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_83, y=tensors.p_double_blocks_4_txt_attn_norm_query_norm_scale, output=tensors.mul_107)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_86, y=tensors.p_double_blocks_4_txt_attn_norm_key_norm_scale, output=tensors.mul_108)
-    CAT_2_F32_351(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_35)
-    CAT_2_F32_352(rt, x0=tensors.mul_107, x1=tensors.mul_102, output=tensors.cat_36)
-    CAT_2_F32_353(rt, x0=tensors.mul_108, x1=tensors.mul_103, output=tensors.cat_37)
-    CAT_2_F32_354(rt, x0=tensors.getitem_60, x1=tensors.getitem_57, output=tensors.cat_38)
+    CAT_2_F32_316(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_35)
+    CAT_2_F32_317(rt, x0=tensors.mul_107, x1=tensors.mul_102, output=tensors.cat_36)
+    CAT_2_F32_318(rt, x0=tensors.mul_108, x1=tensors.mul_103, output=tensors.cat_37)
+    CAT_2_F32_319(rt, x0=tensors.getitem_60, x1=tensors.getitem_57, output=tensors.cat_38)
     SELECT_FLOAT32(rt, x=tensors.cat_35, output=tensors.select_40)
     SELECT_FLOAT32(rt, x=tensors.reshape_38, output=tensors.select_41)
-    MUL_BROADCAST_355(rt, x=tensors.select_40, y=tensors.select_41, output=tensors.mul_109)
-    SELECT_FLOAT32_356(rt, x=tensors.cat_35, output=tensors.select_42)
-    SELECT_FLOAT32_357(rt, x=tensors.reshape_38, output=tensors.select_43)
-    MUL_BROADCAST_358(rt, x=tensors.select_42, y=tensors.select_43, output=tensors.mul_110)
+    MUL_BROADCAST_320(rt, x=tensors.select_40, y=tensors.select_41, output=tensors.mul_109)
+    SELECT_FLOAT32_321(rt, x=tensors.cat_35, output=tensors.select_42)
+    SELECT_FLOAT32_322(rt, x=tensors.reshape_38, output=tensors.select_43)
+    MUL_BROADCAST_323(rt, x=tensors.select_42, y=tensors.select_43, output=tensors.mul_110)
     FLUX_ADD_F32(rt, x=tensors.mul_109, y=tensors.mul_110, output=tensors.add_90)
     SELECT_FLOAT32(rt, x=tensors.cat_35, output=tensors.select_44)
     SELECT_FLOAT32(rt, x=tensors.reshape_39, output=tensors.select_45)
-    MUL_BROADCAST_359(rt, x=tensors.select_44, y=tensors.select_45, output=tensors.mul_111)
-    SELECT_FLOAT32_360(rt, x=tensors.cat_35, output=tensors.select_46)
-    SELECT_FLOAT32_361(rt, x=tensors.reshape_39, output=tensors.select_47)
-    MUL_BROADCAST_362(rt, x=tensors.select_46, y=tensors.select_47, output=tensors.mul_112)
+    MUL_BROADCAST_324(rt, x=tensors.select_44, y=tensors.select_45, output=tensors.mul_111)
+    SELECT_FLOAT32_325(rt, x=tensors.cat_35, output=tensors.select_46)
+    SELECT_FLOAT32_326(rt, x=tensors.reshape_39, output=tensors.select_47)
+    MUL_BROADCAST_327(rt, x=tensors.select_46, y=tensors.select_47, output=tensors.mul_112)
     FLUX_ADD_F32(rt, x=tensors.mul_111, y=tensors.mul_112, output=tensors.add_91)
-    SLICE_F32_363(rt, x=tensors.type_as_8, output=tensors.slice_63)
+    SLICE_F32_328(rt, x=tensors.type_as_8, output=tensors.slice_63)
     FLUX_SLICE_F32(rt, x=tensors.type_as_8, output=tensors.slice_64)
     FLUX_SLICE_F32(rt, x=tensors.type_as_8, output=tensors.slice_65)
-    SLICE_F32_364(rt, x=tensors.type_as_9, output=tensors.slice_66)
-    SLICE_F32_365(rt, x=tensors.cat_38, output=tensors.slice_67)
+    SLICE_F32_329(rt, x=tensors.type_as_9, output=tensors.slice_66)
+    SLICE_F32_330(rt, x=tensors.cat_38, output=tensors.slice_67)
     FLUX_SLICE_F32(rt, x=tensors.type_as_9, output=tensors.slice_68)
     FLUX_SLICE_F32(rt, x=tensors.cat_38, output=tensors.slice_69)
     FLUX_SLICE_F32(rt, x=tensors.type_as_9, output=tensors.slice_70)
     FLUX_SLICE_F32(rt, x=tensors.cat_38, output=tensors.slice_71)
-    CAT_2_F32_366(rt, x0=tensors.slice_63, x1=tensors.slice_65, output=tensors.cat_39)
+    CAT_2_F32_331(rt, x0=tensors.slice_63, x1=tensors.slice_65, output=tensors.cat_39)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_66, x1=tensors.slice_68, x2=tensors.slice_70, output=tensors.cat_40)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_67, x1=tensors.slice_69, x2=tensors.slice_71, output=tensors.cat_41)
     SDPA_F32(rt, q=tensors.cat_39, k=tensors.cat_40, v=tensors.cat_41, output=tensors.scaled_dot_product_attention_8)
-    SLICE_F32_367(rt, x=tensors.scaled_dot_product_attention_8, output=tensors.slice_72)
+    SLICE_F32_332(rt, x=tensors.scaled_dot_product_attention_8, output=tensors.slice_72)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_8, output=tensors.slice_73)
     SDPA_F32(rt, q=tensors.slice_64, k=tensors.slice_68, v=tensors.slice_69, output=tensors.scaled_dot_product_attention_9)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_72, x1=tensors.scaled_dot_product_attention_9, x2=tensors.slice_73, output=tensors.cat_42)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_42, output=tensors.permute_14)
-    SLICE_F32_368(rt, x=tensors.reshape_42, output=tensors.slice_74)
-    SLICE_F32_369(rt, x=tensors.reshape_42, output=tensors.slice_75)
-    LINEAR_NOBIAS_F16W_F32_370(rt, x=tensors.slice_75, weight=tensors.p_double_blocks_4_img_attn_proj_weight, output=tensors.linear_41)
-    MUL_BROADCAST_371(rt, x=tensors.getitem_2, y=tensors.linear_41, output=tensors.mul_113)
-    ADD_F32_372(rt, x=tensors.add_75, y=tensors.mul_113, output=tensors.add_92)
+    SLICE_F32_333(rt, x=tensors.reshape_42, output=tensors.slice_74)
+    SLICE_F32_334(rt, x=tensors.reshape_42, output=tensors.slice_75)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_75, weight=tensors.p_double_blocks_4_img_attn_proj_weight, output=tensors.linear_41)
+    MUL_BROADCAST_335(rt, x=tensors.getitem_2, y=tensors.linear_41, output=tensors.mul_113)
+    ADD_F32_336(rt, x=tensors.add_75, y=tensors.mul_113, output=tensors.add_92)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_4, output=tensors.add_93)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_92, output=tensors.layer_norm_18)
-    MUL_BROADCAST_373(rt, x=tensors.add_93, y=tensors.layer_norm_18, output=tensors.mul_114)
+    MUL_BROADCAST_337(rt, x=tensors.add_93, y=tensors.layer_norm_18, output=tensors.mul_114)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_114, y=tensors.getitem_3, output=tensors.add_94)
-    LINEAR_NOBIAS_F16W_F32_374(rt, x=tensors.add_94, weight=tensors.p_double_blocks_4_img_mlp_0_weight, output=tensors.linear_42)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_94, weight=tensors.p_double_blocks_4_img_mlp_0_weight, output=tensors.linear_42)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_42, output=tensors.getitem_61)
-    TUPLE_GETITEM_SLICE_F32_375(rt, x=tensors.linear_42, output=tensors.getitem_62)
-    SILU_F32_376(rt, x=tensors.getitem_61, output=tensors.silu_12)
+    TUPLE_GETITEM_SLICE_F32_338(rt, x=tensors.linear_42, output=tensors.getitem_62)
+    SILU_F32_339(rt, x=tensors.getitem_61, output=tensors.silu_12)
     FLUX_MUL_F32(rt, x=tensors.silu_12, y=tensors.getitem_62, output=tensors.mul_115)
-    LINEAR_NOBIAS_F16W_F32_377(rt, x=tensors.mul_115, weight=tensors.p_double_blocks_4_img_mlp_2_weight, output=tensors.linear_43)
-    MUL_BROADCAST_378(rt, x=tensors.getitem_5, y=tensors.linear_43, output=tensors.mul_116)
-    ADD_F32_379(rt, x=tensors.add_92, y=tensors.mul_116, output=tensors.add_95)
-    LINEAR_NOBIAS_F16W_F32_380(rt, x=tensors.slice_74, weight=tensors.p_double_blocks_4_txt_attn_proj_weight, output=tensors.linear_44)
-    MUL_BROADCAST_381(rt, x=tensors.getitem_8, y=tensors.linear_44, output=tensors.mul_117)
-    ADD_F32_382(rt, x=tensors.add_79, y=tensors.mul_117, output=tensors.add_96)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_115, weight=tensors.p_double_blocks_4_img_mlp_2_weight, output=tensors.linear_43)
+    MUL_BROADCAST_340(rt, x=tensors.getitem_5, y=tensors.linear_43, output=tensors.mul_116)
+    ADD_F32_341(rt, x=tensors.add_92, y=tensors.mul_116, output=tensors.add_95)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_74, weight=tensors.p_double_blocks_4_txt_attn_proj_weight, output=tensors.linear_44)
+    MUL_BROADCAST_342(rt, x=tensors.getitem_8, y=tensors.linear_44, output=tensors.mul_117)
+    ADD_F32_343(rt, x=tensors.add_79, y=tensors.mul_117, output=tensors.add_96)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_10, output=tensors.add_97)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_96, output=tensors.layer_norm_19)
-    MUL_BROADCAST_383(rt, x=tensors.add_97, y=tensors.layer_norm_19, output=tensors.mul_118)
+    MUL_BROADCAST_344(rt, x=tensors.add_97, y=tensors.layer_norm_19, output=tensors.mul_118)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_118, y=tensors.getitem_9, output=tensors.add_98)
-    LINEAR_NOBIAS_F16W_F32_384(rt, x=tensors.add_98, weight=tensors.p_double_blocks_4_txt_mlp_0_weight, output=tensors.linear_45)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_98, weight=tensors.p_double_blocks_4_txt_mlp_0_weight, output=tensors.linear_45)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_45, output=tensors.getitem_63)
-    TUPLE_GETITEM_SLICE_F32_385(rt, x=tensors.linear_45, output=tensors.getitem_64)
-    SILU_F32_386(rt, x=tensors.getitem_63, output=tensors.silu_13)
+    TUPLE_GETITEM_SLICE_F32_345(rt, x=tensors.linear_45, output=tensors.getitem_64)
+    SILU_F32_346(rt, x=tensors.getitem_63, output=tensors.silu_13)
     FLUX_MUL_F32(rt, x=tensors.silu_13, y=tensors.getitem_64, output=tensors.mul_119)
-    LINEAR_NOBIAS_F16W_F32_387(rt, x=tensors.mul_119, weight=tensors.p_double_blocks_4_txt_mlp_2_weight, output=tensors.linear_46)
-    MUL_BROADCAST_388(rt, x=tensors.getitem_11, y=tensors.linear_46, output=tensors.mul_120)
-    ADD_F32_389(rt, x=tensors.add_96, y=tensors.mul_120, output=tensors.add_99)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_119, weight=tensors.p_double_blocks_4_txt_mlp_2_weight, output=tensors.linear_46)
+    MUL_BROADCAST_347(rt, x=tensors.getitem_11, y=tensors.linear_46, output=tensors.mul_120)
+    ADD_F32_348(rt, x=tensors.add_96, y=tensors.mul_120, output=tensors.add_99)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_95, output=tensors.layer_norm_20)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_1, output=tensors.add_100)
-    MUL_BROADCAST_390(rt, x=tensors.add_100, y=tensors.layer_norm_20, output=tensors.mul_121)
+    MUL_BROADCAST_349(rt, x=tensors.add_100, y=tensors.layer_norm_20, output=tensors.mul_121)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_121, y=tensors.getitem, output=tensors.add_101)
-    LINEAR_NOBIAS_F16W_F32_391(rt, x=tensors.add_101, weight=tensors.p_double_blocks_5_img_attn_qkv_weight, output=tensors.linear_47)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_101, weight=tensors.p_double_blocks_5_img_attn_qkv_weight, output=tensors.linear_47)
     PERMUTE_F32_0D3AB17AE3(rt, x=tensors.reshape_43, output=tensors.permute_15)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_15, output=tensors.getitem_65)
-    TUPLE_GETITEM_UNBIND_F32_392(rt, x=tensors.permute_15, output=tensors.getitem_66)
-    TUPLE_GETITEM_UNBIND_F32_393(rt, x=tensors.permute_15, output=tensors.getitem_67)
+    TUPLE_GETITEM_UNBIND_F32_350(rt, x=tensors.permute_15, output=tensors.getitem_66)
+    TUPLE_GETITEM_UNBIND_F32_351(rt, x=tensors.permute_15, output=tensors.getitem_67)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_91, output=tensors.pow_39)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_39, output=tensors.mean_30)
-    ADD_SCALAR_394(rt, x=tensors.mean_30, output=tensors.add_102)
+    ADD_SCALAR_352(rt, x=tensors.mean_30, output=tensors.add_102)
     FLUX_RSQRT_F32(rt, x=tensors.add_102, output=tensors.rsqrt_30)
-    MUL_BROADCAST_395(rt, x=tensors.to_91, y=tensors.rsqrt_30, output=tensors.mul_122)
+    MUL_BROADCAST_353(rt, x=tensors.to_91, y=tensors.rsqrt_30, output=tensors.mul_122)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_94, output=tensors.pow_40)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_40, output=tensors.mean_31)
-    ADD_SCALAR_396(rt, x=tensors.mean_31, output=tensors.add_103)
+    ADD_SCALAR_354(rt, x=tensors.mean_31, output=tensors.add_103)
     FLUX_RSQRT_F32(rt, x=tensors.add_103, output=tensors.rsqrt_31)
-    MUL_BROADCAST_397(rt, x=tensors.to_94, y=tensors.rsqrt_31, output=tensors.mul_123)
+    MUL_BROADCAST_355(rt, x=tensors.to_94, y=tensors.rsqrt_31, output=tensors.mul_123)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_92, y=tensors.p_double_blocks_5_img_attn_norm_query_norm_scale, output=tensors.mul_124)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_95, y=tensors.p_double_blocks_5_img_attn_norm_key_norm_scale, output=tensors.mul_125)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_99, output=tensors.layer_norm_21)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_7, output=tensors.add_105)
-    MUL_BROADCAST_399(rt, x=tensors.add_105, y=tensors.layer_norm_21, output=tensors.mul_126)
+    MUL_BROADCAST_357(rt, x=tensors.add_105, y=tensors.layer_norm_21, output=tensors.mul_126)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_126, y=tensors.getitem_6, output=tensors.add_106)
-    LINEAR_NOBIAS_F16W_F32_400(rt, x=tensors.add_106, weight=tensors.p_double_blocks_5_txt_attn_qkv_weight, output=tensors.linear_48)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_106, weight=tensors.p_double_blocks_5_txt_attn_qkv_weight, output=tensors.linear_48)
     PERMUTE_F32_8475D3A978(rt, x=tensors.reshape_44, output=tensors.permute_16)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_16, output=tensors.getitem_68)
-    TUPLE_GETITEM_UNBIND_F32_401(rt, x=tensors.permute_16, output=tensors.getitem_69)
-    TUPLE_GETITEM_UNBIND_F32_402(rt, x=tensors.permute_16, output=tensors.getitem_70)
+    TUPLE_GETITEM_UNBIND_F32_358(rt, x=tensors.permute_16, output=tensors.getitem_69)
+    TUPLE_GETITEM_UNBIND_F32_359(rt, x=tensors.permute_16, output=tensors.getitem_70)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_98, output=tensors.pow_42)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_42, output=tensors.mean_33)
-    ADD_SCALAR_403(rt, x=tensors.mean_33, output=tensors.add_107)
+    ADD_SCALAR_360(rt, x=tensors.mean_33, output=tensors.add_107)
     FLUX_RSQRT_F32(rt, x=tensors.add_107, output=tensors.rsqrt_33)
-    MUL_BROADCAST_404(rt, x=tensors.to_98, y=tensors.rsqrt_33, output=tensors.mul_127)
+    MUL_BROADCAST_361(rt, x=tensors.to_98, y=tensors.rsqrt_33, output=tensors.mul_127)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_101, output=tensors.pow_43)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_43, output=tensors.mean_34)
-    ADD_SCALAR_405(rt, x=tensors.mean_34, output=tensors.add_108)
+    ADD_SCALAR_362(rt, x=tensors.mean_34, output=tensors.add_108)
     FLUX_RSQRT_F32(rt, x=tensors.add_108, output=tensors.rsqrt_34)
-    MUL_BROADCAST_406(rt, x=tensors.to_101, y=tensors.rsqrt_34, output=tensors.mul_128)
+    MUL_BROADCAST_363(rt, x=tensors.to_101, y=tensors.rsqrt_34, output=tensors.mul_128)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_99, y=tensors.p_double_blocks_5_txt_attn_norm_query_norm_scale, output=tensors.mul_129)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_102, y=tensors.p_double_blocks_5_txt_attn_norm_key_norm_scale, output=tensors.mul_130)
-    CAT_2_F32_408(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_43)
-    CAT_2_F32_409(rt, x0=tensors.mul_129, x1=tensors.mul_124, output=tensors.cat_44)
-    CAT_2_F32_410(rt, x0=tensors.mul_130, x1=tensors.mul_125, output=tensors.cat_45)
-    CAT_2_F32_411(rt, x0=tensors.getitem_70, x1=tensors.getitem_67, output=tensors.cat_46)
+    CAT_2_F32_365(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_43)
+    CAT_2_F32_366(rt, x0=tensors.mul_129, x1=tensors.mul_124, output=tensors.cat_44)
+    CAT_2_F32_367(rt, x0=tensors.mul_130, x1=tensors.mul_125, output=tensors.cat_45)
+    CAT_2_F32_368(rt, x0=tensors.getitem_70, x1=tensors.getitem_67, output=tensors.cat_46)
     SELECT_FLOAT32(rt, x=tensors.cat_43, output=tensors.select_48)
     SELECT_FLOAT32(rt, x=tensors.reshape_45, output=tensors.select_49)
-    MUL_BROADCAST_412(rt, x=tensors.select_48, y=tensors.select_49, output=tensors.mul_131)
-    SELECT_FLOAT32_413(rt, x=tensors.cat_43, output=tensors.select_50)
-    SELECT_FLOAT32_414(rt, x=tensors.reshape_45, output=tensors.select_51)
-    MUL_BROADCAST_415(rt, x=tensors.select_50, y=tensors.select_51, output=tensors.mul_132)
+    MUL_BROADCAST_369(rt, x=tensors.select_48, y=tensors.select_49, output=tensors.mul_131)
+    SELECT_FLOAT32_370(rt, x=tensors.cat_43, output=tensors.select_50)
+    SELECT_FLOAT32_371(rt, x=tensors.reshape_45, output=tensors.select_51)
+    MUL_BROADCAST_372(rt, x=tensors.select_50, y=tensors.select_51, output=tensors.mul_132)
     FLUX_ADD_F32(rt, x=tensors.mul_131, y=tensors.mul_132, output=tensors.add_110)
     SELECT_FLOAT32(rt, x=tensors.cat_43, output=tensors.select_52)
     SELECT_FLOAT32(rt, x=tensors.reshape_46, output=tensors.select_53)
-    MUL_BROADCAST_416(rt, x=tensors.select_52, y=tensors.select_53, output=tensors.mul_133)
-    SELECT_FLOAT32_417(rt, x=tensors.cat_43, output=tensors.select_54)
-    SELECT_FLOAT32_418(rt, x=tensors.reshape_46, output=tensors.select_55)
-    MUL_BROADCAST_419(rt, x=tensors.select_54, y=tensors.select_55, output=tensors.mul_134)
+    MUL_BROADCAST_373(rt, x=tensors.select_52, y=tensors.select_53, output=tensors.mul_133)
+    SELECT_FLOAT32_374(rt, x=tensors.cat_43, output=tensors.select_54)
+    SELECT_FLOAT32_375(rt, x=tensors.reshape_46, output=tensors.select_55)
+    MUL_BROADCAST_376(rt, x=tensors.select_54, y=tensors.select_55, output=tensors.mul_134)
     FLUX_ADD_F32(rt, x=tensors.mul_133, y=tensors.mul_134, output=tensors.add_111)
-    SLICE_F32_420(rt, x=tensors.type_as_10, output=tensors.slice_78)
+    SLICE_F32_377(rt, x=tensors.type_as_10, output=tensors.slice_78)
     FLUX_SLICE_F32(rt, x=tensors.type_as_10, output=tensors.slice_79)
     FLUX_SLICE_F32(rt, x=tensors.type_as_10, output=tensors.slice_80)
-    SLICE_F32_421(rt, x=tensors.type_as_11, output=tensors.slice_81)
-    SLICE_F32_422(rt, x=tensors.cat_46, output=tensors.slice_82)
+    SLICE_F32_378(rt, x=tensors.type_as_11, output=tensors.slice_81)
+    SLICE_F32_379(rt, x=tensors.cat_46, output=tensors.slice_82)
     FLUX_SLICE_F32(rt, x=tensors.type_as_11, output=tensors.slice_83)
     FLUX_SLICE_F32(rt, x=tensors.cat_46, output=tensors.slice_84)
     FLUX_SLICE_F32(rt, x=tensors.type_as_11, output=tensors.slice_85)
     FLUX_SLICE_F32(rt, x=tensors.cat_46, output=tensors.slice_86)
-    CAT_2_F32_423(rt, x0=tensors.slice_78, x1=tensors.slice_80, output=tensors.cat_47)
+    CAT_2_F32_380(rt, x0=tensors.slice_78, x1=tensors.slice_80, output=tensors.cat_47)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_81, x1=tensors.slice_83, x2=tensors.slice_85, output=tensors.cat_48)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_82, x1=tensors.slice_84, x2=tensors.slice_86, output=tensors.cat_49)
     SDPA_F32(rt, q=tensors.cat_47, k=tensors.cat_48, v=tensors.cat_49, output=tensors.scaled_dot_product_attention_10)
-    SLICE_F32_424(rt, x=tensors.scaled_dot_product_attention_10, output=tensors.slice_87)
+    SLICE_F32_381(rt, x=tensors.scaled_dot_product_attention_10, output=tensors.slice_87)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_10, output=tensors.slice_88)
     SDPA_F32(rt, q=tensors.slice_79, k=tensors.slice_83, v=tensors.slice_84, output=tensors.scaled_dot_product_attention_11)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_87, x1=tensors.scaled_dot_product_attention_11, x2=tensors.slice_88, output=tensors.cat_50)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_50, output=tensors.permute_17)
-    SLICE_F32_425(rt, x=tensors.reshape_49, output=tensors.slice_89)
-    SLICE_F32_426(rt, x=tensors.reshape_49, output=tensors.slice_90)
-    LINEAR_NOBIAS_F16W_F32_427(rt, x=tensors.slice_90, weight=tensors.p_double_blocks_5_img_attn_proj_weight, output=tensors.linear_49)
-    MUL_BROADCAST_428(rt, x=tensors.getitem_2, y=tensors.linear_49, output=tensors.mul_135)
-    ADD_F32_429(rt, x=tensors.add_95, y=tensors.mul_135, output=tensors.add_112)
+    SLICE_F32_382(rt, x=tensors.reshape_49, output=tensors.slice_89)
+    SLICE_F32_383(rt, x=tensors.reshape_49, output=tensors.slice_90)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_90, weight=tensors.p_double_blocks_5_img_attn_proj_weight, output=tensors.linear_49)
+    MUL_BROADCAST_384(rt, x=tensors.getitem_2, y=tensors.linear_49, output=tensors.mul_135)
+    ADD_F32_385(rt, x=tensors.add_95, y=tensors.mul_135, output=tensors.add_112)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_4, output=tensors.add_113)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_112, output=tensors.layer_norm_22)
-    MUL_BROADCAST_430(rt, x=tensors.add_113, y=tensors.layer_norm_22, output=tensors.mul_136)
+    MUL_BROADCAST_386(rt, x=tensors.add_113, y=tensors.layer_norm_22, output=tensors.mul_136)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_136, y=tensors.getitem_3, output=tensors.add_114)
-    LINEAR_NOBIAS_F16W_F32_431(rt, x=tensors.add_114, weight=tensors.p_double_blocks_5_img_mlp_0_weight, output=tensors.linear_50)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_114, weight=tensors.p_double_blocks_5_img_mlp_0_weight, output=tensors.linear_50)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_50, output=tensors.getitem_71)
-    TUPLE_GETITEM_SLICE_F32_432(rt, x=tensors.linear_50, output=tensors.getitem_72)
-    SILU_F32_433(rt, x=tensors.getitem_71, output=tensors.silu_14)
+    TUPLE_GETITEM_SLICE_F32_387(rt, x=tensors.linear_50, output=tensors.getitem_72)
+    SILU_F32_388(rt, x=tensors.getitem_71, output=tensors.silu_14)
     FLUX_MUL_F32(rt, x=tensors.silu_14, y=tensors.getitem_72, output=tensors.mul_137)
-    LINEAR_NOBIAS_F16W_F32_434(rt, x=tensors.mul_137, weight=tensors.p_double_blocks_5_img_mlp_2_weight, output=tensors.linear_51)
-    MUL_BROADCAST_435(rt, x=tensors.getitem_5, y=tensors.linear_51, output=tensors.mul_138)
-    ADD_F32_436(rt, x=tensors.add_112, y=tensors.mul_138, output=tensors.add_115)
-    LINEAR_NOBIAS_F16W_F32_437(rt, x=tensors.slice_89, weight=tensors.p_double_blocks_5_txt_attn_proj_weight, output=tensors.linear_52)
-    MUL_BROADCAST_438(rt, x=tensors.getitem_8, y=tensors.linear_52, output=tensors.mul_139)
-    ADD_F32_439(rt, x=tensors.add_99, y=tensors.mul_139, output=tensors.add_116)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_137, weight=tensors.p_double_blocks_5_img_mlp_2_weight, output=tensors.linear_51)
+    MUL_BROADCAST_389(rt, x=tensors.getitem_5, y=tensors.linear_51, output=tensors.mul_138)
+    ADD_F32_390(rt, x=tensors.add_112, y=tensors.mul_138, output=tensors.add_115)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_89, weight=tensors.p_double_blocks_5_txt_attn_proj_weight, output=tensors.linear_52)
+    MUL_BROADCAST_391(rt, x=tensors.getitem_8, y=tensors.linear_52, output=tensors.mul_139)
+    ADD_F32_392(rt, x=tensors.add_99, y=tensors.mul_139, output=tensors.add_116)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_10, output=tensors.add_117)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_116, output=tensors.layer_norm_23)
-    MUL_BROADCAST_440(rt, x=tensors.add_117, y=tensors.layer_norm_23, output=tensors.mul_140)
+    MUL_BROADCAST_393(rt, x=tensors.add_117, y=tensors.layer_norm_23, output=tensors.mul_140)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_140, y=tensors.getitem_9, output=tensors.add_118)
-    LINEAR_NOBIAS_F16W_F32_441(rt, x=tensors.add_118, weight=tensors.p_double_blocks_5_txt_mlp_0_weight, output=tensors.linear_53)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_118, weight=tensors.p_double_blocks_5_txt_mlp_0_weight, output=tensors.linear_53)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_53, output=tensors.getitem_73)
-    TUPLE_GETITEM_SLICE_F32_442(rt, x=tensors.linear_53, output=tensors.getitem_74)
-    SILU_F32_443(rt, x=tensors.getitem_73, output=tensors.silu_15)
+    TUPLE_GETITEM_SLICE_F32_394(rt, x=tensors.linear_53, output=tensors.getitem_74)
+    SILU_F32_395(rt, x=tensors.getitem_73, output=tensors.silu_15)
     FLUX_MUL_F32(rt, x=tensors.silu_15, y=tensors.getitem_74, output=tensors.mul_141)
-    LINEAR_NOBIAS_F16W_F32_444(rt, x=tensors.mul_141, weight=tensors.p_double_blocks_5_txt_mlp_2_weight, output=tensors.linear_54)
-    MUL_BROADCAST_445(rt, x=tensors.getitem_11, y=tensors.linear_54, output=tensors.mul_142)
-    ADD_F32_446(rt, x=tensors.add_116, y=tensors.mul_142, output=tensors.add_119)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_141, weight=tensors.p_double_blocks_5_txt_mlp_2_weight, output=tensors.linear_54)
+    MUL_BROADCAST_396(rt, x=tensors.getitem_11, y=tensors.linear_54, output=tensors.mul_142)
+    ADD_F32_397(rt, x=tensors.add_116, y=tensors.mul_142, output=tensors.add_119)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_115, output=tensors.layer_norm_24)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_1, output=tensors.add_120)
-    MUL_BROADCAST_447(rt, x=tensors.add_120, y=tensors.layer_norm_24, output=tensors.mul_143)
+    MUL_BROADCAST_398(rt, x=tensors.add_120, y=tensors.layer_norm_24, output=tensors.mul_143)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_143, y=tensors.getitem, output=tensors.add_121)
-    LINEAR_NOBIAS_F16W_F32_448(rt, x=tensors.add_121, weight=tensors.p_double_blocks_6_img_attn_qkv_weight, output=tensors.linear_55)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_121, weight=tensors.p_double_blocks_6_img_attn_qkv_weight, output=tensors.linear_55)
     PERMUTE_F32_0D3AB17AE3(rt, x=tensors.reshape_50, output=tensors.permute_18)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_18, output=tensors.getitem_75)
-    TUPLE_GETITEM_UNBIND_F32_449(rt, x=tensors.permute_18, output=tensors.getitem_76)
-    TUPLE_GETITEM_UNBIND_F32_450(rt, x=tensors.permute_18, output=tensors.getitem_77)
+    TUPLE_GETITEM_UNBIND_F32_399(rt, x=tensors.permute_18, output=tensors.getitem_76)
+    TUPLE_GETITEM_UNBIND_F32_400(rt, x=tensors.permute_18, output=tensors.getitem_77)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_107, output=tensors.pow_45)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_45, output=tensors.mean_36)
-    ADD_SCALAR_451(rt, x=tensors.mean_36, output=tensors.add_122)
+    ADD_SCALAR_401(rt, x=tensors.mean_36, output=tensors.add_122)
     FLUX_RSQRT_F32(rt, x=tensors.add_122, output=tensors.rsqrt_36)
-    MUL_BROADCAST_452(rt, x=tensors.to_107, y=tensors.rsqrt_36, output=tensors.mul_144)
+    MUL_BROADCAST_402(rt, x=tensors.to_107, y=tensors.rsqrt_36, output=tensors.mul_144)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_110, output=tensors.pow_46)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_46, output=tensors.mean_37)
-    ADD_SCALAR_453(rt, x=tensors.mean_37, output=tensors.add_123)
+    ADD_SCALAR_403(rt, x=tensors.mean_37, output=tensors.add_123)
     FLUX_RSQRT_F32(rt, x=tensors.add_123, output=tensors.rsqrt_37)
-    MUL_BROADCAST_454(rt, x=tensors.to_110, y=tensors.rsqrt_37, output=tensors.mul_145)
+    MUL_BROADCAST_404(rt, x=tensors.to_110, y=tensors.rsqrt_37, output=tensors.mul_145)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_108, y=tensors.p_double_blocks_6_img_attn_norm_query_norm_scale, output=tensors.mul_146)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_111, y=tensors.p_double_blocks_6_img_attn_norm_key_norm_scale, output=tensors.mul_147)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_119, output=tensors.layer_norm_25)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_7, output=tensors.add_125)
-    MUL_BROADCAST_456(rt, x=tensors.add_125, y=tensors.layer_norm_25, output=tensors.mul_148)
+    MUL_BROADCAST_406(rt, x=tensors.add_125, y=tensors.layer_norm_25, output=tensors.mul_148)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_148, y=tensors.getitem_6, output=tensors.add_126)
-    LINEAR_NOBIAS_F16W_F32_457(rt, x=tensors.add_126, weight=tensors.p_double_blocks_6_txt_attn_qkv_weight, output=tensors.linear_56)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_126, weight=tensors.p_double_blocks_6_txt_attn_qkv_weight, output=tensors.linear_56)
     PERMUTE_F32_8475D3A978(rt, x=tensors.reshape_51, output=tensors.permute_19)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_19, output=tensors.getitem_78)
-    TUPLE_GETITEM_UNBIND_F32_458(rt, x=tensors.permute_19, output=tensors.getitem_79)
-    TUPLE_GETITEM_UNBIND_F32_459(rt, x=tensors.permute_19, output=tensors.getitem_80)
+    TUPLE_GETITEM_UNBIND_F32_407(rt, x=tensors.permute_19, output=tensors.getitem_79)
+    TUPLE_GETITEM_UNBIND_F32_408(rt, x=tensors.permute_19, output=tensors.getitem_80)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_114, output=tensors.pow_48)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_48, output=tensors.mean_39)
-    ADD_SCALAR_460(rt, x=tensors.mean_39, output=tensors.add_127)
+    ADD_SCALAR_409(rt, x=tensors.mean_39, output=tensors.add_127)
     FLUX_RSQRT_F32(rt, x=tensors.add_127, output=tensors.rsqrt_39)
-    MUL_BROADCAST_461(rt, x=tensors.to_114, y=tensors.rsqrt_39, output=tensors.mul_149)
+    MUL_BROADCAST_410(rt, x=tensors.to_114, y=tensors.rsqrt_39, output=tensors.mul_149)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_117, output=tensors.pow_49)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_49, output=tensors.mean_40)
-    ADD_SCALAR_462(rt, x=tensors.mean_40, output=tensors.add_128)
+    ADD_SCALAR_411(rt, x=tensors.mean_40, output=tensors.add_128)
     FLUX_RSQRT_F32(rt, x=tensors.add_128, output=tensors.rsqrt_40)
-    MUL_BROADCAST_463(rt, x=tensors.to_117, y=tensors.rsqrt_40, output=tensors.mul_150)
+    MUL_BROADCAST_412(rt, x=tensors.to_117, y=tensors.rsqrt_40, output=tensors.mul_150)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_115, y=tensors.p_double_blocks_6_txt_attn_norm_query_norm_scale, output=tensors.mul_151)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_118, y=tensors.p_double_blocks_6_txt_attn_norm_key_norm_scale, output=tensors.mul_152)
-    CAT_2_F32_465(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_51)
-    CAT_2_F32_466(rt, x0=tensors.mul_151, x1=tensors.mul_146, output=tensors.cat_52)
-    CAT_2_F32_467(rt, x0=tensors.mul_152, x1=tensors.mul_147, output=tensors.cat_53)
-    CAT_2_F32_468(rt, x0=tensors.getitem_80, x1=tensors.getitem_77, output=tensors.cat_54)
+    CAT_2_F32_414(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_51)
+    CAT_2_F32_415(rt, x0=tensors.mul_151, x1=tensors.mul_146, output=tensors.cat_52)
+    CAT_2_F32_416(rt, x0=tensors.mul_152, x1=tensors.mul_147, output=tensors.cat_53)
+    CAT_2_F32_417(rt, x0=tensors.getitem_80, x1=tensors.getitem_77, output=tensors.cat_54)
     SELECT_FLOAT32(rt, x=tensors.cat_51, output=tensors.select_56)
     SELECT_FLOAT32(rt, x=tensors.reshape_52, output=tensors.select_57)
-    MUL_BROADCAST_469(rt, x=tensors.select_56, y=tensors.select_57, output=tensors.mul_153)
-    SELECT_FLOAT32_470(rt, x=tensors.cat_51, output=tensors.select_58)
-    SELECT_FLOAT32_471(rt, x=tensors.reshape_52, output=tensors.select_59)
-    MUL_BROADCAST_472(rt, x=tensors.select_58, y=tensors.select_59, output=tensors.mul_154)
+    MUL_BROADCAST_418(rt, x=tensors.select_56, y=tensors.select_57, output=tensors.mul_153)
+    SELECT_FLOAT32_419(rt, x=tensors.cat_51, output=tensors.select_58)
+    SELECT_FLOAT32_420(rt, x=tensors.reshape_52, output=tensors.select_59)
+    MUL_BROADCAST_421(rt, x=tensors.select_58, y=tensors.select_59, output=tensors.mul_154)
     FLUX_ADD_F32(rt, x=tensors.mul_153, y=tensors.mul_154, output=tensors.add_130)
     SELECT_FLOAT32(rt, x=tensors.cat_51, output=tensors.select_60)
     SELECT_FLOAT32(rt, x=tensors.reshape_53, output=tensors.select_61)
-    MUL_BROADCAST_473(rt, x=tensors.select_60, y=tensors.select_61, output=tensors.mul_155)
-    SELECT_FLOAT32_474(rt, x=tensors.cat_51, output=tensors.select_62)
-    SELECT_FLOAT32_475(rt, x=tensors.reshape_53, output=tensors.select_63)
-    MUL_BROADCAST_476(rt, x=tensors.select_62, y=tensors.select_63, output=tensors.mul_156)
+    MUL_BROADCAST_422(rt, x=tensors.select_60, y=tensors.select_61, output=tensors.mul_155)
+    SELECT_FLOAT32_423(rt, x=tensors.cat_51, output=tensors.select_62)
+    SELECT_FLOAT32_424(rt, x=tensors.reshape_53, output=tensors.select_63)
+    MUL_BROADCAST_425(rt, x=tensors.select_62, y=tensors.select_63, output=tensors.mul_156)
     FLUX_ADD_F32(rt, x=tensors.mul_155, y=tensors.mul_156, output=tensors.add_131)
-    SLICE_F32_477(rt, x=tensors.type_as_12, output=tensors.slice_93)
+    SLICE_F32_426(rt, x=tensors.type_as_12, output=tensors.slice_93)
     FLUX_SLICE_F32(rt, x=tensors.type_as_12, output=tensors.slice_94)
     FLUX_SLICE_F32(rt, x=tensors.type_as_12, output=tensors.slice_95)
-    SLICE_F32_478(rt, x=tensors.type_as_13, output=tensors.slice_96)
-    SLICE_F32_479(rt, x=tensors.cat_54, output=tensors.slice_97)
+    SLICE_F32_427(rt, x=tensors.type_as_13, output=tensors.slice_96)
+    SLICE_F32_428(rt, x=tensors.cat_54, output=tensors.slice_97)
     FLUX_SLICE_F32(rt, x=tensors.type_as_13, output=tensors.slice_98)
     FLUX_SLICE_F32(rt, x=tensors.cat_54, output=tensors.slice_99)
     FLUX_SLICE_F32(rt, x=tensors.type_as_13, output=tensors.slice_100)
     FLUX_SLICE_F32(rt, x=tensors.cat_54, output=tensors.slice_101)
-    CAT_2_F32_480(rt, x0=tensors.slice_93, x1=tensors.slice_95, output=tensors.cat_55)
+    CAT_2_F32_429(rt, x0=tensors.slice_93, x1=tensors.slice_95, output=tensors.cat_55)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_96, x1=tensors.slice_98, x2=tensors.slice_100, output=tensors.cat_56)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_97, x1=tensors.slice_99, x2=tensors.slice_101, output=tensors.cat_57)
     SDPA_F32(rt, q=tensors.cat_55, k=tensors.cat_56, v=tensors.cat_57, output=tensors.scaled_dot_product_attention_12)
-    SLICE_F32_481(rt, x=tensors.scaled_dot_product_attention_12, output=tensors.slice_102)
+    SLICE_F32_430(rt, x=tensors.scaled_dot_product_attention_12, output=tensors.slice_102)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_12, output=tensors.slice_103)
     SDPA_F32(rt, q=tensors.slice_94, k=tensors.slice_98, v=tensors.slice_99, output=tensors.scaled_dot_product_attention_13)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_102, x1=tensors.scaled_dot_product_attention_13, x2=tensors.slice_103, output=tensors.cat_58)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_58, output=tensors.permute_20)
-    SLICE_F32_482(rt, x=tensors.reshape_56, output=tensors.slice_104)
-    SLICE_F32_483(rt, x=tensors.reshape_56, output=tensors.slice_105)
-    LINEAR_NOBIAS_F16W_F32_484(rt, x=tensors.slice_105, weight=tensors.p_double_blocks_6_img_attn_proj_weight, output=tensors.linear_57)
-    MUL_BROADCAST_485(rt, x=tensors.getitem_2, y=tensors.linear_57, output=tensors.mul_157)
-    ADD_F32_486(rt, x=tensors.add_115, y=tensors.mul_157, output=tensors.add_132)
+    SLICE_F32_431(rt, x=tensors.reshape_56, output=tensors.slice_104)
+    SLICE_F32_432(rt, x=tensors.reshape_56, output=tensors.slice_105)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_105, weight=tensors.p_double_blocks_6_img_attn_proj_weight, output=tensors.linear_57)
+    MUL_BROADCAST_433(rt, x=tensors.getitem_2, y=tensors.linear_57, output=tensors.mul_157)
+    ADD_F32_434(rt, x=tensors.add_115, y=tensors.mul_157, output=tensors.add_132)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_4, output=tensors.add_133)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_132, output=tensors.layer_norm_26)
-    MUL_BROADCAST_487(rt, x=tensors.add_133, y=tensors.layer_norm_26, output=tensors.mul_158)
+    MUL_BROADCAST_435(rt, x=tensors.add_133, y=tensors.layer_norm_26, output=tensors.mul_158)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_158, y=tensors.getitem_3, output=tensors.add_134)
-    LINEAR_NOBIAS_F16W_F32_488(rt, x=tensors.add_134, weight=tensors.p_double_blocks_6_img_mlp_0_weight, output=tensors.linear_58)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_134, weight=tensors.p_double_blocks_6_img_mlp_0_weight, output=tensors.linear_58)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_58, output=tensors.getitem_81)
-    TUPLE_GETITEM_SLICE_F32_489(rt, x=tensors.linear_58, output=tensors.getitem_82)
-    SILU_F32_490(rt, x=tensors.getitem_81, output=tensors.silu_16)
+    TUPLE_GETITEM_SLICE_F32_436(rt, x=tensors.linear_58, output=tensors.getitem_82)
+    SILU_F32_437(rt, x=tensors.getitem_81, output=tensors.silu_16)
     FLUX_MUL_F32(rt, x=tensors.silu_16, y=tensors.getitem_82, output=tensors.mul_159)
-    LINEAR_NOBIAS_F16W_F32_491(rt, x=tensors.mul_159, weight=tensors.p_double_blocks_6_img_mlp_2_weight, output=tensors.linear_59)
-    MUL_BROADCAST_492(rt, x=tensors.getitem_5, y=tensors.linear_59, output=tensors.mul_160)
-    ADD_F32_493(rt, x=tensors.add_132, y=tensors.mul_160, output=tensors.add_135)
-    LINEAR_NOBIAS_F16W_F32_494(rt, x=tensors.slice_104, weight=tensors.p_double_blocks_6_txt_attn_proj_weight, output=tensors.linear_60)
-    MUL_BROADCAST_495(rt, x=tensors.getitem_8, y=tensors.linear_60, output=tensors.mul_161)
-    ADD_F32_496(rt, x=tensors.add_119, y=tensors.mul_161, output=tensors.add_136)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_159, weight=tensors.p_double_blocks_6_img_mlp_2_weight, output=tensors.linear_59)
+    MUL_BROADCAST_438(rt, x=tensors.getitem_5, y=tensors.linear_59, output=tensors.mul_160)
+    ADD_F32_439(rt, x=tensors.add_132, y=tensors.mul_160, output=tensors.add_135)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_104, weight=tensors.p_double_blocks_6_txt_attn_proj_weight, output=tensors.linear_60)
+    MUL_BROADCAST_440(rt, x=tensors.getitem_8, y=tensors.linear_60, output=tensors.mul_161)
+    ADD_F32_441(rt, x=tensors.add_119, y=tensors.mul_161, output=tensors.add_136)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_10, output=tensors.add_137)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_136, output=tensors.layer_norm_27)
-    MUL_BROADCAST_497(rt, x=tensors.add_137, y=tensors.layer_norm_27, output=tensors.mul_162)
+    MUL_BROADCAST_442(rt, x=tensors.add_137, y=tensors.layer_norm_27, output=tensors.mul_162)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_162, y=tensors.getitem_9, output=tensors.add_138)
-    LINEAR_NOBIAS_F16W_F32_498(rt, x=tensors.add_138, weight=tensors.p_double_blocks_6_txt_mlp_0_weight, output=tensors.linear_61)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_138, weight=tensors.p_double_blocks_6_txt_mlp_0_weight, output=tensors.linear_61)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_61, output=tensors.getitem_83)
-    TUPLE_GETITEM_SLICE_F32_499(rt, x=tensors.linear_61, output=tensors.getitem_84)
-    SILU_F32_500(rt, x=tensors.getitem_83, output=tensors.silu_17)
+    TUPLE_GETITEM_SLICE_F32_443(rt, x=tensors.linear_61, output=tensors.getitem_84)
+    SILU_F32_444(rt, x=tensors.getitem_83, output=tensors.silu_17)
     FLUX_MUL_F32(rt, x=tensors.silu_17, y=tensors.getitem_84, output=tensors.mul_163)
-    LINEAR_NOBIAS_F16W_F32_501(rt, x=tensors.mul_163, weight=tensors.p_double_blocks_6_txt_mlp_2_weight, output=tensors.linear_62)
-    MUL_BROADCAST_502(rt, x=tensors.getitem_11, y=tensors.linear_62, output=tensors.mul_164)
-    ADD_F32_503(rt, x=tensors.add_136, y=tensors.mul_164, output=tensors.add_139)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_163, weight=tensors.p_double_blocks_6_txt_mlp_2_weight, output=tensors.linear_62)
+    MUL_BROADCAST_445(rt, x=tensors.getitem_11, y=tensors.linear_62, output=tensors.mul_164)
+    ADD_F32_446(rt, x=tensors.add_136, y=tensors.mul_164, output=tensors.add_139)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_135, output=tensors.layer_norm_28)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_1, output=tensors.add_140)
-    MUL_BROADCAST_504(rt, x=tensors.add_140, y=tensors.layer_norm_28, output=tensors.mul_165)
+    MUL_BROADCAST_447(rt, x=tensors.add_140, y=tensors.layer_norm_28, output=tensors.mul_165)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_165, y=tensors.getitem, output=tensors.add_141)
-    LINEAR_NOBIAS_F16W_F32_505(rt, x=tensors.add_141, weight=tensors.p_double_blocks_7_img_attn_qkv_weight, output=tensors.linear_63)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_141, weight=tensors.p_double_blocks_7_img_attn_qkv_weight, output=tensors.linear_63)
     PERMUTE_F32_0D3AB17AE3(rt, x=tensors.reshape_57, output=tensors.permute_21)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_21, output=tensors.getitem_85)
-    TUPLE_GETITEM_UNBIND_F32_506(rt, x=tensors.permute_21, output=tensors.getitem_86)
-    TUPLE_GETITEM_UNBIND_F32_507(rt, x=tensors.permute_21, output=tensors.getitem_87)
+    TUPLE_GETITEM_UNBIND_F32_448(rt, x=tensors.permute_21, output=tensors.getitem_86)
+    TUPLE_GETITEM_UNBIND_F32_449(rt, x=tensors.permute_21, output=tensors.getitem_87)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_123, output=tensors.pow_51)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_51, output=tensors.mean_42)
-    ADD_SCALAR_508(rt, x=tensors.mean_42, output=tensors.add_142)
+    ADD_SCALAR_450(rt, x=tensors.mean_42, output=tensors.add_142)
     FLUX_RSQRT_F32(rt, x=tensors.add_142, output=tensors.rsqrt_42)
-    MUL_BROADCAST_509(rt, x=tensors.to_123, y=tensors.rsqrt_42, output=tensors.mul_166)
+    MUL_BROADCAST_451(rt, x=tensors.to_123, y=tensors.rsqrt_42, output=tensors.mul_166)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_126, output=tensors.pow_52)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_52, output=tensors.mean_43)
-    ADD_SCALAR_510(rt, x=tensors.mean_43, output=tensors.add_143)
+    ADD_SCALAR_452(rt, x=tensors.mean_43, output=tensors.add_143)
     FLUX_RSQRT_F32(rt, x=tensors.add_143, output=tensors.rsqrt_43)
-    MUL_BROADCAST_511(rt, x=tensors.to_126, y=tensors.rsqrt_43, output=tensors.mul_167)
+    MUL_BROADCAST_453(rt, x=tensors.to_126, y=tensors.rsqrt_43, output=tensors.mul_167)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_124, y=tensors.p_double_blocks_7_img_attn_norm_query_norm_scale, output=tensors.mul_168)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_127, y=tensors.p_double_blocks_7_img_attn_norm_key_norm_scale, output=tensors.mul_169)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_139, output=tensors.layer_norm_29)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_7, output=tensors.add_145)
-    MUL_BROADCAST_513(rt, x=tensors.add_145, y=tensors.layer_norm_29, output=tensors.mul_170)
+    MUL_BROADCAST_455(rt, x=tensors.add_145, y=tensors.layer_norm_29, output=tensors.mul_170)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_170, y=tensors.getitem_6, output=tensors.add_146)
-    LINEAR_NOBIAS_F16W_F32_514(rt, x=tensors.add_146, weight=tensors.p_double_blocks_7_txt_attn_qkv_weight, output=tensors.linear_64)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_146, weight=tensors.p_double_blocks_7_txt_attn_qkv_weight, output=tensors.linear_64)
     PERMUTE_F32_8475D3A978(rt, x=tensors.reshape_58, output=tensors.permute_22)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_22, output=tensors.getitem_88)
-    TUPLE_GETITEM_UNBIND_F32_515(rt, x=tensors.permute_22, output=tensors.getitem_89)
-    TUPLE_GETITEM_UNBIND_F32_516(rt, x=tensors.permute_22, output=tensors.getitem_90)
+    TUPLE_GETITEM_UNBIND_F32_456(rt, x=tensors.permute_22, output=tensors.getitem_89)
+    TUPLE_GETITEM_UNBIND_F32_457(rt, x=tensors.permute_22, output=tensors.getitem_90)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_130, output=tensors.pow_54)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_54, output=tensors.mean_45)
-    ADD_SCALAR_517(rt, x=tensors.mean_45, output=tensors.add_147)
+    ADD_SCALAR_458(rt, x=tensors.mean_45, output=tensors.add_147)
     FLUX_RSQRT_F32(rt, x=tensors.add_147, output=tensors.rsqrt_45)
-    MUL_BROADCAST_518(rt, x=tensors.to_130, y=tensors.rsqrt_45, output=tensors.mul_171)
+    MUL_BROADCAST_459(rt, x=tensors.to_130, y=tensors.rsqrt_45, output=tensors.mul_171)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_133, output=tensors.pow_55)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_55, output=tensors.mean_46)
-    ADD_SCALAR_519(rt, x=tensors.mean_46, output=tensors.add_148)
+    ADD_SCALAR_460(rt, x=tensors.mean_46, output=tensors.add_148)
     FLUX_RSQRT_F32(rt, x=tensors.add_148, output=tensors.rsqrt_46)
-    MUL_BROADCAST_520(rt, x=tensors.to_133, y=tensors.rsqrt_46, output=tensors.mul_172)
+    MUL_BROADCAST_461(rt, x=tensors.to_133, y=tensors.rsqrt_46, output=tensors.mul_172)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_131, y=tensors.p_double_blocks_7_txt_attn_norm_query_norm_scale, output=tensors.mul_173)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_134, y=tensors.p_double_blocks_7_txt_attn_norm_key_norm_scale, output=tensors.mul_174)
-    CAT_2_F32_522(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_59)
-    CAT_2_F32_523(rt, x0=tensors.mul_173, x1=tensors.mul_168, output=tensors.cat_60)
-    CAT_2_F32_524(rt, x0=tensors.mul_174, x1=tensors.mul_169, output=tensors.cat_61)
-    CAT_2_F32_525(rt, x0=tensors.getitem_90, x1=tensors.getitem_87, output=tensors.cat_62)
+    CAT_2_F32_463(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_59)
+    CAT_2_F32_464(rt, x0=tensors.mul_173, x1=tensors.mul_168, output=tensors.cat_60)
+    CAT_2_F32_465(rt, x0=tensors.mul_174, x1=tensors.mul_169, output=tensors.cat_61)
+    CAT_2_F32_466(rt, x0=tensors.getitem_90, x1=tensors.getitem_87, output=tensors.cat_62)
     SELECT_FLOAT32(rt, x=tensors.cat_59, output=tensors.select_64)
     SELECT_FLOAT32(rt, x=tensors.reshape_59, output=tensors.select_65)
-    MUL_BROADCAST_526(rt, x=tensors.select_64, y=tensors.select_65, output=tensors.mul_175)
-    SELECT_FLOAT32_527(rt, x=tensors.cat_59, output=tensors.select_66)
-    SELECT_FLOAT32_528(rt, x=tensors.reshape_59, output=tensors.select_67)
-    MUL_BROADCAST_529(rt, x=tensors.select_66, y=tensors.select_67, output=tensors.mul_176)
+    MUL_BROADCAST_467(rt, x=tensors.select_64, y=tensors.select_65, output=tensors.mul_175)
+    SELECT_FLOAT32_468(rt, x=tensors.cat_59, output=tensors.select_66)
+    SELECT_FLOAT32_469(rt, x=tensors.reshape_59, output=tensors.select_67)
+    MUL_BROADCAST_470(rt, x=tensors.select_66, y=tensors.select_67, output=tensors.mul_176)
     FLUX_ADD_F32(rt, x=tensors.mul_175, y=tensors.mul_176, output=tensors.add_150)
     SELECT_FLOAT32(rt, x=tensors.cat_59, output=tensors.select_68)
     SELECT_FLOAT32(rt, x=tensors.reshape_60, output=tensors.select_69)
-    MUL_BROADCAST_530(rt, x=tensors.select_68, y=tensors.select_69, output=tensors.mul_177)
-    SELECT_FLOAT32_531(rt, x=tensors.cat_59, output=tensors.select_70)
-    SELECT_FLOAT32_532(rt, x=tensors.reshape_60, output=tensors.select_71)
-    MUL_BROADCAST_533(rt, x=tensors.select_70, y=tensors.select_71, output=tensors.mul_178)
+    MUL_BROADCAST_471(rt, x=tensors.select_68, y=tensors.select_69, output=tensors.mul_177)
+    SELECT_FLOAT32_472(rt, x=tensors.cat_59, output=tensors.select_70)
+    SELECT_FLOAT32_473(rt, x=tensors.reshape_60, output=tensors.select_71)
+    MUL_BROADCAST_474(rt, x=tensors.select_70, y=tensors.select_71, output=tensors.mul_178)
     FLUX_ADD_F32(rt, x=tensors.mul_177, y=tensors.mul_178, output=tensors.add_151)
-    SLICE_F32_534(rt, x=tensors.type_as_14, output=tensors.slice_108)
+    SLICE_F32_475(rt, x=tensors.type_as_14, output=tensors.slice_108)
     FLUX_SLICE_F32(rt, x=tensors.type_as_14, output=tensors.slice_109)
     FLUX_SLICE_F32(rt, x=tensors.type_as_14, output=tensors.slice_110)
-    SLICE_F32_535(rt, x=tensors.type_as_15, output=tensors.slice_111)
-    SLICE_F32_536(rt, x=tensors.cat_62, output=tensors.slice_112)
+    SLICE_F32_476(rt, x=tensors.type_as_15, output=tensors.slice_111)
+    SLICE_F32_477(rt, x=tensors.cat_62, output=tensors.slice_112)
     FLUX_SLICE_F32(rt, x=tensors.type_as_15, output=tensors.slice_113)
     FLUX_SLICE_F32(rt, x=tensors.cat_62, output=tensors.slice_114)
     FLUX_SLICE_F32(rt, x=tensors.type_as_15, output=tensors.slice_115)
     FLUX_SLICE_F32(rt, x=tensors.cat_62, output=tensors.slice_116)
-    CAT_2_F32_537(rt, x0=tensors.slice_108, x1=tensors.slice_110, output=tensors.cat_63)
+    CAT_2_F32_478(rt, x0=tensors.slice_108, x1=tensors.slice_110, output=tensors.cat_63)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_111, x1=tensors.slice_113, x2=tensors.slice_115, output=tensors.cat_64)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_112, x1=tensors.slice_114, x2=tensors.slice_116, output=tensors.cat_65)
     SDPA_F32(rt, q=tensors.cat_63, k=tensors.cat_64, v=tensors.cat_65, output=tensors.scaled_dot_product_attention_14)
-    SLICE_F32_538(rt, x=tensors.scaled_dot_product_attention_14, output=tensors.slice_117)
+    SLICE_F32_479(rt, x=tensors.scaled_dot_product_attention_14, output=tensors.slice_117)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_14, output=tensors.slice_118)
     SDPA_F32(rt, q=tensors.slice_109, k=tensors.slice_113, v=tensors.slice_114, output=tensors.scaled_dot_product_attention_15)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_117, x1=tensors.scaled_dot_product_attention_15, x2=tensors.slice_118, output=tensors.cat_66)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_66, output=tensors.permute_23)
-    SLICE_F32_539(rt, x=tensors.reshape_63, output=tensors.slice_119)
-    SLICE_F32_540(rt, x=tensors.reshape_63, output=tensors.slice_120)
-    LINEAR_NOBIAS_F16W_F32_541(rt, x=tensors.slice_120, weight=tensors.p_double_blocks_7_img_attn_proj_weight, output=tensors.linear_65)
-    MUL_BROADCAST_542(rt, x=tensors.getitem_2, y=tensors.linear_65, output=tensors.mul_179)
-    ADD_F32_543(rt, x=tensors.add_135, y=tensors.mul_179, output=tensors.add_152)
+    SLICE_F32_480(rt, x=tensors.reshape_63, output=tensors.slice_119)
+    SLICE_F32_481(rt, x=tensors.reshape_63, output=tensors.slice_120)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_120, weight=tensors.p_double_blocks_7_img_attn_proj_weight, output=tensors.linear_65)
+    MUL_BROADCAST_482(rt, x=tensors.getitem_2, y=tensors.linear_65, output=tensors.mul_179)
+    ADD_F32_483(rt, x=tensors.add_135, y=tensors.mul_179, output=tensors.add_152)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_4, output=tensors.add_153)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_152, output=tensors.layer_norm_30)
-    MUL_BROADCAST_544(rt, x=tensors.add_153, y=tensors.layer_norm_30, output=tensors.mul_180)
+    MUL_BROADCAST_484(rt, x=tensors.add_153, y=tensors.layer_norm_30, output=tensors.mul_180)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_180, y=tensors.getitem_3, output=tensors.add_154)
-    LINEAR_NOBIAS_F16W_F32_545(rt, x=tensors.add_154, weight=tensors.p_double_blocks_7_img_mlp_0_weight, output=tensors.linear_66)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_154, weight=tensors.p_double_blocks_7_img_mlp_0_weight, output=tensors.linear_66)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_66, output=tensors.getitem_91)
-    TUPLE_GETITEM_SLICE_F32_546(rt, x=tensors.linear_66, output=tensors.getitem_92)
-    SILU_F32_547(rt, x=tensors.getitem_91, output=tensors.silu_18)
+    TUPLE_GETITEM_SLICE_F32_485(rt, x=tensors.linear_66, output=tensors.getitem_92)
+    SILU_F32_486(rt, x=tensors.getitem_91, output=tensors.silu_18)
     FLUX_MUL_F32(rt, x=tensors.silu_18, y=tensors.getitem_92, output=tensors.mul_181)
-    LINEAR_NOBIAS_F16W_F32_548(rt, x=tensors.mul_181, weight=tensors.p_double_blocks_7_img_mlp_2_weight, output=tensors.linear_67)
-    MUL_BROADCAST_549(rt, x=tensors.getitem_5, y=tensors.linear_67, output=tensors.mul_182)
-    ADD_F32_550(rt, x=tensors.add_152, y=tensors.mul_182, output=tensors.add_155)
-    LINEAR_NOBIAS_F16W_F32_551(rt, x=tensors.slice_119, weight=tensors.p_double_blocks_7_txt_attn_proj_weight, output=tensors.linear_68)
-    MUL_BROADCAST_552(rt, x=tensors.getitem_8, y=tensors.linear_68, output=tensors.mul_183)
-    ADD_F32_553(rt, x=tensors.add_139, y=tensors.mul_183, output=tensors.add_156)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_181, weight=tensors.p_double_blocks_7_img_mlp_2_weight, output=tensors.linear_67)
+    MUL_BROADCAST_487(rt, x=tensors.getitem_5, y=tensors.linear_67, output=tensors.mul_182)
+    ADD_F32_488(rt, x=tensors.add_152, y=tensors.mul_182, output=tensors.add_155)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.slice_119, weight=tensors.p_double_blocks_7_txt_attn_proj_weight, output=tensors.linear_68)
+    MUL_BROADCAST_489(rt, x=tensors.getitem_8, y=tensors.linear_68, output=tensors.mul_183)
+    ADD_F32_490(rt, x=tensors.add_139, y=tensors.mul_183, output=tensors.add_156)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_10, output=tensors.add_157)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_156, output=tensors.layer_norm_31)
-    MUL_BROADCAST_554(rt, x=tensors.add_157, y=tensors.layer_norm_31, output=tensors.mul_184)
+    MUL_BROADCAST_491(rt, x=tensors.add_157, y=tensors.layer_norm_31, output=tensors.mul_184)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_184, y=tensors.getitem_9, output=tensors.add_158)
-    LINEAR_NOBIAS_F16W_F32_555(rt, x=tensors.add_158, weight=tensors.p_double_blocks_7_txt_mlp_0_weight, output=tensors.linear_69)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_158, weight=tensors.p_double_blocks_7_txt_mlp_0_weight, output=tensors.linear_69)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_69, output=tensors.getitem_93)
-    TUPLE_GETITEM_SLICE_F32_556(rt, x=tensors.linear_69, output=tensors.getitem_94)
-    SILU_F32_557(rt, x=tensors.getitem_93, output=tensors.silu_19)
+    TUPLE_GETITEM_SLICE_F32_492(rt, x=tensors.linear_69, output=tensors.getitem_94)
+    SILU_F32_493(rt, x=tensors.getitem_93, output=tensors.silu_19)
     FLUX_MUL_F32(rt, x=tensors.silu_19, y=tensors.getitem_94, output=tensors.mul_185)
-    LINEAR_NOBIAS_F16W_F32_558(rt, x=tensors.mul_185, weight=tensors.p_double_blocks_7_txt_mlp_2_weight, output=tensors.linear_70)
-    MUL_BROADCAST_559(rt, x=tensors.getitem_11, y=tensors.linear_70, output=tensors.mul_186)
-    ADD_F32_560(rt, x=tensors.add_156, y=tensors.mul_186, output=tensors.add_159)
-    CAT_2_F32_561(rt, x0=tensors.add_159, x1=tensors.add_155, output=tensors.cat_67)
-    CAT_2_F32_562(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_68)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.mul_185, weight=tensors.p_double_blocks_7_txt_mlp_2_weight, output=tensors.linear_70)
+    MUL_BROADCAST_494(rt, x=tensors.getitem_11, y=tensors.linear_70, output=tensors.mul_186)
+    ADD_F32_495(rt, x=tensors.add_156, y=tensors.mul_186, output=tensors.add_159)
+    CAT_2_F32_496(rt, x0=tensors.add_159, x1=tensors.add_155, output=tensors.cat_67)
+    CAT_2_F32_497(rt, x0=tensors.unsqueeze_6, x1=tensors.unsqueeze_5, output=tensors.cat_68)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_160)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.cat_67, output=tensors.layer_norm_32)
-    MUL_BROADCAST_563(rt, x=tensors.add_160, y=tensors.layer_norm_32, output=tensors.mul_187)
+    MUL_BROADCAST_498(rt, x=tensors.add_160, y=tensors.layer_norm_32, output=tensors.mul_187)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_187, y=tensors.getitem_12, output=tensors.add_161)
-    LINEAR_NOBIAS_F16W_F32_564(rt, x=tensors.add_161, weight=tensors.p_single_blocks_0_linear1_weight, output=tensors.linear_71)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_161, weight=tensors.p_single_blocks_0_linear1_weight, output=tensors.linear_71)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_71, output=tensors.getitem_95)
-    TUPLE_GETITEM_SLICE_F32_565(rt, x=tensors.linear_71, output=tensors.getitem_96)
+    TUPLE_GETITEM_SLICE_F32_499(rt, x=tensors.linear_71, output=tensors.getitem_96)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_64, output=tensors.permute_24)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_24, output=tensors.getitem_97)
-    TUPLE_GETITEM_UNBIND_F32_567(rt, x=tensors.permute_24, output=tensors.getitem_98)
-    TUPLE_GETITEM_UNBIND_F32_568(rt, x=tensors.permute_24, output=tensors.getitem_99)
+    TUPLE_GETITEM_UNBIND_F32_501(rt, x=tensors.permute_24, output=tensors.getitem_98)
+    TUPLE_GETITEM_UNBIND_F32_502(rt, x=tensors.permute_24, output=tensors.getitem_99)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_138, output=tensors.pow_57)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_57, output=tensors.mean_48)
-    ADD_SCALAR_569(rt, x=tensors.mean_48, output=tensors.add_162)
+    ADD_SCALAR_503(rt, x=tensors.mean_48, output=tensors.add_162)
     FLUX_RSQRT_F32(rt, x=tensors.add_162, output=tensors.rsqrt_48)
-    MUL_BROADCAST_570(rt, x=tensors.to_138, y=tensors.rsqrt_48, output=tensors.mul_188)
+    MUL_BROADCAST_504(rt, x=tensors.to_138, y=tensors.rsqrt_48, output=tensors.mul_188)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_139, y=tensors.p_single_blocks_0_norm_query_norm_scale, output=tensors.mul_189)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_140, output=tensors.pow_58)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_58, output=tensors.mean_49)
-    ADD_SCALAR_571(rt, x=tensors.mean_49, output=tensors.add_163)
+    ADD_SCALAR_505(rt, x=tensors.mean_49, output=tensors.add_163)
     FLUX_RSQRT_F32(rt, x=tensors.add_163, output=tensors.rsqrt_49)
-    MUL_BROADCAST_572(rt, x=tensors.to_140, y=tensors.rsqrt_49, output=tensors.mul_190)
+    MUL_BROADCAST_506(rt, x=tensors.to_140, y=tensors.rsqrt_49, output=tensors.mul_190)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_141, y=tensors.p_single_blocks_0_norm_key_norm_scale, output=tensors.mul_191)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_72)
     SELECT_FLOAT32(rt, x=tensors.reshape_65, output=tensors.select_73)
-    MUL_BROADCAST_573(rt, x=tensors.select_72, y=tensors.select_73, output=tensors.mul_192)
-    SELECT_FLOAT32_574(rt, x=tensors.cat_68, output=tensors.select_74)
-    SELECT_FLOAT32_575(rt, x=tensors.reshape_65, output=tensors.select_75)
-    MUL_BROADCAST_576(rt, x=tensors.select_74, y=tensors.select_75, output=tensors.mul_193)
+    MUL_BROADCAST_507(rt, x=tensors.select_72, y=tensors.select_73, output=tensors.mul_192)
+    SELECT_FLOAT32_508(rt, x=tensors.cat_68, output=tensors.select_74)
+    SELECT_FLOAT32_509(rt, x=tensors.reshape_65, output=tensors.select_75)
+    MUL_BROADCAST_510(rt, x=tensors.select_74, y=tensors.select_75, output=tensors.mul_193)
     FLUX_ADD_F32(rt, x=tensors.mul_192, y=tensors.mul_193, output=tensors.add_164)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_76)
     SELECT_FLOAT32(rt, x=tensors.reshape_66, output=tensors.select_77)
-    MUL_BROADCAST_577(rt, x=tensors.select_76, y=tensors.select_77, output=tensors.mul_194)
-    SELECT_FLOAT32_578(rt, x=tensors.cat_68, output=tensors.select_78)
-    SELECT_FLOAT32_579(rt, x=tensors.reshape_66, output=tensors.select_79)
-    MUL_BROADCAST_580(rt, x=tensors.select_78, y=tensors.select_79, output=tensors.mul_195)
+    MUL_BROADCAST_511(rt, x=tensors.select_76, y=tensors.select_77, output=tensors.mul_194)
+    SELECT_FLOAT32_512(rt, x=tensors.cat_68, output=tensors.select_78)
+    SELECT_FLOAT32_513(rt, x=tensors.reshape_66, output=tensors.select_79)
+    MUL_BROADCAST_514(rt, x=tensors.select_78, y=tensors.select_79, output=tensors.mul_195)
     FLUX_ADD_F32(rt, x=tensors.mul_194, y=tensors.mul_195, output=tensors.add_165)
-    SLICE_F32_581(rt, x=tensors.type_as_16, output=tensors.slice_123)
+    SLICE_F32_515(rt, x=tensors.type_as_16, output=tensors.slice_123)
     FLUX_SLICE_F32(rt, x=tensors.type_as_16, output=tensors.slice_124)
     FLUX_SLICE_F32(rt, x=tensors.type_as_16, output=tensors.slice_125)
-    SLICE_F32_582(rt, x=tensors.type_as_17, output=tensors.slice_126)
-    SLICE_F32_583(rt, x=tensors.getitem_99, output=tensors.slice_127)
+    SLICE_F32_516(rt, x=tensors.type_as_17, output=tensors.slice_126)
+    SLICE_F32_517(rt, x=tensors.getitem_99, output=tensors.slice_127)
     FLUX_SLICE_F32(rt, x=tensors.type_as_17, output=tensors.slice_128)
     FLUX_SLICE_F32(rt, x=tensors.getitem_99, output=tensors.slice_129)
     FLUX_SLICE_F32(rt, x=tensors.type_as_17, output=tensors.slice_130)
     FLUX_SLICE_F32(rt, x=tensors.getitem_99, output=tensors.slice_131)
-    CAT_2_F32_584(rt, x0=tensors.slice_123, x1=tensors.slice_125, output=tensors.cat_69)
+    CAT_2_F32_518(rt, x0=tensors.slice_123, x1=tensors.slice_125, output=tensors.cat_69)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_126, x1=tensors.slice_128, x2=tensors.slice_130, output=tensors.cat_70)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_127, x1=tensors.slice_129, x2=tensors.slice_131, output=tensors.cat_71)
     SDPA_F32(rt, q=tensors.cat_69, k=tensors.cat_70, v=tensors.cat_71, output=tensors.scaled_dot_product_attention_16)
-    SLICE_F32_585(rt, x=tensors.scaled_dot_product_attention_16, output=tensors.slice_132)
+    SLICE_F32_519(rt, x=tensors.scaled_dot_product_attention_16, output=tensors.slice_132)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_16, output=tensors.slice_133)
     SDPA_F32(rt, q=tensors.slice_124, k=tensors.slice_128, v=tensors.slice_129, output=tensors.scaled_dot_product_attention_17)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_132, x1=tensors.scaled_dot_product_attention_17, x2=tensors.slice_133, output=tensors.cat_72)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_72, output=tensors.permute_25)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_96, output=tensors.getitem_100)
-    TUPLE_GETITEM_SLICE_F32_586(rt, x=tensors.getitem_96, output=tensors.getitem_101)
-    SILU_F32_587(rt, x=tensors.getitem_100, output=tensors.silu_20)
+    TUPLE_GETITEM_SLICE_F32_520(rt, x=tensors.getitem_96, output=tensors.getitem_101)
+    SILU_F32_521(rt, x=tensors.getitem_100, output=tensors.silu_20)
     FLUX_MUL_F32(rt, x=tensors.silu_20, y=tensors.getitem_101, output=tensors.mul_196)
-    CAT_2_F32_588(rt, x0=tensors.reshape_69, x1=tensors.mul_196, output=tensors.cat_73)
-    LINEAR_NOBIAS_F16W_F32_589(rt, x=tensors.cat_73, weight=tensors.p_single_blocks_0_linear2_weight, output=tensors.linear_72)
-    MUL_BROADCAST_590(rt, x=tensors.getitem_14, y=tensors.linear_72, output=tensors.mul_197)
-    ADD_F32_591(rt, x=tensors.cat_67, y=tensors.mul_197, output=tensors.add_166)
+    CAT_2_F32_522(rt, x0=tensors.reshape_69, x1=tensors.mul_196, output=tensors.cat_73)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_73, weight=tensors.p_single_blocks_0_linear2_weight, output=tensors.linear_72)
+    MUL_BROADCAST_523(rt, x=tensors.getitem_14, y=tensors.linear_72, output=tensors.mul_197)
+    ADD_F32_524(rt, x=tensors.cat_67, y=tensors.mul_197, output=tensors.add_166)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_167)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_166, output=tensors.layer_norm_33)
-    MUL_BROADCAST_592(rt, x=tensors.add_167, y=tensors.layer_norm_33, output=tensors.mul_198)
+    MUL_BROADCAST_525(rt, x=tensors.add_167, y=tensors.layer_norm_33, output=tensors.mul_198)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_198, y=tensors.getitem_12, output=tensors.add_168)
-    LINEAR_NOBIAS_F16W_F32_593(rt, x=tensors.add_168, weight=tensors.p_single_blocks_1_linear1_weight, output=tensors.linear_73)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_168, weight=tensors.p_single_blocks_1_linear1_weight, output=tensors.linear_73)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_73, output=tensors.getitem_102)
-    TUPLE_GETITEM_SLICE_F32_594(rt, x=tensors.linear_73, output=tensors.getitem_103)
+    TUPLE_GETITEM_SLICE_F32_526(rt, x=tensors.linear_73, output=tensors.getitem_103)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_70, output=tensors.permute_26)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_26, output=tensors.getitem_104)
-    TUPLE_GETITEM_UNBIND_F32_595(rt, x=tensors.permute_26, output=tensors.getitem_105)
-    TUPLE_GETITEM_UNBIND_F32_596(rt, x=tensors.permute_26, output=tensors.getitem_106)
+    TUPLE_GETITEM_UNBIND_F32_527(rt, x=tensors.permute_26, output=tensors.getitem_105)
+    TUPLE_GETITEM_UNBIND_F32_528(rt, x=tensors.permute_26, output=tensors.getitem_106)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_146, output=tensors.pow_59)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_59, output=tensors.mean_50)
-    ADD_SCALAR_597(rt, x=tensors.mean_50, output=tensors.add_169)
+    ADD_SCALAR_529(rt, x=tensors.mean_50, output=tensors.add_169)
     FLUX_RSQRT_F32(rt, x=tensors.add_169, output=tensors.rsqrt_50)
-    MUL_BROADCAST_598(rt, x=tensors.to_146, y=tensors.rsqrt_50, output=tensors.mul_199)
+    MUL_BROADCAST_530(rt, x=tensors.to_146, y=tensors.rsqrt_50, output=tensors.mul_199)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_147, y=tensors.p_single_blocks_1_norm_query_norm_scale, output=tensors.mul_200)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_148, output=tensors.pow_60)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_60, output=tensors.mean_51)
-    ADD_SCALAR_599(rt, x=tensors.mean_51, output=tensors.add_170)
+    ADD_SCALAR_531(rt, x=tensors.mean_51, output=tensors.add_170)
     FLUX_RSQRT_F32(rt, x=tensors.add_170, output=tensors.rsqrt_51)
-    MUL_BROADCAST_600(rt, x=tensors.to_148, y=tensors.rsqrt_51, output=tensors.mul_201)
+    MUL_BROADCAST_532(rt, x=tensors.to_148, y=tensors.rsqrt_51, output=tensors.mul_201)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_149, y=tensors.p_single_blocks_1_norm_key_norm_scale, output=tensors.mul_202)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_80)
     SELECT_FLOAT32(rt, x=tensors.reshape_71, output=tensors.select_81)
-    MUL_BROADCAST_601(rt, x=tensors.select_80, y=tensors.select_81, output=tensors.mul_203)
-    SELECT_FLOAT32_602(rt, x=tensors.cat_68, output=tensors.select_82)
-    SELECT_FLOAT32_603(rt, x=tensors.reshape_71, output=tensors.select_83)
-    MUL_BROADCAST_604(rt, x=tensors.select_82, y=tensors.select_83, output=tensors.mul_204)
+    MUL_BROADCAST_533(rt, x=tensors.select_80, y=tensors.select_81, output=tensors.mul_203)
+    SELECT_FLOAT32_534(rt, x=tensors.cat_68, output=tensors.select_82)
+    SELECT_FLOAT32_535(rt, x=tensors.reshape_71, output=tensors.select_83)
+    MUL_BROADCAST_536(rt, x=tensors.select_82, y=tensors.select_83, output=tensors.mul_204)
     FLUX_ADD_F32(rt, x=tensors.mul_203, y=tensors.mul_204, output=tensors.add_171)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_84)
     SELECT_FLOAT32(rt, x=tensors.reshape_72, output=tensors.select_85)
-    MUL_BROADCAST_605(rt, x=tensors.select_84, y=tensors.select_85, output=tensors.mul_205)
-    SELECT_FLOAT32_606(rt, x=tensors.cat_68, output=tensors.select_86)
-    SELECT_FLOAT32_607(rt, x=tensors.reshape_72, output=tensors.select_87)
-    MUL_BROADCAST_608(rt, x=tensors.select_86, y=tensors.select_87, output=tensors.mul_206)
+    MUL_BROADCAST_537(rt, x=tensors.select_84, y=tensors.select_85, output=tensors.mul_205)
+    SELECT_FLOAT32_538(rt, x=tensors.cat_68, output=tensors.select_86)
+    SELECT_FLOAT32_539(rt, x=tensors.reshape_72, output=tensors.select_87)
+    MUL_BROADCAST_540(rt, x=tensors.select_86, y=tensors.select_87, output=tensors.mul_206)
     FLUX_ADD_F32(rt, x=tensors.mul_205, y=tensors.mul_206, output=tensors.add_172)
-    SLICE_F32_609(rt, x=tensors.type_as_18, output=tensors.slice_136)
+    SLICE_F32_541(rt, x=tensors.type_as_18, output=tensors.slice_136)
     FLUX_SLICE_F32(rt, x=tensors.type_as_18, output=tensors.slice_137)
     FLUX_SLICE_F32(rt, x=tensors.type_as_18, output=tensors.slice_138)
-    SLICE_F32_610(rt, x=tensors.type_as_19, output=tensors.slice_139)
-    SLICE_F32_611(rt, x=tensors.getitem_106, output=tensors.slice_140)
+    SLICE_F32_542(rt, x=tensors.type_as_19, output=tensors.slice_139)
+    SLICE_F32_543(rt, x=tensors.getitem_106, output=tensors.slice_140)
     FLUX_SLICE_F32(rt, x=tensors.type_as_19, output=tensors.slice_141)
     FLUX_SLICE_F32(rt, x=tensors.getitem_106, output=tensors.slice_142)
     FLUX_SLICE_F32(rt, x=tensors.type_as_19, output=tensors.slice_143)
     FLUX_SLICE_F32(rt, x=tensors.getitem_106, output=tensors.slice_144)
-    CAT_2_F32_612(rt, x0=tensors.slice_136, x1=tensors.slice_138, output=tensors.cat_74)
+    CAT_2_F32_544(rt, x0=tensors.slice_136, x1=tensors.slice_138, output=tensors.cat_74)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_139, x1=tensors.slice_141, x2=tensors.slice_143, output=tensors.cat_75)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_140, x1=tensors.slice_142, x2=tensors.slice_144, output=tensors.cat_76)
     SDPA_F32(rt, q=tensors.cat_74, k=tensors.cat_75, v=tensors.cat_76, output=tensors.scaled_dot_product_attention_18)
-    SLICE_F32_613(rt, x=tensors.scaled_dot_product_attention_18, output=tensors.slice_145)
+    SLICE_F32_545(rt, x=tensors.scaled_dot_product_attention_18, output=tensors.slice_145)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_18, output=tensors.slice_146)
     SDPA_F32(rt, q=tensors.slice_137, k=tensors.slice_141, v=tensors.slice_142, output=tensors.scaled_dot_product_attention_19)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_145, x1=tensors.scaled_dot_product_attention_19, x2=tensors.slice_146, output=tensors.cat_77)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_77, output=tensors.permute_27)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_103, output=tensors.getitem_107)
-    TUPLE_GETITEM_SLICE_F32_614(rt, x=tensors.getitem_103, output=tensors.getitem_108)
-    SILU_F32_615(rt, x=tensors.getitem_107, output=tensors.silu_21)
+    TUPLE_GETITEM_SLICE_F32_546(rt, x=tensors.getitem_103, output=tensors.getitem_108)
+    SILU_F32_547(rt, x=tensors.getitem_107, output=tensors.silu_21)
     FLUX_MUL_F32(rt, x=tensors.silu_21, y=tensors.getitem_108, output=tensors.mul_207)
-    CAT_2_F32_616(rt, x0=tensors.reshape_75, x1=tensors.mul_207, output=tensors.cat_78)
-    LINEAR_NOBIAS_F16W_F32_617(rt, x=tensors.cat_78, weight=tensors.p_single_blocks_1_linear2_weight, output=tensors.linear_74)
-    MUL_BROADCAST_618(rt, x=tensors.getitem_14, y=tensors.linear_74, output=tensors.mul_208)
-    ADD_F32_619(rt, x=tensors.add_166, y=tensors.mul_208, output=tensors.add_173)
+    CAT_2_F32_548(rt, x0=tensors.reshape_75, x1=tensors.mul_207, output=tensors.cat_78)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_78, weight=tensors.p_single_blocks_1_linear2_weight, output=tensors.linear_74)
+    MUL_BROADCAST_549(rt, x=tensors.getitem_14, y=tensors.linear_74, output=tensors.mul_208)
+    ADD_F32_550(rt, x=tensors.add_166, y=tensors.mul_208, output=tensors.add_173)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_174)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_173, output=tensors.layer_norm_34)
-    MUL_BROADCAST_620(rt, x=tensors.add_174, y=tensors.layer_norm_34, output=tensors.mul_209)
+    MUL_BROADCAST_551(rt, x=tensors.add_174, y=tensors.layer_norm_34, output=tensors.mul_209)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_209, y=tensors.getitem_12, output=tensors.add_175)
-    LINEAR_NOBIAS_F16W_F32_621(rt, x=tensors.add_175, weight=tensors.p_single_blocks_2_linear1_weight, output=tensors.linear_75)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_175, weight=tensors.p_single_blocks_2_linear1_weight, output=tensors.linear_75)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_75, output=tensors.getitem_109)
-    TUPLE_GETITEM_SLICE_F32_622(rt, x=tensors.linear_75, output=tensors.getitem_110)
+    TUPLE_GETITEM_SLICE_F32_552(rt, x=tensors.linear_75, output=tensors.getitem_110)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_76, output=tensors.permute_28)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_28, output=tensors.getitem_111)
-    TUPLE_GETITEM_UNBIND_F32_623(rt, x=tensors.permute_28, output=tensors.getitem_112)
-    TUPLE_GETITEM_UNBIND_F32_624(rt, x=tensors.permute_28, output=tensors.getitem_113)
+    TUPLE_GETITEM_UNBIND_F32_553(rt, x=tensors.permute_28, output=tensors.getitem_112)
+    TUPLE_GETITEM_UNBIND_F32_554(rt, x=tensors.permute_28, output=tensors.getitem_113)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_154, output=tensors.pow_61)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_61, output=tensors.mean_52)
-    ADD_SCALAR_625(rt, x=tensors.mean_52, output=tensors.add_176)
+    ADD_SCALAR_555(rt, x=tensors.mean_52, output=tensors.add_176)
     FLUX_RSQRT_F32(rt, x=tensors.add_176, output=tensors.rsqrt_52)
-    MUL_BROADCAST_626(rt, x=tensors.to_154, y=tensors.rsqrt_52, output=tensors.mul_210)
+    MUL_BROADCAST_556(rt, x=tensors.to_154, y=tensors.rsqrt_52, output=tensors.mul_210)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_155, y=tensors.p_single_blocks_2_norm_query_norm_scale, output=tensors.mul_211)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_156, output=tensors.pow_62)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_62, output=tensors.mean_53)
-    ADD_SCALAR_627(rt, x=tensors.mean_53, output=tensors.add_177)
+    ADD_SCALAR_557(rt, x=tensors.mean_53, output=tensors.add_177)
     FLUX_RSQRT_F32(rt, x=tensors.add_177, output=tensors.rsqrt_53)
-    MUL_BROADCAST_628(rt, x=tensors.to_156, y=tensors.rsqrt_53, output=tensors.mul_212)
+    MUL_BROADCAST_558(rt, x=tensors.to_156, y=tensors.rsqrt_53, output=tensors.mul_212)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_157, y=tensors.p_single_blocks_2_norm_key_norm_scale, output=tensors.mul_213)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_88)
     SELECT_FLOAT32(rt, x=tensors.reshape_77, output=tensors.select_89)
-    MUL_BROADCAST_629(rt, x=tensors.select_88, y=tensors.select_89, output=tensors.mul_214)
-    SELECT_FLOAT32_630(rt, x=tensors.cat_68, output=tensors.select_90)
-    SELECT_FLOAT32_631(rt, x=tensors.reshape_77, output=tensors.select_91)
-    MUL_BROADCAST_632(rt, x=tensors.select_90, y=tensors.select_91, output=tensors.mul_215)
+    MUL_BROADCAST_559(rt, x=tensors.select_88, y=tensors.select_89, output=tensors.mul_214)
+    SELECT_FLOAT32_560(rt, x=tensors.cat_68, output=tensors.select_90)
+    SELECT_FLOAT32_561(rt, x=tensors.reshape_77, output=tensors.select_91)
+    MUL_BROADCAST_562(rt, x=tensors.select_90, y=tensors.select_91, output=tensors.mul_215)
     FLUX_ADD_F32(rt, x=tensors.mul_214, y=tensors.mul_215, output=tensors.add_178)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_92)
     SELECT_FLOAT32(rt, x=tensors.reshape_78, output=tensors.select_93)
-    MUL_BROADCAST_633(rt, x=tensors.select_92, y=tensors.select_93, output=tensors.mul_216)
-    SELECT_FLOAT32_634(rt, x=tensors.cat_68, output=tensors.select_94)
-    SELECT_FLOAT32_635(rt, x=tensors.reshape_78, output=tensors.select_95)
-    MUL_BROADCAST_636(rt, x=tensors.select_94, y=tensors.select_95, output=tensors.mul_217)
+    MUL_BROADCAST_563(rt, x=tensors.select_92, y=tensors.select_93, output=tensors.mul_216)
+    SELECT_FLOAT32_564(rt, x=tensors.cat_68, output=tensors.select_94)
+    SELECT_FLOAT32_565(rt, x=tensors.reshape_78, output=tensors.select_95)
+    MUL_BROADCAST_566(rt, x=tensors.select_94, y=tensors.select_95, output=tensors.mul_217)
     FLUX_ADD_F32(rt, x=tensors.mul_216, y=tensors.mul_217, output=tensors.add_179)
-    SLICE_F32_637(rt, x=tensors.type_as_20, output=tensors.slice_149)
+    SLICE_F32_567(rt, x=tensors.type_as_20, output=tensors.slice_149)
     FLUX_SLICE_F32(rt, x=tensors.type_as_20, output=tensors.slice_150)
     FLUX_SLICE_F32(rt, x=tensors.type_as_20, output=tensors.slice_151)
-    SLICE_F32_638(rt, x=tensors.type_as_21, output=tensors.slice_152)
-    SLICE_F32_639(rt, x=tensors.getitem_113, output=tensors.slice_153)
+    SLICE_F32_568(rt, x=tensors.type_as_21, output=tensors.slice_152)
+    SLICE_F32_569(rt, x=tensors.getitem_113, output=tensors.slice_153)
     FLUX_SLICE_F32(rt, x=tensors.type_as_21, output=tensors.slice_154)
     FLUX_SLICE_F32(rt, x=tensors.getitem_113, output=tensors.slice_155)
     FLUX_SLICE_F32(rt, x=tensors.type_as_21, output=tensors.slice_156)
     FLUX_SLICE_F32(rt, x=tensors.getitem_113, output=tensors.slice_157)
-    CAT_2_F32_640(rt, x0=tensors.slice_149, x1=tensors.slice_151, output=tensors.cat_79)
+    CAT_2_F32_570(rt, x0=tensors.slice_149, x1=tensors.slice_151, output=tensors.cat_79)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_152, x1=tensors.slice_154, x2=tensors.slice_156, output=tensors.cat_80)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_153, x1=tensors.slice_155, x2=tensors.slice_157, output=tensors.cat_81)
     SDPA_F32(rt, q=tensors.cat_79, k=tensors.cat_80, v=tensors.cat_81, output=tensors.scaled_dot_product_attention_20)
-    SLICE_F32_641(rt, x=tensors.scaled_dot_product_attention_20, output=tensors.slice_158)
+    SLICE_F32_571(rt, x=tensors.scaled_dot_product_attention_20, output=tensors.slice_158)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_20, output=tensors.slice_159)
     SDPA_F32(rt, q=tensors.slice_150, k=tensors.slice_154, v=tensors.slice_155, output=tensors.scaled_dot_product_attention_21)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_158, x1=tensors.scaled_dot_product_attention_21, x2=tensors.slice_159, output=tensors.cat_82)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_82, output=tensors.permute_29)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_110, output=tensors.getitem_114)
-    TUPLE_GETITEM_SLICE_F32_642(rt, x=tensors.getitem_110, output=tensors.getitem_115)
-    SILU_F32_643(rt, x=tensors.getitem_114, output=tensors.silu_22)
+    TUPLE_GETITEM_SLICE_F32_572(rt, x=tensors.getitem_110, output=tensors.getitem_115)
+    SILU_F32_573(rt, x=tensors.getitem_114, output=tensors.silu_22)
     FLUX_MUL_F32(rt, x=tensors.silu_22, y=tensors.getitem_115, output=tensors.mul_218)
-    CAT_2_F32_644(rt, x0=tensors.reshape_81, x1=tensors.mul_218, output=tensors.cat_83)
-    LINEAR_NOBIAS_F16W_F32_645(rt, x=tensors.cat_83, weight=tensors.p_single_blocks_2_linear2_weight, output=tensors.linear_76)
-    MUL_BROADCAST_646(rt, x=tensors.getitem_14, y=tensors.linear_76, output=tensors.mul_219)
-    ADD_F32_647(rt, x=tensors.add_173, y=tensors.mul_219, output=tensors.add_180)
+    CAT_2_F32_574(rt, x0=tensors.reshape_81, x1=tensors.mul_218, output=tensors.cat_83)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_83, weight=tensors.p_single_blocks_2_linear2_weight, output=tensors.linear_76)
+    MUL_BROADCAST_575(rt, x=tensors.getitem_14, y=tensors.linear_76, output=tensors.mul_219)
+    ADD_F32_576(rt, x=tensors.add_173, y=tensors.mul_219, output=tensors.add_180)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_181)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_180, output=tensors.layer_norm_35)
-    MUL_BROADCAST_648(rt, x=tensors.add_181, y=tensors.layer_norm_35, output=tensors.mul_220)
+    MUL_BROADCAST_577(rt, x=tensors.add_181, y=tensors.layer_norm_35, output=tensors.mul_220)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_220, y=tensors.getitem_12, output=tensors.add_182)
-    LINEAR_NOBIAS_F16W_F32_649(rt, x=tensors.add_182, weight=tensors.p_single_blocks_3_linear1_weight, output=tensors.linear_77)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_182, weight=tensors.p_single_blocks_3_linear1_weight, output=tensors.linear_77)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_77, output=tensors.getitem_116)
-    TUPLE_GETITEM_SLICE_F32_650(rt, x=tensors.linear_77, output=tensors.getitem_117)
+    TUPLE_GETITEM_SLICE_F32_578(rt, x=tensors.linear_77, output=tensors.getitem_117)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_82, output=tensors.permute_30)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_30, output=tensors.getitem_118)
-    TUPLE_GETITEM_UNBIND_F32_651(rt, x=tensors.permute_30, output=tensors.getitem_119)
-    TUPLE_GETITEM_UNBIND_F32_652(rt, x=tensors.permute_30, output=tensors.getitem_120)
+    TUPLE_GETITEM_UNBIND_F32_579(rt, x=tensors.permute_30, output=tensors.getitem_119)
+    TUPLE_GETITEM_UNBIND_F32_580(rt, x=tensors.permute_30, output=tensors.getitem_120)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_162, output=tensors.pow_63)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_63, output=tensors.mean_54)
-    ADD_SCALAR_653(rt, x=tensors.mean_54, output=tensors.add_183)
+    ADD_SCALAR_581(rt, x=tensors.mean_54, output=tensors.add_183)
     FLUX_RSQRT_F32(rt, x=tensors.add_183, output=tensors.rsqrt_54)
-    MUL_BROADCAST_654(rt, x=tensors.to_162, y=tensors.rsqrt_54, output=tensors.mul_221)
+    MUL_BROADCAST_582(rt, x=tensors.to_162, y=tensors.rsqrt_54, output=tensors.mul_221)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_163, y=tensors.p_single_blocks_3_norm_query_norm_scale, output=tensors.mul_222)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_164, output=tensors.pow_64)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_64, output=tensors.mean_55)
-    ADD_SCALAR_655(rt, x=tensors.mean_55, output=tensors.add_184)
+    ADD_SCALAR_583(rt, x=tensors.mean_55, output=tensors.add_184)
     FLUX_RSQRT_F32(rt, x=tensors.add_184, output=tensors.rsqrt_55)
-    MUL_BROADCAST_656(rt, x=tensors.to_164, y=tensors.rsqrt_55, output=tensors.mul_223)
+    MUL_BROADCAST_584(rt, x=tensors.to_164, y=tensors.rsqrt_55, output=tensors.mul_223)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_165, y=tensors.p_single_blocks_3_norm_key_norm_scale, output=tensors.mul_224)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_96)
     SELECT_FLOAT32(rt, x=tensors.reshape_83, output=tensors.select_97)
-    MUL_BROADCAST_657(rt, x=tensors.select_96, y=tensors.select_97, output=tensors.mul_225)
-    SELECT_FLOAT32_658(rt, x=tensors.cat_68, output=tensors.select_98)
-    SELECT_FLOAT32_659(rt, x=tensors.reshape_83, output=tensors.select_99)
-    MUL_BROADCAST_660(rt, x=tensors.select_98, y=tensors.select_99, output=tensors.mul_226)
+    MUL_BROADCAST_585(rt, x=tensors.select_96, y=tensors.select_97, output=tensors.mul_225)
+    SELECT_FLOAT32_586(rt, x=tensors.cat_68, output=tensors.select_98)
+    SELECT_FLOAT32_587(rt, x=tensors.reshape_83, output=tensors.select_99)
+    MUL_BROADCAST_588(rt, x=tensors.select_98, y=tensors.select_99, output=tensors.mul_226)
     FLUX_ADD_F32(rt, x=tensors.mul_225, y=tensors.mul_226, output=tensors.add_185)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_100)
     SELECT_FLOAT32(rt, x=tensors.reshape_84, output=tensors.select_101)
-    MUL_BROADCAST_661(rt, x=tensors.select_100, y=tensors.select_101, output=tensors.mul_227)
-    SELECT_FLOAT32_662(rt, x=tensors.cat_68, output=tensors.select_102)
-    SELECT_FLOAT32_663(rt, x=tensors.reshape_84, output=tensors.select_103)
-    MUL_BROADCAST_664(rt, x=tensors.select_102, y=tensors.select_103, output=tensors.mul_228)
+    MUL_BROADCAST_589(rt, x=tensors.select_100, y=tensors.select_101, output=tensors.mul_227)
+    SELECT_FLOAT32_590(rt, x=tensors.cat_68, output=tensors.select_102)
+    SELECT_FLOAT32_591(rt, x=tensors.reshape_84, output=tensors.select_103)
+    MUL_BROADCAST_592(rt, x=tensors.select_102, y=tensors.select_103, output=tensors.mul_228)
     FLUX_ADD_F32(rt, x=tensors.mul_227, y=tensors.mul_228, output=tensors.add_186)
-    SLICE_F32_665(rt, x=tensors.type_as_22, output=tensors.slice_162)
+    SLICE_F32_593(rt, x=tensors.type_as_22, output=tensors.slice_162)
     FLUX_SLICE_F32(rt, x=tensors.type_as_22, output=tensors.slice_163)
     FLUX_SLICE_F32(rt, x=tensors.type_as_22, output=tensors.slice_164)
-    SLICE_F32_666(rt, x=tensors.type_as_23, output=tensors.slice_165)
-    SLICE_F32_667(rt, x=tensors.getitem_120, output=tensors.slice_166)
+    SLICE_F32_594(rt, x=tensors.type_as_23, output=tensors.slice_165)
+    SLICE_F32_595(rt, x=tensors.getitem_120, output=tensors.slice_166)
     FLUX_SLICE_F32(rt, x=tensors.type_as_23, output=tensors.slice_167)
     FLUX_SLICE_F32(rt, x=tensors.getitem_120, output=tensors.slice_168)
     FLUX_SLICE_F32(rt, x=tensors.type_as_23, output=tensors.slice_169)
     FLUX_SLICE_F32(rt, x=tensors.getitem_120, output=tensors.slice_170)
-    CAT_2_F32_668(rt, x0=tensors.slice_162, x1=tensors.slice_164, output=tensors.cat_84)
+    CAT_2_F32_596(rt, x0=tensors.slice_162, x1=tensors.slice_164, output=tensors.cat_84)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_165, x1=tensors.slice_167, x2=tensors.slice_169, output=tensors.cat_85)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_166, x1=tensors.slice_168, x2=tensors.slice_170, output=tensors.cat_86)
     SDPA_F32(rt, q=tensors.cat_84, k=tensors.cat_85, v=tensors.cat_86, output=tensors.scaled_dot_product_attention_22)
-    SLICE_F32_669(rt, x=tensors.scaled_dot_product_attention_22, output=tensors.slice_171)
+    SLICE_F32_597(rt, x=tensors.scaled_dot_product_attention_22, output=tensors.slice_171)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_22, output=tensors.slice_172)
     SDPA_F32(rt, q=tensors.slice_163, k=tensors.slice_167, v=tensors.slice_168, output=tensors.scaled_dot_product_attention_23)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_171, x1=tensors.scaled_dot_product_attention_23, x2=tensors.slice_172, output=tensors.cat_87)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_87, output=tensors.permute_31)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_117, output=tensors.getitem_121)
-    TUPLE_GETITEM_SLICE_F32_670(rt, x=tensors.getitem_117, output=tensors.getitem_122)
-    SILU_F32_671(rt, x=tensors.getitem_121, output=tensors.silu_23)
+    TUPLE_GETITEM_SLICE_F32_598(rt, x=tensors.getitem_117, output=tensors.getitem_122)
+    SILU_F32_599(rt, x=tensors.getitem_121, output=tensors.silu_23)
     FLUX_MUL_F32(rt, x=tensors.silu_23, y=tensors.getitem_122, output=tensors.mul_229)
-    CAT_2_F32_672(rt, x0=tensors.reshape_87, x1=tensors.mul_229, output=tensors.cat_88)
-    LINEAR_NOBIAS_F16W_F32_673(rt, x=tensors.cat_88, weight=tensors.p_single_blocks_3_linear2_weight, output=tensors.linear_78)
-    MUL_BROADCAST_674(rt, x=tensors.getitem_14, y=tensors.linear_78, output=tensors.mul_230)
-    ADD_F32_675(rt, x=tensors.add_180, y=tensors.mul_230, output=tensors.add_187)
+    CAT_2_F32_600(rt, x0=tensors.reshape_87, x1=tensors.mul_229, output=tensors.cat_88)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_88, weight=tensors.p_single_blocks_3_linear2_weight, output=tensors.linear_78)
+    MUL_BROADCAST_601(rt, x=tensors.getitem_14, y=tensors.linear_78, output=tensors.mul_230)
+    ADD_F32_602(rt, x=tensors.add_180, y=tensors.mul_230, output=tensors.add_187)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_188)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_187, output=tensors.layer_norm_36)
-    MUL_BROADCAST_676(rt, x=tensors.add_188, y=tensors.layer_norm_36, output=tensors.mul_231)
+    MUL_BROADCAST_603(rt, x=tensors.add_188, y=tensors.layer_norm_36, output=tensors.mul_231)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_231, y=tensors.getitem_12, output=tensors.add_189)
-    LINEAR_NOBIAS_F16W_F32_677(rt, x=tensors.add_189, weight=tensors.p_single_blocks_4_linear1_weight, output=tensors.linear_79)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_189, weight=tensors.p_single_blocks_4_linear1_weight, output=tensors.linear_79)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_79, output=tensors.getitem_123)
-    TUPLE_GETITEM_SLICE_F32_678(rt, x=tensors.linear_79, output=tensors.getitem_124)
+    TUPLE_GETITEM_SLICE_F32_604(rt, x=tensors.linear_79, output=tensors.getitem_124)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_88, output=tensors.permute_32)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_32, output=tensors.getitem_125)
-    TUPLE_GETITEM_UNBIND_F32_679(rt, x=tensors.permute_32, output=tensors.getitem_126)
-    TUPLE_GETITEM_UNBIND_F32_680(rt, x=tensors.permute_32, output=tensors.getitem_127)
+    TUPLE_GETITEM_UNBIND_F32_605(rt, x=tensors.permute_32, output=tensors.getitem_126)
+    TUPLE_GETITEM_UNBIND_F32_606(rt, x=tensors.permute_32, output=tensors.getitem_127)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_170, output=tensors.pow_65)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_65, output=tensors.mean_56)
-    ADD_SCALAR_681(rt, x=tensors.mean_56, output=tensors.add_190)
+    ADD_SCALAR_607(rt, x=tensors.mean_56, output=tensors.add_190)
     FLUX_RSQRT_F32(rt, x=tensors.add_190, output=tensors.rsqrt_56)
-    MUL_BROADCAST_682(rt, x=tensors.to_170, y=tensors.rsqrt_56, output=tensors.mul_232)
+    MUL_BROADCAST_608(rt, x=tensors.to_170, y=tensors.rsqrt_56, output=tensors.mul_232)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_171, y=tensors.p_single_blocks_4_norm_query_norm_scale, output=tensors.mul_233)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_172, output=tensors.pow_66)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_66, output=tensors.mean_57)
-    ADD_SCALAR_683(rt, x=tensors.mean_57, output=tensors.add_191)
+    ADD_SCALAR_609(rt, x=tensors.mean_57, output=tensors.add_191)
     FLUX_RSQRT_F32(rt, x=tensors.add_191, output=tensors.rsqrt_57)
-    MUL_BROADCAST_684(rt, x=tensors.to_172, y=tensors.rsqrt_57, output=tensors.mul_234)
+    MUL_BROADCAST_610(rt, x=tensors.to_172, y=tensors.rsqrt_57, output=tensors.mul_234)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_173, y=tensors.p_single_blocks_4_norm_key_norm_scale, output=tensors.mul_235)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_104)
     SELECT_FLOAT32(rt, x=tensors.reshape_89, output=tensors.select_105)
-    MUL_BROADCAST_685(rt, x=tensors.select_104, y=tensors.select_105, output=tensors.mul_236)
-    SELECT_FLOAT32_686(rt, x=tensors.cat_68, output=tensors.select_106)
-    SELECT_FLOAT32_687(rt, x=tensors.reshape_89, output=tensors.select_107)
-    MUL_BROADCAST_688(rt, x=tensors.select_106, y=tensors.select_107, output=tensors.mul_237)
+    MUL_BROADCAST_611(rt, x=tensors.select_104, y=tensors.select_105, output=tensors.mul_236)
+    SELECT_FLOAT32_612(rt, x=tensors.cat_68, output=tensors.select_106)
+    SELECT_FLOAT32_613(rt, x=tensors.reshape_89, output=tensors.select_107)
+    MUL_BROADCAST_614(rt, x=tensors.select_106, y=tensors.select_107, output=tensors.mul_237)
     FLUX_ADD_F32(rt, x=tensors.mul_236, y=tensors.mul_237, output=tensors.add_192)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_108)
     SELECT_FLOAT32(rt, x=tensors.reshape_90, output=tensors.select_109)
-    MUL_BROADCAST_689(rt, x=tensors.select_108, y=tensors.select_109, output=tensors.mul_238)
-    SELECT_FLOAT32_690(rt, x=tensors.cat_68, output=tensors.select_110)
-    SELECT_FLOAT32_691(rt, x=tensors.reshape_90, output=tensors.select_111)
-    MUL_BROADCAST_692(rt, x=tensors.select_110, y=tensors.select_111, output=tensors.mul_239)
+    MUL_BROADCAST_615(rt, x=tensors.select_108, y=tensors.select_109, output=tensors.mul_238)
+    SELECT_FLOAT32_616(rt, x=tensors.cat_68, output=tensors.select_110)
+    SELECT_FLOAT32_617(rt, x=tensors.reshape_90, output=tensors.select_111)
+    MUL_BROADCAST_618(rt, x=tensors.select_110, y=tensors.select_111, output=tensors.mul_239)
     FLUX_ADD_F32(rt, x=tensors.mul_238, y=tensors.mul_239, output=tensors.add_193)
-    SLICE_F32_693(rt, x=tensors.type_as_24, output=tensors.slice_175)
+    SLICE_F32_619(rt, x=tensors.type_as_24, output=tensors.slice_175)
     FLUX_SLICE_F32(rt, x=tensors.type_as_24, output=tensors.slice_176)
     FLUX_SLICE_F32(rt, x=tensors.type_as_24, output=tensors.slice_177)
-    SLICE_F32_694(rt, x=tensors.type_as_25, output=tensors.slice_178)
-    SLICE_F32_695(rt, x=tensors.getitem_127, output=tensors.slice_179)
+    SLICE_F32_620(rt, x=tensors.type_as_25, output=tensors.slice_178)
+    SLICE_F32_621(rt, x=tensors.getitem_127, output=tensors.slice_179)
     FLUX_SLICE_F32(rt, x=tensors.type_as_25, output=tensors.slice_180)
     FLUX_SLICE_F32(rt, x=tensors.getitem_127, output=tensors.slice_181)
     FLUX_SLICE_F32(rt, x=tensors.type_as_25, output=tensors.slice_182)
     FLUX_SLICE_F32(rt, x=tensors.getitem_127, output=tensors.slice_183)
-    CAT_2_F32_696(rt, x0=tensors.slice_175, x1=tensors.slice_177, output=tensors.cat_89)
+    CAT_2_F32_622(rt, x0=tensors.slice_175, x1=tensors.slice_177, output=tensors.cat_89)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_178, x1=tensors.slice_180, x2=tensors.slice_182, output=tensors.cat_90)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_179, x1=tensors.slice_181, x2=tensors.slice_183, output=tensors.cat_91)
     SDPA_F32(rt, q=tensors.cat_89, k=tensors.cat_90, v=tensors.cat_91, output=tensors.scaled_dot_product_attention_24)
-    SLICE_F32_697(rt, x=tensors.scaled_dot_product_attention_24, output=tensors.slice_184)
+    SLICE_F32_623(rt, x=tensors.scaled_dot_product_attention_24, output=tensors.slice_184)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_24, output=tensors.slice_185)
     SDPA_F32(rt, q=tensors.slice_176, k=tensors.slice_180, v=tensors.slice_181, output=tensors.scaled_dot_product_attention_25)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_184, x1=tensors.scaled_dot_product_attention_25, x2=tensors.slice_185, output=tensors.cat_92)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_92, output=tensors.permute_33)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_124, output=tensors.getitem_128)
-    TUPLE_GETITEM_SLICE_F32_698(rt, x=tensors.getitem_124, output=tensors.getitem_129)
-    SILU_F32_699(rt, x=tensors.getitem_128, output=tensors.silu_24)
+    TUPLE_GETITEM_SLICE_F32_624(rt, x=tensors.getitem_124, output=tensors.getitem_129)
+    SILU_F32_625(rt, x=tensors.getitem_128, output=tensors.silu_24)
     FLUX_MUL_F32(rt, x=tensors.silu_24, y=tensors.getitem_129, output=tensors.mul_240)
-    CAT_2_F32_700(rt, x0=tensors.reshape_93, x1=tensors.mul_240, output=tensors.cat_93)
-    LINEAR_NOBIAS_F16W_F32_701(rt, x=tensors.cat_93, weight=tensors.p_single_blocks_4_linear2_weight, output=tensors.linear_80)
-    MUL_BROADCAST_702(rt, x=tensors.getitem_14, y=tensors.linear_80, output=tensors.mul_241)
-    ADD_F32_703(rt, x=tensors.add_187, y=tensors.mul_241, output=tensors.add_194)
+    CAT_2_F32_626(rt, x0=tensors.reshape_93, x1=tensors.mul_240, output=tensors.cat_93)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_93, weight=tensors.p_single_blocks_4_linear2_weight, output=tensors.linear_80)
+    MUL_BROADCAST_627(rt, x=tensors.getitem_14, y=tensors.linear_80, output=tensors.mul_241)
+    ADD_F32_628(rt, x=tensors.add_187, y=tensors.mul_241, output=tensors.add_194)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_195)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_194, output=tensors.layer_norm_37)
-    MUL_BROADCAST_704(rt, x=tensors.add_195, y=tensors.layer_norm_37, output=tensors.mul_242)
+    MUL_BROADCAST_629(rt, x=tensors.add_195, y=tensors.layer_norm_37, output=tensors.mul_242)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_242, y=tensors.getitem_12, output=tensors.add_196)
-    LINEAR_NOBIAS_F16W_F32_705(rt, x=tensors.add_196, weight=tensors.p_single_blocks_5_linear1_weight, output=tensors.linear_81)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_196, weight=tensors.p_single_blocks_5_linear1_weight, output=tensors.linear_81)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_81, output=tensors.getitem_130)
-    TUPLE_GETITEM_SLICE_F32_706(rt, x=tensors.linear_81, output=tensors.getitem_131)
+    TUPLE_GETITEM_SLICE_F32_630(rt, x=tensors.linear_81, output=tensors.getitem_131)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_94, output=tensors.permute_34)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_34, output=tensors.getitem_132)
-    TUPLE_GETITEM_UNBIND_F32_707(rt, x=tensors.permute_34, output=tensors.getitem_133)
-    TUPLE_GETITEM_UNBIND_F32_708(rt, x=tensors.permute_34, output=tensors.getitem_134)
+    TUPLE_GETITEM_UNBIND_F32_631(rt, x=tensors.permute_34, output=tensors.getitem_133)
+    TUPLE_GETITEM_UNBIND_F32_632(rt, x=tensors.permute_34, output=tensors.getitem_134)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_178, output=tensors.pow_67)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_67, output=tensors.mean_58)
-    ADD_SCALAR_709(rt, x=tensors.mean_58, output=tensors.add_197)
+    ADD_SCALAR_633(rt, x=tensors.mean_58, output=tensors.add_197)
     FLUX_RSQRT_F32(rt, x=tensors.add_197, output=tensors.rsqrt_58)
-    MUL_BROADCAST_710(rt, x=tensors.to_178, y=tensors.rsqrt_58, output=tensors.mul_243)
+    MUL_BROADCAST_634(rt, x=tensors.to_178, y=tensors.rsqrt_58, output=tensors.mul_243)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_179, y=tensors.p_single_blocks_5_norm_query_norm_scale, output=tensors.mul_244)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_180, output=tensors.pow_68)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_68, output=tensors.mean_59)
-    ADD_SCALAR_711(rt, x=tensors.mean_59, output=tensors.add_198)
+    ADD_SCALAR_635(rt, x=tensors.mean_59, output=tensors.add_198)
     FLUX_RSQRT_F32(rt, x=tensors.add_198, output=tensors.rsqrt_59)
-    MUL_BROADCAST_712(rt, x=tensors.to_180, y=tensors.rsqrt_59, output=tensors.mul_245)
+    MUL_BROADCAST_636(rt, x=tensors.to_180, y=tensors.rsqrt_59, output=tensors.mul_245)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_181, y=tensors.p_single_blocks_5_norm_key_norm_scale, output=tensors.mul_246)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_112)
     SELECT_FLOAT32(rt, x=tensors.reshape_95, output=tensors.select_113)
-    MUL_BROADCAST_713(rt, x=tensors.select_112, y=tensors.select_113, output=tensors.mul_247)
-    SELECT_FLOAT32_714(rt, x=tensors.cat_68, output=tensors.select_114)
-    SELECT_FLOAT32_715(rt, x=tensors.reshape_95, output=tensors.select_115)
-    MUL_BROADCAST_716(rt, x=tensors.select_114, y=tensors.select_115, output=tensors.mul_248)
+    MUL_BROADCAST_637(rt, x=tensors.select_112, y=tensors.select_113, output=tensors.mul_247)
+    SELECT_FLOAT32_638(rt, x=tensors.cat_68, output=tensors.select_114)
+    SELECT_FLOAT32_639(rt, x=tensors.reshape_95, output=tensors.select_115)
+    MUL_BROADCAST_640(rt, x=tensors.select_114, y=tensors.select_115, output=tensors.mul_248)
     FLUX_ADD_F32(rt, x=tensors.mul_247, y=tensors.mul_248, output=tensors.add_199)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_116)
     SELECT_FLOAT32(rt, x=tensors.reshape_96, output=tensors.select_117)
-    MUL_BROADCAST_717(rt, x=tensors.select_116, y=tensors.select_117, output=tensors.mul_249)
-    SELECT_FLOAT32_718(rt, x=tensors.cat_68, output=tensors.select_118)
-    SELECT_FLOAT32_719(rt, x=tensors.reshape_96, output=tensors.select_119)
-    MUL_BROADCAST_720(rt, x=tensors.select_118, y=tensors.select_119, output=tensors.mul_250)
+    MUL_BROADCAST_641(rt, x=tensors.select_116, y=tensors.select_117, output=tensors.mul_249)
+    SELECT_FLOAT32_642(rt, x=tensors.cat_68, output=tensors.select_118)
+    SELECT_FLOAT32_643(rt, x=tensors.reshape_96, output=tensors.select_119)
+    MUL_BROADCAST_644(rt, x=tensors.select_118, y=tensors.select_119, output=tensors.mul_250)
     FLUX_ADD_F32(rt, x=tensors.mul_249, y=tensors.mul_250, output=tensors.add_200)
-    SLICE_F32_721(rt, x=tensors.type_as_26, output=tensors.slice_188)
+    SLICE_F32_645(rt, x=tensors.type_as_26, output=tensors.slice_188)
     FLUX_SLICE_F32(rt, x=tensors.type_as_26, output=tensors.slice_189)
     FLUX_SLICE_F32(rt, x=tensors.type_as_26, output=tensors.slice_190)
-    SLICE_F32_722(rt, x=tensors.type_as_27, output=tensors.slice_191)
-    SLICE_F32_723(rt, x=tensors.getitem_134, output=tensors.slice_192)
+    SLICE_F32_646(rt, x=tensors.type_as_27, output=tensors.slice_191)
+    SLICE_F32_647(rt, x=tensors.getitem_134, output=tensors.slice_192)
     FLUX_SLICE_F32(rt, x=tensors.type_as_27, output=tensors.slice_193)
     FLUX_SLICE_F32(rt, x=tensors.getitem_134, output=tensors.slice_194)
     FLUX_SLICE_F32(rt, x=tensors.type_as_27, output=tensors.slice_195)
     FLUX_SLICE_F32(rt, x=tensors.getitem_134, output=tensors.slice_196)
-    CAT_2_F32_724(rt, x0=tensors.slice_188, x1=tensors.slice_190, output=tensors.cat_94)
+    CAT_2_F32_648(rt, x0=tensors.slice_188, x1=tensors.slice_190, output=tensors.cat_94)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_191, x1=tensors.slice_193, x2=tensors.slice_195, output=tensors.cat_95)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_192, x1=tensors.slice_194, x2=tensors.slice_196, output=tensors.cat_96)
     SDPA_F32(rt, q=tensors.cat_94, k=tensors.cat_95, v=tensors.cat_96, output=tensors.scaled_dot_product_attention_26)
-    SLICE_F32_725(rt, x=tensors.scaled_dot_product_attention_26, output=tensors.slice_197)
+    SLICE_F32_649(rt, x=tensors.scaled_dot_product_attention_26, output=tensors.slice_197)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_26, output=tensors.slice_198)
     SDPA_F32(rt, q=tensors.slice_189, k=tensors.slice_193, v=tensors.slice_194, output=tensors.scaled_dot_product_attention_27)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_197, x1=tensors.scaled_dot_product_attention_27, x2=tensors.slice_198, output=tensors.cat_97)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_97, output=tensors.permute_35)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_131, output=tensors.getitem_135)
-    TUPLE_GETITEM_SLICE_F32_726(rt, x=tensors.getitem_131, output=tensors.getitem_136)
-    SILU_F32_727(rt, x=tensors.getitem_135, output=tensors.silu_25)
+    TUPLE_GETITEM_SLICE_F32_650(rt, x=tensors.getitem_131, output=tensors.getitem_136)
+    SILU_F32_651(rt, x=tensors.getitem_135, output=tensors.silu_25)
     FLUX_MUL_F32(rt, x=tensors.silu_25, y=tensors.getitem_136, output=tensors.mul_251)
-    CAT_2_F32_728(rt, x0=tensors.reshape_99, x1=tensors.mul_251, output=tensors.cat_98)
-    LINEAR_NOBIAS_F16W_F32_729(rt, x=tensors.cat_98, weight=tensors.p_single_blocks_5_linear2_weight, output=tensors.linear_82)
-    MUL_BROADCAST_730(rt, x=tensors.getitem_14, y=tensors.linear_82, output=tensors.mul_252)
-    ADD_F32_731(rt, x=tensors.add_194, y=tensors.mul_252, output=tensors.add_201)
+    CAT_2_F32_652(rt, x0=tensors.reshape_99, x1=tensors.mul_251, output=tensors.cat_98)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_98, weight=tensors.p_single_blocks_5_linear2_weight, output=tensors.linear_82)
+    MUL_BROADCAST_653(rt, x=tensors.getitem_14, y=tensors.linear_82, output=tensors.mul_252)
+    ADD_F32_654(rt, x=tensors.add_194, y=tensors.mul_252, output=tensors.add_201)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_202)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_201, output=tensors.layer_norm_38)
-    MUL_BROADCAST_732(rt, x=tensors.add_202, y=tensors.layer_norm_38, output=tensors.mul_253)
+    MUL_BROADCAST_655(rt, x=tensors.add_202, y=tensors.layer_norm_38, output=tensors.mul_253)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_253, y=tensors.getitem_12, output=tensors.add_203)
-    LINEAR_NOBIAS_F16W_F32_733(rt, x=tensors.add_203, weight=tensors.p_single_blocks_6_linear1_weight, output=tensors.linear_83)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_203, weight=tensors.p_single_blocks_6_linear1_weight, output=tensors.linear_83)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_83, output=tensors.getitem_137)
-    TUPLE_GETITEM_SLICE_F32_734(rt, x=tensors.linear_83, output=tensors.getitem_138)
+    TUPLE_GETITEM_SLICE_F32_656(rt, x=tensors.linear_83, output=tensors.getitem_138)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_100, output=tensors.permute_36)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_36, output=tensors.getitem_139)
-    TUPLE_GETITEM_UNBIND_F32_735(rt, x=tensors.permute_36, output=tensors.getitem_140)
-    TUPLE_GETITEM_UNBIND_F32_736(rt, x=tensors.permute_36, output=tensors.getitem_141)
+    TUPLE_GETITEM_UNBIND_F32_657(rt, x=tensors.permute_36, output=tensors.getitem_140)
+    TUPLE_GETITEM_UNBIND_F32_658(rt, x=tensors.permute_36, output=tensors.getitem_141)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_186, output=tensors.pow_69)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_69, output=tensors.mean_60)
-    ADD_SCALAR_737(rt, x=tensors.mean_60, output=tensors.add_204)
+    ADD_SCALAR_659(rt, x=tensors.mean_60, output=tensors.add_204)
     FLUX_RSQRT_F32(rt, x=tensors.add_204, output=tensors.rsqrt_60)
-    MUL_BROADCAST_738(rt, x=tensors.to_186, y=tensors.rsqrt_60, output=tensors.mul_254)
+    MUL_BROADCAST_660(rt, x=tensors.to_186, y=tensors.rsqrt_60, output=tensors.mul_254)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_187, y=tensors.p_single_blocks_6_norm_query_norm_scale, output=tensors.mul_255)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_188, output=tensors.pow_70)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_70, output=tensors.mean_61)
-    ADD_SCALAR_739(rt, x=tensors.mean_61, output=tensors.add_205)
+    ADD_SCALAR_661(rt, x=tensors.mean_61, output=tensors.add_205)
     FLUX_RSQRT_F32(rt, x=tensors.add_205, output=tensors.rsqrt_61)
-    MUL_BROADCAST_740(rt, x=tensors.to_188, y=tensors.rsqrt_61, output=tensors.mul_256)
+    MUL_BROADCAST_662(rt, x=tensors.to_188, y=tensors.rsqrt_61, output=tensors.mul_256)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_189, y=tensors.p_single_blocks_6_norm_key_norm_scale, output=tensors.mul_257)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_120)
     SELECT_FLOAT32(rt, x=tensors.reshape_101, output=tensors.select_121)
-    MUL_BROADCAST_741(rt, x=tensors.select_120, y=tensors.select_121, output=tensors.mul_258)
-    SELECT_FLOAT32_742(rt, x=tensors.cat_68, output=tensors.select_122)
-    SELECT_FLOAT32_743(rt, x=tensors.reshape_101, output=tensors.select_123)
-    MUL_BROADCAST_744(rt, x=tensors.select_122, y=tensors.select_123, output=tensors.mul_259)
+    MUL_BROADCAST_663(rt, x=tensors.select_120, y=tensors.select_121, output=tensors.mul_258)
+    SELECT_FLOAT32_664(rt, x=tensors.cat_68, output=tensors.select_122)
+    SELECT_FLOAT32_665(rt, x=tensors.reshape_101, output=tensors.select_123)
+    MUL_BROADCAST_666(rt, x=tensors.select_122, y=tensors.select_123, output=tensors.mul_259)
     FLUX_ADD_F32(rt, x=tensors.mul_258, y=tensors.mul_259, output=tensors.add_206)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_124)
     SELECT_FLOAT32(rt, x=tensors.reshape_102, output=tensors.select_125)
-    MUL_BROADCAST_745(rt, x=tensors.select_124, y=tensors.select_125, output=tensors.mul_260)
-    SELECT_FLOAT32_746(rt, x=tensors.cat_68, output=tensors.select_126)
-    SELECT_FLOAT32_747(rt, x=tensors.reshape_102, output=tensors.select_127)
-    MUL_BROADCAST_748(rt, x=tensors.select_126, y=tensors.select_127, output=tensors.mul_261)
+    MUL_BROADCAST_667(rt, x=tensors.select_124, y=tensors.select_125, output=tensors.mul_260)
+    SELECT_FLOAT32_668(rt, x=tensors.cat_68, output=tensors.select_126)
+    SELECT_FLOAT32_669(rt, x=tensors.reshape_102, output=tensors.select_127)
+    MUL_BROADCAST_670(rt, x=tensors.select_126, y=tensors.select_127, output=tensors.mul_261)
     FLUX_ADD_F32(rt, x=tensors.mul_260, y=tensors.mul_261, output=tensors.add_207)
-    SLICE_F32_749(rt, x=tensors.type_as_28, output=tensors.slice_201)
+    SLICE_F32_671(rt, x=tensors.type_as_28, output=tensors.slice_201)
     FLUX_SLICE_F32(rt, x=tensors.type_as_28, output=tensors.slice_202)
     FLUX_SLICE_F32(rt, x=tensors.type_as_28, output=tensors.slice_203)
-    SLICE_F32_750(rt, x=tensors.type_as_29, output=tensors.slice_204)
-    SLICE_F32_751(rt, x=tensors.getitem_141, output=tensors.slice_205)
+    SLICE_F32_672(rt, x=tensors.type_as_29, output=tensors.slice_204)
+    SLICE_F32_673(rt, x=tensors.getitem_141, output=tensors.slice_205)
     FLUX_SLICE_F32(rt, x=tensors.type_as_29, output=tensors.slice_206)
     FLUX_SLICE_F32(rt, x=tensors.getitem_141, output=tensors.slice_207)
     FLUX_SLICE_F32(rt, x=tensors.type_as_29, output=tensors.slice_208)
     FLUX_SLICE_F32(rt, x=tensors.getitem_141, output=tensors.slice_209)
-    CAT_2_F32_752(rt, x0=tensors.slice_201, x1=tensors.slice_203, output=tensors.cat_99)
+    CAT_2_F32_674(rt, x0=tensors.slice_201, x1=tensors.slice_203, output=tensors.cat_99)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_204, x1=tensors.slice_206, x2=tensors.slice_208, output=tensors.cat_100)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_205, x1=tensors.slice_207, x2=tensors.slice_209, output=tensors.cat_101)
     SDPA_F32(rt, q=tensors.cat_99, k=tensors.cat_100, v=tensors.cat_101, output=tensors.scaled_dot_product_attention_28)
-    SLICE_F32_753(rt, x=tensors.scaled_dot_product_attention_28, output=tensors.slice_210)
+    SLICE_F32_675(rt, x=tensors.scaled_dot_product_attention_28, output=tensors.slice_210)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_28, output=tensors.slice_211)
     SDPA_F32(rt, q=tensors.slice_202, k=tensors.slice_206, v=tensors.slice_207, output=tensors.scaled_dot_product_attention_29)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_210, x1=tensors.scaled_dot_product_attention_29, x2=tensors.slice_211, output=tensors.cat_102)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_102, output=tensors.permute_37)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_138, output=tensors.getitem_142)
-    TUPLE_GETITEM_SLICE_F32_754(rt, x=tensors.getitem_138, output=tensors.getitem_143)
-    SILU_F32_755(rt, x=tensors.getitem_142, output=tensors.silu_26)
+    TUPLE_GETITEM_SLICE_F32_676(rt, x=tensors.getitem_138, output=tensors.getitem_143)
+    SILU_F32_677(rt, x=tensors.getitem_142, output=tensors.silu_26)
     FLUX_MUL_F32(rt, x=tensors.silu_26, y=tensors.getitem_143, output=tensors.mul_262)
-    CAT_2_F32_756(rt, x0=tensors.reshape_105, x1=tensors.mul_262, output=tensors.cat_103)
-    LINEAR_NOBIAS_F16W_F32_757(rt, x=tensors.cat_103, weight=tensors.p_single_blocks_6_linear2_weight, output=tensors.linear_84)
-    MUL_BROADCAST_758(rt, x=tensors.getitem_14, y=tensors.linear_84, output=tensors.mul_263)
-    ADD_F32_759(rt, x=tensors.add_201, y=tensors.mul_263, output=tensors.add_208)
+    CAT_2_F32_678(rt, x0=tensors.reshape_105, x1=tensors.mul_262, output=tensors.cat_103)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_103, weight=tensors.p_single_blocks_6_linear2_weight, output=tensors.linear_84)
+    MUL_BROADCAST_679(rt, x=tensors.getitem_14, y=tensors.linear_84, output=tensors.mul_263)
+    ADD_F32_680(rt, x=tensors.add_201, y=tensors.mul_263, output=tensors.add_208)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_209)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_208, output=tensors.layer_norm_39)
-    MUL_BROADCAST_760(rt, x=tensors.add_209, y=tensors.layer_norm_39, output=tensors.mul_264)
+    MUL_BROADCAST_681(rt, x=tensors.add_209, y=tensors.layer_norm_39, output=tensors.mul_264)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_264, y=tensors.getitem_12, output=tensors.add_210)
-    LINEAR_NOBIAS_F16W_F32_761(rt, x=tensors.add_210, weight=tensors.p_single_blocks_7_linear1_weight, output=tensors.linear_85)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_210, weight=tensors.p_single_blocks_7_linear1_weight, output=tensors.linear_85)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_85, output=tensors.getitem_144)
-    TUPLE_GETITEM_SLICE_F32_762(rt, x=tensors.linear_85, output=tensors.getitem_145)
+    TUPLE_GETITEM_SLICE_F32_682(rt, x=tensors.linear_85, output=tensors.getitem_145)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_106, output=tensors.permute_38)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_38, output=tensors.getitem_146)
-    TUPLE_GETITEM_UNBIND_F32_763(rt, x=tensors.permute_38, output=tensors.getitem_147)
-    TUPLE_GETITEM_UNBIND_F32_764(rt, x=tensors.permute_38, output=tensors.getitem_148)
+    TUPLE_GETITEM_UNBIND_F32_683(rt, x=tensors.permute_38, output=tensors.getitem_147)
+    TUPLE_GETITEM_UNBIND_F32_684(rt, x=tensors.permute_38, output=tensors.getitem_148)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_194, output=tensors.pow_71)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_71, output=tensors.mean_62)
-    ADD_SCALAR_765(rt, x=tensors.mean_62, output=tensors.add_211)
+    ADD_SCALAR_685(rt, x=tensors.mean_62, output=tensors.add_211)
     FLUX_RSQRT_F32(rt, x=tensors.add_211, output=tensors.rsqrt_62)
-    MUL_BROADCAST_766(rt, x=tensors.to_194, y=tensors.rsqrt_62, output=tensors.mul_265)
+    MUL_BROADCAST_686(rt, x=tensors.to_194, y=tensors.rsqrt_62, output=tensors.mul_265)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_195, y=tensors.p_single_blocks_7_norm_query_norm_scale, output=tensors.mul_266)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_196, output=tensors.pow_72)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_72, output=tensors.mean_63)
-    ADD_SCALAR_767(rt, x=tensors.mean_63, output=tensors.add_212)
+    ADD_SCALAR_687(rt, x=tensors.mean_63, output=tensors.add_212)
     FLUX_RSQRT_F32(rt, x=tensors.add_212, output=tensors.rsqrt_63)
-    MUL_BROADCAST_768(rt, x=tensors.to_196, y=tensors.rsqrt_63, output=tensors.mul_267)
+    MUL_BROADCAST_688(rt, x=tensors.to_196, y=tensors.rsqrt_63, output=tensors.mul_267)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_197, y=tensors.p_single_blocks_7_norm_key_norm_scale, output=tensors.mul_268)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_128)
     SELECT_FLOAT32(rt, x=tensors.reshape_107, output=tensors.select_129)
-    MUL_BROADCAST_769(rt, x=tensors.select_128, y=tensors.select_129, output=tensors.mul_269)
-    SELECT_FLOAT32_770(rt, x=tensors.cat_68, output=tensors.select_130)
-    SELECT_FLOAT32_771(rt, x=tensors.reshape_107, output=tensors.select_131)
-    MUL_BROADCAST_772(rt, x=tensors.select_130, y=tensors.select_131, output=tensors.mul_270)
+    MUL_BROADCAST_689(rt, x=tensors.select_128, y=tensors.select_129, output=tensors.mul_269)
+    SELECT_FLOAT32_690(rt, x=tensors.cat_68, output=tensors.select_130)
+    SELECT_FLOAT32_691(rt, x=tensors.reshape_107, output=tensors.select_131)
+    MUL_BROADCAST_692(rt, x=tensors.select_130, y=tensors.select_131, output=tensors.mul_270)
     FLUX_ADD_F32(rt, x=tensors.mul_269, y=tensors.mul_270, output=tensors.add_213)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_132)
     SELECT_FLOAT32(rt, x=tensors.reshape_108, output=tensors.select_133)
-    MUL_BROADCAST_773(rt, x=tensors.select_132, y=tensors.select_133, output=tensors.mul_271)
-    SELECT_FLOAT32_774(rt, x=tensors.cat_68, output=tensors.select_134)
-    SELECT_FLOAT32_775(rt, x=tensors.reshape_108, output=tensors.select_135)
-    MUL_BROADCAST_776(rt, x=tensors.select_134, y=tensors.select_135, output=tensors.mul_272)
+    MUL_BROADCAST_693(rt, x=tensors.select_132, y=tensors.select_133, output=tensors.mul_271)
+    SELECT_FLOAT32_694(rt, x=tensors.cat_68, output=tensors.select_134)
+    SELECT_FLOAT32_695(rt, x=tensors.reshape_108, output=tensors.select_135)
+    MUL_BROADCAST_696(rt, x=tensors.select_134, y=tensors.select_135, output=tensors.mul_272)
     FLUX_ADD_F32(rt, x=tensors.mul_271, y=tensors.mul_272, output=tensors.add_214)
-    SLICE_F32_777(rt, x=tensors.type_as_30, output=tensors.slice_214)
+    SLICE_F32_697(rt, x=tensors.type_as_30, output=tensors.slice_214)
     FLUX_SLICE_F32(rt, x=tensors.type_as_30, output=tensors.slice_215)
     FLUX_SLICE_F32(rt, x=tensors.type_as_30, output=tensors.slice_216)
-    SLICE_F32_778(rt, x=tensors.type_as_31, output=tensors.slice_217)
-    SLICE_F32_779(rt, x=tensors.getitem_148, output=tensors.slice_218)
+    SLICE_F32_698(rt, x=tensors.type_as_31, output=tensors.slice_217)
+    SLICE_F32_699(rt, x=tensors.getitem_148, output=tensors.slice_218)
     FLUX_SLICE_F32(rt, x=tensors.type_as_31, output=tensors.slice_219)
     FLUX_SLICE_F32(rt, x=tensors.getitem_148, output=tensors.slice_220)
     FLUX_SLICE_F32(rt, x=tensors.type_as_31, output=tensors.slice_221)
     FLUX_SLICE_F32(rt, x=tensors.getitem_148, output=tensors.slice_222)
-    CAT_2_F32_780(rt, x0=tensors.slice_214, x1=tensors.slice_216, output=tensors.cat_104)
+    CAT_2_F32_700(rt, x0=tensors.slice_214, x1=tensors.slice_216, output=tensors.cat_104)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_217, x1=tensors.slice_219, x2=tensors.slice_221, output=tensors.cat_105)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_218, x1=tensors.slice_220, x2=tensors.slice_222, output=tensors.cat_106)
     SDPA_F32(rt, q=tensors.cat_104, k=tensors.cat_105, v=tensors.cat_106, output=tensors.scaled_dot_product_attention_30)
-    SLICE_F32_781(rt, x=tensors.scaled_dot_product_attention_30, output=tensors.slice_223)
+    SLICE_F32_701(rt, x=tensors.scaled_dot_product_attention_30, output=tensors.slice_223)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_30, output=tensors.slice_224)
     SDPA_F32(rt, q=tensors.slice_215, k=tensors.slice_219, v=tensors.slice_220, output=tensors.scaled_dot_product_attention_31)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_223, x1=tensors.scaled_dot_product_attention_31, x2=tensors.slice_224, output=tensors.cat_107)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_107, output=tensors.permute_39)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_145, output=tensors.getitem_149)
-    TUPLE_GETITEM_SLICE_F32_782(rt, x=tensors.getitem_145, output=tensors.getitem_150)
-    SILU_F32_783(rt, x=tensors.getitem_149, output=tensors.silu_27)
+    TUPLE_GETITEM_SLICE_F32_702(rt, x=tensors.getitem_145, output=tensors.getitem_150)
+    SILU_F32_703(rt, x=tensors.getitem_149, output=tensors.silu_27)
     FLUX_MUL_F32(rt, x=tensors.silu_27, y=tensors.getitem_150, output=tensors.mul_273)
-    CAT_2_F32_784(rt, x0=tensors.reshape_111, x1=tensors.mul_273, output=tensors.cat_108)
-    LINEAR_NOBIAS_F16W_F32_785(rt, x=tensors.cat_108, weight=tensors.p_single_blocks_7_linear2_weight, output=tensors.linear_86)
-    MUL_BROADCAST_786(rt, x=tensors.getitem_14, y=tensors.linear_86, output=tensors.mul_274)
-    ADD_F32_787(rt, x=tensors.add_208, y=tensors.mul_274, output=tensors.add_215)
+    CAT_2_F32_704(rt, x0=tensors.reshape_111, x1=tensors.mul_273, output=tensors.cat_108)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_108, weight=tensors.p_single_blocks_7_linear2_weight, output=tensors.linear_86)
+    MUL_BROADCAST_705(rt, x=tensors.getitem_14, y=tensors.linear_86, output=tensors.mul_274)
+    ADD_F32_706(rt, x=tensors.add_208, y=tensors.mul_274, output=tensors.add_215)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_216)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_215, output=tensors.layer_norm_40)
-    MUL_BROADCAST_788(rt, x=tensors.add_216, y=tensors.layer_norm_40, output=tensors.mul_275)
+    MUL_BROADCAST_707(rt, x=tensors.add_216, y=tensors.layer_norm_40, output=tensors.mul_275)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_275, y=tensors.getitem_12, output=tensors.add_217)
-    LINEAR_NOBIAS_F16W_F32_789(rt, x=tensors.add_217, weight=tensors.p_single_blocks_8_linear1_weight, output=tensors.linear_87)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_217, weight=tensors.p_single_blocks_8_linear1_weight, output=tensors.linear_87)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_87, output=tensors.getitem_151)
-    TUPLE_GETITEM_SLICE_F32_790(rt, x=tensors.linear_87, output=tensors.getitem_152)
+    TUPLE_GETITEM_SLICE_F32_708(rt, x=tensors.linear_87, output=tensors.getitem_152)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_112, output=tensors.permute_40)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_40, output=tensors.getitem_153)
-    TUPLE_GETITEM_UNBIND_F32_791(rt, x=tensors.permute_40, output=tensors.getitem_154)
-    TUPLE_GETITEM_UNBIND_F32_792(rt, x=tensors.permute_40, output=tensors.getitem_155)
+    TUPLE_GETITEM_UNBIND_F32_709(rt, x=tensors.permute_40, output=tensors.getitem_154)
+    TUPLE_GETITEM_UNBIND_F32_710(rt, x=tensors.permute_40, output=tensors.getitem_155)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_202, output=tensors.pow_73)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_73, output=tensors.mean_64)
-    ADD_SCALAR_793(rt, x=tensors.mean_64, output=tensors.add_218)
+    ADD_SCALAR_711(rt, x=tensors.mean_64, output=tensors.add_218)
     FLUX_RSQRT_F32(rt, x=tensors.add_218, output=tensors.rsqrt_64)
-    MUL_BROADCAST_794(rt, x=tensors.to_202, y=tensors.rsqrt_64, output=tensors.mul_276)
+    MUL_BROADCAST_712(rt, x=tensors.to_202, y=tensors.rsqrt_64, output=tensors.mul_276)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_203, y=tensors.p_single_blocks_8_norm_query_norm_scale, output=tensors.mul_277)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_204, output=tensors.pow_74)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_74, output=tensors.mean_65)
-    ADD_SCALAR_795(rt, x=tensors.mean_65, output=tensors.add_219)
+    ADD_SCALAR_713(rt, x=tensors.mean_65, output=tensors.add_219)
     FLUX_RSQRT_F32(rt, x=tensors.add_219, output=tensors.rsqrt_65)
-    MUL_BROADCAST_796(rt, x=tensors.to_204, y=tensors.rsqrt_65, output=tensors.mul_278)
+    MUL_BROADCAST_714(rt, x=tensors.to_204, y=tensors.rsqrt_65, output=tensors.mul_278)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_205, y=tensors.p_single_blocks_8_norm_key_norm_scale, output=tensors.mul_279)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_136)
     SELECT_FLOAT32(rt, x=tensors.reshape_113, output=tensors.select_137)
-    MUL_BROADCAST_797(rt, x=tensors.select_136, y=tensors.select_137, output=tensors.mul_280)
-    SELECT_FLOAT32_798(rt, x=tensors.cat_68, output=tensors.select_138)
-    SELECT_FLOAT32_799(rt, x=tensors.reshape_113, output=tensors.select_139)
-    MUL_BROADCAST_800(rt, x=tensors.select_138, y=tensors.select_139, output=tensors.mul_281)
+    MUL_BROADCAST_715(rt, x=tensors.select_136, y=tensors.select_137, output=tensors.mul_280)
+    SELECT_FLOAT32_716(rt, x=tensors.cat_68, output=tensors.select_138)
+    SELECT_FLOAT32_717(rt, x=tensors.reshape_113, output=tensors.select_139)
+    MUL_BROADCAST_718(rt, x=tensors.select_138, y=tensors.select_139, output=tensors.mul_281)
     FLUX_ADD_F32(rt, x=tensors.mul_280, y=tensors.mul_281, output=tensors.add_220)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_140)
     SELECT_FLOAT32(rt, x=tensors.reshape_114, output=tensors.select_141)
-    MUL_BROADCAST_801(rt, x=tensors.select_140, y=tensors.select_141, output=tensors.mul_282)
-    SELECT_FLOAT32_802(rt, x=tensors.cat_68, output=tensors.select_142)
-    SELECT_FLOAT32_803(rt, x=tensors.reshape_114, output=tensors.select_143)
-    MUL_BROADCAST_804(rt, x=tensors.select_142, y=tensors.select_143, output=tensors.mul_283)
+    MUL_BROADCAST_719(rt, x=tensors.select_140, y=tensors.select_141, output=tensors.mul_282)
+    SELECT_FLOAT32_720(rt, x=tensors.cat_68, output=tensors.select_142)
+    SELECT_FLOAT32_721(rt, x=tensors.reshape_114, output=tensors.select_143)
+    MUL_BROADCAST_722(rt, x=tensors.select_142, y=tensors.select_143, output=tensors.mul_283)
     FLUX_ADD_F32(rt, x=tensors.mul_282, y=tensors.mul_283, output=tensors.add_221)
-    SLICE_F32_805(rt, x=tensors.type_as_32, output=tensors.slice_227)
+    SLICE_F32_723(rt, x=tensors.type_as_32, output=tensors.slice_227)
     FLUX_SLICE_F32(rt, x=tensors.type_as_32, output=tensors.slice_228)
     FLUX_SLICE_F32(rt, x=tensors.type_as_32, output=tensors.slice_229)
-    SLICE_F32_806(rt, x=tensors.type_as_33, output=tensors.slice_230)
-    SLICE_F32_807(rt, x=tensors.getitem_155, output=tensors.slice_231)
+    SLICE_F32_724(rt, x=tensors.type_as_33, output=tensors.slice_230)
+    SLICE_F32_725(rt, x=tensors.getitem_155, output=tensors.slice_231)
     FLUX_SLICE_F32(rt, x=tensors.type_as_33, output=tensors.slice_232)
     FLUX_SLICE_F32(rt, x=tensors.getitem_155, output=tensors.slice_233)
     FLUX_SLICE_F32(rt, x=tensors.type_as_33, output=tensors.slice_234)
     FLUX_SLICE_F32(rt, x=tensors.getitem_155, output=tensors.slice_235)
-    CAT_2_F32_808(rt, x0=tensors.slice_227, x1=tensors.slice_229, output=tensors.cat_109)
+    CAT_2_F32_726(rt, x0=tensors.slice_227, x1=tensors.slice_229, output=tensors.cat_109)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_230, x1=tensors.slice_232, x2=tensors.slice_234, output=tensors.cat_110)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_231, x1=tensors.slice_233, x2=tensors.slice_235, output=tensors.cat_111)
     SDPA_F32(rt, q=tensors.cat_109, k=tensors.cat_110, v=tensors.cat_111, output=tensors.scaled_dot_product_attention_32)
-    SLICE_F32_809(rt, x=tensors.scaled_dot_product_attention_32, output=tensors.slice_236)
+    SLICE_F32_727(rt, x=tensors.scaled_dot_product_attention_32, output=tensors.slice_236)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_32, output=tensors.slice_237)
     SDPA_F32(rt, q=tensors.slice_228, k=tensors.slice_232, v=tensors.slice_233, output=tensors.scaled_dot_product_attention_33)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_236, x1=tensors.scaled_dot_product_attention_33, x2=tensors.slice_237, output=tensors.cat_112)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_112, output=tensors.permute_41)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_152, output=tensors.getitem_156)
-    TUPLE_GETITEM_SLICE_F32_810(rt, x=tensors.getitem_152, output=tensors.getitem_157)
-    SILU_F32_811(rt, x=tensors.getitem_156, output=tensors.silu_28)
+    TUPLE_GETITEM_SLICE_F32_728(rt, x=tensors.getitem_152, output=tensors.getitem_157)
+    SILU_F32_729(rt, x=tensors.getitem_156, output=tensors.silu_28)
     FLUX_MUL_F32(rt, x=tensors.silu_28, y=tensors.getitem_157, output=tensors.mul_284)
-    CAT_2_F32_812(rt, x0=tensors.reshape_117, x1=tensors.mul_284, output=tensors.cat_113)
-    LINEAR_NOBIAS_F16W_F32_813(rt, x=tensors.cat_113, weight=tensors.p_single_blocks_8_linear2_weight, output=tensors.linear_88)
-    MUL_BROADCAST_814(rt, x=tensors.getitem_14, y=tensors.linear_88, output=tensors.mul_285)
-    ADD_F32_815(rt, x=tensors.add_215, y=tensors.mul_285, output=tensors.add_222)
+    CAT_2_F32_730(rt, x0=tensors.reshape_117, x1=tensors.mul_284, output=tensors.cat_113)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_113, weight=tensors.p_single_blocks_8_linear2_weight, output=tensors.linear_88)
+    MUL_BROADCAST_731(rt, x=tensors.getitem_14, y=tensors.linear_88, output=tensors.mul_285)
+    ADD_F32_732(rt, x=tensors.add_215, y=tensors.mul_285, output=tensors.add_222)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_223)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_222, output=tensors.layer_norm_41)
-    MUL_BROADCAST_816(rt, x=tensors.add_223, y=tensors.layer_norm_41, output=tensors.mul_286)
+    MUL_BROADCAST_733(rt, x=tensors.add_223, y=tensors.layer_norm_41, output=tensors.mul_286)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_286, y=tensors.getitem_12, output=tensors.add_224)
-    LINEAR_NOBIAS_F16W_F32_817(rt, x=tensors.add_224, weight=tensors.p_single_blocks_9_linear1_weight, output=tensors.linear_89)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_224, weight=tensors.p_single_blocks_9_linear1_weight, output=tensors.linear_89)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_89, output=tensors.getitem_158)
-    TUPLE_GETITEM_SLICE_F32_818(rt, x=tensors.linear_89, output=tensors.getitem_159)
+    TUPLE_GETITEM_SLICE_F32_734(rt, x=tensors.linear_89, output=tensors.getitem_159)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_118, output=tensors.permute_42)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_42, output=tensors.getitem_160)
-    TUPLE_GETITEM_UNBIND_F32_819(rt, x=tensors.permute_42, output=tensors.getitem_161)
-    TUPLE_GETITEM_UNBIND_F32_820(rt, x=tensors.permute_42, output=tensors.getitem_162)
+    TUPLE_GETITEM_UNBIND_F32_735(rt, x=tensors.permute_42, output=tensors.getitem_161)
+    TUPLE_GETITEM_UNBIND_F32_736(rt, x=tensors.permute_42, output=tensors.getitem_162)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_210, output=tensors.pow_75)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_75, output=tensors.mean_66)
-    ADD_SCALAR_821(rt, x=tensors.mean_66, output=tensors.add_225)
+    ADD_SCALAR_737(rt, x=tensors.mean_66, output=tensors.add_225)
     FLUX_RSQRT_F32(rt, x=tensors.add_225, output=tensors.rsqrt_66)
-    MUL_BROADCAST_822(rt, x=tensors.to_210, y=tensors.rsqrt_66, output=tensors.mul_287)
+    MUL_BROADCAST_738(rt, x=tensors.to_210, y=tensors.rsqrt_66, output=tensors.mul_287)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_211, y=tensors.p_single_blocks_9_norm_query_norm_scale, output=tensors.mul_288)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_212, output=tensors.pow_76)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_76, output=tensors.mean_67)
-    ADD_SCALAR_823(rt, x=tensors.mean_67, output=tensors.add_226)
+    ADD_SCALAR_739(rt, x=tensors.mean_67, output=tensors.add_226)
     FLUX_RSQRT_F32(rt, x=tensors.add_226, output=tensors.rsqrt_67)
-    MUL_BROADCAST_824(rt, x=tensors.to_212, y=tensors.rsqrt_67, output=tensors.mul_289)
+    MUL_BROADCAST_740(rt, x=tensors.to_212, y=tensors.rsqrt_67, output=tensors.mul_289)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_213, y=tensors.p_single_blocks_9_norm_key_norm_scale, output=tensors.mul_290)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_144)
     SELECT_FLOAT32(rt, x=tensors.reshape_119, output=tensors.select_145)
-    MUL_BROADCAST_825(rt, x=tensors.select_144, y=tensors.select_145, output=tensors.mul_291)
-    SELECT_FLOAT32_826(rt, x=tensors.cat_68, output=tensors.select_146)
-    SELECT_FLOAT32_827(rt, x=tensors.reshape_119, output=tensors.select_147)
-    MUL_BROADCAST_828(rt, x=tensors.select_146, y=tensors.select_147, output=tensors.mul_292)
+    MUL_BROADCAST_741(rt, x=tensors.select_144, y=tensors.select_145, output=tensors.mul_291)
+    SELECT_FLOAT32_742(rt, x=tensors.cat_68, output=tensors.select_146)
+    SELECT_FLOAT32_743(rt, x=tensors.reshape_119, output=tensors.select_147)
+    MUL_BROADCAST_744(rt, x=tensors.select_146, y=tensors.select_147, output=tensors.mul_292)
     FLUX_ADD_F32(rt, x=tensors.mul_291, y=tensors.mul_292, output=tensors.add_227)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_148)
     SELECT_FLOAT32(rt, x=tensors.reshape_120, output=tensors.select_149)
-    MUL_BROADCAST_829(rt, x=tensors.select_148, y=tensors.select_149, output=tensors.mul_293)
-    SELECT_FLOAT32_830(rt, x=tensors.cat_68, output=tensors.select_150)
-    SELECT_FLOAT32_831(rt, x=tensors.reshape_120, output=tensors.select_151)
-    MUL_BROADCAST_832(rt, x=tensors.select_150, y=tensors.select_151, output=tensors.mul_294)
+    MUL_BROADCAST_745(rt, x=tensors.select_148, y=tensors.select_149, output=tensors.mul_293)
+    SELECT_FLOAT32_746(rt, x=tensors.cat_68, output=tensors.select_150)
+    SELECT_FLOAT32_747(rt, x=tensors.reshape_120, output=tensors.select_151)
+    MUL_BROADCAST_748(rt, x=tensors.select_150, y=tensors.select_151, output=tensors.mul_294)
     FLUX_ADD_F32(rt, x=tensors.mul_293, y=tensors.mul_294, output=tensors.add_228)
-    SLICE_F32_833(rt, x=tensors.type_as_34, output=tensors.slice_240)
+    SLICE_F32_749(rt, x=tensors.type_as_34, output=tensors.slice_240)
     FLUX_SLICE_F32(rt, x=tensors.type_as_34, output=tensors.slice_241)
     FLUX_SLICE_F32(rt, x=tensors.type_as_34, output=tensors.slice_242)
-    SLICE_F32_834(rt, x=tensors.type_as_35, output=tensors.slice_243)
-    SLICE_F32_835(rt, x=tensors.getitem_162, output=tensors.slice_244)
+    SLICE_F32_750(rt, x=tensors.type_as_35, output=tensors.slice_243)
+    SLICE_F32_751(rt, x=tensors.getitem_162, output=tensors.slice_244)
     FLUX_SLICE_F32(rt, x=tensors.type_as_35, output=tensors.slice_245)
     FLUX_SLICE_F32(rt, x=tensors.getitem_162, output=tensors.slice_246)
     FLUX_SLICE_F32(rt, x=tensors.type_as_35, output=tensors.slice_247)
     FLUX_SLICE_F32(rt, x=tensors.getitem_162, output=tensors.slice_248)
-    CAT_2_F32_836(rt, x0=tensors.slice_240, x1=tensors.slice_242, output=tensors.cat_114)
+    CAT_2_F32_752(rt, x0=tensors.slice_240, x1=tensors.slice_242, output=tensors.cat_114)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_243, x1=tensors.slice_245, x2=tensors.slice_247, output=tensors.cat_115)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_244, x1=tensors.slice_246, x2=tensors.slice_248, output=tensors.cat_116)
     SDPA_F32(rt, q=tensors.cat_114, k=tensors.cat_115, v=tensors.cat_116, output=tensors.scaled_dot_product_attention_34)
-    SLICE_F32_837(rt, x=tensors.scaled_dot_product_attention_34, output=tensors.slice_249)
+    SLICE_F32_753(rt, x=tensors.scaled_dot_product_attention_34, output=tensors.slice_249)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_34, output=tensors.slice_250)
     SDPA_F32(rt, q=tensors.slice_241, k=tensors.slice_245, v=tensors.slice_246, output=tensors.scaled_dot_product_attention_35)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_249, x1=tensors.scaled_dot_product_attention_35, x2=tensors.slice_250, output=tensors.cat_117)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_117, output=tensors.permute_43)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_159, output=tensors.getitem_163)
-    TUPLE_GETITEM_SLICE_F32_838(rt, x=tensors.getitem_159, output=tensors.getitem_164)
-    SILU_F32_839(rt, x=tensors.getitem_163, output=tensors.silu_29)
+    TUPLE_GETITEM_SLICE_F32_754(rt, x=tensors.getitem_159, output=tensors.getitem_164)
+    SILU_F32_755(rt, x=tensors.getitem_163, output=tensors.silu_29)
     FLUX_MUL_F32(rt, x=tensors.silu_29, y=tensors.getitem_164, output=tensors.mul_295)
-    CAT_2_F32_840(rt, x0=tensors.reshape_123, x1=tensors.mul_295, output=tensors.cat_118)
-    LINEAR_NOBIAS_F16W_F32_841(rt, x=tensors.cat_118, weight=tensors.p_single_blocks_9_linear2_weight, output=tensors.linear_90)
-    MUL_BROADCAST_842(rt, x=tensors.getitem_14, y=tensors.linear_90, output=tensors.mul_296)
-    ADD_F32_843(rt, x=tensors.add_222, y=tensors.mul_296, output=tensors.add_229)
+    CAT_2_F32_756(rt, x0=tensors.reshape_123, x1=tensors.mul_295, output=tensors.cat_118)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_118, weight=tensors.p_single_blocks_9_linear2_weight, output=tensors.linear_90)
+    MUL_BROADCAST_757(rt, x=tensors.getitem_14, y=tensors.linear_90, output=tensors.mul_296)
+    ADD_F32_758(rt, x=tensors.add_222, y=tensors.mul_296, output=tensors.add_229)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_230)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_229, output=tensors.layer_norm_42)
-    MUL_BROADCAST_844(rt, x=tensors.add_230, y=tensors.layer_norm_42, output=tensors.mul_297)
+    MUL_BROADCAST_759(rt, x=tensors.add_230, y=tensors.layer_norm_42, output=tensors.mul_297)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_297, y=tensors.getitem_12, output=tensors.add_231)
-    LINEAR_NOBIAS_F16W_F32_845(rt, x=tensors.add_231, weight=tensors.p_single_blocks_10_linear1_weight, output=tensors.linear_91)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_231, weight=tensors.p_single_blocks_10_linear1_weight, output=tensors.linear_91)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_91, output=tensors.getitem_165)
-    TUPLE_GETITEM_SLICE_F32_846(rt, x=tensors.linear_91, output=tensors.getitem_166)
+    TUPLE_GETITEM_SLICE_F32_760(rt, x=tensors.linear_91, output=tensors.getitem_166)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_124, output=tensors.permute_44)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_44, output=tensors.getitem_167)
-    TUPLE_GETITEM_UNBIND_F32_847(rt, x=tensors.permute_44, output=tensors.getitem_168)
-    TUPLE_GETITEM_UNBIND_F32_848(rt, x=tensors.permute_44, output=tensors.getitem_169)
+    TUPLE_GETITEM_UNBIND_F32_761(rt, x=tensors.permute_44, output=tensors.getitem_168)
+    TUPLE_GETITEM_UNBIND_F32_762(rt, x=tensors.permute_44, output=tensors.getitem_169)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_218, output=tensors.pow_77)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_77, output=tensors.mean_68)
-    ADD_SCALAR_849(rt, x=tensors.mean_68, output=tensors.add_232)
+    ADD_SCALAR_763(rt, x=tensors.mean_68, output=tensors.add_232)
     FLUX_RSQRT_F32(rt, x=tensors.add_232, output=tensors.rsqrt_68)
-    MUL_BROADCAST_850(rt, x=tensors.to_218, y=tensors.rsqrt_68, output=tensors.mul_298)
+    MUL_BROADCAST_764(rt, x=tensors.to_218, y=tensors.rsqrt_68, output=tensors.mul_298)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_219, y=tensors.p_single_blocks_10_norm_query_norm_scale, output=tensors.mul_299)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_220, output=tensors.pow_78)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_78, output=tensors.mean_69)
-    ADD_SCALAR_851(rt, x=tensors.mean_69, output=tensors.add_233)
+    ADD_SCALAR_765(rt, x=tensors.mean_69, output=tensors.add_233)
     FLUX_RSQRT_F32(rt, x=tensors.add_233, output=tensors.rsqrt_69)
-    MUL_BROADCAST_852(rt, x=tensors.to_220, y=tensors.rsqrt_69, output=tensors.mul_300)
+    MUL_BROADCAST_766(rt, x=tensors.to_220, y=tensors.rsqrt_69, output=tensors.mul_300)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_221, y=tensors.p_single_blocks_10_norm_key_norm_scale, output=tensors.mul_301)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_152)
     SELECT_FLOAT32(rt, x=tensors.reshape_125, output=tensors.select_153)
-    MUL_BROADCAST_853(rt, x=tensors.select_152, y=tensors.select_153, output=tensors.mul_302)
-    SELECT_FLOAT32_854(rt, x=tensors.cat_68, output=tensors.select_154)
-    SELECT_FLOAT32_855(rt, x=tensors.reshape_125, output=tensors.select_155)
-    MUL_BROADCAST_856(rt, x=tensors.select_154, y=tensors.select_155, output=tensors.mul_303)
+    MUL_BROADCAST_767(rt, x=tensors.select_152, y=tensors.select_153, output=tensors.mul_302)
+    SELECT_FLOAT32_768(rt, x=tensors.cat_68, output=tensors.select_154)
+    SELECT_FLOAT32_769(rt, x=tensors.reshape_125, output=tensors.select_155)
+    MUL_BROADCAST_770(rt, x=tensors.select_154, y=tensors.select_155, output=tensors.mul_303)
     FLUX_ADD_F32(rt, x=tensors.mul_302, y=tensors.mul_303, output=tensors.add_234)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_156)
     SELECT_FLOAT32(rt, x=tensors.reshape_126, output=tensors.select_157)
-    MUL_BROADCAST_857(rt, x=tensors.select_156, y=tensors.select_157, output=tensors.mul_304)
-    SELECT_FLOAT32_858(rt, x=tensors.cat_68, output=tensors.select_158)
-    SELECT_FLOAT32_859(rt, x=tensors.reshape_126, output=tensors.select_159)
-    MUL_BROADCAST_860(rt, x=tensors.select_158, y=tensors.select_159, output=tensors.mul_305)
+    MUL_BROADCAST_771(rt, x=tensors.select_156, y=tensors.select_157, output=tensors.mul_304)
+    SELECT_FLOAT32_772(rt, x=tensors.cat_68, output=tensors.select_158)
+    SELECT_FLOAT32_773(rt, x=tensors.reshape_126, output=tensors.select_159)
+    MUL_BROADCAST_774(rt, x=tensors.select_158, y=tensors.select_159, output=tensors.mul_305)
     FLUX_ADD_F32(rt, x=tensors.mul_304, y=tensors.mul_305, output=tensors.add_235)
-    SLICE_F32_861(rt, x=tensors.type_as_36, output=tensors.slice_253)
+    SLICE_F32_775(rt, x=tensors.type_as_36, output=tensors.slice_253)
     FLUX_SLICE_F32(rt, x=tensors.type_as_36, output=tensors.slice_254)
     FLUX_SLICE_F32(rt, x=tensors.type_as_36, output=tensors.slice_255)
-    SLICE_F32_862(rt, x=tensors.type_as_37, output=tensors.slice_256)
-    SLICE_F32_863(rt, x=tensors.getitem_169, output=tensors.slice_257)
+    SLICE_F32_776(rt, x=tensors.type_as_37, output=tensors.slice_256)
+    SLICE_F32_777(rt, x=tensors.getitem_169, output=tensors.slice_257)
     FLUX_SLICE_F32(rt, x=tensors.type_as_37, output=tensors.slice_258)
     FLUX_SLICE_F32(rt, x=tensors.getitem_169, output=tensors.slice_259)
     FLUX_SLICE_F32(rt, x=tensors.type_as_37, output=tensors.slice_260)
     FLUX_SLICE_F32(rt, x=tensors.getitem_169, output=tensors.slice_261)
-    CAT_2_F32_864(rt, x0=tensors.slice_253, x1=tensors.slice_255, output=tensors.cat_119)
+    CAT_2_F32_778(rt, x0=tensors.slice_253, x1=tensors.slice_255, output=tensors.cat_119)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_256, x1=tensors.slice_258, x2=tensors.slice_260, output=tensors.cat_120)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_257, x1=tensors.slice_259, x2=tensors.slice_261, output=tensors.cat_121)
     SDPA_F32(rt, q=tensors.cat_119, k=tensors.cat_120, v=tensors.cat_121, output=tensors.scaled_dot_product_attention_36)
-    SLICE_F32_865(rt, x=tensors.scaled_dot_product_attention_36, output=tensors.slice_262)
+    SLICE_F32_779(rt, x=tensors.scaled_dot_product_attention_36, output=tensors.slice_262)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_36, output=tensors.slice_263)
     SDPA_F32(rt, q=tensors.slice_254, k=tensors.slice_258, v=tensors.slice_259, output=tensors.scaled_dot_product_attention_37)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_262, x1=tensors.scaled_dot_product_attention_37, x2=tensors.slice_263, output=tensors.cat_122)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_122, output=tensors.permute_45)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_166, output=tensors.getitem_170)
-    TUPLE_GETITEM_SLICE_F32_866(rt, x=tensors.getitem_166, output=tensors.getitem_171)
-    SILU_F32_867(rt, x=tensors.getitem_170, output=tensors.silu_30)
+    TUPLE_GETITEM_SLICE_F32_780(rt, x=tensors.getitem_166, output=tensors.getitem_171)
+    SILU_F32_781(rt, x=tensors.getitem_170, output=tensors.silu_30)
     FLUX_MUL_F32(rt, x=tensors.silu_30, y=tensors.getitem_171, output=tensors.mul_306)
-    CAT_2_F32_868(rt, x0=tensors.reshape_129, x1=tensors.mul_306, output=tensors.cat_123)
-    LINEAR_NOBIAS_F16W_F32_869(rt, x=tensors.cat_123, weight=tensors.p_single_blocks_10_linear2_weight, output=tensors.linear_92)
-    MUL_BROADCAST_870(rt, x=tensors.getitem_14, y=tensors.linear_92, output=tensors.mul_307)
-    ADD_F32_871(rt, x=tensors.add_229, y=tensors.mul_307, output=tensors.add_236)
+    CAT_2_F32_782(rt, x0=tensors.reshape_129, x1=tensors.mul_306, output=tensors.cat_123)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_123, weight=tensors.p_single_blocks_10_linear2_weight, output=tensors.linear_92)
+    MUL_BROADCAST_783(rt, x=tensors.getitem_14, y=tensors.linear_92, output=tensors.mul_307)
+    ADD_F32_784(rt, x=tensors.add_229, y=tensors.mul_307, output=tensors.add_236)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_237)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_236, output=tensors.layer_norm_43)
-    MUL_BROADCAST_872(rt, x=tensors.add_237, y=tensors.layer_norm_43, output=tensors.mul_308)
+    MUL_BROADCAST_785(rt, x=tensors.add_237, y=tensors.layer_norm_43, output=tensors.mul_308)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_308, y=tensors.getitem_12, output=tensors.add_238)
-    LINEAR_NOBIAS_F16W_F32_873(rt, x=tensors.add_238, weight=tensors.p_single_blocks_11_linear1_weight, output=tensors.linear_93)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_238, weight=tensors.p_single_blocks_11_linear1_weight, output=tensors.linear_93)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_93, output=tensors.getitem_172)
-    TUPLE_GETITEM_SLICE_F32_874(rt, x=tensors.linear_93, output=tensors.getitem_173)
+    TUPLE_GETITEM_SLICE_F32_786(rt, x=tensors.linear_93, output=tensors.getitem_173)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_130, output=tensors.permute_46)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_46, output=tensors.getitem_174)
-    TUPLE_GETITEM_UNBIND_F32_875(rt, x=tensors.permute_46, output=tensors.getitem_175)
-    TUPLE_GETITEM_UNBIND_F32_876(rt, x=tensors.permute_46, output=tensors.getitem_176)
+    TUPLE_GETITEM_UNBIND_F32_787(rt, x=tensors.permute_46, output=tensors.getitem_175)
+    TUPLE_GETITEM_UNBIND_F32_788(rt, x=tensors.permute_46, output=tensors.getitem_176)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_226, output=tensors.pow_79)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_79, output=tensors.mean_70)
-    ADD_SCALAR_877(rt, x=tensors.mean_70, output=tensors.add_239)
+    ADD_SCALAR_789(rt, x=tensors.mean_70, output=tensors.add_239)
     FLUX_RSQRT_F32(rt, x=tensors.add_239, output=tensors.rsqrt_70)
-    MUL_BROADCAST_878(rt, x=tensors.to_226, y=tensors.rsqrt_70, output=tensors.mul_309)
+    MUL_BROADCAST_790(rt, x=tensors.to_226, y=tensors.rsqrt_70, output=tensors.mul_309)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_227, y=tensors.p_single_blocks_11_norm_query_norm_scale, output=tensors.mul_310)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_228, output=tensors.pow_80)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_80, output=tensors.mean_71)
-    ADD_SCALAR_879(rt, x=tensors.mean_71, output=tensors.add_240)
+    ADD_SCALAR_791(rt, x=tensors.mean_71, output=tensors.add_240)
     FLUX_RSQRT_F32(rt, x=tensors.add_240, output=tensors.rsqrt_71)
-    MUL_BROADCAST_880(rt, x=tensors.to_228, y=tensors.rsqrt_71, output=tensors.mul_311)
+    MUL_BROADCAST_792(rt, x=tensors.to_228, y=tensors.rsqrt_71, output=tensors.mul_311)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_229, y=tensors.p_single_blocks_11_norm_key_norm_scale, output=tensors.mul_312)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_160)
     SELECT_FLOAT32(rt, x=tensors.reshape_131, output=tensors.select_161)
-    MUL_BROADCAST_881(rt, x=tensors.select_160, y=tensors.select_161, output=tensors.mul_313)
-    SELECT_FLOAT32_882(rt, x=tensors.cat_68, output=tensors.select_162)
-    SELECT_FLOAT32_883(rt, x=tensors.reshape_131, output=tensors.select_163)
-    MUL_BROADCAST_884(rt, x=tensors.select_162, y=tensors.select_163, output=tensors.mul_314)
+    MUL_BROADCAST_793(rt, x=tensors.select_160, y=tensors.select_161, output=tensors.mul_313)
+    SELECT_FLOAT32_794(rt, x=tensors.cat_68, output=tensors.select_162)
+    SELECT_FLOAT32_795(rt, x=tensors.reshape_131, output=tensors.select_163)
+    MUL_BROADCAST_796(rt, x=tensors.select_162, y=tensors.select_163, output=tensors.mul_314)
     FLUX_ADD_F32(rt, x=tensors.mul_313, y=tensors.mul_314, output=tensors.add_241)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_164)
     SELECT_FLOAT32(rt, x=tensors.reshape_132, output=tensors.select_165)
-    MUL_BROADCAST_885(rt, x=tensors.select_164, y=tensors.select_165, output=tensors.mul_315)
-    SELECT_FLOAT32_886(rt, x=tensors.cat_68, output=tensors.select_166)
-    SELECT_FLOAT32_887(rt, x=tensors.reshape_132, output=tensors.select_167)
-    MUL_BROADCAST_888(rt, x=tensors.select_166, y=tensors.select_167, output=tensors.mul_316)
+    MUL_BROADCAST_797(rt, x=tensors.select_164, y=tensors.select_165, output=tensors.mul_315)
+    SELECT_FLOAT32_798(rt, x=tensors.cat_68, output=tensors.select_166)
+    SELECT_FLOAT32_799(rt, x=tensors.reshape_132, output=tensors.select_167)
+    MUL_BROADCAST_800(rt, x=tensors.select_166, y=tensors.select_167, output=tensors.mul_316)
     FLUX_ADD_F32(rt, x=tensors.mul_315, y=tensors.mul_316, output=tensors.add_242)
-    SLICE_F32_889(rt, x=tensors.type_as_38, output=tensors.slice_266)
+    SLICE_F32_801(rt, x=tensors.type_as_38, output=tensors.slice_266)
     FLUX_SLICE_F32(rt, x=tensors.type_as_38, output=tensors.slice_267)
     FLUX_SLICE_F32(rt, x=tensors.type_as_38, output=tensors.slice_268)
-    SLICE_F32_890(rt, x=tensors.type_as_39, output=tensors.slice_269)
-    SLICE_F32_891(rt, x=tensors.getitem_176, output=tensors.slice_270)
+    SLICE_F32_802(rt, x=tensors.type_as_39, output=tensors.slice_269)
+    SLICE_F32_803(rt, x=tensors.getitem_176, output=tensors.slice_270)
     FLUX_SLICE_F32(rt, x=tensors.type_as_39, output=tensors.slice_271)
     FLUX_SLICE_F32(rt, x=tensors.getitem_176, output=tensors.slice_272)
     FLUX_SLICE_F32(rt, x=tensors.type_as_39, output=tensors.slice_273)
     FLUX_SLICE_F32(rt, x=tensors.getitem_176, output=tensors.slice_274)
-    CAT_2_F32_892(rt, x0=tensors.slice_266, x1=tensors.slice_268, output=tensors.cat_124)
+    CAT_2_F32_804(rt, x0=tensors.slice_266, x1=tensors.slice_268, output=tensors.cat_124)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_269, x1=tensors.slice_271, x2=tensors.slice_273, output=tensors.cat_125)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_270, x1=tensors.slice_272, x2=tensors.slice_274, output=tensors.cat_126)
     SDPA_F32(rt, q=tensors.cat_124, k=tensors.cat_125, v=tensors.cat_126, output=tensors.scaled_dot_product_attention_38)
-    SLICE_F32_893(rt, x=tensors.scaled_dot_product_attention_38, output=tensors.slice_275)
+    SLICE_F32_805(rt, x=tensors.scaled_dot_product_attention_38, output=tensors.slice_275)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_38, output=tensors.slice_276)
     SDPA_F32(rt, q=tensors.slice_267, k=tensors.slice_271, v=tensors.slice_272, output=tensors.scaled_dot_product_attention_39)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_275, x1=tensors.scaled_dot_product_attention_39, x2=tensors.slice_276, output=tensors.cat_127)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_127, output=tensors.permute_47)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_173, output=tensors.getitem_177)
-    TUPLE_GETITEM_SLICE_F32_894(rt, x=tensors.getitem_173, output=tensors.getitem_178)
-    SILU_F32_895(rt, x=tensors.getitem_177, output=tensors.silu_31)
+    TUPLE_GETITEM_SLICE_F32_806(rt, x=tensors.getitem_173, output=tensors.getitem_178)
+    SILU_F32_807(rt, x=tensors.getitem_177, output=tensors.silu_31)
     FLUX_MUL_F32(rt, x=tensors.silu_31, y=tensors.getitem_178, output=tensors.mul_317)
-    CAT_2_F32_896(rt, x0=tensors.reshape_135, x1=tensors.mul_317, output=tensors.cat_128)
-    LINEAR_NOBIAS_F16W_F32_897(rt, x=tensors.cat_128, weight=tensors.p_single_blocks_11_linear2_weight, output=tensors.linear_94)
-    MUL_BROADCAST_898(rt, x=tensors.getitem_14, y=tensors.linear_94, output=tensors.mul_318)
-    ADD_F32_899(rt, x=tensors.add_236, y=tensors.mul_318, output=tensors.add_243)
+    CAT_2_F32_808(rt, x0=tensors.reshape_135, x1=tensors.mul_317, output=tensors.cat_128)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_128, weight=tensors.p_single_blocks_11_linear2_weight, output=tensors.linear_94)
+    MUL_BROADCAST_809(rt, x=tensors.getitem_14, y=tensors.linear_94, output=tensors.mul_318)
+    ADD_F32_810(rt, x=tensors.add_236, y=tensors.mul_318, output=tensors.add_243)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_244)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_243, output=tensors.layer_norm_44)
-    MUL_BROADCAST_900(rt, x=tensors.add_244, y=tensors.layer_norm_44, output=tensors.mul_319)
+    MUL_BROADCAST_811(rt, x=tensors.add_244, y=tensors.layer_norm_44, output=tensors.mul_319)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_319, y=tensors.getitem_12, output=tensors.add_245)
-    LINEAR_NOBIAS_F16W_F32_901(rt, x=tensors.add_245, weight=tensors.p_single_blocks_12_linear1_weight, output=tensors.linear_95)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_245, weight=tensors.p_single_blocks_12_linear1_weight, output=tensors.linear_95)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_95, output=tensors.getitem_179)
-    TUPLE_GETITEM_SLICE_F32_902(rt, x=tensors.linear_95, output=tensors.getitem_180)
+    TUPLE_GETITEM_SLICE_F32_812(rt, x=tensors.linear_95, output=tensors.getitem_180)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_136, output=tensors.permute_48)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_48, output=tensors.getitem_181)
-    TUPLE_GETITEM_UNBIND_F32_903(rt, x=tensors.permute_48, output=tensors.getitem_182)
-    TUPLE_GETITEM_UNBIND_F32_904(rt, x=tensors.permute_48, output=tensors.getitem_183)
+    TUPLE_GETITEM_UNBIND_F32_813(rt, x=tensors.permute_48, output=tensors.getitem_182)
+    TUPLE_GETITEM_UNBIND_F32_814(rt, x=tensors.permute_48, output=tensors.getitem_183)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_234, output=tensors.pow_81)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_81, output=tensors.mean_72)
-    ADD_SCALAR_905(rt, x=tensors.mean_72, output=tensors.add_246)
+    ADD_SCALAR_815(rt, x=tensors.mean_72, output=tensors.add_246)
     FLUX_RSQRT_F32(rt, x=tensors.add_246, output=tensors.rsqrt_72)
-    MUL_BROADCAST_906(rt, x=tensors.to_234, y=tensors.rsqrt_72, output=tensors.mul_320)
+    MUL_BROADCAST_816(rt, x=tensors.to_234, y=tensors.rsqrt_72, output=tensors.mul_320)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_235, y=tensors.p_single_blocks_12_norm_query_norm_scale, output=tensors.mul_321)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_236, output=tensors.pow_82)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_82, output=tensors.mean_73)
-    ADD_SCALAR_907(rt, x=tensors.mean_73, output=tensors.add_247)
+    ADD_SCALAR_817(rt, x=tensors.mean_73, output=tensors.add_247)
     FLUX_RSQRT_F32(rt, x=tensors.add_247, output=tensors.rsqrt_73)
-    MUL_BROADCAST_908(rt, x=tensors.to_236, y=tensors.rsqrt_73, output=tensors.mul_322)
+    MUL_BROADCAST_818(rt, x=tensors.to_236, y=tensors.rsqrt_73, output=tensors.mul_322)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_237, y=tensors.p_single_blocks_12_norm_key_norm_scale, output=tensors.mul_323)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_168)
     SELECT_FLOAT32(rt, x=tensors.reshape_137, output=tensors.select_169)
-    MUL_BROADCAST_909(rt, x=tensors.select_168, y=tensors.select_169, output=tensors.mul_324)
-    SELECT_FLOAT32_910(rt, x=tensors.cat_68, output=tensors.select_170)
-    SELECT_FLOAT32_911(rt, x=tensors.reshape_137, output=tensors.select_171)
-    MUL_BROADCAST_912(rt, x=tensors.select_170, y=tensors.select_171, output=tensors.mul_325)
+    MUL_BROADCAST_819(rt, x=tensors.select_168, y=tensors.select_169, output=tensors.mul_324)
+    SELECT_FLOAT32_820(rt, x=tensors.cat_68, output=tensors.select_170)
+    SELECT_FLOAT32_821(rt, x=tensors.reshape_137, output=tensors.select_171)
+    MUL_BROADCAST_822(rt, x=tensors.select_170, y=tensors.select_171, output=tensors.mul_325)
     FLUX_ADD_F32(rt, x=tensors.mul_324, y=tensors.mul_325, output=tensors.add_248)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_172)
     SELECT_FLOAT32(rt, x=tensors.reshape_138, output=tensors.select_173)
-    MUL_BROADCAST_913(rt, x=tensors.select_172, y=tensors.select_173, output=tensors.mul_326)
-    SELECT_FLOAT32_914(rt, x=tensors.cat_68, output=tensors.select_174)
-    SELECT_FLOAT32_915(rt, x=tensors.reshape_138, output=tensors.select_175)
-    MUL_BROADCAST_916(rt, x=tensors.select_174, y=tensors.select_175, output=tensors.mul_327)
+    MUL_BROADCAST_823(rt, x=tensors.select_172, y=tensors.select_173, output=tensors.mul_326)
+    SELECT_FLOAT32_824(rt, x=tensors.cat_68, output=tensors.select_174)
+    SELECT_FLOAT32_825(rt, x=tensors.reshape_138, output=tensors.select_175)
+    MUL_BROADCAST_826(rt, x=tensors.select_174, y=tensors.select_175, output=tensors.mul_327)
     FLUX_ADD_F32(rt, x=tensors.mul_326, y=tensors.mul_327, output=tensors.add_249)
-    SLICE_F32_917(rt, x=tensors.type_as_40, output=tensors.slice_279)
+    SLICE_F32_827(rt, x=tensors.type_as_40, output=tensors.slice_279)
     FLUX_SLICE_F32(rt, x=tensors.type_as_40, output=tensors.slice_280)
     FLUX_SLICE_F32(rt, x=tensors.type_as_40, output=tensors.slice_281)
-    SLICE_F32_918(rt, x=tensors.type_as_41, output=tensors.slice_282)
-    SLICE_F32_919(rt, x=tensors.getitem_183, output=tensors.slice_283)
+    SLICE_F32_828(rt, x=tensors.type_as_41, output=tensors.slice_282)
+    SLICE_F32_829(rt, x=tensors.getitem_183, output=tensors.slice_283)
     FLUX_SLICE_F32(rt, x=tensors.type_as_41, output=tensors.slice_284)
     FLUX_SLICE_F32(rt, x=tensors.getitem_183, output=tensors.slice_285)
     FLUX_SLICE_F32(rt, x=tensors.type_as_41, output=tensors.slice_286)
     FLUX_SLICE_F32(rt, x=tensors.getitem_183, output=tensors.slice_287)
-    CAT_2_F32_920(rt, x0=tensors.slice_279, x1=tensors.slice_281, output=tensors.cat_129)
+    CAT_2_F32_830(rt, x0=tensors.slice_279, x1=tensors.slice_281, output=tensors.cat_129)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_282, x1=tensors.slice_284, x2=tensors.slice_286, output=tensors.cat_130)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_283, x1=tensors.slice_285, x2=tensors.slice_287, output=tensors.cat_131)
     SDPA_F32(rt, q=tensors.cat_129, k=tensors.cat_130, v=tensors.cat_131, output=tensors.scaled_dot_product_attention_40)
-    SLICE_F32_921(rt, x=tensors.scaled_dot_product_attention_40, output=tensors.slice_288)
+    SLICE_F32_831(rt, x=tensors.scaled_dot_product_attention_40, output=tensors.slice_288)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_40, output=tensors.slice_289)
     SDPA_F32(rt, q=tensors.slice_280, k=tensors.slice_284, v=tensors.slice_285, output=tensors.scaled_dot_product_attention_41)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_288, x1=tensors.scaled_dot_product_attention_41, x2=tensors.slice_289, output=tensors.cat_132)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_132, output=tensors.permute_49)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_180, output=tensors.getitem_184)
-    TUPLE_GETITEM_SLICE_F32_922(rt, x=tensors.getitem_180, output=tensors.getitem_185)
-    SILU_F32_923(rt, x=tensors.getitem_184, output=tensors.silu_32)
+    TUPLE_GETITEM_SLICE_F32_832(rt, x=tensors.getitem_180, output=tensors.getitem_185)
+    SILU_F32_833(rt, x=tensors.getitem_184, output=tensors.silu_32)
     FLUX_MUL_F32(rt, x=tensors.silu_32, y=tensors.getitem_185, output=tensors.mul_328)
-    CAT_2_F32_924(rt, x0=tensors.reshape_141, x1=tensors.mul_328, output=tensors.cat_133)
-    LINEAR_NOBIAS_F16W_F32_925(rt, x=tensors.cat_133, weight=tensors.p_single_blocks_12_linear2_weight, output=tensors.linear_96)
-    MUL_BROADCAST_926(rt, x=tensors.getitem_14, y=tensors.linear_96, output=tensors.mul_329)
-    ADD_F32_927(rt, x=tensors.add_243, y=tensors.mul_329, output=tensors.add_250)
+    CAT_2_F32_834(rt, x0=tensors.reshape_141, x1=tensors.mul_328, output=tensors.cat_133)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_133, weight=tensors.p_single_blocks_12_linear2_weight, output=tensors.linear_96)
+    MUL_BROADCAST_835(rt, x=tensors.getitem_14, y=tensors.linear_96, output=tensors.mul_329)
+    ADD_F32_836(rt, x=tensors.add_243, y=tensors.mul_329, output=tensors.add_250)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_251)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_250, output=tensors.layer_norm_45)
-    MUL_BROADCAST_928(rt, x=tensors.add_251, y=tensors.layer_norm_45, output=tensors.mul_330)
+    MUL_BROADCAST_837(rt, x=tensors.add_251, y=tensors.layer_norm_45, output=tensors.mul_330)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_330, y=tensors.getitem_12, output=tensors.add_252)
-    LINEAR_NOBIAS_F16W_F32_929(rt, x=tensors.add_252, weight=tensors.p_single_blocks_13_linear1_weight, output=tensors.linear_97)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_252, weight=tensors.p_single_blocks_13_linear1_weight, output=tensors.linear_97)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_97, output=tensors.getitem_186)
-    TUPLE_GETITEM_SLICE_F32_930(rt, x=tensors.linear_97, output=tensors.getitem_187)
+    TUPLE_GETITEM_SLICE_F32_838(rt, x=tensors.linear_97, output=tensors.getitem_187)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_142, output=tensors.permute_50)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_50, output=tensors.getitem_188)
-    TUPLE_GETITEM_UNBIND_F32_931(rt, x=tensors.permute_50, output=tensors.getitem_189)
-    TUPLE_GETITEM_UNBIND_F32_932(rt, x=tensors.permute_50, output=tensors.getitem_190)
+    TUPLE_GETITEM_UNBIND_F32_839(rt, x=tensors.permute_50, output=tensors.getitem_189)
+    TUPLE_GETITEM_UNBIND_F32_840(rt, x=tensors.permute_50, output=tensors.getitem_190)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_242, output=tensors.pow_83)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_83, output=tensors.mean_74)
-    ADD_SCALAR_933(rt, x=tensors.mean_74, output=tensors.add_253)
+    ADD_SCALAR_841(rt, x=tensors.mean_74, output=tensors.add_253)
     FLUX_RSQRT_F32(rt, x=tensors.add_253, output=tensors.rsqrt_74)
-    MUL_BROADCAST_934(rt, x=tensors.to_242, y=tensors.rsqrt_74, output=tensors.mul_331)
+    MUL_BROADCAST_842(rt, x=tensors.to_242, y=tensors.rsqrt_74, output=tensors.mul_331)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_243, y=tensors.p_single_blocks_13_norm_query_norm_scale, output=tensors.mul_332)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_244, output=tensors.pow_84)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_84, output=tensors.mean_75)
-    ADD_SCALAR_935(rt, x=tensors.mean_75, output=tensors.add_254)
+    ADD_SCALAR_843(rt, x=tensors.mean_75, output=tensors.add_254)
     FLUX_RSQRT_F32(rt, x=tensors.add_254, output=tensors.rsqrt_75)
-    MUL_BROADCAST_936(rt, x=tensors.to_244, y=tensors.rsqrt_75, output=tensors.mul_333)
+    MUL_BROADCAST_844(rt, x=tensors.to_244, y=tensors.rsqrt_75, output=tensors.mul_333)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_245, y=tensors.p_single_blocks_13_norm_key_norm_scale, output=tensors.mul_334)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_176)
     SELECT_FLOAT32(rt, x=tensors.reshape_143, output=tensors.select_177)
-    MUL_BROADCAST_937(rt, x=tensors.select_176, y=tensors.select_177, output=tensors.mul_335)
-    SELECT_FLOAT32_938(rt, x=tensors.cat_68, output=tensors.select_178)
-    SELECT_FLOAT32_939(rt, x=tensors.reshape_143, output=tensors.select_179)
-    MUL_BROADCAST_940(rt, x=tensors.select_178, y=tensors.select_179, output=tensors.mul_336)
+    MUL_BROADCAST_845(rt, x=tensors.select_176, y=tensors.select_177, output=tensors.mul_335)
+    SELECT_FLOAT32_846(rt, x=tensors.cat_68, output=tensors.select_178)
+    SELECT_FLOAT32_847(rt, x=tensors.reshape_143, output=tensors.select_179)
+    MUL_BROADCAST_848(rt, x=tensors.select_178, y=tensors.select_179, output=tensors.mul_336)
     FLUX_ADD_F32(rt, x=tensors.mul_335, y=tensors.mul_336, output=tensors.add_255)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_180)
     SELECT_FLOAT32(rt, x=tensors.reshape_144, output=tensors.select_181)
-    MUL_BROADCAST_941(rt, x=tensors.select_180, y=tensors.select_181, output=tensors.mul_337)
-    SELECT_FLOAT32_942(rt, x=tensors.cat_68, output=tensors.select_182)
-    SELECT_FLOAT32_943(rt, x=tensors.reshape_144, output=tensors.select_183)
-    MUL_BROADCAST_944(rt, x=tensors.select_182, y=tensors.select_183, output=tensors.mul_338)
+    MUL_BROADCAST_849(rt, x=tensors.select_180, y=tensors.select_181, output=tensors.mul_337)
+    SELECT_FLOAT32_850(rt, x=tensors.cat_68, output=tensors.select_182)
+    SELECT_FLOAT32_851(rt, x=tensors.reshape_144, output=tensors.select_183)
+    MUL_BROADCAST_852(rt, x=tensors.select_182, y=tensors.select_183, output=tensors.mul_338)
     FLUX_ADD_F32(rt, x=tensors.mul_337, y=tensors.mul_338, output=tensors.add_256)
-    SLICE_F32_945(rt, x=tensors.type_as_42, output=tensors.slice_292)
+    SLICE_F32_853(rt, x=tensors.type_as_42, output=tensors.slice_292)
     FLUX_SLICE_F32(rt, x=tensors.type_as_42, output=tensors.slice_293)
     FLUX_SLICE_F32(rt, x=tensors.type_as_42, output=tensors.slice_294)
-    SLICE_F32_946(rt, x=tensors.type_as_43, output=tensors.slice_295)
-    SLICE_F32_947(rt, x=tensors.getitem_190, output=tensors.slice_296)
+    SLICE_F32_854(rt, x=tensors.type_as_43, output=tensors.slice_295)
+    SLICE_F32_855(rt, x=tensors.getitem_190, output=tensors.slice_296)
     FLUX_SLICE_F32(rt, x=tensors.type_as_43, output=tensors.slice_297)
     FLUX_SLICE_F32(rt, x=tensors.getitem_190, output=tensors.slice_298)
     FLUX_SLICE_F32(rt, x=tensors.type_as_43, output=tensors.slice_299)
     FLUX_SLICE_F32(rt, x=tensors.getitem_190, output=tensors.slice_300)
-    CAT_2_F32_948(rt, x0=tensors.slice_292, x1=tensors.slice_294, output=tensors.cat_134)
+    CAT_2_F32_856(rt, x0=tensors.slice_292, x1=tensors.slice_294, output=tensors.cat_134)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_295, x1=tensors.slice_297, x2=tensors.slice_299, output=tensors.cat_135)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_296, x1=tensors.slice_298, x2=tensors.slice_300, output=tensors.cat_136)
     SDPA_F32(rt, q=tensors.cat_134, k=tensors.cat_135, v=tensors.cat_136, output=tensors.scaled_dot_product_attention_42)
-    SLICE_F32_949(rt, x=tensors.scaled_dot_product_attention_42, output=tensors.slice_301)
+    SLICE_F32_857(rt, x=tensors.scaled_dot_product_attention_42, output=tensors.slice_301)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_42, output=tensors.slice_302)
     SDPA_F32(rt, q=tensors.slice_293, k=tensors.slice_297, v=tensors.slice_298, output=tensors.scaled_dot_product_attention_43)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_301, x1=tensors.scaled_dot_product_attention_43, x2=tensors.slice_302, output=tensors.cat_137)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_137, output=tensors.permute_51)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_187, output=tensors.getitem_191)
-    TUPLE_GETITEM_SLICE_F32_950(rt, x=tensors.getitem_187, output=tensors.getitem_192)
-    SILU_F32_951(rt, x=tensors.getitem_191, output=tensors.silu_33)
+    TUPLE_GETITEM_SLICE_F32_858(rt, x=tensors.getitem_187, output=tensors.getitem_192)
+    SILU_F32_859(rt, x=tensors.getitem_191, output=tensors.silu_33)
     FLUX_MUL_F32(rt, x=tensors.silu_33, y=tensors.getitem_192, output=tensors.mul_339)
-    CAT_2_F32_952(rt, x0=tensors.reshape_147, x1=tensors.mul_339, output=tensors.cat_138)
-    LINEAR_NOBIAS_F16W_F32_953(rt, x=tensors.cat_138, weight=tensors.p_single_blocks_13_linear2_weight, output=tensors.linear_98)
-    MUL_BROADCAST_954(rt, x=tensors.getitem_14, y=tensors.linear_98, output=tensors.mul_340)
-    ADD_F32_955(rt, x=tensors.add_250, y=tensors.mul_340, output=tensors.add_257)
+    CAT_2_F32_860(rt, x0=tensors.reshape_147, x1=tensors.mul_339, output=tensors.cat_138)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_138, weight=tensors.p_single_blocks_13_linear2_weight, output=tensors.linear_98)
+    MUL_BROADCAST_861(rt, x=tensors.getitem_14, y=tensors.linear_98, output=tensors.mul_340)
+    ADD_F32_862(rt, x=tensors.add_250, y=tensors.mul_340, output=tensors.add_257)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_258)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_257, output=tensors.layer_norm_46)
-    MUL_BROADCAST_956(rt, x=tensors.add_258, y=tensors.layer_norm_46, output=tensors.mul_341)
+    MUL_BROADCAST_863(rt, x=tensors.add_258, y=tensors.layer_norm_46, output=tensors.mul_341)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_341, y=tensors.getitem_12, output=tensors.add_259)
-    LINEAR_NOBIAS_F16W_F32_957(rt, x=tensors.add_259, weight=tensors.p_single_blocks_14_linear1_weight, output=tensors.linear_99)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_259, weight=tensors.p_single_blocks_14_linear1_weight, output=tensors.linear_99)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_99, output=tensors.getitem_193)
-    TUPLE_GETITEM_SLICE_F32_958(rt, x=tensors.linear_99, output=tensors.getitem_194)
+    TUPLE_GETITEM_SLICE_F32_864(rt, x=tensors.linear_99, output=tensors.getitem_194)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_148, output=tensors.permute_52)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_52, output=tensors.getitem_195)
-    TUPLE_GETITEM_UNBIND_F32_959(rt, x=tensors.permute_52, output=tensors.getitem_196)
-    TUPLE_GETITEM_UNBIND_F32_960(rt, x=tensors.permute_52, output=tensors.getitem_197)
+    TUPLE_GETITEM_UNBIND_F32_865(rt, x=tensors.permute_52, output=tensors.getitem_196)
+    TUPLE_GETITEM_UNBIND_F32_866(rt, x=tensors.permute_52, output=tensors.getitem_197)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_250, output=tensors.pow_85)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_85, output=tensors.mean_76)
-    ADD_SCALAR_961(rt, x=tensors.mean_76, output=tensors.add_260)
+    ADD_SCALAR_867(rt, x=tensors.mean_76, output=tensors.add_260)
     FLUX_RSQRT_F32(rt, x=tensors.add_260, output=tensors.rsqrt_76)
-    MUL_BROADCAST_962(rt, x=tensors.to_250, y=tensors.rsqrt_76, output=tensors.mul_342)
+    MUL_BROADCAST_868(rt, x=tensors.to_250, y=tensors.rsqrt_76, output=tensors.mul_342)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_251, y=tensors.p_single_blocks_14_norm_query_norm_scale, output=tensors.mul_343)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_252, output=tensors.pow_86)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_86, output=tensors.mean_77)
-    ADD_SCALAR_963(rt, x=tensors.mean_77, output=tensors.add_261)
+    ADD_SCALAR_869(rt, x=tensors.mean_77, output=tensors.add_261)
     FLUX_RSQRT_F32(rt, x=tensors.add_261, output=tensors.rsqrt_77)
-    MUL_BROADCAST_964(rt, x=tensors.to_252, y=tensors.rsqrt_77, output=tensors.mul_344)
+    MUL_BROADCAST_870(rt, x=tensors.to_252, y=tensors.rsqrt_77, output=tensors.mul_344)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_253, y=tensors.p_single_blocks_14_norm_key_norm_scale, output=tensors.mul_345)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_184)
     SELECT_FLOAT32(rt, x=tensors.reshape_149, output=tensors.select_185)
-    MUL_BROADCAST_965(rt, x=tensors.select_184, y=tensors.select_185, output=tensors.mul_346)
-    SELECT_FLOAT32_966(rt, x=tensors.cat_68, output=tensors.select_186)
-    SELECT_FLOAT32_967(rt, x=tensors.reshape_149, output=tensors.select_187)
-    MUL_BROADCAST_968(rt, x=tensors.select_186, y=tensors.select_187, output=tensors.mul_347)
+    MUL_BROADCAST_871(rt, x=tensors.select_184, y=tensors.select_185, output=tensors.mul_346)
+    SELECT_FLOAT32_872(rt, x=tensors.cat_68, output=tensors.select_186)
+    SELECT_FLOAT32_873(rt, x=tensors.reshape_149, output=tensors.select_187)
+    MUL_BROADCAST_874(rt, x=tensors.select_186, y=tensors.select_187, output=tensors.mul_347)
     FLUX_ADD_F32(rt, x=tensors.mul_346, y=tensors.mul_347, output=tensors.add_262)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_188)
     SELECT_FLOAT32(rt, x=tensors.reshape_150, output=tensors.select_189)
-    MUL_BROADCAST_969(rt, x=tensors.select_188, y=tensors.select_189, output=tensors.mul_348)
-    SELECT_FLOAT32_970(rt, x=tensors.cat_68, output=tensors.select_190)
-    SELECT_FLOAT32_971(rt, x=tensors.reshape_150, output=tensors.select_191)
-    MUL_BROADCAST_972(rt, x=tensors.select_190, y=tensors.select_191, output=tensors.mul_349)
+    MUL_BROADCAST_875(rt, x=tensors.select_188, y=tensors.select_189, output=tensors.mul_348)
+    SELECT_FLOAT32_876(rt, x=tensors.cat_68, output=tensors.select_190)
+    SELECT_FLOAT32_877(rt, x=tensors.reshape_150, output=tensors.select_191)
+    MUL_BROADCAST_878(rt, x=tensors.select_190, y=tensors.select_191, output=tensors.mul_349)
     FLUX_ADD_F32(rt, x=tensors.mul_348, y=tensors.mul_349, output=tensors.add_263)
-    SLICE_F32_973(rt, x=tensors.type_as_44, output=tensors.slice_305)
+    SLICE_F32_879(rt, x=tensors.type_as_44, output=tensors.slice_305)
     FLUX_SLICE_F32(rt, x=tensors.type_as_44, output=tensors.slice_306)
     FLUX_SLICE_F32(rt, x=tensors.type_as_44, output=tensors.slice_307)
-    SLICE_F32_974(rt, x=tensors.type_as_45, output=tensors.slice_308)
-    SLICE_F32_975(rt, x=tensors.getitem_197, output=tensors.slice_309)
+    SLICE_F32_880(rt, x=tensors.type_as_45, output=tensors.slice_308)
+    SLICE_F32_881(rt, x=tensors.getitem_197, output=tensors.slice_309)
     FLUX_SLICE_F32(rt, x=tensors.type_as_45, output=tensors.slice_310)
     FLUX_SLICE_F32(rt, x=tensors.getitem_197, output=tensors.slice_311)
     FLUX_SLICE_F32(rt, x=tensors.type_as_45, output=tensors.slice_312)
     FLUX_SLICE_F32(rt, x=tensors.getitem_197, output=tensors.slice_313)
-    CAT_2_F32_976(rt, x0=tensors.slice_305, x1=tensors.slice_307, output=tensors.cat_139)
+    CAT_2_F32_882(rt, x0=tensors.slice_305, x1=tensors.slice_307, output=tensors.cat_139)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_308, x1=tensors.slice_310, x2=tensors.slice_312, output=tensors.cat_140)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_309, x1=tensors.slice_311, x2=tensors.slice_313, output=tensors.cat_141)
     SDPA_F32(rt, q=tensors.cat_139, k=tensors.cat_140, v=tensors.cat_141, output=tensors.scaled_dot_product_attention_44)
-    SLICE_F32_977(rt, x=tensors.scaled_dot_product_attention_44, output=tensors.slice_314)
+    SLICE_F32_883(rt, x=tensors.scaled_dot_product_attention_44, output=tensors.slice_314)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_44, output=tensors.slice_315)
     SDPA_F32(rt, q=tensors.slice_306, k=tensors.slice_310, v=tensors.slice_311, output=tensors.scaled_dot_product_attention_45)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_314, x1=tensors.scaled_dot_product_attention_45, x2=tensors.slice_315, output=tensors.cat_142)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_142, output=tensors.permute_53)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_194, output=tensors.getitem_198)
-    TUPLE_GETITEM_SLICE_F32_978(rt, x=tensors.getitem_194, output=tensors.getitem_199)
-    SILU_F32_979(rt, x=tensors.getitem_198, output=tensors.silu_34)
+    TUPLE_GETITEM_SLICE_F32_884(rt, x=tensors.getitem_194, output=tensors.getitem_199)
+    SILU_F32_885(rt, x=tensors.getitem_198, output=tensors.silu_34)
     FLUX_MUL_F32(rt, x=tensors.silu_34, y=tensors.getitem_199, output=tensors.mul_350)
-    CAT_2_F32_980(rt, x0=tensors.reshape_153, x1=tensors.mul_350, output=tensors.cat_143)
-    LINEAR_NOBIAS_F16W_F32_981(rt, x=tensors.cat_143, weight=tensors.p_single_blocks_14_linear2_weight, output=tensors.linear_100)
-    MUL_BROADCAST_982(rt, x=tensors.getitem_14, y=tensors.linear_100, output=tensors.mul_351)
-    ADD_F32_983(rt, x=tensors.add_257, y=tensors.mul_351, output=tensors.add_264)
+    CAT_2_F32_886(rt, x0=tensors.reshape_153, x1=tensors.mul_350, output=tensors.cat_143)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_143, weight=tensors.p_single_blocks_14_linear2_weight, output=tensors.linear_100)
+    MUL_BROADCAST_887(rt, x=tensors.getitem_14, y=tensors.linear_100, output=tensors.mul_351)
+    ADD_F32_888(rt, x=tensors.add_257, y=tensors.mul_351, output=tensors.add_264)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_265)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_264, output=tensors.layer_norm_47)
-    MUL_BROADCAST_984(rt, x=tensors.add_265, y=tensors.layer_norm_47, output=tensors.mul_352)
+    MUL_BROADCAST_889(rt, x=tensors.add_265, y=tensors.layer_norm_47, output=tensors.mul_352)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_352, y=tensors.getitem_12, output=tensors.add_266)
-    LINEAR_NOBIAS_F16W_F32_985(rt, x=tensors.add_266, weight=tensors.p_single_blocks_15_linear1_weight, output=tensors.linear_101)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_266, weight=tensors.p_single_blocks_15_linear1_weight, output=tensors.linear_101)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_101, output=tensors.getitem_200)
-    TUPLE_GETITEM_SLICE_F32_986(rt, x=tensors.linear_101, output=tensors.getitem_201)
+    TUPLE_GETITEM_SLICE_F32_890(rt, x=tensors.linear_101, output=tensors.getitem_201)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_154, output=tensors.permute_54)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_54, output=tensors.getitem_202)
-    TUPLE_GETITEM_UNBIND_F32_987(rt, x=tensors.permute_54, output=tensors.getitem_203)
-    TUPLE_GETITEM_UNBIND_F32_988(rt, x=tensors.permute_54, output=tensors.getitem_204)
+    TUPLE_GETITEM_UNBIND_F32_891(rt, x=tensors.permute_54, output=tensors.getitem_203)
+    TUPLE_GETITEM_UNBIND_F32_892(rt, x=tensors.permute_54, output=tensors.getitem_204)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_258, output=tensors.pow_87)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_87, output=tensors.mean_78)
-    ADD_SCALAR_989(rt, x=tensors.mean_78, output=tensors.add_267)
+    ADD_SCALAR_893(rt, x=tensors.mean_78, output=tensors.add_267)
     FLUX_RSQRT_F32(rt, x=tensors.add_267, output=tensors.rsqrt_78)
-    MUL_BROADCAST_990(rt, x=tensors.to_258, y=tensors.rsqrt_78, output=tensors.mul_353)
+    MUL_BROADCAST_894(rt, x=tensors.to_258, y=tensors.rsqrt_78, output=tensors.mul_353)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_259, y=tensors.p_single_blocks_15_norm_query_norm_scale, output=tensors.mul_354)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_260, output=tensors.pow_88)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_88, output=tensors.mean_79)
-    ADD_SCALAR_991(rt, x=tensors.mean_79, output=tensors.add_268)
+    ADD_SCALAR_895(rt, x=tensors.mean_79, output=tensors.add_268)
     FLUX_RSQRT_F32(rt, x=tensors.add_268, output=tensors.rsqrt_79)
-    MUL_BROADCAST_992(rt, x=tensors.to_260, y=tensors.rsqrt_79, output=tensors.mul_355)
+    MUL_BROADCAST_896(rt, x=tensors.to_260, y=tensors.rsqrt_79, output=tensors.mul_355)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_261, y=tensors.p_single_blocks_15_norm_key_norm_scale, output=tensors.mul_356)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_192)
     SELECT_FLOAT32(rt, x=tensors.reshape_155, output=tensors.select_193)
-    MUL_BROADCAST_993(rt, x=tensors.select_192, y=tensors.select_193, output=tensors.mul_357)
-    SELECT_FLOAT32_994(rt, x=tensors.cat_68, output=tensors.select_194)
-    SELECT_FLOAT32_995(rt, x=tensors.reshape_155, output=tensors.select_195)
-    MUL_BROADCAST_996(rt, x=tensors.select_194, y=tensors.select_195, output=tensors.mul_358)
+    MUL_BROADCAST_897(rt, x=tensors.select_192, y=tensors.select_193, output=tensors.mul_357)
+    SELECT_FLOAT32_898(rt, x=tensors.cat_68, output=tensors.select_194)
+    SELECT_FLOAT32_899(rt, x=tensors.reshape_155, output=tensors.select_195)
+    MUL_BROADCAST_900(rt, x=tensors.select_194, y=tensors.select_195, output=tensors.mul_358)
     FLUX_ADD_F32(rt, x=tensors.mul_357, y=tensors.mul_358, output=tensors.add_269)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_196)
     SELECT_FLOAT32(rt, x=tensors.reshape_156, output=tensors.select_197)
-    MUL_BROADCAST_997(rt, x=tensors.select_196, y=tensors.select_197, output=tensors.mul_359)
-    SELECT_FLOAT32_998(rt, x=tensors.cat_68, output=tensors.select_198)
-    SELECT_FLOAT32_999(rt, x=tensors.reshape_156, output=tensors.select_199)
-    MUL_BROADCAST_1000(rt, x=tensors.select_198, y=tensors.select_199, output=tensors.mul_360)
+    MUL_BROADCAST_901(rt, x=tensors.select_196, y=tensors.select_197, output=tensors.mul_359)
+    SELECT_FLOAT32_902(rt, x=tensors.cat_68, output=tensors.select_198)
+    SELECT_FLOAT32_903(rt, x=tensors.reshape_156, output=tensors.select_199)
+    MUL_BROADCAST_904(rt, x=tensors.select_198, y=tensors.select_199, output=tensors.mul_360)
     FLUX_ADD_F32(rt, x=tensors.mul_359, y=tensors.mul_360, output=tensors.add_270)
-    SLICE_F32_1001(rt, x=tensors.type_as_46, output=tensors.slice_318)
+    SLICE_F32_905(rt, x=tensors.type_as_46, output=tensors.slice_318)
     FLUX_SLICE_F32(rt, x=tensors.type_as_46, output=tensors.slice_319)
     FLUX_SLICE_F32(rt, x=tensors.type_as_46, output=tensors.slice_320)
-    SLICE_F32_1002(rt, x=tensors.type_as_47, output=tensors.slice_321)
-    SLICE_F32_1003(rt, x=tensors.getitem_204, output=tensors.slice_322)
+    SLICE_F32_906(rt, x=tensors.type_as_47, output=tensors.slice_321)
+    SLICE_F32_907(rt, x=tensors.getitem_204, output=tensors.slice_322)
     FLUX_SLICE_F32(rt, x=tensors.type_as_47, output=tensors.slice_323)
     FLUX_SLICE_F32(rt, x=tensors.getitem_204, output=tensors.slice_324)
     FLUX_SLICE_F32(rt, x=tensors.type_as_47, output=tensors.slice_325)
     FLUX_SLICE_F32(rt, x=tensors.getitem_204, output=tensors.slice_326)
-    CAT_2_F32_1004(rt, x0=tensors.slice_318, x1=tensors.slice_320, output=tensors.cat_144)
+    CAT_2_F32_908(rt, x0=tensors.slice_318, x1=tensors.slice_320, output=tensors.cat_144)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_321, x1=tensors.slice_323, x2=tensors.slice_325, output=tensors.cat_145)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_322, x1=tensors.slice_324, x2=tensors.slice_326, output=tensors.cat_146)
     SDPA_F32(rt, q=tensors.cat_144, k=tensors.cat_145, v=tensors.cat_146, output=tensors.scaled_dot_product_attention_46)
-    SLICE_F32_1005(rt, x=tensors.scaled_dot_product_attention_46, output=tensors.slice_327)
+    SLICE_F32_909(rt, x=tensors.scaled_dot_product_attention_46, output=tensors.slice_327)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_46, output=tensors.slice_328)
     SDPA_F32(rt, q=tensors.slice_319, k=tensors.slice_323, v=tensors.slice_324, output=tensors.scaled_dot_product_attention_47)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_327, x1=tensors.scaled_dot_product_attention_47, x2=tensors.slice_328, output=tensors.cat_147)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_147, output=tensors.permute_55)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_201, output=tensors.getitem_205)
-    TUPLE_GETITEM_SLICE_F32_1006(rt, x=tensors.getitem_201, output=tensors.getitem_206)
-    SILU_F32_1007(rt, x=tensors.getitem_205, output=tensors.silu_35)
+    TUPLE_GETITEM_SLICE_F32_910(rt, x=tensors.getitem_201, output=tensors.getitem_206)
+    SILU_F32_911(rt, x=tensors.getitem_205, output=tensors.silu_35)
     FLUX_MUL_F32(rt, x=tensors.silu_35, y=tensors.getitem_206, output=tensors.mul_361)
-    CAT_2_F32_1008(rt, x0=tensors.reshape_159, x1=tensors.mul_361, output=tensors.cat_148)
-    LINEAR_NOBIAS_F16W_F32_1009(rt, x=tensors.cat_148, weight=tensors.p_single_blocks_15_linear2_weight, output=tensors.linear_102)
-    MUL_BROADCAST_1010(rt, x=tensors.getitem_14, y=tensors.linear_102, output=tensors.mul_362)
-    ADD_F32_1011(rt, x=tensors.add_264, y=tensors.mul_362, output=tensors.add_271)
+    CAT_2_F32_912(rt, x0=tensors.reshape_159, x1=tensors.mul_361, output=tensors.cat_148)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_148, weight=tensors.p_single_blocks_15_linear2_weight, output=tensors.linear_102)
+    MUL_BROADCAST_913(rt, x=tensors.getitem_14, y=tensors.linear_102, output=tensors.mul_362)
+    ADD_F32_914(rt, x=tensors.add_264, y=tensors.mul_362, output=tensors.add_271)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_272)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_271, output=tensors.layer_norm_48)
-    MUL_BROADCAST_1012(rt, x=tensors.add_272, y=tensors.layer_norm_48, output=tensors.mul_363)
+    MUL_BROADCAST_915(rt, x=tensors.add_272, y=tensors.layer_norm_48, output=tensors.mul_363)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_363, y=tensors.getitem_12, output=tensors.add_273)
-    LINEAR_NOBIAS_F16W_F32_1013(rt, x=tensors.add_273, weight=tensors.p_single_blocks_16_linear1_weight, output=tensors.linear_103)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_273, weight=tensors.p_single_blocks_16_linear1_weight, output=tensors.linear_103)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_103, output=tensors.getitem_207)
-    TUPLE_GETITEM_SLICE_F32_1014(rt, x=tensors.linear_103, output=tensors.getitem_208)
+    TUPLE_GETITEM_SLICE_F32_916(rt, x=tensors.linear_103, output=tensors.getitem_208)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_160, output=tensors.permute_56)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_56, output=tensors.getitem_209)
-    TUPLE_GETITEM_UNBIND_F32_1015(rt, x=tensors.permute_56, output=tensors.getitem_210)
-    TUPLE_GETITEM_UNBIND_F32_1016(rt, x=tensors.permute_56, output=tensors.getitem_211)
+    TUPLE_GETITEM_UNBIND_F32_917(rt, x=tensors.permute_56, output=tensors.getitem_210)
+    TUPLE_GETITEM_UNBIND_F32_918(rt, x=tensors.permute_56, output=tensors.getitem_211)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_266, output=tensors.pow_89)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_89, output=tensors.mean_80)
-    ADD_SCALAR_1017(rt, x=tensors.mean_80, output=tensors.add_274)
+    ADD_SCALAR_919(rt, x=tensors.mean_80, output=tensors.add_274)
     FLUX_RSQRT_F32(rt, x=tensors.add_274, output=tensors.rsqrt_80)
-    MUL_BROADCAST_1018(rt, x=tensors.to_266, y=tensors.rsqrt_80, output=tensors.mul_364)
+    MUL_BROADCAST_920(rt, x=tensors.to_266, y=tensors.rsqrt_80, output=tensors.mul_364)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_267, y=tensors.p_single_blocks_16_norm_query_norm_scale, output=tensors.mul_365)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_268, output=tensors.pow_90)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_90, output=tensors.mean_81)
-    ADD_SCALAR_1019(rt, x=tensors.mean_81, output=tensors.add_275)
+    ADD_SCALAR_921(rt, x=tensors.mean_81, output=tensors.add_275)
     FLUX_RSQRT_F32(rt, x=tensors.add_275, output=tensors.rsqrt_81)
-    MUL_BROADCAST_1020(rt, x=tensors.to_268, y=tensors.rsqrt_81, output=tensors.mul_366)
+    MUL_BROADCAST_922(rt, x=tensors.to_268, y=tensors.rsqrt_81, output=tensors.mul_366)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_269, y=tensors.p_single_blocks_16_norm_key_norm_scale, output=tensors.mul_367)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_200)
     SELECT_FLOAT32(rt, x=tensors.reshape_161, output=tensors.select_201)
-    MUL_BROADCAST_1021(rt, x=tensors.select_200, y=tensors.select_201, output=tensors.mul_368)
-    SELECT_FLOAT32_1022(rt, x=tensors.cat_68, output=tensors.select_202)
-    SELECT_FLOAT32_1023(rt, x=tensors.reshape_161, output=tensors.select_203)
-    MUL_BROADCAST_1024(rt, x=tensors.select_202, y=tensors.select_203, output=tensors.mul_369)
+    MUL_BROADCAST_923(rt, x=tensors.select_200, y=tensors.select_201, output=tensors.mul_368)
+    SELECT_FLOAT32_924(rt, x=tensors.cat_68, output=tensors.select_202)
+    SELECT_FLOAT32_925(rt, x=tensors.reshape_161, output=tensors.select_203)
+    MUL_BROADCAST_926(rt, x=tensors.select_202, y=tensors.select_203, output=tensors.mul_369)
     FLUX_ADD_F32(rt, x=tensors.mul_368, y=tensors.mul_369, output=tensors.add_276)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_204)
     SELECT_FLOAT32(rt, x=tensors.reshape_162, output=tensors.select_205)
-    MUL_BROADCAST_1025(rt, x=tensors.select_204, y=tensors.select_205, output=tensors.mul_370)
-    SELECT_FLOAT32_1026(rt, x=tensors.cat_68, output=tensors.select_206)
-    SELECT_FLOAT32_1027(rt, x=tensors.reshape_162, output=tensors.select_207)
-    MUL_BROADCAST_1028(rt, x=tensors.select_206, y=tensors.select_207, output=tensors.mul_371)
+    MUL_BROADCAST_927(rt, x=tensors.select_204, y=tensors.select_205, output=tensors.mul_370)
+    SELECT_FLOAT32_928(rt, x=tensors.cat_68, output=tensors.select_206)
+    SELECT_FLOAT32_929(rt, x=tensors.reshape_162, output=tensors.select_207)
+    MUL_BROADCAST_930(rt, x=tensors.select_206, y=tensors.select_207, output=tensors.mul_371)
     FLUX_ADD_F32(rt, x=tensors.mul_370, y=tensors.mul_371, output=tensors.add_277)
-    SLICE_F32_1029(rt, x=tensors.type_as_48, output=tensors.slice_331)
+    SLICE_F32_931(rt, x=tensors.type_as_48, output=tensors.slice_331)
     FLUX_SLICE_F32(rt, x=tensors.type_as_48, output=tensors.slice_332)
     FLUX_SLICE_F32(rt, x=tensors.type_as_48, output=tensors.slice_333)
-    SLICE_F32_1030(rt, x=tensors.type_as_49, output=tensors.slice_334)
-    SLICE_F32_1031(rt, x=tensors.getitem_211, output=tensors.slice_335)
+    SLICE_F32_932(rt, x=tensors.type_as_49, output=tensors.slice_334)
+    SLICE_F32_933(rt, x=tensors.getitem_211, output=tensors.slice_335)
     FLUX_SLICE_F32(rt, x=tensors.type_as_49, output=tensors.slice_336)
     FLUX_SLICE_F32(rt, x=tensors.getitem_211, output=tensors.slice_337)
     FLUX_SLICE_F32(rt, x=tensors.type_as_49, output=tensors.slice_338)
     FLUX_SLICE_F32(rt, x=tensors.getitem_211, output=tensors.slice_339)
-    CAT_2_F32_1032(rt, x0=tensors.slice_331, x1=tensors.slice_333, output=tensors.cat_149)
+    CAT_2_F32_934(rt, x0=tensors.slice_331, x1=tensors.slice_333, output=tensors.cat_149)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_334, x1=tensors.slice_336, x2=tensors.slice_338, output=tensors.cat_150)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_335, x1=tensors.slice_337, x2=tensors.slice_339, output=tensors.cat_151)
     SDPA_F32(rt, q=tensors.cat_149, k=tensors.cat_150, v=tensors.cat_151, output=tensors.scaled_dot_product_attention_48)
-    SLICE_F32_1033(rt, x=tensors.scaled_dot_product_attention_48, output=tensors.slice_340)
+    SLICE_F32_935(rt, x=tensors.scaled_dot_product_attention_48, output=tensors.slice_340)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_48, output=tensors.slice_341)
     SDPA_F32(rt, q=tensors.slice_332, k=tensors.slice_336, v=tensors.slice_337, output=tensors.scaled_dot_product_attention_49)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_340, x1=tensors.scaled_dot_product_attention_49, x2=tensors.slice_341, output=tensors.cat_152)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_152, output=tensors.permute_57)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_208, output=tensors.getitem_212)
-    TUPLE_GETITEM_SLICE_F32_1034(rt, x=tensors.getitem_208, output=tensors.getitem_213)
-    SILU_F32_1035(rt, x=tensors.getitem_212, output=tensors.silu_36)
+    TUPLE_GETITEM_SLICE_F32_936(rt, x=tensors.getitem_208, output=tensors.getitem_213)
+    SILU_F32_937(rt, x=tensors.getitem_212, output=tensors.silu_36)
     FLUX_MUL_F32(rt, x=tensors.silu_36, y=tensors.getitem_213, output=tensors.mul_372)
-    CAT_2_F32_1036(rt, x0=tensors.reshape_165, x1=tensors.mul_372, output=tensors.cat_153)
-    LINEAR_NOBIAS_F16W_F32_1037(rt, x=tensors.cat_153, weight=tensors.p_single_blocks_16_linear2_weight, output=tensors.linear_104)
-    MUL_BROADCAST_1038(rt, x=tensors.getitem_14, y=tensors.linear_104, output=tensors.mul_373)
-    ADD_F32_1039(rt, x=tensors.add_271, y=tensors.mul_373, output=tensors.add_278)
+    CAT_2_F32_938(rt, x0=tensors.reshape_165, x1=tensors.mul_372, output=tensors.cat_153)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_153, weight=tensors.p_single_blocks_16_linear2_weight, output=tensors.linear_104)
+    MUL_BROADCAST_939(rt, x=tensors.getitem_14, y=tensors.linear_104, output=tensors.mul_373)
+    ADD_F32_940(rt, x=tensors.add_271, y=tensors.mul_373, output=tensors.add_278)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_279)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_278, output=tensors.layer_norm_49)
-    MUL_BROADCAST_1040(rt, x=tensors.add_279, y=tensors.layer_norm_49, output=tensors.mul_374)
+    MUL_BROADCAST_941(rt, x=tensors.add_279, y=tensors.layer_norm_49, output=tensors.mul_374)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_374, y=tensors.getitem_12, output=tensors.add_280)
-    LINEAR_NOBIAS_F16W_F32_1041(rt, x=tensors.add_280, weight=tensors.p_single_blocks_17_linear1_weight, output=tensors.linear_105)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_280, weight=tensors.p_single_blocks_17_linear1_weight, output=tensors.linear_105)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_105, output=tensors.getitem_214)
-    TUPLE_GETITEM_SLICE_F32_1042(rt, x=tensors.linear_105, output=tensors.getitem_215)
+    TUPLE_GETITEM_SLICE_F32_942(rt, x=tensors.linear_105, output=tensors.getitem_215)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_166, output=tensors.permute_58)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_58, output=tensors.getitem_216)
-    TUPLE_GETITEM_UNBIND_F32_1043(rt, x=tensors.permute_58, output=tensors.getitem_217)
-    TUPLE_GETITEM_UNBIND_F32_1044(rt, x=tensors.permute_58, output=tensors.getitem_218)
+    TUPLE_GETITEM_UNBIND_F32_943(rt, x=tensors.permute_58, output=tensors.getitem_217)
+    TUPLE_GETITEM_UNBIND_F32_944(rt, x=tensors.permute_58, output=tensors.getitem_218)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_274, output=tensors.pow_91)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_91, output=tensors.mean_82)
-    ADD_SCALAR_1045(rt, x=tensors.mean_82, output=tensors.add_281)
+    ADD_SCALAR_945(rt, x=tensors.mean_82, output=tensors.add_281)
     FLUX_RSQRT_F32(rt, x=tensors.add_281, output=tensors.rsqrt_82)
-    MUL_BROADCAST_1046(rt, x=tensors.to_274, y=tensors.rsqrt_82, output=tensors.mul_375)
+    MUL_BROADCAST_946(rt, x=tensors.to_274, y=tensors.rsqrt_82, output=tensors.mul_375)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_275, y=tensors.p_single_blocks_17_norm_query_norm_scale, output=tensors.mul_376)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_276, output=tensors.pow_92)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_92, output=tensors.mean_83)
-    ADD_SCALAR_1047(rt, x=tensors.mean_83, output=tensors.add_282)
+    ADD_SCALAR_947(rt, x=tensors.mean_83, output=tensors.add_282)
     FLUX_RSQRT_F32(rt, x=tensors.add_282, output=tensors.rsqrt_83)
-    MUL_BROADCAST_1048(rt, x=tensors.to_276, y=tensors.rsqrt_83, output=tensors.mul_377)
+    MUL_BROADCAST_948(rt, x=tensors.to_276, y=tensors.rsqrt_83, output=tensors.mul_377)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_277, y=tensors.p_single_blocks_17_norm_key_norm_scale, output=tensors.mul_378)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_208)
     SELECT_FLOAT32(rt, x=tensors.reshape_167, output=tensors.select_209)
-    MUL_BROADCAST_1049(rt, x=tensors.select_208, y=tensors.select_209, output=tensors.mul_379)
-    SELECT_FLOAT32_1050(rt, x=tensors.cat_68, output=tensors.select_210)
-    SELECT_FLOAT32_1051(rt, x=tensors.reshape_167, output=tensors.select_211)
-    MUL_BROADCAST_1052(rt, x=tensors.select_210, y=tensors.select_211, output=tensors.mul_380)
+    MUL_BROADCAST_949(rt, x=tensors.select_208, y=tensors.select_209, output=tensors.mul_379)
+    SELECT_FLOAT32_950(rt, x=tensors.cat_68, output=tensors.select_210)
+    SELECT_FLOAT32_951(rt, x=tensors.reshape_167, output=tensors.select_211)
+    MUL_BROADCAST_952(rt, x=tensors.select_210, y=tensors.select_211, output=tensors.mul_380)
     FLUX_ADD_F32(rt, x=tensors.mul_379, y=tensors.mul_380, output=tensors.add_283)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_212)
     SELECT_FLOAT32(rt, x=tensors.reshape_168, output=tensors.select_213)
-    MUL_BROADCAST_1053(rt, x=tensors.select_212, y=tensors.select_213, output=tensors.mul_381)
-    SELECT_FLOAT32_1054(rt, x=tensors.cat_68, output=tensors.select_214)
-    SELECT_FLOAT32_1055(rt, x=tensors.reshape_168, output=tensors.select_215)
-    MUL_BROADCAST_1056(rt, x=tensors.select_214, y=tensors.select_215, output=tensors.mul_382)
+    MUL_BROADCAST_953(rt, x=tensors.select_212, y=tensors.select_213, output=tensors.mul_381)
+    SELECT_FLOAT32_954(rt, x=tensors.cat_68, output=tensors.select_214)
+    SELECT_FLOAT32_955(rt, x=tensors.reshape_168, output=tensors.select_215)
+    MUL_BROADCAST_956(rt, x=tensors.select_214, y=tensors.select_215, output=tensors.mul_382)
     FLUX_ADD_F32(rt, x=tensors.mul_381, y=tensors.mul_382, output=tensors.add_284)
-    SLICE_F32_1057(rt, x=tensors.type_as_50, output=tensors.slice_344)
+    SLICE_F32_957(rt, x=tensors.type_as_50, output=tensors.slice_344)
     FLUX_SLICE_F32(rt, x=tensors.type_as_50, output=tensors.slice_345)
     FLUX_SLICE_F32(rt, x=tensors.type_as_50, output=tensors.slice_346)
-    SLICE_F32_1058(rt, x=tensors.type_as_51, output=tensors.slice_347)
-    SLICE_F32_1059(rt, x=tensors.getitem_218, output=tensors.slice_348)
+    SLICE_F32_958(rt, x=tensors.type_as_51, output=tensors.slice_347)
+    SLICE_F32_959(rt, x=tensors.getitem_218, output=tensors.slice_348)
     FLUX_SLICE_F32(rt, x=tensors.type_as_51, output=tensors.slice_349)
     FLUX_SLICE_F32(rt, x=tensors.getitem_218, output=tensors.slice_350)
     FLUX_SLICE_F32(rt, x=tensors.type_as_51, output=tensors.slice_351)
     FLUX_SLICE_F32(rt, x=tensors.getitem_218, output=tensors.slice_352)
-    CAT_2_F32_1060(rt, x0=tensors.slice_344, x1=tensors.slice_346, output=tensors.cat_154)
+    CAT_2_F32_960(rt, x0=tensors.slice_344, x1=tensors.slice_346, output=tensors.cat_154)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_347, x1=tensors.slice_349, x2=tensors.slice_351, output=tensors.cat_155)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_348, x1=tensors.slice_350, x2=tensors.slice_352, output=tensors.cat_156)
     SDPA_F32(rt, q=tensors.cat_154, k=tensors.cat_155, v=tensors.cat_156, output=tensors.scaled_dot_product_attention_50)
-    SLICE_F32_1061(rt, x=tensors.scaled_dot_product_attention_50, output=tensors.slice_353)
+    SLICE_F32_961(rt, x=tensors.scaled_dot_product_attention_50, output=tensors.slice_353)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_50, output=tensors.slice_354)
     SDPA_F32(rt, q=tensors.slice_345, k=tensors.slice_349, v=tensors.slice_350, output=tensors.scaled_dot_product_attention_51)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_353, x1=tensors.scaled_dot_product_attention_51, x2=tensors.slice_354, output=tensors.cat_157)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_157, output=tensors.permute_59)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_215, output=tensors.getitem_219)
-    TUPLE_GETITEM_SLICE_F32_1062(rt, x=tensors.getitem_215, output=tensors.getitem_220)
-    SILU_F32_1063(rt, x=tensors.getitem_219, output=tensors.silu_37)
+    TUPLE_GETITEM_SLICE_F32_962(rt, x=tensors.getitem_215, output=tensors.getitem_220)
+    SILU_F32_963(rt, x=tensors.getitem_219, output=tensors.silu_37)
     FLUX_MUL_F32(rt, x=tensors.silu_37, y=tensors.getitem_220, output=tensors.mul_383)
-    CAT_2_F32_1064(rt, x0=tensors.reshape_171, x1=tensors.mul_383, output=tensors.cat_158)
-    LINEAR_NOBIAS_F16W_F32_1065(rt, x=tensors.cat_158, weight=tensors.p_single_blocks_17_linear2_weight, output=tensors.linear_106)
-    MUL_BROADCAST_1066(rt, x=tensors.getitem_14, y=tensors.linear_106, output=tensors.mul_384)
-    ADD_F32_1067(rt, x=tensors.add_278, y=tensors.mul_384, output=tensors.add_285)
+    CAT_2_F32_964(rt, x0=tensors.reshape_171, x1=tensors.mul_383, output=tensors.cat_158)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_158, weight=tensors.p_single_blocks_17_linear2_weight, output=tensors.linear_106)
+    MUL_BROADCAST_965(rt, x=tensors.getitem_14, y=tensors.linear_106, output=tensors.mul_384)
+    ADD_F32_966(rt, x=tensors.add_278, y=tensors.mul_384, output=tensors.add_285)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_286)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_285, output=tensors.layer_norm_50)
-    MUL_BROADCAST_1068(rt, x=tensors.add_286, y=tensors.layer_norm_50, output=tensors.mul_385)
+    MUL_BROADCAST_967(rt, x=tensors.add_286, y=tensors.layer_norm_50, output=tensors.mul_385)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_385, y=tensors.getitem_12, output=tensors.add_287)
-    LINEAR_NOBIAS_F16W_F32_1069(rt, x=tensors.add_287, weight=tensors.p_single_blocks_18_linear1_weight, output=tensors.linear_107)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_287, weight=tensors.p_single_blocks_18_linear1_weight, output=tensors.linear_107)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_107, output=tensors.getitem_221)
-    TUPLE_GETITEM_SLICE_F32_1070(rt, x=tensors.linear_107, output=tensors.getitem_222)
+    TUPLE_GETITEM_SLICE_F32_968(rt, x=tensors.linear_107, output=tensors.getitem_222)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_172, output=tensors.permute_60)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_60, output=tensors.getitem_223)
-    TUPLE_GETITEM_UNBIND_F32_1071(rt, x=tensors.permute_60, output=tensors.getitem_224)
-    TUPLE_GETITEM_UNBIND_F32_1072(rt, x=tensors.permute_60, output=tensors.getitem_225)
+    TUPLE_GETITEM_UNBIND_F32_969(rt, x=tensors.permute_60, output=tensors.getitem_224)
+    TUPLE_GETITEM_UNBIND_F32_970(rt, x=tensors.permute_60, output=tensors.getitem_225)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_282, output=tensors.pow_93)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_93, output=tensors.mean_84)
-    ADD_SCALAR_1073(rt, x=tensors.mean_84, output=tensors.add_288)
+    ADD_SCALAR_971(rt, x=tensors.mean_84, output=tensors.add_288)
     FLUX_RSQRT_F32(rt, x=tensors.add_288, output=tensors.rsqrt_84)
-    MUL_BROADCAST_1074(rt, x=tensors.to_282, y=tensors.rsqrt_84, output=tensors.mul_386)
+    MUL_BROADCAST_972(rt, x=tensors.to_282, y=tensors.rsqrt_84, output=tensors.mul_386)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_283, y=tensors.p_single_blocks_18_norm_query_norm_scale, output=tensors.mul_387)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_284, output=tensors.pow_94)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_94, output=tensors.mean_85)
-    ADD_SCALAR_1075(rt, x=tensors.mean_85, output=tensors.add_289)
+    ADD_SCALAR_973(rt, x=tensors.mean_85, output=tensors.add_289)
     FLUX_RSQRT_F32(rt, x=tensors.add_289, output=tensors.rsqrt_85)
-    MUL_BROADCAST_1076(rt, x=tensors.to_284, y=tensors.rsqrt_85, output=tensors.mul_388)
+    MUL_BROADCAST_974(rt, x=tensors.to_284, y=tensors.rsqrt_85, output=tensors.mul_388)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_285, y=tensors.p_single_blocks_18_norm_key_norm_scale, output=tensors.mul_389)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_216)
     SELECT_FLOAT32(rt, x=tensors.reshape_173, output=tensors.select_217)
-    MUL_BROADCAST_1077(rt, x=tensors.select_216, y=tensors.select_217, output=tensors.mul_390)
-    SELECT_FLOAT32_1078(rt, x=tensors.cat_68, output=tensors.select_218)
-    SELECT_FLOAT32_1079(rt, x=tensors.reshape_173, output=tensors.select_219)
-    MUL_BROADCAST_1080(rt, x=tensors.select_218, y=tensors.select_219, output=tensors.mul_391)
+    MUL_BROADCAST_975(rt, x=tensors.select_216, y=tensors.select_217, output=tensors.mul_390)
+    SELECT_FLOAT32_976(rt, x=tensors.cat_68, output=tensors.select_218)
+    SELECT_FLOAT32_977(rt, x=tensors.reshape_173, output=tensors.select_219)
+    MUL_BROADCAST_978(rt, x=tensors.select_218, y=tensors.select_219, output=tensors.mul_391)
     FLUX_ADD_F32(rt, x=tensors.mul_390, y=tensors.mul_391, output=tensors.add_290)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_220)
     SELECT_FLOAT32(rt, x=tensors.reshape_174, output=tensors.select_221)
-    MUL_BROADCAST_1081(rt, x=tensors.select_220, y=tensors.select_221, output=tensors.mul_392)
-    SELECT_FLOAT32_1082(rt, x=tensors.cat_68, output=tensors.select_222)
-    SELECT_FLOAT32_1083(rt, x=tensors.reshape_174, output=tensors.select_223)
-    MUL_BROADCAST_1084(rt, x=tensors.select_222, y=tensors.select_223, output=tensors.mul_393)
+    MUL_BROADCAST_979(rt, x=tensors.select_220, y=tensors.select_221, output=tensors.mul_392)
+    SELECT_FLOAT32_980(rt, x=tensors.cat_68, output=tensors.select_222)
+    SELECT_FLOAT32_981(rt, x=tensors.reshape_174, output=tensors.select_223)
+    MUL_BROADCAST_982(rt, x=tensors.select_222, y=tensors.select_223, output=tensors.mul_393)
     FLUX_ADD_F32(rt, x=tensors.mul_392, y=tensors.mul_393, output=tensors.add_291)
-    SLICE_F32_1085(rt, x=tensors.type_as_52, output=tensors.slice_357)
+    SLICE_F32_983(rt, x=tensors.type_as_52, output=tensors.slice_357)
     FLUX_SLICE_F32(rt, x=tensors.type_as_52, output=tensors.slice_358)
     FLUX_SLICE_F32(rt, x=tensors.type_as_52, output=tensors.slice_359)
-    SLICE_F32_1086(rt, x=tensors.type_as_53, output=tensors.slice_360)
-    SLICE_F32_1087(rt, x=tensors.getitem_225, output=tensors.slice_361)
+    SLICE_F32_984(rt, x=tensors.type_as_53, output=tensors.slice_360)
+    SLICE_F32_985(rt, x=tensors.getitem_225, output=tensors.slice_361)
     FLUX_SLICE_F32(rt, x=tensors.type_as_53, output=tensors.slice_362)
     FLUX_SLICE_F32(rt, x=tensors.getitem_225, output=tensors.slice_363)
     FLUX_SLICE_F32(rt, x=tensors.type_as_53, output=tensors.slice_364)
     FLUX_SLICE_F32(rt, x=tensors.getitem_225, output=tensors.slice_365)
-    CAT_2_F32_1088(rt, x0=tensors.slice_357, x1=tensors.slice_359, output=tensors.cat_159)
+    CAT_2_F32_986(rt, x0=tensors.slice_357, x1=tensors.slice_359, output=tensors.cat_159)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_360, x1=tensors.slice_362, x2=tensors.slice_364, output=tensors.cat_160)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_361, x1=tensors.slice_363, x2=tensors.slice_365, output=tensors.cat_161)
     SDPA_F32(rt, q=tensors.cat_159, k=tensors.cat_160, v=tensors.cat_161, output=tensors.scaled_dot_product_attention_52)
-    SLICE_F32_1089(rt, x=tensors.scaled_dot_product_attention_52, output=tensors.slice_366)
+    SLICE_F32_987(rt, x=tensors.scaled_dot_product_attention_52, output=tensors.slice_366)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_52, output=tensors.slice_367)
     SDPA_F32(rt, q=tensors.slice_358, k=tensors.slice_362, v=tensors.slice_363, output=tensors.scaled_dot_product_attention_53)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_366, x1=tensors.scaled_dot_product_attention_53, x2=tensors.slice_367, output=tensors.cat_162)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_162, output=tensors.permute_61)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_222, output=tensors.getitem_226)
-    TUPLE_GETITEM_SLICE_F32_1090(rt, x=tensors.getitem_222, output=tensors.getitem_227)
-    SILU_F32_1091(rt, x=tensors.getitem_226, output=tensors.silu_38)
+    TUPLE_GETITEM_SLICE_F32_988(rt, x=tensors.getitem_222, output=tensors.getitem_227)
+    SILU_F32_989(rt, x=tensors.getitem_226, output=tensors.silu_38)
     FLUX_MUL_F32(rt, x=tensors.silu_38, y=tensors.getitem_227, output=tensors.mul_394)
-    CAT_2_F32_1092(rt, x0=tensors.reshape_177, x1=tensors.mul_394, output=tensors.cat_163)
-    LINEAR_NOBIAS_F16W_F32_1093(rt, x=tensors.cat_163, weight=tensors.p_single_blocks_18_linear2_weight, output=tensors.linear_108)
-    MUL_BROADCAST_1094(rt, x=tensors.getitem_14, y=tensors.linear_108, output=tensors.mul_395)
-    ADD_F32_1095(rt, x=tensors.add_285, y=tensors.mul_395, output=tensors.add_292)
+    CAT_2_F32_990(rt, x0=tensors.reshape_177, x1=tensors.mul_394, output=tensors.cat_163)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_163, weight=tensors.p_single_blocks_18_linear2_weight, output=tensors.linear_108)
+    MUL_BROADCAST_991(rt, x=tensors.getitem_14, y=tensors.linear_108, output=tensors.mul_395)
+    ADD_F32_992(rt, x=tensors.add_285, y=tensors.mul_395, output=tensors.add_292)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_293)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_292, output=tensors.layer_norm_51)
-    MUL_BROADCAST_1096(rt, x=tensors.add_293, y=tensors.layer_norm_51, output=tensors.mul_396)
+    MUL_BROADCAST_993(rt, x=tensors.add_293, y=tensors.layer_norm_51, output=tensors.mul_396)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_396, y=tensors.getitem_12, output=tensors.add_294)
-    LINEAR_NOBIAS_F16W_F32_1097(rt, x=tensors.add_294, weight=tensors.p_single_blocks_19_linear1_weight, output=tensors.linear_109)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_294, weight=tensors.p_single_blocks_19_linear1_weight, output=tensors.linear_109)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_109, output=tensors.getitem_228)
-    TUPLE_GETITEM_SLICE_F32_1098(rt, x=tensors.linear_109, output=tensors.getitem_229)
+    TUPLE_GETITEM_SLICE_F32_994(rt, x=tensors.linear_109, output=tensors.getitem_229)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_178, output=tensors.permute_62)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_62, output=tensors.getitem_230)
-    TUPLE_GETITEM_UNBIND_F32_1099(rt, x=tensors.permute_62, output=tensors.getitem_231)
-    TUPLE_GETITEM_UNBIND_F32_1100(rt, x=tensors.permute_62, output=tensors.getitem_232)
+    TUPLE_GETITEM_UNBIND_F32_995(rt, x=tensors.permute_62, output=tensors.getitem_231)
+    TUPLE_GETITEM_UNBIND_F32_996(rt, x=tensors.permute_62, output=tensors.getitem_232)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_290, output=tensors.pow_95)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_95, output=tensors.mean_86)
-    ADD_SCALAR_1101(rt, x=tensors.mean_86, output=tensors.add_295)
+    ADD_SCALAR_997(rt, x=tensors.mean_86, output=tensors.add_295)
     FLUX_RSQRT_F32(rt, x=tensors.add_295, output=tensors.rsqrt_86)
-    MUL_BROADCAST_1102(rt, x=tensors.to_290, y=tensors.rsqrt_86, output=tensors.mul_397)
+    MUL_BROADCAST_998(rt, x=tensors.to_290, y=tensors.rsqrt_86, output=tensors.mul_397)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_291, y=tensors.p_single_blocks_19_norm_query_norm_scale, output=tensors.mul_398)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_292, output=tensors.pow_96)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_96, output=tensors.mean_87)
-    ADD_SCALAR_1103(rt, x=tensors.mean_87, output=tensors.add_296)
+    ADD_SCALAR_999(rt, x=tensors.mean_87, output=tensors.add_296)
     FLUX_RSQRT_F32(rt, x=tensors.add_296, output=tensors.rsqrt_87)
-    MUL_BROADCAST_1104(rt, x=tensors.to_292, y=tensors.rsqrt_87, output=tensors.mul_399)
+    MUL_BROADCAST_1000(rt, x=tensors.to_292, y=tensors.rsqrt_87, output=tensors.mul_399)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_293, y=tensors.p_single_blocks_19_norm_key_norm_scale, output=tensors.mul_400)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_224)
     SELECT_FLOAT32(rt, x=tensors.reshape_179, output=tensors.select_225)
-    MUL_BROADCAST_1105(rt, x=tensors.select_224, y=tensors.select_225, output=tensors.mul_401)
-    SELECT_FLOAT32_1106(rt, x=tensors.cat_68, output=tensors.select_226)
-    SELECT_FLOAT32_1107(rt, x=tensors.reshape_179, output=tensors.select_227)
-    MUL_BROADCAST_1108(rt, x=tensors.select_226, y=tensors.select_227, output=tensors.mul_402)
+    MUL_BROADCAST_1001(rt, x=tensors.select_224, y=tensors.select_225, output=tensors.mul_401)
+    SELECT_FLOAT32_1002(rt, x=tensors.cat_68, output=tensors.select_226)
+    SELECT_FLOAT32_1003(rt, x=tensors.reshape_179, output=tensors.select_227)
+    MUL_BROADCAST_1004(rt, x=tensors.select_226, y=tensors.select_227, output=tensors.mul_402)
     FLUX_ADD_F32(rt, x=tensors.mul_401, y=tensors.mul_402, output=tensors.add_297)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_228)
     SELECT_FLOAT32(rt, x=tensors.reshape_180, output=tensors.select_229)
-    MUL_BROADCAST_1109(rt, x=tensors.select_228, y=tensors.select_229, output=tensors.mul_403)
-    SELECT_FLOAT32_1110(rt, x=tensors.cat_68, output=tensors.select_230)
-    SELECT_FLOAT32_1111(rt, x=tensors.reshape_180, output=tensors.select_231)
-    MUL_BROADCAST_1112(rt, x=tensors.select_230, y=tensors.select_231, output=tensors.mul_404)
+    MUL_BROADCAST_1005(rt, x=tensors.select_228, y=tensors.select_229, output=tensors.mul_403)
+    SELECT_FLOAT32_1006(rt, x=tensors.cat_68, output=tensors.select_230)
+    SELECT_FLOAT32_1007(rt, x=tensors.reshape_180, output=tensors.select_231)
+    MUL_BROADCAST_1008(rt, x=tensors.select_230, y=tensors.select_231, output=tensors.mul_404)
     FLUX_ADD_F32(rt, x=tensors.mul_403, y=tensors.mul_404, output=tensors.add_298)
-    SLICE_F32_1113(rt, x=tensors.type_as_54, output=tensors.slice_370)
+    SLICE_F32_1009(rt, x=tensors.type_as_54, output=tensors.slice_370)
     FLUX_SLICE_F32(rt, x=tensors.type_as_54, output=tensors.slice_371)
     FLUX_SLICE_F32(rt, x=tensors.type_as_54, output=tensors.slice_372)
-    SLICE_F32_1114(rt, x=tensors.type_as_55, output=tensors.slice_373)
-    SLICE_F32_1115(rt, x=tensors.getitem_232, output=tensors.slice_374)
+    SLICE_F32_1010(rt, x=tensors.type_as_55, output=tensors.slice_373)
+    SLICE_F32_1011(rt, x=tensors.getitem_232, output=tensors.slice_374)
     FLUX_SLICE_F32(rt, x=tensors.type_as_55, output=tensors.slice_375)
     FLUX_SLICE_F32(rt, x=tensors.getitem_232, output=tensors.slice_376)
     FLUX_SLICE_F32(rt, x=tensors.type_as_55, output=tensors.slice_377)
     FLUX_SLICE_F32(rt, x=tensors.getitem_232, output=tensors.slice_378)
-    CAT_2_F32_1116(rt, x0=tensors.slice_370, x1=tensors.slice_372, output=tensors.cat_164)
+    CAT_2_F32_1012(rt, x0=tensors.slice_370, x1=tensors.slice_372, output=tensors.cat_164)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_373, x1=tensors.slice_375, x2=tensors.slice_377, output=tensors.cat_165)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_374, x1=tensors.slice_376, x2=tensors.slice_378, output=tensors.cat_166)
     SDPA_F32(rt, q=tensors.cat_164, k=tensors.cat_165, v=tensors.cat_166, output=tensors.scaled_dot_product_attention_54)
-    SLICE_F32_1117(rt, x=tensors.scaled_dot_product_attention_54, output=tensors.slice_379)
+    SLICE_F32_1013(rt, x=tensors.scaled_dot_product_attention_54, output=tensors.slice_379)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_54, output=tensors.slice_380)
     SDPA_F32(rt, q=tensors.slice_371, k=tensors.slice_375, v=tensors.slice_376, output=tensors.scaled_dot_product_attention_55)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_379, x1=tensors.scaled_dot_product_attention_55, x2=tensors.slice_380, output=tensors.cat_167)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_167, output=tensors.permute_63)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_229, output=tensors.getitem_233)
-    TUPLE_GETITEM_SLICE_F32_1118(rt, x=tensors.getitem_229, output=tensors.getitem_234)
-    SILU_F32_1119(rt, x=tensors.getitem_233, output=tensors.silu_39)
+    TUPLE_GETITEM_SLICE_F32_1014(rt, x=tensors.getitem_229, output=tensors.getitem_234)
+    SILU_F32_1015(rt, x=tensors.getitem_233, output=tensors.silu_39)
     FLUX_MUL_F32(rt, x=tensors.silu_39, y=tensors.getitem_234, output=tensors.mul_405)
-    CAT_2_F32_1120(rt, x0=tensors.reshape_183, x1=tensors.mul_405, output=tensors.cat_168)
-    LINEAR_NOBIAS_F16W_F32_1121(rt, x=tensors.cat_168, weight=tensors.p_single_blocks_19_linear2_weight, output=tensors.linear_110)
-    MUL_BROADCAST_1122(rt, x=tensors.getitem_14, y=tensors.linear_110, output=tensors.mul_406)
-    ADD_F32_1123(rt, x=tensors.add_292, y=tensors.mul_406, output=tensors.add_299)
+    CAT_2_F32_1016(rt, x0=tensors.reshape_183, x1=tensors.mul_405, output=tensors.cat_168)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_168, weight=tensors.p_single_blocks_19_linear2_weight, output=tensors.linear_110)
+    MUL_BROADCAST_1017(rt, x=tensors.getitem_14, y=tensors.linear_110, output=tensors.mul_406)
+    ADD_F32_1018(rt, x=tensors.add_292, y=tensors.mul_406, output=tensors.add_299)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_300)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_299, output=tensors.layer_norm_52)
-    MUL_BROADCAST_1124(rt, x=tensors.add_300, y=tensors.layer_norm_52, output=tensors.mul_407)
+    MUL_BROADCAST_1019(rt, x=tensors.add_300, y=tensors.layer_norm_52, output=tensors.mul_407)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_407, y=tensors.getitem_12, output=tensors.add_301)
-    LINEAR_NOBIAS_F16W_F32_1125(rt, x=tensors.add_301, weight=tensors.p_single_blocks_20_linear1_weight, output=tensors.linear_111)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_301, weight=tensors.p_single_blocks_20_linear1_weight, output=tensors.linear_111)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_111, output=tensors.getitem_235)
-    TUPLE_GETITEM_SLICE_F32_1126(rt, x=tensors.linear_111, output=tensors.getitem_236)
+    TUPLE_GETITEM_SLICE_F32_1020(rt, x=tensors.linear_111, output=tensors.getitem_236)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_184, output=tensors.permute_64)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_64, output=tensors.getitem_237)
-    TUPLE_GETITEM_UNBIND_F32_1127(rt, x=tensors.permute_64, output=tensors.getitem_238)
-    TUPLE_GETITEM_UNBIND_F32_1128(rt, x=tensors.permute_64, output=tensors.getitem_239)
+    TUPLE_GETITEM_UNBIND_F32_1021(rt, x=tensors.permute_64, output=tensors.getitem_238)
+    TUPLE_GETITEM_UNBIND_F32_1022(rt, x=tensors.permute_64, output=tensors.getitem_239)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_298, output=tensors.pow_97)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_97, output=tensors.mean_88)
-    ADD_SCALAR_1129(rt, x=tensors.mean_88, output=tensors.add_302)
+    ADD_SCALAR_1023(rt, x=tensors.mean_88, output=tensors.add_302)
     FLUX_RSQRT_F32(rt, x=tensors.add_302, output=tensors.rsqrt_88)
-    MUL_BROADCAST_1130(rt, x=tensors.to_298, y=tensors.rsqrt_88, output=tensors.mul_408)
+    MUL_BROADCAST_1024(rt, x=tensors.to_298, y=tensors.rsqrt_88, output=tensors.mul_408)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_299, y=tensors.p_single_blocks_20_norm_query_norm_scale, output=tensors.mul_409)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_300, output=tensors.pow_98)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_98, output=tensors.mean_89)
-    ADD_SCALAR_1131(rt, x=tensors.mean_89, output=tensors.add_303)
+    ADD_SCALAR_1025(rt, x=tensors.mean_89, output=tensors.add_303)
     FLUX_RSQRT_F32(rt, x=tensors.add_303, output=tensors.rsqrt_89)
-    MUL_BROADCAST_1132(rt, x=tensors.to_300, y=tensors.rsqrt_89, output=tensors.mul_410)
+    MUL_BROADCAST_1026(rt, x=tensors.to_300, y=tensors.rsqrt_89, output=tensors.mul_410)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_301, y=tensors.p_single_blocks_20_norm_key_norm_scale, output=tensors.mul_411)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_232)
     SELECT_FLOAT32(rt, x=tensors.reshape_185, output=tensors.select_233)
-    MUL_BROADCAST_1133(rt, x=tensors.select_232, y=tensors.select_233, output=tensors.mul_412)
-    SELECT_FLOAT32_1134(rt, x=tensors.cat_68, output=tensors.select_234)
-    SELECT_FLOAT32_1135(rt, x=tensors.reshape_185, output=tensors.select_235)
-    MUL_BROADCAST_1136(rt, x=tensors.select_234, y=tensors.select_235, output=tensors.mul_413)
+    MUL_BROADCAST_1027(rt, x=tensors.select_232, y=tensors.select_233, output=tensors.mul_412)
+    SELECT_FLOAT32_1028(rt, x=tensors.cat_68, output=tensors.select_234)
+    SELECT_FLOAT32_1029(rt, x=tensors.reshape_185, output=tensors.select_235)
+    MUL_BROADCAST_1030(rt, x=tensors.select_234, y=tensors.select_235, output=tensors.mul_413)
     FLUX_ADD_F32(rt, x=tensors.mul_412, y=tensors.mul_413, output=tensors.add_304)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_236)
     SELECT_FLOAT32(rt, x=tensors.reshape_186, output=tensors.select_237)
-    MUL_BROADCAST_1137(rt, x=tensors.select_236, y=tensors.select_237, output=tensors.mul_414)
-    SELECT_FLOAT32_1138(rt, x=tensors.cat_68, output=tensors.select_238)
-    SELECT_FLOAT32_1139(rt, x=tensors.reshape_186, output=tensors.select_239)
-    MUL_BROADCAST_1140(rt, x=tensors.select_238, y=tensors.select_239, output=tensors.mul_415)
+    MUL_BROADCAST_1031(rt, x=tensors.select_236, y=tensors.select_237, output=tensors.mul_414)
+    SELECT_FLOAT32_1032(rt, x=tensors.cat_68, output=tensors.select_238)
+    SELECT_FLOAT32_1033(rt, x=tensors.reshape_186, output=tensors.select_239)
+    MUL_BROADCAST_1034(rt, x=tensors.select_238, y=tensors.select_239, output=tensors.mul_415)
     FLUX_ADD_F32(rt, x=tensors.mul_414, y=tensors.mul_415, output=tensors.add_305)
-    SLICE_F32_1141(rt, x=tensors.type_as_56, output=tensors.slice_383)
+    SLICE_F32_1035(rt, x=tensors.type_as_56, output=tensors.slice_383)
     FLUX_SLICE_F32(rt, x=tensors.type_as_56, output=tensors.slice_384)
     FLUX_SLICE_F32(rt, x=tensors.type_as_56, output=tensors.slice_385)
-    SLICE_F32_1142(rt, x=tensors.type_as_57, output=tensors.slice_386)
-    SLICE_F32_1143(rt, x=tensors.getitem_239, output=tensors.slice_387)
+    SLICE_F32_1036(rt, x=tensors.type_as_57, output=tensors.slice_386)
+    SLICE_F32_1037(rt, x=tensors.getitem_239, output=tensors.slice_387)
     FLUX_SLICE_F32(rt, x=tensors.type_as_57, output=tensors.slice_388)
     FLUX_SLICE_F32(rt, x=tensors.getitem_239, output=tensors.slice_389)
     FLUX_SLICE_F32(rt, x=tensors.type_as_57, output=tensors.slice_390)
     FLUX_SLICE_F32(rt, x=tensors.getitem_239, output=tensors.slice_391)
-    CAT_2_F32_1144(rt, x0=tensors.slice_383, x1=tensors.slice_385, output=tensors.cat_169)
+    CAT_2_F32_1038(rt, x0=tensors.slice_383, x1=tensors.slice_385, output=tensors.cat_169)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_386, x1=tensors.slice_388, x2=tensors.slice_390, output=tensors.cat_170)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_387, x1=tensors.slice_389, x2=tensors.slice_391, output=tensors.cat_171)
     SDPA_F32(rt, q=tensors.cat_169, k=tensors.cat_170, v=tensors.cat_171, output=tensors.scaled_dot_product_attention_56)
-    SLICE_F32_1145(rt, x=tensors.scaled_dot_product_attention_56, output=tensors.slice_392)
+    SLICE_F32_1039(rt, x=tensors.scaled_dot_product_attention_56, output=tensors.slice_392)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_56, output=tensors.slice_393)
     SDPA_F32(rt, q=tensors.slice_384, k=tensors.slice_388, v=tensors.slice_389, output=tensors.scaled_dot_product_attention_57)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_392, x1=tensors.scaled_dot_product_attention_57, x2=tensors.slice_393, output=tensors.cat_172)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_172, output=tensors.permute_65)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_236, output=tensors.getitem_240)
-    TUPLE_GETITEM_SLICE_F32_1146(rt, x=tensors.getitem_236, output=tensors.getitem_241)
-    SILU_F32_1147(rt, x=tensors.getitem_240, output=tensors.silu_40)
+    TUPLE_GETITEM_SLICE_F32_1040(rt, x=tensors.getitem_236, output=tensors.getitem_241)
+    SILU_F32_1041(rt, x=tensors.getitem_240, output=tensors.silu_40)
     FLUX_MUL_F32(rt, x=tensors.silu_40, y=tensors.getitem_241, output=tensors.mul_416)
-    CAT_2_F32_1148(rt, x0=tensors.reshape_189, x1=tensors.mul_416, output=tensors.cat_173)
-    LINEAR_NOBIAS_F16W_F32_1149(rt, x=tensors.cat_173, weight=tensors.p_single_blocks_20_linear2_weight, output=tensors.linear_112)
-    MUL_BROADCAST_1150(rt, x=tensors.getitem_14, y=tensors.linear_112, output=tensors.mul_417)
-    ADD_F32_1151(rt, x=tensors.add_299, y=tensors.mul_417, output=tensors.add_306)
+    CAT_2_F32_1042(rt, x0=tensors.reshape_189, x1=tensors.mul_416, output=tensors.cat_173)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_173, weight=tensors.p_single_blocks_20_linear2_weight, output=tensors.linear_112)
+    MUL_BROADCAST_1043(rt, x=tensors.getitem_14, y=tensors.linear_112, output=tensors.mul_417)
+    ADD_F32_1044(rt, x=tensors.add_299, y=tensors.mul_417, output=tensors.add_306)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_307)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_306, output=tensors.layer_norm_53)
-    MUL_BROADCAST_1152(rt, x=tensors.add_307, y=tensors.layer_norm_53, output=tensors.mul_418)
+    MUL_BROADCAST_1045(rt, x=tensors.add_307, y=tensors.layer_norm_53, output=tensors.mul_418)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_418, y=tensors.getitem_12, output=tensors.add_308)
-    LINEAR_NOBIAS_F16W_F32_1153(rt, x=tensors.add_308, weight=tensors.p_single_blocks_21_linear1_weight, output=tensors.linear_113)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_308, weight=tensors.p_single_blocks_21_linear1_weight, output=tensors.linear_113)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_113, output=tensors.getitem_242)
-    TUPLE_GETITEM_SLICE_F32_1154(rt, x=tensors.linear_113, output=tensors.getitem_243)
+    TUPLE_GETITEM_SLICE_F32_1046(rt, x=tensors.linear_113, output=tensors.getitem_243)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_190, output=tensors.permute_66)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_66, output=tensors.getitem_244)
-    TUPLE_GETITEM_UNBIND_F32_1155(rt, x=tensors.permute_66, output=tensors.getitem_245)
-    TUPLE_GETITEM_UNBIND_F32_1156(rt, x=tensors.permute_66, output=tensors.getitem_246)
+    TUPLE_GETITEM_UNBIND_F32_1047(rt, x=tensors.permute_66, output=tensors.getitem_245)
+    TUPLE_GETITEM_UNBIND_F32_1048(rt, x=tensors.permute_66, output=tensors.getitem_246)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_306, output=tensors.pow_99)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_99, output=tensors.mean_90)
-    ADD_SCALAR_1157(rt, x=tensors.mean_90, output=tensors.add_309)
+    ADD_SCALAR_1049(rt, x=tensors.mean_90, output=tensors.add_309)
     FLUX_RSQRT_F32(rt, x=tensors.add_309, output=tensors.rsqrt_90)
-    MUL_BROADCAST_1158(rt, x=tensors.to_306, y=tensors.rsqrt_90, output=tensors.mul_419)
+    MUL_BROADCAST_1050(rt, x=tensors.to_306, y=tensors.rsqrt_90, output=tensors.mul_419)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_307, y=tensors.p_single_blocks_21_norm_query_norm_scale, output=tensors.mul_420)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_308, output=tensors.pow_100)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_100, output=tensors.mean_91)
-    ADD_SCALAR_1159(rt, x=tensors.mean_91, output=tensors.add_310)
+    ADD_SCALAR_1051(rt, x=tensors.mean_91, output=tensors.add_310)
     FLUX_RSQRT_F32(rt, x=tensors.add_310, output=tensors.rsqrt_91)
-    MUL_BROADCAST_1160(rt, x=tensors.to_308, y=tensors.rsqrt_91, output=tensors.mul_421)
+    MUL_BROADCAST_1052(rt, x=tensors.to_308, y=tensors.rsqrt_91, output=tensors.mul_421)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_309, y=tensors.p_single_blocks_21_norm_key_norm_scale, output=tensors.mul_422)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_240)
     SELECT_FLOAT32(rt, x=tensors.reshape_191, output=tensors.select_241)
-    MUL_BROADCAST_1161(rt, x=tensors.select_240, y=tensors.select_241, output=tensors.mul_423)
-    SELECT_FLOAT32_1162(rt, x=tensors.cat_68, output=tensors.select_242)
-    SELECT_FLOAT32_1163(rt, x=tensors.reshape_191, output=tensors.select_243)
-    MUL_BROADCAST_1164(rt, x=tensors.select_242, y=tensors.select_243, output=tensors.mul_424)
+    MUL_BROADCAST_1053(rt, x=tensors.select_240, y=tensors.select_241, output=tensors.mul_423)
+    SELECT_FLOAT32_1054(rt, x=tensors.cat_68, output=tensors.select_242)
+    SELECT_FLOAT32_1055(rt, x=tensors.reshape_191, output=tensors.select_243)
+    MUL_BROADCAST_1056(rt, x=tensors.select_242, y=tensors.select_243, output=tensors.mul_424)
     FLUX_ADD_F32(rt, x=tensors.mul_423, y=tensors.mul_424, output=tensors.add_311)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_244)
     SELECT_FLOAT32(rt, x=tensors.reshape_192, output=tensors.select_245)
-    MUL_BROADCAST_1165(rt, x=tensors.select_244, y=tensors.select_245, output=tensors.mul_425)
-    SELECT_FLOAT32_1166(rt, x=tensors.cat_68, output=tensors.select_246)
-    SELECT_FLOAT32_1167(rt, x=tensors.reshape_192, output=tensors.select_247)
-    MUL_BROADCAST_1168(rt, x=tensors.select_246, y=tensors.select_247, output=tensors.mul_426)
+    MUL_BROADCAST_1057(rt, x=tensors.select_244, y=tensors.select_245, output=tensors.mul_425)
+    SELECT_FLOAT32_1058(rt, x=tensors.cat_68, output=tensors.select_246)
+    SELECT_FLOAT32_1059(rt, x=tensors.reshape_192, output=tensors.select_247)
+    MUL_BROADCAST_1060(rt, x=tensors.select_246, y=tensors.select_247, output=tensors.mul_426)
     FLUX_ADD_F32(rt, x=tensors.mul_425, y=tensors.mul_426, output=tensors.add_312)
-    SLICE_F32_1169(rt, x=tensors.type_as_58, output=tensors.slice_396)
+    SLICE_F32_1061(rt, x=tensors.type_as_58, output=tensors.slice_396)
     FLUX_SLICE_F32(rt, x=tensors.type_as_58, output=tensors.slice_397)
     FLUX_SLICE_F32(rt, x=tensors.type_as_58, output=tensors.slice_398)
-    SLICE_F32_1170(rt, x=tensors.type_as_59, output=tensors.slice_399)
-    SLICE_F32_1171(rt, x=tensors.getitem_246, output=tensors.slice_400)
+    SLICE_F32_1062(rt, x=tensors.type_as_59, output=tensors.slice_399)
+    SLICE_F32_1063(rt, x=tensors.getitem_246, output=tensors.slice_400)
     FLUX_SLICE_F32(rt, x=tensors.type_as_59, output=tensors.slice_401)
     FLUX_SLICE_F32(rt, x=tensors.getitem_246, output=tensors.slice_402)
     FLUX_SLICE_F32(rt, x=tensors.type_as_59, output=tensors.slice_403)
     FLUX_SLICE_F32(rt, x=tensors.getitem_246, output=tensors.slice_404)
-    CAT_2_F32_1172(rt, x0=tensors.slice_396, x1=tensors.slice_398, output=tensors.cat_174)
+    CAT_2_F32_1064(rt, x0=tensors.slice_396, x1=tensors.slice_398, output=tensors.cat_174)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_399, x1=tensors.slice_401, x2=tensors.slice_403, output=tensors.cat_175)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_400, x1=tensors.slice_402, x2=tensors.slice_404, output=tensors.cat_176)
     SDPA_F32(rt, q=tensors.cat_174, k=tensors.cat_175, v=tensors.cat_176, output=tensors.scaled_dot_product_attention_58)
-    SLICE_F32_1173(rt, x=tensors.scaled_dot_product_attention_58, output=tensors.slice_405)
+    SLICE_F32_1065(rt, x=tensors.scaled_dot_product_attention_58, output=tensors.slice_405)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_58, output=tensors.slice_406)
     SDPA_F32(rt, q=tensors.slice_397, k=tensors.slice_401, v=tensors.slice_402, output=tensors.scaled_dot_product_attention_59)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_405, x1=tensors.scaled_dot_product_attention_59, x2=tensors.slice_406, output=tensors.cat_177)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_177, output=tensors.permute_67)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_243, output=tensors.getitem_247)
-    TUPLE_GETITEM_SLICE_F32_1174(rt, x=tensors.getitem_243, output=tensors.getitem_248)
-    SILU_F32_1175(rt, x=tensors.getitem_247, output=tensors.silu_41)
+    TUPLE_GETITEM_SLICE_F32_1066(rt, x=tensors.getitem_243, output=tensors.getitem_248)
+    SILU_F32_1067(rt, x=tensors.getitem_247, output=tensors.silu_41)
     FLUX_MUL_F32(rt, x=tensors.silu_41, y=tensors.getitem_248, output=tensors.mul_427)
-    CAT_2_F32_1176(rt, x0=tensors.reshape_195, x1=tensors.mul_427, output=tensors.cat_178)
-    LINEAR_NOBIAS_F16W_F32_1177(rt, x=tensors.cat_178, weight=tensors.p_single_blocks_21_linear2_weight, output=tensors.linear_114)
-    MUL_BROADCAST_1178(rt, x=tensors.getitem_14, y=tensors.linear_114, output=tensors.mul_428)
-    ADD_F32_1179(rt, x=tensors.add_306, y=tensors.mul_428, output=tensors.add_313)
+    CAT_2_F32_1068(rt, x0=tensors.reshape_195, x1=tensors.mul_427, output=tensors.cat_178)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_178, weight=tensors.p_single_blocks_21_linear2_weight, output=tensors.linear_114)
+    MUL_BROADCAST_1069(rt, x=tensors.getitem_14, y=tensors.linear_114, output=tensors.mul_428)
+    ADD_F32_1070(rt, x=tensors.add_306, y=tensors.mul_428, output=tensors.add_313)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_314)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_313, output=tensors.layer_norm_54)
-    MUL_BROADCAST_1180(rt, x=tensors.add_314, y=tensors.layer_norm_54, output=tensors.mul_429)
+    MUL_BROADCAST_1071(rt, x=tensors.add_314, y=tensors.layer_norm_54, output=tensors.mul_429)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_429, y=tensors.getitem_12, output=tensors.add_315)
-    LINEAR_NOBIAS_F16W_F32_1181(rt, x=tensors.add_315, weight=tensors.p_single_blocks_22_linear1_weight, output=tensors.linear_115)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_315, weight=tensors.p_single_blocks_22_linear1_weight, output=tensors.linear_115)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_115, output=tensors.getitem_249)
-    TUPLE_GETITEM_SLICE_F32_1182(rt, x=tensors.linear_115, output=tensors.getitem_250)
+    TUPLE_GETITEM_SLICE_F32_1072(rt, x=tensors.linear_115, output=tensors.getitem_250)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_196, output=tensors.permute_68)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_68, output=tensors.getitem_251)
-    TUPLE_GETITEM_UNBIND_F32_1183(rt, x=tensors.permute_68, output=tensors.getitem_252)
-    TUPLE_GETITEM_UNBIND_F32_1184(rt, x=tensors.permute_68, output=tensors.getitem_253)
+    TUPLE_GETITEM_UNBIND_F32_1073(rt, x=tensors.permute_68, output=tensors.getitem_252)
+    TUPLE_GETITEM_UNBIND_F32_1074(rt, x=tensors.permute_68, output=tensors.getitem_253)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_314, output=tensors.pow_101)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_101, output=tensors.mean_92)
-    ADD_SCALAR_1185(rt, x=tensors.mean_92, output=tensors.add_316)
+    ADD_SCALAR_1075(rt, x=tensors.mean_92, output=tensors.add_316)
     FLUX_RSQRT_F32(rt, x=tensors.add_316, output=tensors.rsqrt_92)
-    MUL_BROADCAST_1186(rt, x=tensors.to_314, y=tensors.rsqrt_92, output=tensors.mul_430)
+    MUL_BROADCAST_1076(rt, x=tensors.to_314, y=tensors.rsqrt_92, output=tensors.mul_430)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_315, y=tensors.p_single_blocks_22_norm_query_norm_scale, output=tensors.mul_431)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_316, output=tensors.pow_102)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_102, output=tensors.mean_93)
-    ADD_SCALAR_1187(rt, x=tensors.mean_93, output=tensors.add_317)
+    ADD_SCALAR_1077(rt, x=tensors.mean_93, output=tensors.add_317)
     FLUX_RSQRT_F32(rt, x=tensors.add_317, output=tensors.rsqrt_93)
-    MUL_BROADCAST_1188(rt, x=tensors.to_316, y=tensors.rsqrt_93, output=tensors.mul_432)
+    MUL_BROADCAST_1078(rt, x=tensors.to_316, y=tensors.rsqrt_93, output=tensors.mul_432)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_317, y=tensors.p_single_blocks_22_norm_key_norm_scale, output=tensors.mul_433)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_248)
     SELECT_FLOAT32(rt, x=tensors.reshape_197, output=tensors.select_249)
-    MUL_BROADCAST_1189(rt, x=tensors.select_248, y=tensors.select_249, output=tensors.mul_434)
-    SELECT_FLOAT32_1190(rt, x=tensors.cat_68, output=tensors.select_250)
-    SELECT_FLOAT32_1191(rt, x=tensors.reshape_197, output=tensors.select_251)
-    MUL_BROADCAST_1192(rt, x=tensors.select_250, y=tensors.select_251, output=tensors.mul_435)
+    MUL_BROADCAST_1079(rt, x=tensors.select_248, y=tensors.select_249, output=tensors.mul_434)
+    SELECT_FLOAT32_1080(rt, x=tensors.cat_68, output=tensors.select_250)
+    SELECT_FLOAT32_1081(rt, x=tensors.reshape_197, output=tensors.select_251)
+    MUL_BROADCAST_1082(rt, x=tensors.select_250, y=tensors.select_251, output=tensors.mul_435)
     FLUX_ADD_F32(rt, x=tensors.mul_434, y=tensors.mul_435, output=tensors.add_318)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_252)
     SELECT_FLOAT32(rt, x=tensors.reshape_198, output=tensors.select_253)
-    MUL_BROADCAST_1193(rt, x=tensors.select_252, y=tensors.select_253, output=tensors.mul_436)
-    SELECT_FLOAT32_1194(rt, x=tensors.cat_68, output=tensors.select_254)
-    SELECT_FLOAT32_1195(rt, x=tensors.reshape_198, output=tensors.select_255)
-    MUL_BROADCAST_1196(rt, x=tensors.select_254, y=tensors.select_255, output=tensors.mul_437)
+    MUL_BROADCAST_1083(rt, x=tensors.select_252, y=tensors.select_253, output=tensors.mul_436)
+    SELECT_FLOAT32_1084(rt, x=tensors.cat_68, output=tensors.select_254)
+    SELECT_FLOAT32_1085(rt, x=tensors.reshape_198, output=tensors.select_255)
+    MUL_BROADCAST_1086(rt, x=tensors.select_254, y=tensors.select_255, output=tensors.mul_437)
     FLUX_ADD_F32(rt, x=tensors.mul_436, y=tensors.mul_437, output=tensors.add_319)
-    SLICE_F32_1197(rt, x=tensors.type_as_60, output=tensors.slice_409)
+    SLICE_F32_1087(rt, x=tensors.type_as_60, output=tensors.slice_409)
     FLUX_SLICE_F32(rt, x=tensors.type_as_60, output=tensors.slice_410)
     FLUX_SLICE_F32(rt, x=tensors.type_as_60, output=tensors.slice_411)
-    SLICE_F32_1198(rt, x=tensors.type_as_61, output=tensors.slice_412)
-    SLICE_F32_1199(rt, x=tensors.getitem_253, output=tensors.slice_413)
+    SLICE_F32_1088(rt, x=tensors.type_as_61, output=tensors.slice_412)
+    SLICE_F32_1089(rt, x=tensors.getitem_253, output=tensors.slice_413)
     FLUX_SLICE_F32(rt, x=tensors.type_as_61, output=tensors.slice_414)
     FLUX_SLICE_F32(rt, x=tensors.getitem_253, output=tensors.slice_415)
     FLUX_SLICE_F32(rt, x=tensors.type_as_61, output=tensors.slice_416)
     FLUX_SLICE_F32(rt, x=tensors.getitem_253, output=tensors.slice_417)
-    CAT_2_F32_1200(rt, x0=tensors.slice_409, x1=tensors.slice_411, output=tensors.cat_179)
+    CAT_2_F32_1090(rt, x0=tensors.slice_409, x1=tensors.slice_411, output=tensors.cat_179)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_412, x1=tensors.slice_414, x2=tensors.slice_416, output=tensors.cat_180)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_413, x1=tensors.slice_415, x2=tensors.slice_417, output=tensors.cat_181)
     SDPA_F32(rt, q=tensors.cat_179, k=tensors.cat_180, v=tensors.cat_181, output=tensors.scaled_dot_product_attention_60)
-    SLICE_F32_1201(rt, x=tensors.scaled_dot_product_attention_60, output=tensors.slice_418)
+    SLICE_F32_1091(rt, x=tensors.scaled_dot_product_attention_60, output=tensors.slice_418)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_60, output=tensors.slice_419)
     SDPA_F32(rt, q=tensors.slice_410, k=tensors.slice_414, v=tensors.slice_415, output=tensors.scaled_dot_product_attention_61)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_418, x1=tensors.scaled_dot_product_attention_61, x2=tensors.slice_419, output=tensors.cat_182)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_182, output=tensors.permute_69)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_250, output=tensors.getitem_254)
-    TUPLE_GETITEM_SLICE_F32_1202(rt, x=tensors.getitem_250, output=tensors.getitem_255)
-    SILU_F32_1203(rt, x=tensors.getitem_254, output=tensors.silu_42)
+    TUPLE_GETITEM_SLICE_F32_1092(rt, x=tensors.getitem_250, output=tensors.getitem_255)
+    SILU_F32_1093(rt, x=tensors.getitem_254, output=tensors.silu_42)
     FLUX_MUL_F32(rt, x=tensors.silu_42, y=tensors.getitem_255, output=tensors.mul_438)
-    CAT_2_F32_1204(rt, x0=tensors.reshape_201, x1=tensors.mul_438, output=tensors.cat_183)
-    LINEAR_NOBIAS_F16W_F32_1205(rt, x=tensors.cat_183, weight=tensors.p_single_blocks_22_linear2_weight, output=tensors.linear_116)
-    MUL_BROADCAST_1206(rt, x=tensors.getitem_14, y=tensors.linear_116, output=tensors.mul_439)
-    ADD_F32_1207(rt, x=tensors.add_313, y=tensors.mul_439, output=tensors.add_320)
+    CAT_2_F32_1094(rt, x0=tensors.reshape_201, x1=tensors.mul_438, output=tensors.cat_183)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_183, weight=tensors.p_single_blocks_22_linear2_weight, output=tensors.linear_116)
+    MUL_BROADCAST_1095(rt, x=tensors.getitem_14, y=tensors.linear_116, output=tensors.mul_439)
+    ADD_F32_1096(rt, x=tensors.add_313, y=tensors.mul_439, output=tensors.add_320)
     FLUX_ADD_SCALAR(rt, x=tensors.getitem_13, output=tensors.add_321)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.add_320, output=tensors.layer_norm_55)
-    MUL_BROADCAST_1208(rt, x=tensors.add_321, y=tensors.layer_norm_55, output=tensors.mul_440)
+    MUL_BROADCAST_1097(rt, x=tensors.add_321, y=tensors.layer_norm_55, output=tensors.mul_440)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_440, y=tensors.getitem_12, output=tensors.add_322)
-    LINEAR_NOBIAS_F16W_F32_1209(rt, x=tensors.add_322, weight=tensors.p_single_blocks_23_linear1_weight, output=tensors.linear_117)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_322, weight=tensors.p_single_blocks_23_linear1_weight, output=tensors.linear_117)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear_117, output=tensors.getitem_256)
-    TUPLE_GETITEM_SLICE_F32_1210(rt, x=tensors.linear_117, output=tensors.getitem_257)
+    TUPLE_GETITEM_SLICE_F32_1098(rt, x=tensors.linear_117, output=tensors.getitem_257)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape_202, output=tensors.permute_70)
     TUPLE_GETITEM_UNBIND_F32(rt, x=tensors.permute_70, output=tensors.getitem_258)
-    TUPLE_GETITEM_UNBIND_F32_1211(rt, x=tensors.permute_70, output=tensors.getitem_259)
-    TUPLE_GETITEM_UNBIND_F32_1212(rt, x=tensors.permute_70, output=tensors.getitem_260)
+    TUPLE_GETITEM_UNBIND_F32_1099(rt, x=tensors.permute_70, output=tensors.getitem_259)
+    TUPLE_GETITEM_UNBIND_F32_1100(rt, x=tensors.permute_70, output=tensors.getitem_260)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_322, output=tensors.pow_103)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_103, output=tensors.mean_94)
-    ADD_SCALAR_1213(rt, x=tensors.mean_94, output=tensors.add_323)
+    ADD_SCALAR_1101(rt, x=tensors.mean_94, output=tensors.add_323)
     FLUX_RSQRT_F32(rt, x=tensors.add_323, output=tensors.rsqrt_94)
-    MUL_BROADCAST_1214(rt, x=tensors.to_322, y=tensors.rsqrt_94, output=tensors.mul_441)
+    MUL_BROADCAST_1102(rt, x=tensors.to_322, y=tensors.rsqrt_94, output=tensors.mul_441)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_323, y=tensors.p_single_blocks_23_norm_query_norm_scale, output=tensors.mul_442)
     FLUX_POW_SCALAR_F32(rt, x=tensors.to_324, output=tensors.pow_104)
     FLUX_MEAN_DIM_F32(rt, x=tensors.pow_104, output=tensors.mean_95)
-    ADD_SCALAR_1215(rt, x=tensors.mean_95, output=tensors.add_324)
+    ADD_SCALAR_1103(rt, x=tensors.mean_95, output=tensors.add_324)
     FLUX_RSQRT_F32(rt, x=tensors.add_324, output=tensors.rsqrt_95)
-    MUL_BROADCAST_1216(rt, x=tensors.to_324, y=tensors.rsqrt_95, output=tensors.mul_443)
+    MUL_BROADCAST_1104(rt, x=tensors.to_324, y=tensors.rsqrt_95, output=tensors.mul_443)
     MUL_RIGHT_BROADCAST(rt, x=tensors.to_325, y=tensors.p_single_blocks_23_norm_key_norm_scale, output=tensors.mul_444)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_256)
     SELECT_FLOAT32(rt, x=tensors.reshape_203, output=tensors.select_257)
-    MUL_BROADCAST_1217(rt, x=tensors.select_256, y=tensors.select_257, output=tensors.mul_445)
-    SELECT_FLOAT32_1218(rt, x=tensors.cat_68, output=tensors.select_258)
-    SELECT_FLOAT32_1219(rt, x=tensors.reshape_203, output=tensors.select_259)
-    MUL_BROADCAST_1220(rt, x=tensors.select_258, y=tensors.select_259, output=tensors.mul_446)
+    MUL_BROADCAST_1105(rt, x=tensors.select_256, y=tensors.select_257, output=tensors.mul_445)
+    SELECT_FLOAT32_1106(rt, x=tensors.cat_68, output=tensors.select_258)
+    SELECT_FLOAT32_1107(rt, x=tensors.reshape_203, output=tensors.select_259)
+    MUL_BROADCAST_1108(rt, x=tensors.select_258, y=tensors.select_259, output=tensors.mul_446)
     FLUX_ADD_F32(rt, x=tensors.mul_445, y=tensors.mul_446, output=tensors.add_325)
     SELECT_FLOAT32(rt, x=tensors.cat_68, output=tensors.select_260)
     SELECT_FLOAT32(rt, x=tensors.reshape_204, output=tensors.select_261)
-    MUL_BROADCAST_1221(rt, x=tensors.select_260, y=tensors.select_261, output=tensors.mul_447)
-    SELECT_FLOAT32_1222(rt, x=tensors.cat_68, output=tensors.select_262)
-    SELECT_FLOAT32_1223(rt, x=tensors.reshape_204, output=tensors.select_263)
-    MUL_BROADCAST_1224(rt, x=tensors.select_262, y=tensors.select_263, output=tensors.mul_448)
+    MUL_BROADCAST_1109(rt, x=tensors.select_260, y=tensors.select_261, output=tensors.mul_447)
+    SELECT_FLOAT32_1110(rt, x=tensors.cat_68, output=tensors.select_262)
+    SELECT_FLOAT32_1111(rt, x=tensors.reshape_204, output=tensors.select_263)
+    MUL_BROADCAST_1112(rt, x=tensors.select_262, y=tensors.select_263, output=tensors.mul_448)
     FLUX_ADD_F32(rt, x=tensors.mul_447, y=tensors.mul_448, output=tensors.add_326)
-    SLICE_F32_1225(rt, x=tensors.type_as_62, output=tensors.slice_422)
+    SLICE_F32_1113(rt, x=tensors.type_as_62, output=tensors.slice_422)
     FLUX_SLICE_F32(rt, x=tensors.type_as_62, output=tensors.slice_423)
     FLUX_SLICE_F32(rt, x=tensors.type_as_62, output=tensors.slice_424)
-    SLICE_F32_1226(rt, x=tensors.type_as_63, output=tensors.slice_425)
-    SLICE_F32_1227(rt, x=tensors.getitem_260, output=tensors.slice_426)
+    SLICE_F32_1114(rt, x=tensors.type_as_63, output=tensors.slice_425)
+    SLICE_F32_1115(rt, x=tensors.getitem_260, output=tensors.slice_426)
     FLUX_SLICE_F32(rt, x=tensors.type_as_63, output=tensors.slice_427)
     FLUX_SLICE_F32(rt, x=tensors.getitem_260, output=tensors.slice_428)
     FLUX_SLICE_F32(rt, x=tensors.type_as_63, output=tensors.slice_429)
     FLUX_SLICE_F32(rt, x=tensors.getitem_260, output=tensors.slice_430)
-    CAT_2_F32_1228(rt, x0=tensors.slice_422, x1=tensors.slice_424, output=tensors.cat_184)
+    CAT_2_F32_1116(rt, x0=tensors.slice_422, x1=tensors.slice_424, output=tensors.cat_184)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_425, x1=tensors.slice_427, x2=tensors.slice_429, output=tensors.cat_185)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_426, x1=tensors.slice_428, x2=tensors.slice_430, output=tensors.cat_186)
     SDPA_F32(rt, q=tensors.cat_184, k=tensors.cat_185, v=tensors.cat_186, output=tensors.scaled_dot_product_attention_62)
-    SLICE_F32_1229(rt, x=tensors.scaled_dot_product_attention_62, output=tensors.slice_431)
+    SLICE_F32_1117(rt, x=tensors.scaled_dot_product_attention_62, output=tensors.slice_431)
     FLUX_SLICE_F32(rt, x=tensors.scaled_dot_product_attention_62, output=tensors.slice_432)
     SDPA_F32(rt, q=tensors.slice_423, k=tensors.slice_427, v=tensors.slice_428, output=tensors.scaled_dot_product_attention_63)
     FLUX_CAT_3_F32(rt, x0=tensors.slice_431, x1=tensors.scaled_dot_product_attention_63, x2=tensors.slice_432, output=tensors.cat_187)
     PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_187, output=tensors.permute_71)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_257, output=tensors.getitem_261)
-    TUPLE_GETITEM_SLICE_F32_1230(rt, x=tensors.getitem_257, output=tensors.getitem_262)
-    SILU_F32_1231(rt, x=tensors.getitem_261, output=tensors.silu_43)
+    TUPLE_GETITEM_SLICE_F32_1118(rt, x=tensors.getitem_257, output=tensors.getitem_262)
+    SILU_F32_1119(rt, x=tensors.getitem_261, output=tensors.silu_43)
     FLUX_MUL_F32(rt, x=tensors.silu_43, y=tensors.getitem_262, output=tensors.mul_449)
-    CAT_2_F32_1232(rt, x0=tensors.reshape_207, x1=tensors.mul_449, output=tensors.cat_188)
-    LINEAR_NOBIAS_F16W_F32_1233(rt, x=tensors.cat_188, weight=tensors.p_single_blocks_23_linear2_weight, output=tensors.linear_118)
-    MUL_BROADCAST_1234(rt, x=tensors.getitem_14, y=tensors.linear_118, output=tensors.mul_450)
-    ADD_F32_1235(rt, x=tensors.add_320, y=tensors.mul_450, output=tensors.add_327)
-    SLICE_F32_1236(rt, x=tensors.add_327, output=tensors.slice_433)
+    CAT_2_F32_1120(rt, x0=tensors.reshape_207, x1=tensors.mul_449, output=tensors.cat_188)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_188, weight=tensors.p_single_blocks_23_linear2_weight, output=tensors.linear_118)
+    MUL_BROADCAST_1121(rt, x=tensors.getitem_14, y=tensors.linear_118, output=tensors.mul_450)
+    ADD_F32_1122(rt, x=tensors.add_320, y=tensors.mul_450, output=tensors.add_327)
+    SLICE_F32_1123(rt, x=tensors.add_327, output=tensors.slice_433)
     FLUX_SILU_F32(rt, x=tensors.linear_1, output=tensors.silu_44)
-    LINEAR_NOBIAS_F16W_F32(rt, x=tensors.silu_44, weight=tensors.p_final_layer_adaln_modulation_1_weight, output=tensors.linear_119)
-    TUPLE_GETITEM_SLICE_F32_1237(rt, x=tensors.linear_119, output=tensors.getitem_263)
-    TUPLE_GETITEM_SLICE_F32_1238(rt, x=tensors.linear_119, output=tensors.getitem_264)
+    LINEAR_NOBIAS_Q8_0_MATVEC_F32_ACT_F32(rt, x=tensors.silu_44, weight=tensors.p_final_layer_adaln_modulation_1_weight, output=tensors.linear_119)
+    TUPLE_GETITEM_SLICE_F32_1124(rt, x=tensors.linear_119, output=tensors.getitem_263)
+    TUPLE_GETITEM_SLICE_F32_1125(rt, x=tensors.linear_119, output=tensors.getitem_264)
     FLUX_ADD_SCALAR(rt, x=tensors.unsqueeze_8, output=tensors.add_328)
     LAYER_NORM_NONEW_NONEB_F32(rt, x=tensors.slice_433, output=tensors.layer_norm_56)
-    MUL_BROADCAST_1239(rt, x=tensors.add_328, y=tensors.layer_norm_56, output=tensors.mul_451)
+    MUL_BROADCAST_1126(rt, x=tensors.add_328, y=tensors.layer_norm_56, output=tensors.mul_451)
     ADD_BROADCAST_INNER(rt, x=tensors.mul_451, y=tensors.unsqueeze_7, output=tensors.add_329)
-    LINEAR_NOBIAS_F16W_F32_1240(rt, x=tensors.add_329, weight=tensors.p_final_layer_linear_weight, output=tensors.linear_120)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_329, weight=tensors.p_final_layer_linear_weight, output=tensors.linear_120)
 
 
 def run_flux(rt: RuntimeSession) -> None:

@@ -7,7 +7,7 @@ def klein9b_q4_k_m_config() -> Q4KMQuantizationConfig:
     return Q4KMQuantizationConfig(
         model_name="FLUX.2-klein-9B",
         gguf_arch="flux2-klein9b",
-        f16_tensor_prefixes=("",),
+        q8_tensor_prefixes=("",),
     )
 
 

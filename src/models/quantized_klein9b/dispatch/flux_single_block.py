@@ -12,7 +12,6 @@ from models.quantized_klein9b.shaders.flux_single_block_add_f32 import FLUX_SING
 from models.quantized_klein9b.shaders.flux_single_block_add_scalar import FLUX_SINGLE_BLOCK_ADD_SCALAR
 from models.quantized_klein9b.shaders.flux_single_block_cat_2_f32 import FLUX_SINGLE_BLOCK_CAT_2_F32
 from models.quantized_klein9b.shaders.flux_single_block_cat_3_f32 import FLUX_SINGLE_BLOCK_CAT_3_F32
-from models.quantized_klein9b.shaders.flux_single_block_linear_nobias_f16w_f32 import FLUX_SINGLE_BLOCK_LINEAR_NOBIAS_F16W_F32
 from models.quantized_klein9b.shaders.flux_single_block_mean_dim_f32 import FLUX_SINGLE_BLOCK_MEAN_DIM_F32
 from models.quantized_klein9b.shaders.flux_single_block_mul_broadcast import FLUX_SINGLE_BLOCK_MUL_BROADCAST
 from models.quantized_klein9b.shaders.flux_single_block_mul_broadcast_28 import FLUX_SINGLE_BLOCK_MUL_BROADCAST_28
@@ -22,6 +21,7 @@ from models.quantized_klein9b.shaders.flux_single_block_rsqrt_f32 import FLUX_SI
 from models.quantized_klein9b.shaders.flux_single_block_silu_f32 import FLUX_SINGLE_BLOCK_SILU_F32
 from models.quantized_klein9b.shaders.flux_single_block_slice_f32 import FLUX_SINGLE_BLOCK_SLICE_F32
 from models.quantized_klein9b.shaders.layer_norm_nonew_noneb_f32 import LAYER_NORM_NONEW_NONEB_F32
+from models.quantized_klein9b.shaders.linear_nobias_q8_0_f32_act_f32 import LINEAR_NOBIAS_Q8_0_F32_ACT_F32
 from models.quantized_klein9b.shaders.mul_broadcast_15 import MUL_BROADCAST_15
 from models.quantized_klein9b.shaders.mul_broadcast_17 import MUL_BROADCAST_17
 from models.quantized_klein9b.shaders.mul_broadcast_20 import MUL_BROADCAST_20
@@ -58,7 +58,7 @@ def _run_flux_single_block_with_tensors(rt: RuntimeSession, tensors: FluxSingleB
     FLUX_SINGLE_BLOCK_ADD_SCALAR(rt, x=tensors.mod_scale, output=tensors.add)
     FLUX_SINGLE_BLOCK_MUL_BROADCAST(rt, x=tensors.add, y=tensors.layer_norm, output=tensors.mul)
     ADD_BROADCAST_INNER(rt, x=tensors.mul, y=tensors.mod_shift, output=tensors.add_1)
-    FLUX_SINGLE_BLOCK_LINEAR_NOBIAS_F16W_F32(rt, x=tensors.add_1, weight=tensors.p_linear1_weight, output=tensors.linear)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.add_1, weight=tensors.p_linear1_weight, output=tensors.linear)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.linear, output=tensors.getitem)
     TUPLE_GETITEM_SLICE_F32_6(rt, x=tensors.linear, output=tensors.getitem_1)
     PERMUTE_F32_2731F610B1(rt, x=tensors.reshape, output=tensors.permute)
@@ -114,7 +114,7 @@ def _run_flux_single_block_with_tensors(rt: RuntimeSession, tensors: FluxSingleB
     FLUX_SINGLE_BLOCK_SILU_F32(rt, x=tensors.getitem_5, output=tensors.silu)
     FLUX_SINGLE_BLOCK_MUL_F32(rt, x=tensors.silu, y=tensors.getitem_6, output=tensors.mul_9)
     CAT_2_F32_44(rt, x0=tensors.reshape_5, x1=tensors.mul_9, output=tensors.cat_4)
-    FLUX_SINGLE_BLOCK_LINEAR_NOBIAS_F16W_F32(rt, x=tensors.cat_4, weight=tensors.p_linear2_weight, output=tensors.linear_1)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_4, weight=tensors.p_linear2_weight, output=tensors.linear_1)
     FLUX_SINGLE_BLOCK_MUL_BROADCAST(rt, x=tensors.mod_gate, y=tensors.linear_1, output=tensors.mul_10)
     ADD_F32_45(rt, x=tensors.hidden_states, y=tensors.mul_10, output=tensors.add_6)
 
