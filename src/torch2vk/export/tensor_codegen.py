@@ -111,6 +111,7 @@ def render_tensor_class(
         "fields": tuple(fields),
         "extra_fields": tuple(extra_fields),
         "output_const": output_const,
+        "output_name": None if output_name_source is None else output_name_source.strip("'\""),
         "output_name_source": output_name_source,
         "signature": signature,
         "tensors": tuple(tensors),
@@ -118,6 +119,7 @@ def render_tensor_class(
         "alias_binding_lines": tuple(alias_binding_lines),
         "q4_k_m_config": q4_k_m_config,
         "uses_request_state_outputs": uses_request_state_outputs,
+        "layered": "layer_idx: int" in signature,
     }
 
 
@@ -396,6 +398,15 @@ def _tensor_entry(
         "memory": memory,
         "lifetime": lifetime,
     }
+
+
+def layer_workspace_keep_field(context: TensorClassContext) -> str | None:
+    if not bool(context.get("layered")):
+        return None
+    output_name = context.get("output_name")
+    if not isinstance(output_name, str) or not output_name:
+        return None
+    return output_name
 
 
 def _shape_source(shape: tuple[int, ...], shape_exprs: Mapping[int, str]) -> str:

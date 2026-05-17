@@ -383,6 +383,11 @@ def generate_looped_dispatch_function_source(
             loop_body_lines += 1
     if uses_carry_in_dispatch and analysis.carry_output:
         lines.append(f"        carry = layer_t.{analysis.carry_output}")
+        lines.append(
+            "        rt.release_layer_workspace("
+            f"layer_t, layer=layer_t.{analysis.carry_output}.layer or \"\", "
+            f"keep=(layer_t.{analysis.carry_output},))"
+        )
         loop_body_lines += 1
     if loop_body_lines == 0:
         lines.append("        pass")

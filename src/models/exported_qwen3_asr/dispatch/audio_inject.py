@@ -13,4 +13,5 @@ def _run_audio_inject_with_tensors(rt: RuntimeSession, tensors: AudioInjectTenso
 
 
 def run_audio_inject(rt: RuntimeSession) -> None:
-    _run_audio_inject_with_tensors(rt, model_tensors().audio_inject)
+    tensors = model_tensors().audio_inject
+    _run_audio_inject_with_tensors(rt, tensors)

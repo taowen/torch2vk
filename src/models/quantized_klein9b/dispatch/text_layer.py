@@ -102,4 +102,10 @@ def _run_text_layer_with_tensors(rt: RuntimeSession, tensors: TextLayerTensors) 
 
 
 def run_text_layer(rt: RuntimeSession, layer_idx: int) -> None:
-    _run_text_layer_with_tensors(rt, model_tensors().text_layers[layer_idx])
+    tensors = model_tensors().text_layers[layer_idx]
+    _run_text_layer_with_tensors(rt, tensors)
+    rt.release_layer_workspace(
+        tensors,
+        layer=tensors.add_7.layer or "",
+        keep=(tensors.add_7,),
+    )

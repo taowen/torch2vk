@@ -17,4 +17,12 @@ from torch2vk.runtime.session import RuntimeSession
 
 
 def {{ function_name }}(rt: RuntimeSession{{ parameters_source }}) -> None:
-    _{{ function_name }}_with_tensors(rt, {{ tensor_expr }}{{ arguments_source }})
+    tensors = {{ tensor_expr }}
+    _{{ function_name }}_with_tensors(rt, tensors{{ arguments_source }})
+{% if workspace_keep_field %}
+    rt.release_layer_workspace(
+        tensors,
+        layer=tensors.{{ workspace_keep_field }}.layer or "",
+        keep=(tensors.{{ workspace_keep_field }},),
+    )
+{% endif %}

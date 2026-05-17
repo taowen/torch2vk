@@ -121,6 +121,7 @@ def render_model_dispatch_module(
     parameters_source: str = "",
     arguments_source: str = "",
     uses_quantized_linear_dispatch: bool = False,
+    workspace_keep_field: str | None = None,
 ) -> str:
     return render_template(
         "model_dispatch_module.py.j2",
@@ -136,6 +137,7 @@ def render_model_dispatch_module(
         parameters_source=parameters_source,
         arguments_source=arguments_source,
         uses_quantized_linear_dispatch=uses_quantized_linear_dispatch,
+        workspace_keep_field=workspace_keep_field,
     )
 
 

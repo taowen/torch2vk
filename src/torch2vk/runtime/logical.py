@@ -105,6 +105,7 @@ class LogicalTensor:
     checkpoint: str | None = None
     checkpoint_key: str | None = None
     reference_key: str | None = None
+    layer: str | None = None
     _runtime_writable: bool = field(default=False, init=False, repr=False)
     _buffer: BufferSlice | None = field(default=None, init=False, repr=False)
     _descriptor_nbytes: int | None = field(default=None, init=False, repr=False)

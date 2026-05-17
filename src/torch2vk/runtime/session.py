@@ -24,6 +24,16 @@ from torch2vk.runtime.logical import (
     collect_named_logical_tensors,
 )
 from torch2vk.runtime import request_state
+from torch2vk.runtime.materialization import release_layer_workspace as release_layer_workspace_impl
+from torch2vk.runtime.replay_cache import (
+    cache_replay_plan as cache_replay_plan_impl,
+    cached_replay_plans as cached_replay_plans_impl,
+)
+from torch2vk.runtime.replay_instantiation import build_replay_plan as build_replay_plan_impl
+from torch2vk.runtime.replay_rebind import (
+    rebind_replay_plan as rebind_replay_plan_impl,
+    replay_plan_compatible as replay_plan_compatible_impl,
+)
 from torch2vk.runtime.shader import (
     DispatchRecord,
     IOKind,
@@ -265,6 +275,15 @@ class RuntimeSession:
     def read_request_state(self, tensor: LogicalTensor) -> np.ndarray:
         return request_state.read_request_state(self, tensor)
 
+    def release_layer_workspace(
+        self,
+        layer_tensors: object,
+        *,
+        layer: str,
+        keep: Sequence[LogicalTensor] = (),
+    ) -> None:
+        release_layer_workspace_impl(self, layer_tensors, layer=layer, keep=keep)
+
     def grow_request_state(
         self,
         tensor: LogicalTensor,
@@ -328,9 +347,7 @@ class RuntimeSession:
         frame: str,
         readback_tensors: Mapping[str, LogicalTensor] | None = None,
     ) -> "ReplayPlan":
-        from torch2vk.runtime.replay_builder import build_replay_plan
-
-        return build_replay_plan(
+        return build_replay_plan_impl(
             self,
             name=name,
             frame=frame,
@@ -341,24 +358,16 @@ class RuntimeSession:
         self,
         plan: "ReplayPlan",
     ) -> None:
-        from torch2vk.runtime.replay_builder import rebind_replay_plan
-
-        rebind_replay_plan(self, plan)
+        rebind_replay_plan_impl(self, plan)
 
     def replay_plan_compatible(self, plan: "ReplayPlan") -> bool:
-        from torch2vk.runtime.replay_builder import replay_plan_compatible
-
-        return replay_plan_compatible(self, plan)
+        return replay_plan_compatible_impl(self, plan)
 
     def cached_replay_plans(self, namespace: str) -> tuple["ReplayPlan", ...]:
-        from torch2vk.runtime.replay_builder import cached_replay_plans
-
-        return cached_replay_plans(self, namespace)
+        return cached_replay_plans_impl(self, namespace)
 
     def cache_replay_plan(self, namespace: str, plan: "ReplayPlan") -> None:
-        from torch2vk.runtime.replay_builder import cache_replay_plan
-
-        cache_replay_plan(self, namespace, plan)
+        cache_replay_plan_impl(self, namespace, plan)
 
     def profile_summary(self) -> dict[str, object]:
         return self.profiler.write_summary()

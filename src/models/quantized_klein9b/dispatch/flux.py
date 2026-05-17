@@ -3895,4 +3895,5 @@ def _run_flux_with_tensors(rt: RuntimeSession, tensors: FluxTensors) -> None:
 
 
 def run_flux(rt: RuntimeSession) -> None:
-    _run_flux_with_tensors(rt, model_tensors().flux)
+    tensors = model_tensors().flux
+    _run_flux_with_tensors(rt, tensors)

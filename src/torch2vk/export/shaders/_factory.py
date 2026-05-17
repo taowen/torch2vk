@@ -7,6 +7,7 @@ import re
 
 from torch.fx import Node
 
+from torch2vk.export.dtype_policy import requires_float32_intermediate
 from torch2vk.runtime.shader import (
     ExprDim,
     IOKind,
@@ -73,6 +74,8 @@ def node_storage_dtype(node: Node, activation_dtype: str) -> str:
     source = _alias_source(node)
     if source.op == "placeholder" and source.name.startswith(("p_", "b_")):
         return dtype
+    if requires_float32_intermediate(node):
+        return "float32"
     return activation_dtype
 
 

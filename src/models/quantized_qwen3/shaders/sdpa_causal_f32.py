@@ -72,6 +72,7 @@ SDPA_CAUSAL_F32 = ShaderVariant(
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_subgroup_extended_types_float16 : require
 
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly QBuffer { float16_t q[]; };

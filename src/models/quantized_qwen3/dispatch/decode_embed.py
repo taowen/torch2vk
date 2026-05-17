@@ -13,4 +13,5 @@ def _run_decode_embed_with_tensors(rt: RuntimeSession, tensors: DecodeEmbedTenso
 
 
 def run_decode_embed(rt: RuntimeSession) -> None:
-    _run_decode_embed_with_tensors(rt, model_tensors().decode_embed)
+    tensors = model_tensors().decode_embed
+    _run_decode_embed_with_tensors(rt, tensors)

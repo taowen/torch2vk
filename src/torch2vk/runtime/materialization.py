@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import struct
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,7 +15,13 @@ from vulkan import (
 
 from torch2vk.checkpoints.checkpoint_tensor import CheckpointTensor
 from torch2vk.runtime.host_array import prepare_host_array
-from torch2vk.runtime.logical import LogicalTensor, MemoryClass, TensorLifetime, TensorRole
+from torch2vk.runtime.logical import (
+    LogicalTensor,
+    MemoryClass,
+    TensorLifetime,
+    TensorRole,
+    collect_named_logical_tensors,
+)
 from torch2vk.runtime.shader import (
     DTypeReference,
     DispatchTensorSnapshot,
@@ -400,6 +406,69 @@ def release_frame_allocations(rt: RuntimeSession) -> None:
             )
         else:
             allocation.close()
+
+
+def release_layer_workspace(
+    rt: RuntimeSession,
+    layer_tensors: object,
+    *,
+    layer: str,
+    keep: Sequence[LogicalTensor] = (),
+) -> None:
+    rt._require_open()
+    if not layer:
+        raise ValueError("release_layer_workspace requires a non-empty layer")
+    keep_ids = {id(tensor) for tensor in keep}
+    for tensor in collect_named_logical_tensors(layer_tensors).values():
+        if id(tensor) in keep_ids:
+            continue
+        if tensor.layer != layer:
+            continue
+        if tensor.role is not TensorRole.ACTIVATION:
+            continue
+        if tensor.memory is not MemoryClass.FRAME_WORKSPACE:
+            continue
+        if tensor.lifetime is not TensorLifetime.FRAME:
+            continue
+        if tensor.buffer is None:
+            continue
+        _release_frame_tensor_allocation(rt, tensor, keep=keep)
+
+
+def _release_frame_tensor_allocation(
+    rt: RuntimeSession,
+    tensor: LogicalTensor,
+    *,
+    keep: Sequence[LogicalTensor],
+) -> None:
+    buffer = tensor.buffer
+    if buffer is None:
+        return
+    allocation = buffer.allocation
+    kept_allocation_ids = {
+        id(kept.buffer.allocation)
+        for kept in keep
+        if kept.buffer is not None
+    }
+    if id(allocation) in kept_allocation_ids:
+        return
+    with tensor.runtime_write_scope():
+        tensor.buffer = None
+        tensor.descriptor_nbytes = None
+    remaining: list[tuple[LogicalTensor, BufferAllocation]] = []
+    found = False
+    for existing_tensor, existing_allocation in rt._frame_allocations:
+        if existing_tensor is tensor and existing_allocation is allocation:
+            found = True
+            continue
+        remaining.append((existing_tensor, existing_allocation))
+    rt._frame_allocations = remaining
+    if not found:
+        return
+    rt.device.memory_manager.temporary_tensor_pool.recycle(
+        spec=tensor.spec,
+        allocation=allocation,
+    )
 
 
 def release_request_allocation(rt: RuntimeSession, allocation: BufferAllocation) -> None:

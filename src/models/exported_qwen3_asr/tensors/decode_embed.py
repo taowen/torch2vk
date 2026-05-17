@@ -45,6 +45,7 @@ def create_decode_embed(
                 checkpoint=None,
                 checkpoint_key="thinker.model.embed_tokens.weight",
                 reference_key=None,
+                layer=None,
                 spec=TensorSpec(dtype='bfloat16', shape=(151936, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.WEIGHT,
@@ -59,6 +60,7 @@ def create_decode_embed(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
+                layer=None,
                 spec=TensorSpec(dtype='int64', shape=(1, 1)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -73,6 +75,7 @@ def create_decode_embed(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='embedding',
+                layer=None,
                 spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -96,6 +99,7 @@ def _declare_tensor(
     checkpoint: str | None = None,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
+    layer: str | None = None,
     request_state: bool = False,
 ) -> LogicalTensor:
     if request_state:
@@ -110,6 +114,7 @@ def _declare_tensor(
         checkpoint=checkpoint,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
+        layer=layer,
         layout=layout,
     )
 

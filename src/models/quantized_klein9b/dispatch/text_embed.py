@@ -13,4 +13,5 @@ def _run_text_embed_with_tensors(rt: RuntimeSession, tensors: EmbedTokensTensors
 
 
 def run_text_embed(rt: RuntimeSession) -> None:
-    _run_text_embed_with_tensors(rt, model_tensors().text_embed)
+    tensors = model_tensors().text_embed
+    _run_text_embed_with_tensors(rt, tensors)

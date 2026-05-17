@@ -54,6 +54,7 @@ def _run_audio_encoder_with_tensors(rt: RuntimeSession, tensors: AudioEncoderTen
         LINEAR_BIAS_Q8_0W_F32B_F32(rt, x=layer_t.gelu_3, weight=layer_t.p_audio_tower_layers_0_fc2_weight, bias=layer_t.p_audio_tower_layers_0_fc2_bias, output=layer_t.linear_6)
         ADD_F32_19(rt, x=layer_t.add_1, y=layer_t.linear_6, output=layer_t.add_2)
         carry = layer_t.add_2
+        rt.release_layer_workspace(layer_t, layer=layer_t.add_2.layer or "", keep=(layer_t.add_2,))
     LAYER_NORM_F32W_F32B_F32(rt, x=carry, weight=tensors.p_audio_tower_ln_post_weight, bias=tensors.p_audio_tower_ln_post_bias, output=tensors.layer_norm_36)
     LINEAR_BIAS_Q8_0W_F32B_F32(rt, x=tensors.layer_norm_36, weight=tensors.p_audio_tower_proj1_weight, bias=tensors.p_audio_tower_proj1_bias, output=tensors.linear_109)
     GELU_F32_88(rt, x=tensors.linear_109, output=tensors.gelu_21)
@@ -61,4 +62,5 @@ def _run_audio_encoder_with_tensors(rt: RuntimeSession, tensors: AudioEncoderTen
 
 
 def run_audio_encoder(rt: RuntimeSession) -> None:
-    _run_audio_encoder_with_tensors(rt, model_tensors().audio_encoder)
+    tensors = model_tensors().audio_encoder
+    _run_audio_encoder_with_tensors(rt, tensors)

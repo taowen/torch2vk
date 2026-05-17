@@ -229,4 +229,5 @@ def _require_ae_decode_tensors() -> AeDecodeTensors:
 
 
 def run_ae_decode(rt: RuntimeSession) -> None:
-    _run_ae_decode_with_tensors(rt, _require_ae_decode_tensors())
+    tensors = _require_ae_decode_tensors()
+    _run_ae_decode_with_tensors(rt, tensors)

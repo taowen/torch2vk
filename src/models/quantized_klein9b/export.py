@@ -48,7 +48,7 @@ from torch2vk.export.reference_codegen import (
     render_exported_reference_function,
     render_reference_module,
 )
-from torch2vk.export.tensor_codegen import render_tensor_module
+from torch2vk.export.tensor_codegen import layer_workspace_keep_field, render_tensor_module
 from torch2vk.runtime.shader import ShaderVariant
 
 
@@ -379,6 +379,7 @@ def main() -> int:
                 parameters_source=parameters_source,
                 arguments_source=arguments_source,
                 uses_quantized_linear_dispatch="run_quantized_linear(" in func_src,
+                workspace_keep_field=layer_workspace_keep_field(tensor_ctx),
             ),
             encoding="utf-8",
         )

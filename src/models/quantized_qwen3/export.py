@@ -48,7 +48,7 @@ from torch2vk.export.shaders.qwen3_token_select_reduce_f32 import (
 )
 from torch2vk.export.shaders.qwen3_token_store import QWEN3_TOKEN_STORE_EOS
 from torch2vk.export.shaders.slice_last_token_f16 import SLICE_LAST_TOKEN_F16
-from torch2vk.export.tensor_codegen import render_tensor_module
+from torch2vk.export.tensor_codegen import layer_workspace_keep_field, render_tensor_module
 from torch2vk.quantize import Q4KMQuantizationConfig
 from torch2vk.runtime.shader import ShaderVariant
 
@@ -259,6 +259,7 @@ def main() -> int:
                 parameters_source=_dispatch_parameters_source(func_name),
                 arguments_source=_dispatch_arguments_source(func_name),
                 uses_quantized_linear_dispatch="run_quantized_linear(" in func_src,
+                workspace_keep_field=layer_workspace_keep_field(tensor_src),
             )
         )
 

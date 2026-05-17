@@ -13,4 +13,5 @@ def _run_audio_head_with_tensors(rt: RuntimeSession, tensors: AudioHeadTensors) 
 
 
 def run_audio_head(rt: RuntimeSession) -> None:
-    _run_audio_head_with_tensors(rt, model_tensors().audio_head)
+    tensors = model_tensors().audio_head
+    _run_audio_head_with_tensors(rt, tensors)

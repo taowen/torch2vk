@@ -50,6 +50,7 @@ def create_audio_inject(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
+                layer=None,
                 spec=TensorSpec(dtype='int64', shape=(audio_sequence_length,)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -64,6 +65,7 @@ def create_audio_inject(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
+                layer=None,
                 spec=TensorSpec(dtype='float16', shape=(audio_sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -78,6 +80,7 @@ def create_audio_inject(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='unsqueeze',
+                layer=None,
                 spec=TensorSpec(dtype='float16', shape=(1, audio_sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -92,6 +95,7 @@ def create_audio_inject(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='index_copy',
+                layer=None,
                 spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -116,6 +120,7 @@ def _declare_tensor(
     checkpoint: str | None = None,
     checkpoint_key: str | None = None,
     reference_key: str | None = None,
+    layer: str | None = None,
     request_state: bool = False,
 ) -> LogicalTensor:
     if request_state:
@@ -130,6 +135,7 @@ def _declare_tensor(
         checkpoint=checkpoint,
         checkpoint_key=checkpoint_key,
         reference_key=reference_key,
+        layer=layer,
         layout=layout,
     )
 

@@ -6,6 +6,7 @@ from torch2vk.export.shaders._factory import (
     activation_extension_source,
     activation_glsl_type,
     make_unary_elementwise,
+    node_input_storage_dtype,
 )
 from torch2vk.runtime.shader import ShaderVariant
 
@@ -25,11 +26,12 @@ void main() {
 
 
 def make_reciprocal_variant(node: Node, activation_dtype: str = "float32") -> ShaderVariant | None:
+    input_dtype = node_input_storage_dtype(node, 0, activation_dtype)
     return make_unary_elementwise(
-        _source(activation_dtype),
+        _source(input_dtype),
         "reciprocal_f32",
         node,
-        input_dtype=activation_dtype,
+        input_dtype=input_dtype,
         output_dtype="float32",
     )
 

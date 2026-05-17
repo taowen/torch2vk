@@ -59,6 +59,7 @@ from torch2vk.export.shader_codegen import (
 )
 from torch2vk.export.tensor_codegen import (
     generate_tensor_class_source,
+    layer_workspace_keep_field,
     render_tensor_module,
 )
 from torch2vk.export.codegen_loop import (
@@ -307,6 +308,7 @@ def main() -> int:
             )
         )
 
+        workspace_keep_field = None
         if layer_loop is not None:
             layer_cls_name = "LlmLayerTensors"
             layer_func_name = "create_llm_layer"
@@ -341,6 +343,7 @@ def main() -> int:
                 checkpoint=checkpoint,
                 shape_exprs=shape_exprs,
             )
+            workspace_keep_field = layer_workspace_keep_field(tensor_src)
             (tensors_dir / f"{tensor_file}.py").write_text(render_tensor_module([tensor_src]))
 
             func_src, shader_imports, used_variants = generate_dispatch_function_source(
@@ -380,6 +383,7 @@ def main() -> int:
                 tensor_expr=f"model_tensors().{func_name}",
                 shader_imports=shader_imports,
                 function_source=bind_dispatch_function_to_tensors(func_src),
+                workspace_keep_field=workspace_keep_field,
             )
         )
 
