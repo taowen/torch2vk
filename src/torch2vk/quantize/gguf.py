@@ -33,6 +33,8 @@ GGUF_QUANTIZATION_VERSION = 2
 class Q4KMQuantizationConfig:
     model_name: str
     gguf_arch: str
+    f16_tensor_names: tuple[str, ...] = ()
+    f16_tensor_prefixes: tuple[str, ...] = ()
     q6_tensor_names: tuple[str, ...] = ()
     q6_tensor_prefixes: tuple[str, ...] = ()
     q8_tensor_names: tuple[str, ...] = ()
@@ -44,6 +46,11 @@ class Q4KMQuantizationConfig:
     def has_q6(self) -> bool:
         return bool(self.q6_tensor_names or self.q6_tensor_prefixes)
 
+    def _preserve_f16(self, checkpoint_key: str) -> bool:
+        return checkpoint_key in self.f16_tensor_names or checkpoint_key.startswith(
+            self.f16_tensor_prefixes
+        )
+
     def gguf_type(
         self,
         *,
@@ -51,19 +58,21 @@ class Q4KMQuantizationConfig:
         shape: tuple[int, ...],
         dtype: str = "float32",
     ) -> GGUFTensorType:
+        if self._preserve_f16(checkpoint_key):
+            return GGUFTensorType.F16
         dtype = _checkpoint_float_dtype(dtype)
         if dtype != "float32":
             return GGUFTensorType.F32
-        force_q6 = checkpoint_key in self.q6_tensor_names or checkpoint_key.startswith(
-            self.q6_tensor_prefixes
-        )
         force_q8 = checkpoint_key in self.q8_tensor_names or checkpoint_key.startswith(
             self.q8_tensor_prefixes
         )
-        if force_q6 and len(shape) >= 2:
-            return GGUFTensorType.Q6_K
+        force_q6 = checkpoint_key in self.q6_tensor_names or checkpoint_key.startswith(
+            self.q6_tensor_prefixes
+        )
         if force_q8 and len(shape) >= 2:
             return GGUFTensorType.Q8_0
+        if force_q6 and len(shape) >= 2:
+            return GGUFTensorType.Q6_K
         if len(shape) != 2:
             return GGUFTensorType.F32
         cols = shape[-1]
@@ -80,6 +89,13 @@ class Q4KMQuantizationConfig:
         dtype: str,
         shape: tuple[int, ...],
     ) -> _WeightDeclaration:
+        if self._preserve_f16(checkpoint_key):
+            return _WeightDeclaration(
+                gguf_type=GGUFTensorType.F16,
+                dtype="float16",
+                shape=shape,
+                layout_source="CONTIGUOUS_LAYOUT",
+            )
         dtype = _checkpoint_float_dtype(dtype)
         gguf_type = self.gguf_type(
             checkpoint_key=checkpoint_key,
@@ -310,6 +326,15 @@ def _tensor_to_gguf_tensor(
             data=np.asarray(array, dtype=np.float32),
             ggml_type=GGUFTensorType.F32,
             logical_shape=tuple(int(dim) for dim in array.shape),
+        )
+    if gguf_type is GGUFTensorType.F16:
+        if not tensor.is_floating_point():
+            raise TypeError(f"F16 GGUF tensor {name} requires floating point source")
+        return _GGUFTensor(
+            name=name,
+            data=np.ascontiguousarray(tensor.to(torch.float16).numpy()),
+            ggml_type=GGUFTensorType.F16,
+            logical_shape=tuple(int(dim) for dim in tensor.shape),
         )
     if gguf_type is not GGUFTensorType.Q4_K:
         raise ValueError(f"Unsupported GGUF tensor type for {name}: {gguf_type}")

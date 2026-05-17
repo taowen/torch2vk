@@ -20,6 +20,7 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
+    mul,
 )
 
 _SOURCE = """\
@@ -180,24 +181,14 @@ def _make_tuple_slice_variant(
     out_shape = node_output_shape(node)
     if dim < 0 or dim >= len(in_shape):
         return None
-    in_stride = 1
-    for size in in_shape[dim + 1 :]:
-        in_stride *= size
-    out_stride = 1
-    for size in out_shape[dim + 1 :]:
-        out_stride *= size
-    if dim == len(in_shape) - 1:
-        in_stride_val = in_shape[dim]
-        out_stride_val = out_shape[dim]
-        offset = start
-    else:
-        in_stride_val = in_shape[dim] * in_stride
-        out_stride_val = out_shape[dim] * out_stride
-        offset = start * in_stride
-
     node.meta["torch2vk_shader_inputs"] = (input_node.name,)
     in_contract = tuple(f"I{i}" for i in range(len(in_shape)))
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
+    inner_stride = product_expr(in_contract[dim + 1 :])
+    out_inner_stride = product_expr(out_contract[dim + 1 :])
+    in_stride_val = mul(in_contract[dim], inner_stride)
+    out_stride_val = mul(out_contract[dim], out_inner_stride)
+    offset = 0 if start == 0 else mul(start, inner_stride)
     n_out = product_expr(out_contract)
     return ShaderVariant(
         name="tuple_getitem_slice_f32",
@@ -259,13 +250,11 @@ def _make_unbind_getitem_variant(
     if tuple_index < 0 or tuple_index >= input_shape[dim]:
         return None
 
-    inner = 1
-    for size in input_shape[dim + 1 :]:
-        inner *= size
     node.meta["torch2vk_shader_inputs"] = (input_node.name,)
     input_contract = tuple(f"I{i}" for i in range(len(input_shape)))
     output_contract = tuple(f"O{i}" for i in range(len(output_shape)))
     n_out = product_expr(output_contract)
+    inner = product_expr(input_contract[dim + 1 :])
     return ShaderVariant(
         name="tuple_getitem_unbind_f32",
         family="export",

@@ -330,6 +330,8 @@ def _q4_k_m_config_from_quantization(
     if quantization_config is None:
         return None
     return {
+        "f16_names": tuple(sorted(quantization_config.f16_tensor_names)),
+        "f16_prefixes": quantization_config.f16_tensor_prefixes,
         "q6_names": tuple(sorted(quantization_config.q6_tensor_names)),
         "q6_prefixes": quantization_config.q6_tensor_prefixes,
         "q8_names": tuple(sorted(quantization_config.q8_tensor_names)),

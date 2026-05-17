@@ -18,7 +18,10 @@ from safetensors import safe_open
 
 from models.quantized_klein9b import reference
 from models.quantized_klein9b.autoencoder import AutoEncoder, AutoEncoderParams
-from models.quantized_klein9b.custom_shaders import KLEIN9B_CAPTURE_QWEN3_CTX_F16
+from models.quantized_klein9b.custom_shaders import (
+    KLEIN9B_CAPTURE_QWEN3_CTX_F32,
+    KLEIN9B_LATENT_F32_TO_F16,
+)
 from models.quantized_klein9b.dispatch.ae_decode import run_ae_decode
 from models.quantized_klein9b.dispatch.text_embed import run_text_embed
 from models.quantized_klein9b.dispatch.text_layer import run_text_layer
@@ -163,7 +166,7 @@ def compare_pytorch_main(
             pred = ref.step(
                 img=_torch_floating(img_np),
                 img_ids=torch.from_numpy(img_ids_np).cuda(),
-                timesteps=torch.tensor([t_curr], device="cuda", dtype=torch.bfloat16),
+                timesteps=torch.tensor([t_curr], device="cuda", dtype=torch.float32),
                 ctx=_torch_floating(ctx_np),
                 ctx_ids=torch.from_numpy(ctx_ids_np).cuda(),
                 stage_callback=flux_comparer.callback(step)
@@ -173,7 +176,7 @@ def compare_pytorch_main(
             pred_np = pred.detach().cpu().float().numpy().astype(np.float32)
             del pred
             _release_torch()
-            img_np = (img_np.astype(np.float32) + (t_prev - t_curr) * pred_np).astype(np.float16)
+            img_np = img_np.astype(np.float32) + (t_prev - t_curr) * pred_np
     finally:
         ref.close()
         if rt is not None:
@@ -274,12 +277,12 @@ def _load_or_build_context(
     if ctx_cache is not None and ctx_cache.is_file():
         cached = np.load(ctx_cache)
         return (
-            np.ascontiguousarray(cached["ctx"]).astype(np.float16),
+            np.ascontiguousarray(cached["ctx"]).astype(np.float32),
             np.ascontiguousarray(cached["ctx_ids"]).astype(np.int64),
         )
     text_encoder = Qwen3TextEncoder(str(text_encoder_dir), device="cuda")
     ctx = text_encoder([prompt]).to(torch.bfloat16)
-    ctx_np = ctx.detach().cpu().float().numpy().astype(np.float16)
+    ctx_np = ctx.detach().cpu().float().numpy().astype(np.float32)
     ctx_ids_np = _text_ids()
     if ctx_cache is not None:
         ctx_cache.parent.mkdir(parents=True, exist_ok=True)
@@ -321,7 +324,7 @@ def _compare_text_context(
                 run_text_embed(rt)
                 for layer_idx in range(len(tensors.text_layers)):
                     run_text_layer(rt, layer_idx)
-                KLEIN9B_CAPTURE_QWEN3_CTX_F16(
+                KLEIN9B_CAPTURE_QWEN3_CTX_F32(
                     rt,
                     layer_9=tensors.text_layers[8].add_7,
                     layer_18=tensors.text_layers[17].add_7,
@@ -489,7 +492,8 @@ def _run_pytorch_ae_decode(
     ae = AutoEncoder(AutoEncoderParams()).eval().cuda().to(torch.bfloat16)
     ae.load_state_dict(state, strict=True, assign=True)
     with torch.no_grad():
-        tokens = _torch_floating(latent)
+        ae_dtype = next(ae.parameters()).dtype
+        tokens = torch.from_numpy(np.ascontiguousarray(latent)).cuda().to(ae_dtype)
         z = tokens.reshape(1, height // 16, width // 16, 128).permute(0, 3, 1, 2).contiguous()
         image = ae.decode(z).detach().cpu().float().numpy()
     del ae, state, tokens, z
@@ -511,6 +515,14 @@ def _run_vulkan_ae_decode(
     try:
         with rt.request(state={model_tensors().latent_tokens: latent}):
             with rt.frame("klein9b.ae_decode.compare"):
+                ae_decode = model_tensors().ae_decode
+                if ae_decode is None:
+                    raise RuntimeError("AE decode tensors were not created")
+                KLEIN9B_LATENT_F32_TO_F16(
+                    rt,
+                    x=model_tensors().latent_tokens,
+                    output=ae_decode.tokens,
+                )
                 run_ae_decode(rt)
             return rt.read_request_state(image_output()).astype(np.float32)
     finally:
@@ -530,7 +542,7 @@ def _save_image(path: str | Path, image: np.ndarray) -> Path:
 
 
 def _torch_floating(value: np.ndarray) -> torch.Tensor:
-    return torch.from_numpy(np.ascontiguousarray(value)).cuda().to(torch.bfloat16)
+    return torch.from_numpy(np.ascontiguousarray(value)).cuda().to(torch.float32)
 
 
 def _log(message: str) -> None:

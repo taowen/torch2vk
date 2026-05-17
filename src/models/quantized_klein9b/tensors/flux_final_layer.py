@@ -78,8 +78,8 @@ def create_flux_final_layer(
                 checkpoint_key="final_layer.linear.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("final_layer.linear.weight", dtype='float32', shape=(128, 4096)),
-                layout=_quantized_weight_layout("final_layer.linear.weight", dtype='float32', shape=(128, 4096)),
+                spec=_quantized_weight_spec("final_layer.linear.weight", dtype='float16', shape=(128, 4096)),
+                layout=_quantized_weight_layout("final_layer.linear.weight", dtype='float16', shape=(128, 4096)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -93,8 +93,8 @@ def create_flux_final_layer(
                 checkpoint_key="final_layer.adaLN_modulation.1.weight",
                 reference_key=None,
                 layer=None,
-                spec=_quantized_weight_spec("final_layer.adaLN_modulation.1.weight", dtype='float32', shape=(8192, 4096)),
-                layout=_quantized_weight_layout("final_layer.adaLN_modulation.1.weight", dtype='float32', shape=(8192, 4096)),
+                spec=_quantized_weight_spec("final_layer.adaLN_modulation.1.weight", dtype='float16', shape=(8192, 4096)),
+                layout=_quantized_weight_layout("final_layer.adaLN_modulation.1.weight", dtype='float16', shape=(8192, 4096)),
                 role=TensorRole.WEIGHT,
                 memory=MemoryClass.MODEL_WEIGHT,
                 lifetime=TensorLifetime.MODEL,
@@ -108,7 +108,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key=None,
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, text_seq_len + image_seq_len, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, text_seq_len + image_seq_len, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -123,7 +123,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key=None,
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
                 memory=MemoryClass.HOST_INPUT,
@@ -138,7 +138,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='slice_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, image_seq_len, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, image_seq_len, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -153,7 +153,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='silu',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -168,7 +168,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='linear',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 8192)),
+                spec=TensorSpec(dtype='float32', shape=(1, 8192)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -183,7 +183,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='getitem',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -198,7 +198,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='getitem_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -213,7 +213,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='unsqueeze',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -228,7 +228,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='unsqueeze_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -243,7 +243,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='add',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, 1, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -258,7 +258,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='layer_norm',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, image_seq_len, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, image_seq_len, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -273,7 +273,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='mul',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, image_seq_len, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, image_seq_len, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -288,7 +288,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='add_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, image_seq_len, 4096)),
+                spec=TensorSpec(dtype='float32', shape=(1, image_seq_len, 4096)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -303,7 +303,7 @@ def create_flux_final_layer(
                 checkpoint_key=None,
                 reference_key='linear_1',
                 layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, image_seq_len, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, image_seq_len, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -318,26 +318,31 @@ def create_flux_final_layer(
     return tensors
 
 
-_Q6_TENSOR_NAMES = frozenset(('double_blocks.0.img_attn.proj.weight', 'double_blocks.0.img_attn.qkv.weight', 'double_blocks.0.txt_attn.proj.weight', 'double_blocks.0.txt_attn.qkv.weight', 'double_blocks.3.img_attn.proj.weight', 'double_blocks.3.img_attn.qkv.weight', 'double_blocks.3.txt_attn.proj.weight', 'double_blocks.3.txt_attn.qkv.weight', 'double_blocks.6.img_attn.proj.weight', 'double_blocks.6.img_attn.qkv.weight', 'double_blocks.6.txt_attn.proj.weight', 'double_blocks.6.txt_attn.qkv.weight', 'double_blocks.7.img_attn.proj.weight', 'double_blocks.7.img_attn.qkv.weight', 'double_blocks.7.txt_attn.proj.weight', 'double_blocks.7.txt_attn.qkv.weight', 'single_blocks.0.linear1.weight', 'single_blocks.0.linear2.weight', 'single_blocks.1.linear1.weight', 'single_blocks.1.linear2.weight', 'single_blocks.11.linear1.weight', 'single_blocks.11.linear2.weight', 'single_blocks.14.linear1.weight', 'single_blocks.14.linear2.weight', 'single_blocks.17.linear1.weight', 'single_blocks.17.linear2.weight', 'single_blocks.2.linear1.weight', 'single_blocks.2.linear2.weight', 'single_blocks.20.linear1.weight', 'single_blocks.20.linear2.weight', 'single_blocks.21.linear1.weight', 'single_blocks.21.linear2.weight', 'single_blocks.22.linear1.weight', 'single_blocks.22.linear2.weight', 'single_blocks.23.linear1.weight', 'single_blocks.23.linear2.weight', 'single_blocks.5.linear1.weight', 'single_blocks.5.linear2.weight', 'single_blocks.8.linear1.weight', 'single_blocks.8.linear2.weight'))
+_F16_TENSOR_NAMES = frozenset(())
+_F16_TENSOR_PREFIXES = ('',)
+_Q6_TENSOR_NAMES = frozenset(())
 _Q6_TENSOR_PREFIXES = ()
-_Q8_TENSOR_NAMES = frozenset(('final_layer.adaLN_modulation.1.weight', 'final_layer.linear.weight', 'img_in.weight', 'time_in.in_layer.weight', 'time_in.out_layer.weight', 'txt_in.weight'))
+_Q8_TENSOR_NAMES = frozenset(())
 _Q8_TENSOR_PREFIXES = ()
 
 
 def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorSpec:
+    force_f16 = checkpoint_key in _F16_TENSOR_NAMES or checkpoint_key.startswith(_F16_TENSOR_PREFIXES)
+    if force_f16:
+        return TensorSpec(dtype="float16", shape=shape)
     if dtype not in ("float32", "float16", "bfloat16"):
         return TensorSpec(dtype=dtype, shape=shape)
-    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
     force_q8 = checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES)
+    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
+    if force_q8 and len(shape) >= 2:
+        n, k = _quantized_matrix_shape(shape)
+        padded_k = _round_up(k, 32)
+        return TensorSpec(dtype="uint16", shape=(n, padded_k // 32 * 17))
     if force_q6 and len(shape) >= 2:
         n, k = _quantized_matrix_shape(shape)
         if k % 256 != 0:
             raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
         return TensorSpec(dtype="uint16", shape=(n, k // 256 * 105))
-    if force_q8 and len(shape) >= 2:
-        n, k = _quantized_matrix_shape(shape)
-        padded_k = _round_up(k, 32)
-        return TensorSpec(dtype="uint16", shape=(n, padded_k // 32 * 17))
     if len(shape) != 2:
         return TensorSpec(dtype=dtype, shape=shape)
     n, k = shape
@@ -349,18 +354,21 @@ def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int,
 
 
 def _quantized_weight_layout(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorLayout:
+    force_f16 = checkpoint_key in _F16_TENSOR_NAMES or checkpoint_key.startswith(_F16_TENSOR_PREFIXES)
+    if force_f16:
+        return CONTIGUOUS_LAYOUT
     if dtype not in ("float32", "float16", "bfloat16"):
         return CONTIGUOUS_LAYOUT
-    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
     force_q8 = checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES)
+    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
+    if force_q8 and len(shape) >= 2:
+        _, k = _quantized_matrix_shape(shape)
+        return q8_0_halfwords_layout(logical_k=k)
     if force_q6 and len(shape) >= 2:
         _, k = _quantized_matrix_shape(shape)
         if k % 256 != 0:
             raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
         return q6_k_halfwords_layout(logical_k=k)
-    if force_q8 and len(shape) >= 2:
-        _, k = _quantized_matrix_shape(shape)
-        return q8_0_halfwords_layout(logical_k=k)
     if len(shape) != 2:
         return CONTIGUOUS_LAYOUT
     _, k = shape

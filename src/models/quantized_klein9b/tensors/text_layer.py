@@ -1470,6 +1470,8 @@ def create_text_layer(
     return tensors
 
 
+_F16_TENSOR_NAMES = frozenset(())
+_F16_TENSOR_PREFIXES = ()
 _Q6_TENSOR_NAMES = frozenset(())
 _Q6_TENSOR_PREFIXES = ()
 _Q8_TENSOR_NAMES = frozenset(())
@@ -1477,19 +1479,22 @@ _Q8_TENSOR_PREFIXES = ('model.',)
 
 
 def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorSpec:
+    force_f16 = checkpoint_key in _F16_TENSOR_NAMES or checkpoint_key.startswith(_F16_TENSOR_PREFIXES)
+    if force_f16:
+        return TensorSpec(dtype="float16", shape=shape)
     if dtype not in ("float32", "float16", "bfloat16"):
         return TensorSpec(dtype=dtype, shape=shape)
-    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
     force_q8 = checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES)
+    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
+    if force_q8 and len(shape) >= 2:
+        n, k = _quantized_matrix_shape(shape)
+        padded_k = _round_up(k, 32)
+        return TensorSpec(dtype="uint16", shape=(n, padded_k // 32 * 17))
     if force_q6 and len(shape) >= 2:
         n, k = _quantized_matrix_shape(shape)
         if k % 256 != 0:
             raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
         return TensorSpec(dtype="uint16", shape=(n, k // 256 * 105))
-    if force_q8 and len(shape) >= 2:
-        n, k = _quantized_matrix_shape(shape)
-        padded_k = _round_up(k, 32)
-        return TensorSpec(dtype="uint16", shape=(n, padded_k // 32 * 17))
     if len(shape) != 2:
         return TensorSpec(dtype=dtype, shape=shape)
     n, k = shape
@@ -1501,18 +1506,21 @@ def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int,
 
 
 def _quantized_weight_layout(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorLayout:
+    force_f16 = checkpoint_key in _F16_TENSOR_NAMES or checkpoint_key.startswith(_F16_TENSOR_PREFIXES)
+    if force_f16:
+        return CONTIGUOUS_LAYOUT
     if dtype not in ("float32", "float16", "bfloat16"):
         return CONTIGUOUS_LAYOUT
-    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
     force_q8 = checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES)
+    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
+    if force_q8 and len(shape) >= 2:
+        _, k = _quantized_matrix_shape(shape)
+        return q8_0_halfwords_layout(logical_k=k)
     if force_q6 and len(shape) >= 2:
         _, k = _quantized_matrix_shape(shape)
         if k % 256 != 0:
             raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
         return q6_k_halfwords_layout(logical_k=k)
-    if force_q8 and len(shape) >= 2:
-        _, k = _quantized_matrix_shape(shape)
-        return q8_0_halfwords_layout(logical_k=k)
     if len(shape) != 2:
         return CONTIGUOUS_LAYOUT
     _, k = shape

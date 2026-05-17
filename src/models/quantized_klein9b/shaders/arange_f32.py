@@ -13,9 +13,6 @@ from torch2vk.runtime.shader import (
     TensorFieldSpec,
     ceil_div,
 )
-from torch2vk.vulkan.shader_execution_requirements import (
-    ShaderExecutionRequirements,
-)
 
 
 ARANGE_F32 = ShaderVariant(
@@ -29,7 +26,7 @@ ARANGE_F32 = ShaderVariant(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float16', shape=('B',)),
+                contract=TensorContract(dtype='float32', shape=('B',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -43,18 +40,16 @@ ARANGE_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div('B', 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
+    execution_requirements=None,
     source="""\
 #version 450
-#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
-#extension GL_EXT_shader_16bit_storage : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(set = 0, binding = 0) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint N; float start; float step; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
-    if (idx < pc.N) { output_values[idx] = float16_t(pc.start + float(idx) * pc.step); }
+    if (idx < pc.N) { output_values[idx] = pc.start + float(idx) * pc.step; }
 }
 """,
 )

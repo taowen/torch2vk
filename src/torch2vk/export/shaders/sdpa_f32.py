@@ -132,36 +132,36 @@ void main() {
     const uint k_base = (batch * pc.NK + kv_head) * pc.S * pc.D;
     const uint v_base = k_base;
     const uint q_row_base = q_base + row * pc.D;
-    const {{ACTIVATION_TYPE}} q0 = valid0 ? {{ACTIVATION_TYPE}}(q[q_row_base + dim0]) : {{ACC_ZERO}};
-    const {{ACTIVATION_TYPE}} q1 = valid1 ? {{ACTIVATION_TYPE}}(q[q_row_base + dim1]) : {{ACC_ZERO}};
-    const {{ACTIVATION_TYPE}} scale = {{ACTIVATION_TYPE}}(inversesqrt(float(pc.D)));
-    {{ACTIVATION_TYPE}} running_max = {{ACC_NEG_INF}};
-    {{ACTIVATION_TYPE}} running_sum = {{ACC_ZERO}};
-    {{ACTIVATION_TYPE}} acc0 = {{ACC_ZERO}};
-    {{ACTIVATION_TYPE}} acc1 = {{ACC_ZERO}};
+    const float q0 = valid0 ? float(q[q_row_base + dim0]) : 0.0;
+    const float q1 = valid1 ? float(q[q_row_base + dim1]) : 0.0;
+    const float scale = inversesqrt(float(pc.D));
+    float running_max = -3.4028234663852886e38;
+    float running_sum = 0.0;
+    float acc0 = 0.0;
+    float acc1 = 0.0;
 
     for (uint col = 0u; col < pc.S; ++col) {
         const uint kv_offset = col * pc.D;
-        const {{ACTIVATION_TYPE}} k0 = valid0 ? {{ACTIVATION_TYPE}}(k[k_base + kv_offset + dim0]) : {{ACC_ZERO}};
-        const {{ACTIVATION_TYPE}} k1 = valid1 ? {{ACTIVATION_TYPE}}(k[k_base + kv_offset + dim1]) : {{ACC_ZERO}};
-        const {{ACTIVATION_TYPE}} dot = subgroupAdd(q0 * k0 + q1 * k1);
-        const {{ACTIVATION_TYPE}} score = dot * scale;
-        const {{ACTIVATION_TYPE}} next_max = score > running_max ? score : running_max;
-        const {{ACTIVATION_TYPE}} old_scale = running_max == {{ACC_NEG_INF}}
-            ? {{ACC_ZERO}}
-            : {{ACTIVATION_TYPE}}(exp(float(running_max - next_max)));
-        const {{ACTIVATION_TYPE}} score_scale = {{ACTIVATION_TYPE}}(exp(float(score - next_max)));
+        const float k0 = valid0 ? float(k[k_base + kv_offset + dim0]) : 0.0;
+        const float k1 = valid1 ? float(k[k_base + kv_offset + dim1]) : 0.0;
+        const float dot = subgroupAdd(q0 * k0 + q1 * k1);
+        const float score = dot * scale;
+        const float next_max = max(running_max, score);
+        const float old_scale = running_max == -3.4028234663852886e38
+            ? 0.0
+            : exp(running_max - next_max);
+        const float score_scale = exp(score - next_max);
         if (valid0) {
-            acc0 = acc0 * old_scale + score_scale * {{ACTIVATION_TYPE}}(v[v_base + kv_offset + dim0]);
+            acc0 = acc0 * old_scale + score_scale * float(v[v_base + kv_offset + dim0]);
         }
         if (valid1) {
-            acc1 = acc1 * old_scale + score_scale * {{ACTIVATION_TYPE}}(v[v_base + kv_offset + dim1]);
+            acc1 = acc1 * old_scale + score_scale * float(v[v_base + kv_offset + dim1]);
         }
         running_sum = running_sum * old_scale + score_scale;
         running_max = next_max;
     }
 
-    if (running_sum > {{ACC_ZERO}}) {
+    if (running_sum > 0.0) {
         const uint output_base = (batch * pc.NH + head) * pc.T * pc.D + row * pc.D;
         if (valid0) {
             output_values[output_base + dim0] = {{STORE_ACC0}};

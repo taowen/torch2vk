@@ -18,8 +18,11 @@ from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM
 
 from models.quantized_klein9b.autoencoder import AutoEncoder, AutoEncoderParams
 from models.quantized_klein9b.custom_shaders import (
-    KLEIN9B_CAPTURE_QWEN3_CTX_F16,
-    KLEIN9B_EULER_UPDATE_F16,
+    KLEIN9B_CAPTURE_QWEN3_CTX_F32,
+    KLEIN9B_CAT_PE_F32,
+    KLEIN9B_CAT_TXT_IMG_F32,
+    KLEIN9B_EULER_UPDATE_F32,
+    KLEIN9B_LATENT_F32_TO_F16,
 )
 from models.quantized_klein9b.model_sources import resolve_model_dirs
 from models.quantized_klein9b.pytorch_modules import (
@@ -52,6 +55,7 @@ from torch2vk.export.reference_codegen import (
     render_reference_module,
     render_streaming_compare_function,
 )
+from torch2vk.export.registry import DEFAULT_REGISTRY
 from torch2vk.export.graph import graph_output_names
 from torch2vk.export.tensor_codegen import layer_workspace_keep_fields, render_tensor_module
 from torch2vk.runtime.shader import ShaderVariant
@@ -165,7 +169,7 @@ class FluxDoubleBlockModule(DoubleStreamBlock):
         txt_mod2_shift: torch.Tensor,
         txt_mod2_scale: torch.Tensor,
         txt_mod2_gate: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, ...]:
         img_mod = (
             (img_mod1_shift, img_mod1_scale, img_mod1_gate),
             (img_mod2_shift, img_mod2_scale, img_mod2_gate),
@@ -174,7 +178,7 @@ class FluxDoubleBlockModule(DoubleStreamBlock):
             (txt_mod1_shift, txt_mod1_scale, txt_mod1_gate),
             (txt_mod2_shift, txt_mod2_scale, txt_mod2_gate),
         )
-        img, txt, _ = self.forward_kv_extract(
+        outputs = self.forward_kv_extract_debug(
             img,
             txt,
             pe,
@@ -183,7 +187,46 @@ class FluxDoubleBlockModule(DoubleStreamBlock):
             txt_mod,
             num_ref_tokens=0,
         )
-        return img, txt
+        return (
+            outputs["img_k_raw"],
+            outputs["txt_k_raw"],
+            outputs["img_k_rrms"],
+            outputs["txt_k_rrms"],
+            outputs["txt_q_unit"],
+            outputs["img_q_unit"],
+            outputs["txt_k_unit"],
+            outputs["img_k_unit"],
+            outputs["txt_q"],
+            outputs["img_q"],
+            outputs["txt_k"],
+            outputs["img_k"],
+            outputs["txt_v"],
+            outputs["img_v"],
+            outputs["q"],
+            outputs["k"],
+            outputs["v"],
+            outputs["pe_full"],
+            outputs["q_rope"],
+            outputs["k_rope"],
+            outputs["attn"],
+            outputs["txt_attn"],
+            outputs["img_attn"],
+            outputs["img_attn_proj"],
+            outputs["img_after_attn"],
+            outputs["img_mlp_in"],
+            outputs["img_mlp_hidden"],
+            outputs["img_mlp_act"],
+            outputs["img_mlp_out"],
+            outputs["img"],
+            outputs["txt_attn_proj"],
+            outputs["txt_after_attn"],
+            outputs["txt_mlp_in"],
+            outputs["txt_mlp_hidden"],
+            outputs["txt_mlp_act"],
+            outputs["txt_mlp_out"],
+            outputs["txt_mlp_gated"],
+            outputs["txt"],
+        )
 
 
 class FluxSingleBlockModule(SingleStreamBlock):
@@ -209,15 +252,35 @@ class FluxSingleBlockModule(SingleStreamBlock):
         mod_shift: torch.Tensor,
         mod_scale: torch.Tensor,
         mod_gate: torch.Tensor,
-    ) -> torch.Tensor:
-        hidden_states, _ = self.forward_kv_extract(
+    ) -> tuple[torch.Tensor, ...]:
+        outputs = self.forward_kv_extract_debug(
             hidden_states,
             pe,
             (mod_shift, mod_scale, mod_gate),
             self.text_seq_len,
             num_ref_tokens=0,
         )
-        return hidden_states
+        return (
+            outputs["pre_norm"],
+            outputs["x_mod"],
+            outputs["linear1"],
+            outputs["q_raw"],
+            outputs["k_raw"],
+            outputs["v"],
+            outputs["q_unit"],
+            outputs["k_unit"],
+            outputs["q"],
+            outputs["k"],
+            outputs["q_rope"],
+            outputs["k_rope"],
+            outputs["attn"],
+            outputs["mlp"],
+            outputs["mlp_act"],
+            outputs["out_input"],
+            outputs["linear2"],
+            outputs["gated"],
+            outputs["hidden_states"],
+        )
 
 
 class FluxFinalLayerModule(nn.Module):
@@ -276,7 +339,6 @@ from models.quantized_klein9b.tensors.rope import RopeTableTensors, create_rope_
 from models.quantized_klein9b.tensors.text_layer import TextLayerTensors, create_text_layer
 from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.logical import (
-    bind_logical_tensor_alias,
     bind_logical_tensor_names,
     MemoryClass,
     TensorLifetime,
@@ -293,6 +355,8 @@ class QuantizedKlein9BTensors:
     text_layers: tuple[TextLayerTensors, ...]
     ctx: LogicalTensor
     latent_tokens: LogicalTensor
+    flux_hidden_states: LogicalTensor
+    flux_pe: LogicalTensor
     flux: FluxTensors
     flux_prologue: FluxPrologueTensors
     flux_double_blocks: tuple[FluxDoubleBlockTensors, ...]
@@ -346,9 +410,17 @@ def create_model_tensors(
         text_layers_list.append(layer_tensors)
         text_hidden = layer_tensors.add_7
     text_layers = tuple(text_layers_list)
-    ctx = _request_state_tensor("float16", (1, text_seq_len, text_hidden_size * 3))
-    latent_tokens = _request_state_tensor("float16", (1, image_seq_len, 128))
+    ctx = _request_state_tensor("float32", (1, text_seq_len, text_hidden_size * 3))
+    latent_tokens = _request_state_tensor("float32", (1, image_seq_len, 128))
     ae_tokens = _request_state_tensor("float16", (1, latent_height, latent_width, 128))
+    flux_hidden_states = _frame_workspace_tensor(
+        "float32",
+        (1, text_seq_len + image_seq_len, text_hidden_size),
+    )
+    flux_pe = _frame_workspace_tensor(
+        "float32",
+        (1, 1, text_seq_len + image_seq_len, 64, 2, 2),
+    )
     flux = create_flux(
         "klein9b.flux",
         image_seq_len=image_seq_len,
@@ -364,28 +436,62 @@ def create_model_tensors(
         x=latent_tokens,
         ctx=ctx,
     )
-    flux_double_blocks = tuple(
-        create_flux_double_block(
+    flux_img = getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["img"])
+    flux_txt = getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["txt"])
+    flux_pe_x = getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["pe_x"])
+    flux_pe_ctx = getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["pe_ctx"])
+    flux_vec = getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["vec"])
+    flux_double_blocks_list: list[FluxDoubleBlockTensors] = []
+    for layer_idx in range(8):
+        layer_tensors = create_flux_double_block(
             f"klein9b.flux.double_block.{{layer_idx}}",
             layer_idx=layer_idx,
             image_seq_len=image_seq_len,
             text_seq_len=text_seq_len,
+            img=flux_img,
+            txt=flux_txt,
+            pe=flux_pe_x,
+            pe_ctx=flux_pe_ctx,
+            img_mod1_shift=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["img_mod1_shift"]),
+            img_mod1_scale=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["img_mod1_scale"]),
+            img_mod1_gate=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["img_mod1_gate"]),
+            img_mod2_shift=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["img_mod2_shift"]),
+            img_mod2_scale=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["img_mod2_scale"]),
+            img_mod2_gate=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["img_mod2_gate"]),
+            txt_mod1_shift=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["txt_mod1_shift"]),
+            txt_mod1_scale=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["txt_mod1_scale"]),
+            txt_mod1_gate=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["txt_mod1_gate"]),
+            txt_mod2_shift=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["txt_mod2_shift"]),
+            txt_mod2_scale=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["txt_mod2_scale"]),
+            txt_mod2_gate=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["txt_mod2_gate"]),
         )
-        for layer_idx in range(8)
-    )
-    flux_single_blocks = tuple(
-        create_flux_single_block(
+        flux_double_blocks_list.append(layer_tensors)
+        flux_img = getattr(layer_tensors, FLUX_DOUBLE_BLOCK_OUTPUTS["img"])
+        flux_txt = getattr(layer_tensors, FLUX_DOUBLE_BLOCK_OUTPUTS["txt"])
+    flux_double_blocks = tuple(flux_double_blocks_list)
+    flux_single_hidden = flux_hidden_states
+    flux_single_blocks_list: list[FluxSingleBlockTensors] = []
+    for layer_idx in range(24):
+        layer_tensors = create_flux_single_block(
             f"klein9b.flux.single_block.{{layer_idx}}",
             layer_idx=layer_idx,
             image_seq_len=image_seq_len,
             text_seq_len=text_seq_len,
+            hidden_states=flux_single_hidden,
+            pe=flux_pe,
+            mod_shift=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["single_mod_shift"]),
+            mod_scale=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["single_mod_scale"]),
+            mod_gate=getattr(flux_prologue, FLUX_PROLOGUE_OUTPUTS["single_mod_gate"]),
         )
-        for layer_idx in range(24)
-    )
+        flux_single_blocks_list.append(layer_tensors)
+        flux_single_hidden = getattr(layer_tensors, FLUX_SINGLE_BLOCK_OUTPUTS["hidden_states"])
+    flux_single_blocks = tuple(flux_single_blocks_list)
     flux_final_layer = create_flux_final_layer(
         "klein9b.flux.final_layer",
         image_seq_len=image_seq_len,
         text_seq_len=text_seq_len,
+        hidden_states=flux_single_hidden,
+        vec=flux_vec,
     )
     ae_decode = (
         create_ae_decode(
@@ -405,6 +511,8 @@ def create_model_tensors(
         text_layers=text_layers,
         ctx=ctx,
         latent_tokens=latent_tokens,
+        flux_hidden_states=flux_hidden_states,
+        flux_pe=flux_pe,
         flux=flux,
         flux_prologue=flux_prologue,
         flux_double_blocks=flux_double_blocks,
@@ -413,8 +521,6 @@ def create_model_tensors(
         ae_decode=ae_decode,
     )
     bind_logical_tensor_names(_MODEL_TENSORS)
-    if ae_decode is not None:
-        bind_logical_tensor_alias(latent_tokens, ae_decode.tokens)
     return _MODEL_TENSORS
 
 
@@ -452,6 +558,15 @@ def _request_state_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
         memory=MemoryClass.REQUEST_STATE,
         lifetime=TensorLifetime.REQUEST,
     )
+
+
+def _frame_workspace_tensor(dtype: str, shape: tuple[int, ...]) -> LogicalTensor:
+    return LogicalTensor(
+        spec=TensorSpec(dtype=dtype, shape=shape),
+        role=TensorRole.ACTIVATION,
+        memory=MemoryClass.FRAME_WORKSPACE,
+        lifetime=TensorLifetime.FRAME,
+    )
 ''',
         encoding="utf-8",
     )
@@ -483,6 +598,14 @@ def _shape_symbol_exprs(
                 )
             symbol_exprs[dim_source] = expression
     return symbol_exprs
+
+
+def _torch_dtype_name(dtype: torch.dtype) -> str:
+    if dtype is torch.float16:
+        return "float16"
+    if dtype is torch.float32:
+        return "float32"
+    raise ValueError(f"Unsupported activation dtype for Klein9B export: {dtype}")
 
 
 def _output_map(stage: str, names: tuple[str, ...], semantic_names: tuple[str, ...]) -> dict[str, str]:
@@ -519,7 +642,13 @@ def main() -> int:
         write_shader_file(shaders_dir, variant)
         shader_file_count += 1
 
-    for custom_variant in (KLEIN9B_CAPTURE_QWEN3_CTX_F16, KLEIN9B_EULER_UPDATE_F16):
+    for custom_variant in (
+        KLEIN9B_CAPTURE_QWEN3_CTX_F32,
+        KLEIN9B_CAT_PE_F32,
+        KLEIN9B_CAT_TXT_IMG_F32,
+        KLEIN9B_EULER_UPDATE_F32,
+        KLEIN9B_LATENT_F32_TO_F16,
+    ):
         write_generated_shader(custom_variant)
 
     reference_functions: list[str] = []
@@ -546,12 +675,20 @@ def main() -> int:
         dynamic_shapes: dict[str, Any] | tuple[Any, ...] | list[Any] | None = None,
         strict: bool = False,
         is_layered: bool | None = None,
+        export_weight_dtype: torch.dtype = torch.float32,
+        export_activation_dtype: torch.dtype | None = None,
     ) -> tuple[str, ...]:
-        module = module.float()
+        module = module.to(dtype=export_weight_dtype)
         export_dtype = module_floating_dtype(module)
-        if export_dtype is not None:
-            args = cast_floating_tensors(args, export_dtype)
-            kwargs = cast_floating_tensors(kwargs, export_dtype)
+        input_dtype = export_activation_dtype if export_activation_dtype is not None else export_dtype
+        registry = (
+            DEFAULT_REGISTRY.with_activation_dtype(_torch_dtype_name(export_activation_dtype))
+            if export_activation_dtype is not None
+            else DEFAULT_REGISTRY
+        )
+        if input_dtype is not None:
+            args = cast_floating_tensors(args, input_dtype)
+            kwargs = cast_floating_tensors(kwargs, input_dtype)
         prog = export_submodule(
             module,
             args=args,
@@ -569,6 +706,7 @@ def main() -> int:
             weight_prefix=weight_prefix,
             checkpoint=checkpoint,
             is_layered=is_layered,
+            registry=registry,
             quantization_config=quantization_config,
             shape_exprs=shape_exprs,
             shape_symbol_exprs=shape_symbol_exprs,
@@ -583,6 +721,7 @@ def main() -> int:
             class_name=tensor_class,
             function_name=dispatch_name,
             shader_package=f"{MODEL_PACKAGE}.shaders",
+            registry=registry,
             weight_prefix=weight_prefix,
             quantization_config=quantization_config,
         )
@@ -698,6 +837,8 @@ def main() -> int:
         ),
         checkpoint="flux/model.gguf",
         quantization_config=flux_config,
+        export_weight_dtype=torch.float16,
+        export_activation_dtype=torch.float32,
         shape_exprs={
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
             DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
@@ -739,6 +880,8 @@ def main() -> int:
         checkpoint="flux/model.gguf",
         weight_prefix="double_blocks.0.",
         quantization_config=flux_config,
+        export_weight_dtype=torch.float16,
+        export_activation_dtype=torch.float32,
         shape_exprs={
             DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
@@ -781,6 +924,8 @@ def main() -> int:
         checkpoint="flux/model.gguf",
         weight_prefix="single_blocks.0.",
         quantization_config=flux_config,
+        export_weight_dtype=torch.float16,
+        export_activation_dtype=torch.float32,
         shape_exprs={
             DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
@@ -807,6 +952,8 @@ def main() -> int:
         ),
         checkpoint="flux/model.gguf",
         quantization_config=flux_config,
+        export_weight_dtype=torch.float16,
+        export_activation_dtype=torch.float32,
         shape_exprs={
             DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
@@ -842,12 +989,71 @@ def main() -> int:
     flux_double_block_outputs = _output_map(
         "flux_double_block",
         flux_double_block_output_names,
-        ("img", "txt"),
+        (
+            "img_k_raw",
+            "txt_k_raw",
+            "img_k_rrms",
+            "txt_k_rrms",
+            "txt_q_unit",
+            "img_q_unit",
+            "txt_k_unit",
+            "img_k_unit",
+            "txt_q",
+            "img_q",
+            "txt_k",
+            "img_k",
+            "txt_v",
+            "img_v",
+            "q",
+            "k",
+            "v",
+            "pe_full",
+            "q_rope",
+            "k_rope",
+            "attn",
+            "txt_attn",
+            "img_attn",
+            "img_attn_proj",
+            "img_after_attn",
+            "img_mlp_in",
+            "img_mlp_hidden",
+            "img_mlp_act",
+            "img_mlp_out",
+            "img",
+            "txt_attn_proj",
+            "txt_after_attn",
+            "txt_mlp_in",
+            "txt_mlp_hidden",
+            "txt_mlp_act",
+            "txt_mlp_out",
+            "txt_mlp_gated",
+            "txt",
+        ),
     )
     flux_single_block_outputs = _output_map(
         "flux_single_block",
         flux_single_block_output_names,
-        ("hidden_states",),
+        (
+            "pre_norm",
+            "x_mod",
+            "linear1",
+            "q_raw",
+            "k_raw",
+            "v",
+            "q_unit",
+            "k_unit",
+            "q",
+            "k",
+            "q_rope",
+            "k_rope",
+            "attn",
+            "mlp",
+            "mlp_act",
+            "out_input",
+            "linear2",
+            "gated",
+            "hidden_states",
+        ),
     )
     flux_final_layer_outputs = _output_map(
         "flux_final_layer",
@@ -869,7 +1075,7 @@ def main() -> int:
                 dispatch_source="_dispatch_flux_prologue",
                 tensors="model_tensors().flux_prologue",
                 frame_name="klein9b.flux.compare.{step:04d}.prologue",
-                policy="q4_tensor",
+                policy="tensor",
                 input_bindings={
                     "x": "x",
                     "x_ids": "x_ids",
@@ -884,7 +1090,7 @@ def main() -> int:
                 dispatch_source="_dispatch_flux_double_block",
                 tensors="model_tensors().flux_double_blocks[layer_idx]",
                 frame_name="klein9b.flux.compare.{step:04d}.double_block.{layer_idx}",
-                policy="q4_tensor",
+                policy="tensor",
                 input_bindings={
                     "img": "img",
                     "txt": "txt",
@@ -911,7 +1117,7 @@ def main() -> int:
                 dispatch_source="_dispatch_flux_single_block",
                 tensors="model_tensors().flux_single_blocks[layer_idx]",
                 frame_name="klein9b.flux.compare.{step:04d}.single_block.{layer_idx}",
-                policy="q4_tensor",
+                policy="tensor",
                 input_bindings={
                     "hidden_states": "hidden_states",
                     "pe": "pe",
@@ -927,7 +1133,7 @@ def main() -> int:
                 dispatch_source="_dispatch_flux_final_layer",
                 tensors="model_tensors().flux_final_layer",
                 frame_name="klein9b.flux.compare.{step:04d}.final_layer",
-                policy="q4_tensor",
+                policy="tensor",
                 input_bindings={
                     "hidden_states": "hidden_states",
                     "vec": "vec",
@@ -953,6 +1159,8 @@ def main() -> int:
         ),
         checkpoint="flux/model.gguf",
         quantization_config=flux_config,
+        export_weight_dtype=torch.float16,
+        export_activation_dtype=torch.float32,
         shape_exprs={
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
             DEFAULT_TEXT_SEQ_LEN: "text_seq_len",

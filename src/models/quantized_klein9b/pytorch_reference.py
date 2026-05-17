@@ -76,7 +76,7 @@ class FluxStreamingReference:
         model_dir: str | Path,
         *,
         device: str | torch.device = "cuda",
-        dtype: torch.dtype = torch.bfloat16,
+        dtype: torch.dtype = torch.float32,
     ) -> None:
         self.device = torch.device(device)
         self.dtype = dtype
@@ -208,7 +208,7 @@ class FluxStreamingReference:
                 "txt_mod2_scale": double_block_mod_txt[1][1],
                 "txt_mod2_gate": double_block_mod_txt[1][2],
             }
-            img_hidden, txt_hidden, _ = block.forward_kv_extract(
+            block_outputs = block.forward_kv_extract_debug(
                 img_hidden,
                 txt_hidden,
                 pe_x,
@@ -217,12 +217,14 @@ class FluxStreamingReference:
                 double_block_mod_txt,
                 num_ref_tokens=0,
             )
+            img_hidden = block_outputs["img"]
+            txt_hidden = block_outputs["txt"]
             if stage_callback is not None:
                 stage_callback(
                     "double_block",
                     layer_idx,
                     block_inputs,
-                    {"img": img_hidden, "txt": txt_hidden},
+                    block_outputs,
                 )
             del block
             _release_cuda_cache()
@@ -246,19 +248,20 @@ class FluxStreamingReference:
                 "mod_scale": single_block_mod[1],
                 "mod_gate": single_block_mod[2],
             }
-            img_hidden, _ = block.forward_kv_extract(
+            block_outputs = block.forward_kv_extract_debug(
                 img_hidden,
                 pe,
                 single_block_mod,
                 num_txt_tokens,
                 num_ref_tokens=0,
             )
+            img_hidden = block_outputs["hidden_states"]
             if stage_callback is not None:
                 stage_callback(
                     "single_block",
                     layer_idx,
                     block_inputs,
-                    {"hidden_states": img_hidden},
+                    block_outputs,
                 )
             del block
             _release_cuda_cache()

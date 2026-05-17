@@ -43,8 +43,8 @@ SLICE_F32 = ShaderVariant(
             size=16,
             fields=(
                 PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), dynamic=False),
-                PushConstantFieldSpec('IN_STRIDE', PushConstantType.UINT32, 4, 128, dynamic=False),
-                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 8, 64, dynamic=False),
+                PushConstantFieldSpec('IN_STRIDE', PushConstantType.UINT32, 4, mul('I3', 1), dynamic=False),
+                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 8, mul('O3', 1), dynamic=False),
                 PushConstantFieldSpec('OFFSET', PushConstantType.UINT32, 12, 0, dynamic=False),
             ),
         ),

@@ -51,6 +51,7 @@ void main() {
 _BROADCAST_LAST_SOURCE = """\
 #version 450
 {{ACTIVATION_EXTENSION}}\
+{{WEIGHT_EXTENSION}}\
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { {{X_TYPE}} x[]; };
 layout(set = 0, binding = 1) buffer restrict readonly YBuffer { {{Y_TYPE}} y[]; };
@@ -192,7 +193,7 @@ def _same_source_for_dtypes(x_dtype: str, y_dtype: str, output_dtype: str) -> st
         )
         .replace(
             "{{WEIGHT_EXTENSION}}",
-            weight_extension_source("bfloat16") if "bfloat16" in {x_dtype, y_dtype} else "",
+            _mixed_float_extension_source(x_dtype, y_dtype),
         )
         .replace("{{X_TYPE}}", _glsl_type(x_dtype))
         .replace("{{Y_TYPE}}", _glsl_type(y_dtype))
@@ -516,7 +517,7 @@ def _right_broadcast_source(x_dtype: str, y_dtype: str, activation_dtype: str) -
         )
         .replace(
             "{{WEIGHT_EXTENSION}}",
-            weight_extension_source("bfloat16") if "bfloat16" in {x_dtype, y_dtype} else "",
+            _mixed_float_extension_source(x_dtype, y_dtype),
         )
         .replace("{{X_TYPE}}", _glsl_type(x_dtype))
         .replace("{{Y_TYPE}}", _glsl_type(y_dtype))
@@ -696,7 +697,7 @@ def _broadcast_general_source(
         )
         .replace(
             "{{WEIGHT_EXTENSION}}",
-            weight_extension_source("bfloat16") if "bfloat16" in {x_dtype, y_dtype} else "",
+            _mixed_float_extension_source(x_dtype, y_dtype),
         )
         .replace("{{X_TYPE}}", _glsl_type(x_dtype))
         .replace("{{Y_TYPE}}", _glsl_type(y_dtype))
@@ -736,6 +737,7 @@ def _broadcast_last_source(*, activation_dtype: str, y_dtype: str) -> str:
         _BROADCAST_LAST_SOURCE.replace(
             "{{ACTIVATION_EXTENSION}}", activation_extension_source(activation_dtype)
         )
+        .replace("{{WEIGHT_EXTENSION}}", _mixed_float_extension_source(activation_dtype, y_dtype))
         .replace("{{X_TYPE}}", activation_glsl_type(activation_dtype))
         .replace("{{Y_TYPE}}", activation_glsl_type(y_dtype))
         .replace("{{OUT_TYPE}}", activation_glsl_type(activation_dtype))
@@ -763,7 +765,7 @@ def _broadcast_inner_source(
         )
         .replace(
             "{{WEIGHT_EXTENSION}}",
-            weight_extension_source("bfloat16") if "bfloat16" in {x_dtype, y_dtype} else "",
+            _mixed_float_extension_source(x_dtype, y_dtype),
         )
         .replace("{{X_TYPE}}", _glsl_type(x_dtype))
         .replace("{{Y_TYPE}}", _glsl_type(y_dtype))
@@ -779,6 +781,14 @@ def _mul_expr(lhs: str, rhs: str, lhs_dtype: str, rhs_dtype: str) -> str:
     if lhs_dtype == rhs_dtype and lhs_dtype in {"float16", "float32"}:
         return f"{lhs} * {rhs}"
     return f"float({lhs}) * float({rhs})"
+
+
+def _mixed_float_extension_source(*dtypes: str) -> str:
+    parts: list[str] = []
+    for dtype in ("float16", "bfloat16"):
+        if dtype in dtypes:
+            parts.append(weight_extension_source(dtype))
+    return "".join(parts)
 
 
 def _glsl_type(dtype: str) -> str:

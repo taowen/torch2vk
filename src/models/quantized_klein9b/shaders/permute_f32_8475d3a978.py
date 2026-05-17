@@ -14,9 +14,6 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
-from torch2vk.vulkan.shader_execution_requirements import (
-    ShaderExecutionRequirements,
-)
 
 
 PERMUTE_F32_8475D3A978 = ShaderVariant(
@@ -30,13 +27,13 @@ PERMUTE_F32_8475D3A978 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float16', shape=('I0', 'I1', 'I2', 'I3', 'I4',)),
+                contract=TensorContract(dtype='float32', shape=('I0', 'I1', 'I2', 'I3', 'I4',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float16', shape=('O0', 'O1', 'O2', 'O3', 'O4',)),
+                contract=TensorContract(dtype='float32', shape=('O0', 'O1', 'O2', 'O3', 'O4',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -58,14 +55,12 @@ PERMUTE_F32_8475D3A978 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul(mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), 'O4'), 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
+    execution_requirements=None,
     source="""\
 #version 450
-#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
-#extension GL_EXT_shader_16bit_storage : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
-layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants {
     uint N;
     uint O0;

@@ -13,9 +13,6 @@ from torch2vk.runtime.shader import (
     TensorFieldSpec,
     ceil_div,
 )
-from torch2vk.vulkan.shader_execution_requirements import (
-    ShaderExecutionRequirements,
-)
 
 
 FLUX_FINAL_LAYER_SILU_F32 = ShaderVariant(
@@ -29,13 +26,13 @@ FLUX_FINAL_LAYER_SILU_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float16', shape=(1, 'T',)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float16', shape=(1, 'T',)),
+                contract=TensorContract(dtype='float32', shape=(1, 'T',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -47,21 +44,19 @@ FLUX_FINAL_LAYER_SILU_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div('T', 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
+    execution_requirements=None,
     source="""\
 #version 450
-#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
-#extension GL_EXT_shader_16bit_storage : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
-layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint N; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
     const uint idx = gl_GlobalInvocationID.x;
     if (idx < pc.N) {
         const float v = float(x[idx]);
-        output_values[idx] = float16_t(v / (1.0 + exp(-v)));
+        output_values[idx] = v / (1.0 + exp(-v));
     }
 }
 """,

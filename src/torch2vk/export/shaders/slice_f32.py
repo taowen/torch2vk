@@ -20,6 +20,7 @@ from torch2vk.runtime.shader import (
     TensorContract,
     TensorFieldSpec,
     ceil_div,
+    mul,
 )
 
 _SOURCE = """\
@@ -53,27 +54,13 @@ def make_slice_variant(node: Node, activation_dtype: str = "float32") -> ShaderV
     if dim < 0:
         dim = len(in_shape) + dim
 
-    in_dim_size = in_shape[dim]
-    out_dim_size = out_shape[dim]
-
-    in_stride = 1
-    for d in in_shape[dim + 1 :]:
-        in_stride *= d
-    out_stride = 1
-    for d in out_shape[dim + 1 :]:
-        out_stride *= d
-
-    if dim == len(in_shape) - 1:
-        in_stride_val = in_dim_size
-        out_stride_val = out_dim_size
-        offset = start
-    else:
-        in_stride_val = in_dim_size * in_stride
-        out_stride_val = out_dim_size * out_stride
-        offset = start * in_stride
-
     in_contract = tuple(f"I{i}" for i in range(len(in_shape)))
     out_contract = tuple(f"O{i}" for i in range(len(out_shape)))
+    inner_stride = product_expr(in_contract[dim + 1 :])
+    out_inner_stride = product_expr(out_contract[dim + 1 :])
+    in_stride_val = mul(in_contract[dim], inner_stride)
+    out_stride_val = mul(out_contract[dim], out_inner_stride)
+    offset = 0 if start == 0 else mul(start, inner_stride)
     n_out = product_expr(out_contract)
 
     return ShaderVariant(

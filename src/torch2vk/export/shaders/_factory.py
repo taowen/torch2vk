@@ -112,6 +112,8 @@ def _node_dtype(node: Node) -> str:
 def weight_dtype_suffix(dtype: str) -> str:
     if dtype == "bfloat16":
         return "bf16"
+    if dtype == "float16":
+        return "f16"
     if dtype == "float32":
         return "f32"
     raise ValueError(f"Unsupported weight dtype for shader generation: {dtype}")
@@ -120,6 +122,8 @@ def weight_dtype_suffix(dtype: str) -> str:
 def weight_glsl_type(dtype: str) -> str:
     if dtype == "bfloat16":
         return "bfloat16_t"
+    if dtype == "float16":
+        return "float16_t"
     if dtype == "float32":
         return "float"
     raise ValueError(f"Unsupported weight dtype for shader generation: {dtype}")
@@ -128,6 +132,8 @@ def weight_glsl_type(dtype: str) -> str:
 def weight_zero_literal(dtype: str) -> str:
     if dtype == "bfloat16":
         return "bfloat16_t(0.0)"
+    if dtype == "float16":
+        return "float16_t(0.0)"
     if dtype == "float32":
         return "0.0"
     raise ValueError(f"Unsupported weight dtype for shader generation: {dtype}")
@@ -136,6 +142,8 @@ def weight_zero_literal(dtype: str) -> str:
 def weight_extension_source(dtype: str) -> str:
     if dtype == "bfloat16":
         return "#extension GL_EXT_bfloat16 : require\n"
+    if dtype == "float16":
+        return activation_extension_source("float16")
     if dtype == "float32":
         return ""
     raise ValueError(f"Unsupported weight dtype for shader generation: {dtype}")

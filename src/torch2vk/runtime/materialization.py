@@ -418,6 +418,7 @@ def release_layer_workspace(
     rt._require_open()
     if not layer:
         raise ValueError("release_layer_workspace requires a non-empty layer")
+    keep = _expand_alias_keep_tensors(keep)
     keep_ids = {id(tensor) for tensor in keep}
     for tensor in collect_named_logical_tensors(layer_tensors).values():
         if id(tensor) in keep_ids:
@@ -433,6 +434,18 @@ def release_layer_workspace(
         if tensor.buffer is None:
             continue
         _release_frame_tensor_allocation(rt, tensor, keep=keep)
+
+
+def _expand_alias_keep_tensors(keep: Sequence[LogicalTensor]) -> tuple[LogicalTensor, ...]:
+    expanded: list[LogicalTensor] = []
+    seen: set[int] = set()
+    for tensor in keep:
+        current: LogicalTensor | None = tensor
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            expanded.append(current)
+            current = current.alias_source
+    return tuple(expanded)
 
 
 def _release_frame_tensor_allocation(

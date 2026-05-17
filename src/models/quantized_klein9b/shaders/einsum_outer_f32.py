@@ -36,13 +36,13 @@ EINSUM_OUTER_F32 = ShaderVariant(
                 name='y',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float16', shape=('Y0',)),
+                contract=TensorContract(dtype='float32', shape=('Y0',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float16', shape=('O0', 'O1', 'O2',)),
+                contract=TensorContract(dtype='float32', shape=('O0', 'O1', 'O2',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -55,16 +55,14 @@ EINSUM_OUTER_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(ceil_div(mul(mul('O0', 'O1'), 'O2'), 256), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True, require_storage_buffer_16bit_access=True),
+    execution_requirements=ShaderExecutionRequirements(require_shader_int64=True),
     source="""\
 #version 450
-#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
-#extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 layout(std430) buffer;
 layout(set = 0, binding = 0) buffer restrict readonly XBuffer { int64_t x[]; };
-layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float16_t y[]; };
-layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(set = 0, binding = 1) buffer restrict readonly YBuffer { float y[]; };
+layout(set = 0, binding = 2) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint N_OUT; uint D; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() {
@@ -72,7 +70,7 @@ void main() {
     if (idx < pc.N_OUT) {
         const uint d = idx % pc.D;
         const uint x_idx = idx / pc.D;
-        output_values[idx] = float16_t(float(x[x_idx]) * float(y[d]));
+        output_values[idx] = float(x[x_idx]) * float(y[d]);
     }
 }
 """,

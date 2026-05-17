@@ -14,11 +14,17 @@ from PIL import Image
 from transformers import AutoTokenizer
 
 from models.quantized_klein9b.custom_shaders import (
-    KLEIN9B_CAPTURE_QWEN3_CTX_F16,
-    KLEIN9B_EULER_UPDATE_F16,
+    KLEIN9B_CAPTURE_QWEN3_CTX_F32,
+    KLEIN9B_CAT_PE_F32,
+    KLEIN9B_CAT_TXT_IMG_F32,
+    KLEIN9B_EULER_UPDATE_F32,
+    KLEIN9B_LATENT_F32_TO_F16,
 )
 from models.quantized_klein9b.dispatch.ae_decode import run_ae_decode
-from models.quantized_klein9b.dispatch.flux import run_flux
+from models.quantized_klein9b.dispatch.flux_double_block import run_flux_double_block
+from models.quantized_klein9b.dispatch.flux_final_layer import run_flux_final_layer
+from models.quantized_klein9b.dispatch.flux_prologue import run_flux_prologue
+from models.quantized_klein9b.dispatch.flux_single_block import run_flux_single_block
 from models.quantized_klein9b.dispatch.text_embed import run_text_embed
 from models.quantized_klein9b.dispatch.text_layer import run_text_layer
 from models.quantized_klein9b.export import DEFAULT_TEXT_SEQ_LEN
@@ -29,10 +35,17 @@ from models.quantized_klein9b.export_gguf import (
 )
 from models.quantized_klein9b.model_sources import resolve_model_dirs
 from models.quantized_klein9b.tensors.model import (
+    FLUX_DOUBLE_BLOCK_OUTPUTS,
+    FLUX_FINAL_LAYER_OUTPUTS,
+    FLUX_PROLOGUE_OUTPUTS,
+    FLUX_SINGLE_BLOCK_OUTPUTS,
+    QuantizedKlein9BTensors,
     create_model_tensors,
     image_output,
     model_tensors,
 )
+from models.quantized_klein9b.tensors.flux_double_block import FluxDoubleBlockTensors
+from torch2vk.runtime.logical import LogicalTensor
 from torch2vk.runtime.rope_table import ROPE_TABLE_F32
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
@@ -79,13 +92,6 @@ def _ensure_ggufs(
     ae_dir: Path,
     output_dir: Path,
 ) -> Klein9BGGUFPaths:
-    paths = Klein9BGGUFPaths(
-        flux=output_dir / "flux" / "model.gguf",
-        text_encoder=output_dir / "text_encoder" / "model.gguf",
-        ae=output_dir / "ae" / "model.gguf",
-    )
-    if paths.flux.is_file() and paths.text_encoder.is_file() and paths.ae.is_file():
-        return paths
     return export_klein9b_q4_k_m_ggufs(
         model_dir=model_dir,
         text_encoder_dir=text_encoder_dir,
@@ -122,7 +128,7 @@ def _latent_tokens_and_ids(*, width: int, height: int, seed: int) -> tuple[np.nd
     latent_h = height // 16
     latent_w = width // 16
     rng = np.random.default_rng(seed)
-    tokens = rng.standard_normal((1, latent_h * latent_w, 128)).astype(np.float16)
+    tokens = rng.standard_normal((1, latent_h * latent_w, 128)).astype(np.float32)
     ids = np.zeros((1, latent_h * latent_w, 4), dtype=np.int64)
     offset = 0
     for h in range(latent_h):
@@ -153,7 +159,7 @@ def _run_text_encoder(rt: RuntimeSession, *, rope_theta: float) -> float:
         run_text_embed(rt)
         for layer_idx in range(len(tensors.text_layers)):
             run_text_layer(rt, layer_idx)
-        KLEIN9B_CAPTURE_QWEN3_CTX_F16(
+        KLEIN9B_CAPTURE_QWEN3_CTX_F32(
             rt,
             layer_9=tensors.text_layers[8].add_7,
             layer_18=tensors.text_layers[17].add_7,
@@ -168,22 +174,99 @@ def _run_denoise(rt: RuntimeSession, *, timesteps: list[float]) -> float:
     start = time.perf_counter()
     for step, (t_curr, t_prev) in enumerate(zip(timesteps[:-1], timesteps[1:], strict=True)):
         rt.register_host_inputs(
-            {tensors.flux.timesteps: np.array([t_curr], dtype=np.float16)}
+            {tensors.flux_prologue.timesteps: np.array([t_curr], dtype=np.float32)}
         )
         with rt.frame(f"klein9b.flux.{step:04d}"):
-            run_flux(rt)
-            KLEIN9B_EULER_UPDATE_F16(
+            run_flux_prologue(rt)
+            rt.release_layer_workspace(
+                tensors.flux_prologue,
+                layer="klein9b.flux.prologue",
+                keep=_flux_prologue_outputs(tensors),
+            )
+            previous_double = None
+            for layer_idx, layer_tensors in enumerate(tensors.flux_double_blocks):
+                run_flux_double_block(rt, layer_idx)
+                if previous_double is not None:
+                    rt.release_layer_workspace(
+                        previous_double,
+                        layer=f"klein9b.flux.double_block.{layer_idx - 1}",
+                    )
+                rt.release_layer_workspace(
+                    layer_tensors,
+                    layer=f"klein9b.flux.double_block.{layer_idx}",
+                    keep=_flux_double_outputs(layer_tensors),
+                )
+                previous_double = layer_tensors
+            final_double = tensors.flux_double_blocks[-1]
+            KLEIN9B_CAT_TXT_IMG_F32(
+                rt,
+                txt=getattr(final_double, FLUX_DOUBLE_BLOCK_OUTPUTS["txt"]),
+                img=getattr(final_double, FLUX_DOUBLE_BLOCK_OUTPUTS["img"]),
+                output=tensors.flux_hidden_states,
+            )
+            KLEIN9B_CAT_PE_F32(
+                rt,
+                pe_ctx=getattr(tensors.flux_prologue, FLUX_PROLOGUE_OUTPUTS["pe_ctx"]),
+                pe_x=getattr(tensors.flux_prologue, FLUX_PROLOGUE_OUTPUTS["pe_x"]),
+                output=tensors.flux_pe,
+            )
+            rt.release_layer_workspace(
+                final_double,
+                layer=f"klein9b.flux.double_block.{len(tensors.flux_double_blocks) - 1}",
+            )
+            previous_single = None
+            for layer_idx, layer_tensors in enumerate(tensors.flux_single_blocks):
+                run_flux_single_block(rt, layer_idx)
+                if previous_single is not None:
+                    rt.release_layer_workspace(
+                        previous_single,
+                        layer=f"klein9b.flux.single_block.{layer_idx - 1}",
+                    )
+                rt.release_layer_workspace(
+                    layer_tensors,
+                    layer=f"klein9b.flux.single_block.{layer_idx}",
+                    keep=(getattr(layer_tensors, FLUX_SINGLE_BLOCK_OUTPUTS["hidden_states"]),),
+                )
+                previous_single = layer_tensors
+            run_flux_final_layer(rt)
+            KLEIN9B_EULER_UPDATE_F32(
                 rt,
                 x=tensors.latent_tokens,
-                pred=tensors.flux.linear_120,
+                pred=getattr(tensors.flux_final_layer, FLUX_FINAL_LAYER_OUTPUTS["pred"]),
                 dt=float(t_prev - t_curr),
             )
+            if previous_single is not None:
+                rt.release_layer_workspace(
+                    previous_single,
+                    layer=f"klein9b.flux.single_block.{len(tensors.flux_single_blocks) - 1}",
+                )
+            rt.release_layer_workspace(
+                tensors.flux_final_layer,
+                layer="klein9b.flux.final_layer",
+            )
     return time.perf_counter() - start
+
+
+def _flux_prologue_outputs(tensors: QuantizedKlein9BTensors) -> tuple[LogicalTensor, ...]:
+    return tuple(getattr(tensors.flux_prologue, name) for name in FLUX_PROLOGUE_OUTPUTS.values())
+
+
+def _flux_double_outputs(tensors: FluxDoubleBlockTensors) -> tuple[LogicalTensor, ...]:
+    return tuple(getattr(tensors, name) for name in FLUX_DOUBLE_BLOCK_OUTPUTS.values())
 
 
 def _run_ae_decode(rt: RuntimeSession) -> tuple[float, np.ndarray]:
     start = time.perf_counter()
     with rt.frame("klein9b.ae_decode"):
+        tensors = model_tensors()
+        ae_decode = tensors.ae_decode
+        if ae_decode is None:
+            raise RuntimeError("AE decode tensors were not created")
+        KLEIN9B_LATENT_F32_TO_F16(
+            rt,
+            x=tensors.latent_tokens,
+            output=ae_decode.tokens,
+        )
         run_ae_decode(rt)
     image = rt.read_request_state(image_output()).astype(np.float32)
     return time.perf_counter() - start, image
@@ -245,8 +328,8 @@ def main(
         tensors = model_tensors()
         request_inputs = {
             _tensor_name(tensors.input_ids.name): input_ids,
-            _tensor_name(tensors.flux.x_ids.name): latent_ids,
-            _tensor_name(tensors.flux.ctx_ids.name): text_ids,
+            _tensor_name(tensors.flux_prologue.x_ids.name): latent_ids,
+            _tensor_name(tensors.flux_prologue.ctx_ids.name): text_ids,
         }
         request_state = {tensors.latent_tokens: latent_tokens}
         with rt.request(inputs=request_inputs, state=request_state):

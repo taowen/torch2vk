@@ -13,9 +13,6 @@ from torch2vk.runtime.shader import (
     TensorFieldSpec,
     mul,
 )
-from torch2vk.vulkan.shader_execution_requirements import (
-    ShaderExecutionRequirements,
-)
 
 
 LAYER_NORM_NONEW_NONEB_F32 = ShaderVariant(
@@ -29,13 +26,13 @@ LAYER_NORM_NONEW_NONEB_F32 = ShaderVariant(
                 name='x',
                 io_kind=IOKind.INPUT,
                 role='input',
-                contract=TensorContract(dtype='float16', shape=('I0', 'I1', 'I2',)),
+                contract=TensorContract(dtype='float32', shape=('I0', 'I1', 'I2',)),
             ),
             TensorFieldSpec(
                 name='output',
                 io_kind=IOKind.OUTPUT,
                 role='output',
-                contract=TensorContract(dtype='float16', shape=('O0', 'O1', 'O2',)),
+                contract=TensorContract(dtype='float32', shape=('O0', 'O1', 'O2',)),
             ),
         ),
         push_constants=PushConstantSpec(
@@ -49,14 +46,12 @@ LAYER_NORM_NONEW_NONEB_F32 = ShaderVariant(
         params_buffer=None,
         dispatch=(mul('I0', 'I1'), 1, 1),
     ),
-    execution_requirements=ShaderExecutionRequirements(require_storage_buffer_16bit_access=True),
+    execution_requirements=None,
     source="""\
 #version 450
-#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
-#extension GL_EXT_shader_16bit_storage : require
 layout(std430) buffer;
-layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float16_t x[]; };
-layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float16_t output_values[]; };
+layout(set = 0, binding = 0) buffer restrict readonly XBuffer { float x[]; };
+layout(set = 0, binding = 1) buffer restrict writeonly OutputBuffer { float output_values[]; };
 layout(push_constant) uniform PushConstants { uint ROWS; uint COLS; float eps; } pc;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 shared float partial_sum[256];
@@ -87,7 +82,7 @@ void main() {
     float inv_std = inversesqrt(var + pc.eps);
     for (uint c = tid; c < pc.COLS; c += 256u) {
         uint idx = row * pc.COLS + c;
-        output_values[idx] = float16_t((float(x[idx]) - mean) * inv_std);
+        output_values[idx] = (float(x[idx]) - mean) * inv_std;
     }
 }
 """,
