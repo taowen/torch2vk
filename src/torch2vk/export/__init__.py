@@ -25,10 +25,8 @@ from torch2vk.export.checkpoint_dtypes import (
 )
 from torch2vk.export.reference_codegen import (
     ReferencePolicy,
-    render_exported_reference_function,
-    render_reference_function,
-    render_reference_loader,
     render_reference_module,
+    render_streaming_compare_function,
 )
 from torch2vk.export.tensor_codegen import (
     TensorClassContext,
@@ -65,10 +63,8 @@ __all__ = [
     "generate_weight_tensor_class_source",
     "module_floating_dtype",
     "rename_shader_variant",
-    "render_exported_reference_function",
-    "render_reference_function",
-    "render_reference_loader",
     "render_reference_module",
+    "render_streaming_compare_function",
     "render_model_dispatch_module",
     "set_module_checkpoint_dtypes",
     "write_shader_file",

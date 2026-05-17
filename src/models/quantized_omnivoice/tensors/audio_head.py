@@ -40,7 +40,7 @@ def create_audio_head(
     linear: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> AudioHeadTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('linear',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'linear'}))
     tensors = AudioHeadTensors(
         p_weight=_bind_tensor(
             p_weight,

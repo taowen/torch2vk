@@ -1,9 +1,0 @@
-{
-  "repo_id": "black-forest-labs/FLUX.2-klein-9B",
-  "image_seq_len": 1024,
-  "latent_height": 32,
-  "latent_width": 32,
-  "text_seq_len": 512,
-  "num_text_layers": 36,
-  "generated_by": "models.quantized_klein9b.export"
-}

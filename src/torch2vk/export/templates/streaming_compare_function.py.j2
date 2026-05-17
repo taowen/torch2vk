@@ -1,26 +1,26 @@
 def {{ function_name }}(
     rt: RuntimeSession,
-{% if needs_reference %}
-    reference: ArrayReference,
-{% endif %}
     *,
 {% for param in extra_params %}
     {{ param.name }}: {{ param.type }},
 {% endfor %}
+    expected: ReferenceExpected,
 {% for input_name in input_names %}
     {{ input_name }}: ReferenceInput,
 {% endfor %}
 ) -> ReferenceExpected:
-    return _execute_and_compare(
+    return compare_vulkan_stage(
         rt,
         name={{ name_source }},
-        reference={{ reference_source }},
+        run=lambda: {{ dispatch_source }}(rt{% for arg in dispatch_args %}, {{ arg }}{% endfor %}{% for kwarg in dispatch_kwargs %}, {{ kwarg }}=_reference_int({{ kwarg }}){% endfor %}),
         tensors={{ tensors_source }},
+        input_bindings={{ input_bindings_source }},
         output_bindings={{ output_bindings_source }},
         policy=_policy({{ policy_source }}),
         inputs={
-{% for input_name in input_names %}
+{% for input_name in stage_input_names %}
             {{ input_name|tojson }}: {{ input_name }},
 {% endfor %}
         },
+        expected=expected,
     )

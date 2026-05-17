@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from torch.export.graph_signature import InputKind
 
 from models.hf_cache import resolve_cached_model
 from models.optimized_qwen3_asr.execution import prepare_qwen3_asr_inputs
@@ -31,7 +32,7 @@ from torch2vk.export import (
     export_submodule,
     module_floating_dtype,
 )
-from torch2vk.export.graph import inject_kv_cache
+from torch2vk.export.graph import graph_output_names, inject_kv_cache
 from torch2vk.export.shaders.lm_head_q6_k_argmax_partial_f16 import (
     LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
 )
@@ -47,10 +48,8 @@ from torch2vk.export.dispatch_codegen import (
     render_model_dispatch_module,
 )
 from torch2vk.export.reference_codegen import (
-    render_exported_reference_function,
-    render_reference_function,
-    render_reference_loader,
     render_reference_module,
+    render_streaming_compare_function,
 )
 from torch2vk.export.shader_codegen import (
     clear_python_modules,
@@ -256,42 +255,7 @@ def main() -> int:
         write_generated_shader(variant)
 
     reference_functions: list[str] = []
-    loader_fields: list[str] = []
-    loader_sources: list[str] = []
-    reference_functions.append(render_reference_function(
-        name="token_select",
-        reference_source="reference",
-        tensors="model_tensors()",
-        frame_name="{name}",
-        policy="token",
-        input_bindings={
-            "logits": "logits",
-            "eos_token_ids": "eos_token_ids",
-        },
-        output_bindings={"next_token": "next_token", "done": "done"},
-        needs_reference=True,
-    ))
-    reference_functions.append(render_reference_function(
-        name="token_store",
-        reference_source="reference",
-        tensors="model_tensors()",
-        frame_name="{name}",
-        policy="token",
-        input_bindings={
-            "next_token": "next_token",
-            "token_index": "token_index",
-            "done": "done",
-            "generated_tokens": "generated_tokens",
-            "generated_length": "generated_length",
-            "stopped": "stopped",
-        },
-        output_bindings={
-            "generated_tokens": "generated_tokens",
-            "generated_length": "generated_length",
-            "stopped": "stopped",
-        },
-        needs_reference=True,
-    ))
+    reference_dispatch_imports: list[str] = []
 
     def export_one(
         name,
@@ -307,7 +271,8 @@ def main() -> int:
         reference_tensors=None,
         reference_name=None,
         reference_policy: ReferencePolicy = "tensor",
-        reference_module=None,
+        compare_dispatch_args=(),
+        compare_dispatch_kwargs=(),
         quantization_config: Q4KMQuantizationConfig | None = None,
         shape_exprs: dict[int, str] | None = None,
     ):
@@ -322,26 +287,32 @@ def main() -> int:
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
         tensor_file = _tensor_file_name(cls_name)
-        reference_source = "reference"
-        if reference_module is not None:
-            loader_fields.append(func_name)
-            loader_sources.append(
-                render_reference_loader(
-                    field=func_name,
-                    module_path=reference_module,
-                )
+        reference_dispatch_imports.append(
+            f"from {MODEL_PACKAGE}.dispatch.{func_name} import {name} as _dispatch_{func_name}"
+        )
+        reference_functions.append(
+            render_streaming_compare_function(
+                name=func_name,
+                dispatch_source=f"_dispatch_{func_name}",
+                tensors=reference_tensors
+                if reference_tensors is not None
+                else f"model_tensors().{func_name}",
+                frame_name=reference_name if reference_name is not None else func_name,
+                policy=reference_policy,
+                input_bindings=reference_input_bindings
+                if reference_input_bindings is not None
+                else {
+                    spec.arg.name: spec.arg.name
+                    for spec in prog.graph_signature.input_specs
+                    if spec.kind == InputKind.USER_INPUT
+                },
+                output_bindings=reference_output_bindings
+                if reference_output_bindings is not None
+                else {name: name for name in graph_output_names(prog.graph_module.graph)},
+                dispatch_args=tuple(compare_dispatch_args),
+                dispatch_kwargs=tuple(compare_dispatch_kwargs),
             )
-            reference_source = f"_load_{func_name}()"
-        reference_functions.append(render_exported_reference_function(
-            prog,
-            name=func_name,
-            reference_source=reference_source,
-            tensors=reference_tensors if reference_tensors is not None else f"model_tensors().{func_name}",
-            frame_name=reference_name if reference_name is not None else func_name,
-            policy=reference_policy,
-            input_bindings=reference_input_bindings,
-            output_bindings=reference_output_bindings,
-        ))
+        )
 
         workspace_keep_fields = ()
         if layer_loop is not None:
@@ -488,7 +459,6 @@ def main() -> int:
     export_one("run_embed_tokens", model.thinker.model.embed_tokens.float(),
                args=(torch.zeros((1, pl), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.",
-               reference_module="thinker.model.embed_tokens",
                reference_tensors="model_tensors().embed_tokens",
                reference_name="spike.text.embed",
                reference_policy="q8_tensor",
@@ -530,12 +500,12 @@ def main() -> int:
                reference_tensors="model_tensors().text_layers[layer_idx]",
                reference_name="spike.text.layer.{layer_idx}",
                reference_policy="q4_tensor",
+               compare_dispatch_args=("layer_idx",),
                quantization_config=q4_k_m_config,
                shape_exprs=text_layer_shape_exprs)
     export_one("run_text_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, pl, hs, device="meta"),),
                weight_prefix="thinker.model.norm.",
-               reference_module="thinker.model.norm",
                reference_tensors="model_tensors().text_norm",
                reference_name="spike.text.norm",
                shape_exprs=text_shape_exprs)
@@ -544,7 +514,6 @@ def main() -> int:
     export_one("run_decode_embed", model.thinker.model.embed_tokens.float(),
                args=(torch.zeros((1, 1), dtype=torch.long, device="meta"),),
                weight_prefix="thinker.model.embed_tokens.",
-               reference_module="thinker.model.embed_tokens",
                reference_tensors="model_tensors().decode_embed",
                reference_name="spike.decode.{step:04d}.embed",
                reference_policy="q8_tensor",
@@ -560,7 +529,6 @@ def main() -> int:
                    "hidden_states": "hidden_states",
                    "position_embeddings_0": "position_embeddings_0",
                    "position_embeddings_1": "position_embeddings_1",
-                   "cache_position": "cache_position",
                    "key_cache": "index_copy",
                    "value_cache": "index_copy_1",
                },
@@ -572,12 +540,13 @@ def main() -> int:
                reference_tensors="model_tensors().decode_layers[layer_idx]",
                reference_name="spike.decode.{step:04d}.layer.{layer_idx}",
                reference_policy="q4_tensor",
+               compare_dispatch_args=("layer_idx",),
+               compare_dispatch_kwargs=("cache_position",),
                quantization_config=q4_k_m_config,
                shape_exprs=decode_layer_shape_exprs)
     export_one("run_decode_norm", model.thinker.model.norm.float(),
                args=(torch.zeros(1, 1, hs, device="meta"),),
                weight_prefix="thinker.model.norm.",
-               reference_module="thinker.model.norm",
                reference_tensors="model_tensors().decode_norm",
                reference_name="spike.decode.{step:04d}.norm")
     print(f"\n  {shader_file_count} shader files written")
@@ -607,15 +576,8 @@ def main() -> int:
     (output_dir / "reference.py").write_text(
         render_reference_module(
             model_package=MODEL_PACKAGE,
-            model_imports=[
-                "from qwen_asr.core.transformers_backend.modeling_qwen3_asr import (",
-                "    Qwen3ASRForConditionalGeneration,",
-                ")",
-            ],
-            model_type="Qwen3ASRForConditionalGeneration",
             reference_functions=reference_functions,
-            loader_fields=loader_fields,
-            loader_sources=loader_sources,
+            dispatch_imports=reference_dispatch_imports,
         )
     )
     print("  reference.py written")

@@ -40,7 +40,7 @@ def create_decode_embed(
     embedding: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> DecodeEmbedTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('embedding',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'embedding'}))
     tensors = DecodeEmbedTensors(
         p_weight=_bind_tensor(
             p_weight,

@@ -193,7 +193,7 @@ def create_llm_layer(
     add_7: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> LlmLayerTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('add_7',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'add_7'}))
     tensors = LlmLayerTensors(
         p_layers_0_self_attn_q_proj_weight=_bind_tensor(
             p_layers_0_self_attn_q_proj_weight,
@@ -1439,7 +1439,7 @@ def create_llm_forward(
     mul_365: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> LlmForwardTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('mul_365',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'mul_365'}))
     tensors = LlmForwardTensors(
         p_norm_weight=_bind_tensor(
             p_norm_weight,

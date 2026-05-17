@@ -53,7 +53,7 @@ def create_text_norm(
     mul_1: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> TextNormTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('mul_1',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'mul_1'}))
     tensors = TextNormTensors(
         p_weight=_bind_tensor(
             p_weight,

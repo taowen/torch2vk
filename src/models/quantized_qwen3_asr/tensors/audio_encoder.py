@@ -117,7 +117,7 @@ def create_encoder_layer(
     add_2: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> EncoderLayerTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('add_2',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'add_2'}))
     tensors = EncoderLayerTensors(
         p_audio_tower_layers_0_self_attn_k_proj_weight=_bind_tensor(
             p_audio_tower_layers_0_self_attn_k_proj_weight,
@@ -805,7 +805,7 @@ def create_audio_encoder(
     linear_110: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> AudioEncoderTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('linear_110',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'linear_110'}))
     tensors = AudioEncoderTensors(
         p_audio_tower_ln_post_weight=_bind_tensor(
             p_audio_tower_ln_post_weight,

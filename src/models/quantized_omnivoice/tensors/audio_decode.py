@@ -1162,7 +1162,7 @@ def create_audio_decode(
     conv1d_31: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> AudioDecodeTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('conv1d_31',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'conv1d_31'}))
     tensors = AudioDecodeTensors(
         p_quantizer_quantizers_0_project_out_weight=_bind_tensor(
             p_quantizer_quantizers_0_project_out_weight,

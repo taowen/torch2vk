@@ -113,5 +113,9 @@ def run_decode_layer(rt: RuntimeSession, layer_idx: int, *, cache_position: int)
     rt.release_layer_workspace(
         tensors,
         layer=tensors.add_7.layer or "",
-        keep=(tensors.add_7,),
+        keep=(
+            tensors.add_7,
+            tensors.index_copy,
+            tensors.index_copy_1,
+        ),
     )

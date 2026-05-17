@@ -16,13 +16,10 @@ import torch
 from PIL import Image
 from safetensors import safe_open
 
+from models.quantized_klein9b import reference
 from models.quantized_klein9b.autoencoder import AutoEncoder, AutoEncoderParams
 from models.quantized_klein9b.custom_shaders import KLEIN9B_CAPTURE_QWEN3_CTX_F16
 from models.quantized_klein9b.dispatch.ae_decode import run_ae_decode
-from models.quantized_klein9b.dispatch.flux_double_block import run_flux_double_block
-from models.quantized_klein9b.dispatch.flux_final_layer import run_flux_final_layer
-from models.quantized_klein9b.dispatch.flux_prologue import run_flux_prologue
-from models.quantized_klein9b.dispatch.flux_single_block import run_flux_single_block
 from models.quantized_klein9b.dispatch.text_embed import run_text_embed
 from models.quantized_klein9b.dispatch.text_layer import run_text_layer
 from models.quantized_klein9b.export_gguf import DEFAULT_OUTPUT_DIR
@@ -40,10 +37,6 @@ from models.quantized_klein9b.run import (
 )
 from models.quantized_klein9b.text_encoder import Qwen3TextEncoder
 from models.quantized_klein9b.tensors.model import (
-    FLUX_DOUBLE_BLOCK_OUTPUTS,
-    FLUX_FINAL_LAYER_OUTPUTS,
-    FLUX_PROLOGUE_OUTPUTS,
-    FLUX_SINGLE_BLOCK_OUTPUTS,
     create_model_tensors,
     image_output,
     model_tensors,
@@ -381,56 +374,73 @@ class _FluxStageComparer:
     ) -> None:
         if not self._should_compare(stage, layer_idx):
             return
-        tensors = model_tensors()
+        before_count = len(self.rt.compare_results)
         if stage == "prologue":
-            tensor_group = tensors.flux_prologue
-            output_bindings = FLUX_PROLOGUE_OUTPUTS
-            request_inputs = self._host_inputs(
-                tensor_group,
-                inputs,
-                exclude=frozenset(("x", "ctx")),
+            reference.compare_flux_prologue(
+                self.rt,
+                step=step,
+                expected=dict(expected),
+                x=inputs["x"],
+                x_ids=inputs["x_ids"],
+                timesteps=inputs["timesteps"],
+                ctx=inputs["ctx"],
+                ctx_ids=inputs["ctx_ids"],
             )
-            request_state = {
-                tensor_group.x: _torch_to_numpy(inputs["x"]),
-                tensor_group.ctx: _torch_to_numpy(inputs["ctx"]),
-            }
-            release_group = tensor_group
         elif stage == "double_block":
             if layer_idx is None:
                 raise RuntimeError("double_block compare requires layer_idx")
-            tensor_group = tensors.flux_double_blocks[layer_idx]
-            output_bindings = FLUX_DOUBLE_BLOCK_OUTPUTS
-            request_inputs = self._host_inputs(tensor_group, inputs)
-            request_state = {}
-            release_group = tensor_group
+            reference.compare_flux_double_block(
+                self.rt,
+                step=step,
+                layer_idx=layer_idx,
+                expected=dict(expected),
+                img=inputs["img"],
+                txt=inputs["txt"],
+                pe=inputs["pe"],
+                pe_ctx=inputs["pe_ctx"],
+                img_mod1_shift=inputs["img_mod1_shift"],
+                img_mod1_scale=inputs["img_mod1_scale"],
+                img_mod1_gate=inputs["img_mod1_gate"],
+                img_mod2_shift=inputs["img_mod2_shift"],
+                img_mod2_scale=inputs["img_mod2_scale"],
+                img_mod2_gate=inputs["img_mod2_gate"],
+                txt_mod1_shift=inputs["txt_mod1_shift"],
+                txt_mod1_scale=inputs["txt_mod1_scale"],
+                txt_mod1_gate=inputs["txt_mod1_gate"],
+                txt_mod2_shift=inputs["txt_mod2_shift"],
+                txt_mod2_scale=inputs["txt_mod2_scale"],
+                txt_mod2_gate=inputs["txt_mod2_gate"],
+            )
         elif stage == "single_block":
             if layer_idx is None:
                 raise RuntimeError("single_block compare requires layer_idx")
-            tensor_group = tensors.flux_single_blocks[layer_idx]
-            output_bindings = FLUX_SINGLE_BLOCK_OUTPUTS
-            request_inputs = self._host_inputs(tensor_group, inputs)
-            request_state = {}
-            release_group = tensor_group
+            reference.compare_flux_single_block(
+                self.rt,
+                step=step,
+                layer_idx=layer_idx,
+                expected=dict(expected),
+                hidden_states=inputs["hidden_states"],
+                pe=inputs["pe"],
+                mod_shift=inputs["mod_shift"],
+                mod_scale=inputs["mod_scale"],
+                mod_gate=inputs["mod_gate"],
+            )
         elif stage == "final_layer":
-            tensor_group = tensors.flux_final_layer
-            output_bindings = FLUX_FINAL_LAYER_OUTPUTS
-            request_inputs = self._host_inputs(tensor_group, inputs)
-            request_state = {}
-            release_group = tensor_group
+            reference.compare_flux_final_layer(
+                self.rt,
+                step=step,
+                expected=dict(expected),
+                hidden_states=inputs["hidden_states"],
+                vec=inputs["vec"],
+            )
         else:
             return
-
-        actual: dict[str, np.ndarray] = {}
-        with self.rt.request(inputs=request_inputs, state=request_state):
-            with self.rt.frame(self._frame_name(step, stage, layer_idx)):
-                self._run_stage(stage, layer_idx)
-                for semantic_name, field_name in output_bindings.items():
-                    actual[semantic_name] = self.rt.readback(
-                        getattr(tensor_group, field_name)
-                    ).astype(np.float32)
-        self.rt.release_model_weights(release_group)
-        for semantic_name, candidate in actual.items():
-            metric = _error_metrics(candidate, expected[semantic_name])
+        for result in self.rt.compare_results[before_count:]:
+            metric = ErrorMetrics(
+                max_abs=result.max_abs,
+                mean_abs=result.max_abs,
+                rms_abs=result.max_abs,
+            )
             self._record(metric)
             print(
                 json.dumps(
@@ -438,7 +448,7 @@ class _FluxStageComparer:
                         "flux_step": step,
                         "stage": stage,
                         "layer_idx": layer_idx,
-                        "output": semantic_name,
+                        "output": result.tensor.name,
                         **asdict(metric),
                     },
                     ensure_ascii=False,
@@ -453,45 +463,11 @@ class _FluxStageComparer:
             return True
         return layer_idx == 0
 
-    def _run_stage(self, stage: str, layer_idx: int | None) -> None:
-        if stage == "prologue":
-            run_flux_prologue(self.rt)
-        elif stage == "double_block":
-            if layer_idx is None:
-                raise RuntimeError("double_block compare requires layer_idx")
-            run_flux_double_block(self.rt, layer_idx)
-        elif stage == "single_block":
-            if layer_idx is None:
-                raise RuntimeError("single_block compare requires layer_idx")
-            run_flux_single_block(self.rt, layer_idx)
-        elif stage == "final_layer":
-            run_flux_final_layer(self.rt)
-        else:
-            raise RuntimeError(f"unknown FLUX compare stage: {stage}")
-
     def _record(self, metric: ErrorMetrics) -> None:
         self._count += 1
         self._max_abs = _worse_metric(self._max_abs, metric.max_abs)
         self._mean_abs = _worse_metric(self._mean_abs, metric.mean_abs)
         self._rms_abs = _worse_metric(self._rms_abs, metric.rms_abs)
-
-    def _host_inputs(
-        self,
-        tensor_group: object,
-        inputs: Mapping[str, torch.Tensor],
-        *,
-        exclude: frozenset[str] = frozenset(),
-    ) -> dict[str, np.ndarray]:
-        return {
-            _tensor_name(getattr(tensor_group, name).name): _torch_to_numpy(value)
-            for name, value in inputs.items()
-            if name not in exclude
-        }
-
-    def _frame_name(self, step: int, stage: str, layer_idx: int | None) -> str:
-        if layer_idx is None:
-            return f"klein9b.flux.compare.{step:04d}.{stage}"
-        return f"klein9b.flux.compare.{step:04d}.{stage}.{layer_idx}"
 
 
 def _run_pytorch_ae_decode(
@@ -555,13 +531,6 @@ def _save_image(path: str | Path, image: np.ndarray) -> Path:
 
 def _torch_floating(value: np.ndarray) -> torch.Tensor:
     return torch.from_numpy(np.ascontiguousarray(value)).cuda().to(torch.bfloat16)
-
-
-def _torch_to_numpy(value: torch.Tensor) -> np.ndarray:
-    cpu = value.detach().cpu()
-    if cpu.is_floating_point():
-        return np.ascontiguousarray(cpu.float().numpy().astype(np.float16))
-    return np.ascontiguousarray(cpu.numpy())
 
 
 def _log(message: str) -> None:

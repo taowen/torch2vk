@@ -205,7 +205,7 @@ def create_decode_layer(
     add_7: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> DecodeLayerTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('add_7',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'add_7', 'index_copy', 'index_copy_1'}))
     tensors = DecodeLayerTensors(
         p_attn_q_proj_weight=_bind_tensor(
             p_attn_q_proj_weight,

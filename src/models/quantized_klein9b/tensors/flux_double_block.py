@@ -360,7 +360,7 @@ def create_flux_double_block(
     add_17: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> FluxDoubleBlockTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'add_17', 'add_13'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'add_13', 'add_17'}))
     tensors = FluxDoubleBlockTensors(
         p_img_attn_qkv_weight=_bind_tensor(
             p_img_attn_qkv_weight,

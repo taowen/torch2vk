@@ -1,14 +1,10 @@
-"""Generated PyTorch reference comparison helpers."""
+"""Generated PyTorch/Vulkan streaming comparison helpers."""
 
 from __future__ import annotations
 
 from typing import Literal, TypeAlias
 
-from torch.export import ExportedProgram
-from torch.export.graph_signature import InputKind
-
 from torch2vk.export._templates import render_template
-from torch2vk.export.graph import graph_output_names
 
 
 ReferencePolicy: TypeAlias = (
@@ -20,103 +16,61 @@ ReferencePolicy: TypeAlias = (
 def render_reference_module(
     *,
     model_package: str,
-    model_imports: list[str],
-    model_type: str,
     reference_functions: list[str],
-    loader_fields: list[str],
-    loader_sources: list[str],
+    dispatch_imports: list[str] | None = None,
 ) -> str:
     return (
         render_template(
             "reference_module.py.j2",
             model_package=model_package,
-            model_imports_source="\n".join(model_imports),
-            model_type=model_type,
-            loaders=tuple({"field": field} for field in loader_fields),
-            loaders_source="\n\n".join(loader_sources).rstrip(),
+            dispatch_imports_source="\n".join(dispatch_imports or ()),
             reference_functions_source="\n\n".join(reference_functions).rstrip(),
         ).rstrip()
         + "\n"
     )
 
 
-def render_reference_loader(
-    *,
-    field: str,
-    module_path: str,
-) -> str:
-    return render_template(
-        "reference_loader_function.py.j2",
-        field=field,
-        module_path_source=repr(module_path),
-    ).rstrip()
-
-
-def render_reference_function(
+def render_streaming_compare_function(
     *,
     name: str,
-    reference_source: str,
+    dispatch_source: str,
     tensors: str,
     frame_name: str,
     policy: ReferencePolicy = "tensor",
     input_bindings: dict[str, str],
     output_bindings: dict[str, str],
-    needs_reference: bool,
+    dispatch_args: tuple[str, ...] = (),
+    dispatch_kwargs: tuple[str, ...] = (),
 ) -> str:
     item = _reference_function_item(
         name,
-        reference_source=reference_source,
         tensors=tensors,
         frame_name=frame_name,
         policy=policy,
         input_bindings=input_bindings,
         output_bindings=output_bindings,
-        needs_reference=needs_reference,
     )
-    return render_template("reference_function.py.j2", **item).rstrip()
-
-
-def render_exported_reference_function(
-    ep: ExportedProgram,
-    *,
-    name: str,
-    reference_source: str,
-    tensors: str,
-    frame_name: str,
-    policy: ReferencePolicy = "tensor",
-    input_bindings: dict[str, str] | None = None,
-    output_bindings: dict[str, str] | None = None,
-) -> str:
-    if input_bindings is None:
-        input_bindings = {
-            spec.arg.name: spec.arg.name
-            for spec in ep.graph_signature.input_specs
-            if spec.kind == InputKind.USER_INPUT
-        }
-    if output_bindings is None:
-        output_bindings = {name: name for name in graph_output_names(ep.graph_module.graph)}
-    return render_reference_function(
-        name=name,
-        reference_source=reference_source,
-        tensors=tensors,
-        frame_name=frame_name,
-        policy=policy,
-        input_bindings=input_bindings,
-        output_bindings=output_bindings,
-        needs_reference=reference_source == "reference",
-    )
+    item["function_name"] = f"compare_{name}"
+    item["dispatch_source"] = dispatch_source
+    item["dispatch_args"] = tuple(dispatch_args)
+    item["dispatch_kwargs"] = tuple(dispatch_kwargs)
+    input_names = list(input_bindings)
+    for kwarg in dispatch_kwargs:
+        if kwarg not in input_names:
+            input_names.append(kwarg)
+    item["input_names"] = tuple(input_names)
+    item["stage_input_names"] = tuple(input_bindings)
+    return render_template("streaming_compare_function.py.j2", **item).rstrip()
 
 
 def _reference_function_item(
     name: str,
     *,
-    reference_source: str,
     tensors: str,
     frame_name: str,
     policy: ReferencePolicy,
     input_bindings: dict[str, str],
     output_bindings: dict[str, str],
-    needs_reference: bool,
 ) -> dict[str, object]:
     extra_params: list[dict[str, str]] = []
     names_seen: set[str] = set()
@@ -140,11 +94,10 @@ def _reference_function_item(
         "extra_params": tuple(extra_params),
         "input_names": input_names,
         "name_source": _reference_name_source(frame_name),
-        "reference_source": reference_source,
         "tensors_source": tensors,
+        "input_bindings_source": repr(input_bindings),
         "output_bindings_source": repr(output_bindings),
         "policy_source": repr(policy),
-        "needs_reference": needs_reference,
     }
 
 

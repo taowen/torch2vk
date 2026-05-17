@@ -161,7 +161,7 @@ Replay Frame enter:
 
 退出 candidate forward:
   FrameContext 记录本 Frame 实际写出的 LogicalTensors
-  调用方可以用生成的 reference.run_xxx(...) 显式比较这些输出
+  调用方可以用生成的 reference.compare_xxx(...) 或 compare_vulkan_stage(...) 显式比较这些输出
   mismatch 时 compare helper 写出 candidate/expected/summary artifact
   释放或复用 FRAME/OP 生命周期资源
 ```
@@ -696,15 +696,14 @@ PyTorch。
 对拍由模型运行代码显式驱动：
 
 ```text
-1. 进入 rt.frame(...)
-2. 跑 Vulkan candidate eager forward
-3. 调用生成的 reference.run_xxx(...) 推进同粒度 PyTorch reference
-4. generated helper 调用 compare_expected()
-5. helper 根据内联的 tensors/output_bindings 找到 LogicalTensor
-6. RuntimeSession readback candidate 当前 buffer
-7. 按内联 policy 比较
-8. mismatch 时报告 frame、tensor、writer shader 和 artifact path
-9. 释放或复用 Frame workspace
+1. compare.py 跑同粒度 PyTorch reference，得到 expected
+2. 调用生成的 reference.compare_xxx(...) 或 compare_vulkan_stage(...)
+3. compare helper 在 rt.request/rt.frame 内跑 Vulkan candidate
+4. helper 根据内联的 tensors/output_bindings 找到 LogicalTensor
+5. RuntimeSession readback candidate 当前 buffer
+6. 按内联 policy 比较
+7. mismatch 时报告 frame、tensor、writer shader 和 artifact path
+8. 释放或复用 Frame workspace
 ```
 
 PyTorch model 不决定比较哪些 tensors。比较哪些输出由生成 wrapper 的 `output_bindings` 和 reference callable

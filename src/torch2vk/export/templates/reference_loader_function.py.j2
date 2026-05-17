@@ -1,6 +1,0 @@
-def _load_{{ field }}() -> torch.nn.Module:
-    global _{{ field }}_reference
-    if _{{ field }}_reference is None:
-        _{{ field }}_reference = _require_model().get_submodule({{ module_path_source }})
-        _{{ field }}_reference.eval()
-    return _{{ field }}_reference

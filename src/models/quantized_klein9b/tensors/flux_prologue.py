@@ -393,7 +393,7 @@ def create_flux_prologue(
     unsqueeze_6: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> FluxPrologueTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'getitem_5', 'getitem', 'getitem_11', 'linear_5', 'getitem_4', 'getitem_7', 'getitem_14', 'unsqueeze_6', 'getitem_3', 'getitem_12', 'unsqueeze_5', 'getitem_2', 'getitem_13', 'getitem_8', 'getitem_6', 'getitem_9', 'linear_1', 'linear_6', 'getitem_10', 'getitem_1'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'getitem_12', 'getitem_8', 'getitem_5', 'linear_6', 'linear_1', 'getitem_3', 'getitem_13', 'getitem', 'getitem_6', 'getitem_7', 'getitem_14', 'linear_5', 'getitem_4', 'getitem_9', 'getitem_2', 'getitem_11', 'getitem_1', 'getitem_10', 'unsqueeze_6', 'unsqueeze_5'}))
     tensors = FluxPrologueTensors(
         p_img_in_weight=_bind_tensor(
             p_img_in_weight,

@@ -17,6 +17,7 @@ from typing import cast
 import torch
 import transformers.integrations.sdpa_attention as _sdpa_attn_mod
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from torch.export.graph_signature import InputKind
 from transformers import AutoTokenizer
 from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
@@ -39,16 +40,15 @@ from torch2vk.export import (
     read_checkpoint_dtypes,
     set_module_checkpoint_dtypes,
 )
+from torch2vk.export.graph import graph_output_names
 from torch2vk.export.dispatch_codegen import (
     bind_dispatch_function_to_tensors,
     generate_dispatch_function_source,
     render_model_dispatch_module,
 )
 from torch2vk.export.reference_codegen import (
-    render_exported_reference_function,
-    render_reference_function,
-    render_reference_loader,
     render_reference_module,
+    render_streaming_compare_function,
 )
 from torch2vk.export.shader_codegen import (
     clear_python_modules,
@@ -70,6 +70,7 @@ from torch2vk.runtime.shader import ShaderVariant
 
 
 _TEMPLATE_DIR = Path(__file__).with_name("templates")
+MODEL_PACKAGE = "models.exported_omnivoice"
 
 _JINJA = Environment(
     autoescape=False,
@@ -194,12 +195,14 @@ def main() -> int:
         write_generated_shader(variant)
 
     reference_functions: list[str] = []
-    loader_fields: list[str] = []
-    loader_sources: list[str] = []
+    reference_dispatch_imports: list[str] = []
+    reference_dispatch_imports.append(
+        f"from {MODEL_PACKAGE}.run import _run_input_embed as _dispatch_input_embed"
+    )
     reference_functions.append(
-        render_reference_function(
+        render_streaming_compare_function(
             name="input_embed",
-            reference_source="reference",
+            dispatch_source="_dispatch_input_embed",
             tensors="model_tensors()",
             frame_name="omnivoice.step.{step:04d}.input_embed",
             policy="tensor",
@@ -208,51 +211,8 @@ def main() -> int:
                 "audio_mask": "batch_audio_mask",
             },
             output_bindings={"hidden_states": "llm_forward.hidden_states"},
-            needs_reference=True,
         )
     )
-    reference_functions.append(
-        render_reference_function(
-            name="token_score",
-            reference_source="reference",
-            tensors="model_tensors()",
-            frame_name="omnivoice.step.{step:04d}.token_score",
-            policy={"candidate_tokens": "token", "candidate_scores": "tensor"},
-            input_bindings={
-                "logits": "audio_head.linear",
-                "tokens": "tokens",
-                "audio_mask_id": "audio_mask_id",
-                "rng_seed": "rng_seed",
-                "step_index": "step_index",
-            },
-            output_bindings={
-                "candidate_scores": "candidate_scores",
-            },
-            needs_reference=True,
-        )
-    )
-    reference_functions.append(
-        render_reference_function(
-            name="token_update",
-            reference_source="reference",
-            tensors="model_tensors()",
-            frame_name="omnivoice.step.{step:04d}.token_update",
-            policy="token",
-            input_bindings={
-                "tokens": "tokens",
-                "batch_input_ids": "batch_input_ids",
-                "candidate_tokens": "candidate_tokens",
-                "candidate_scores": "candidate_scores",
-                "unmask_count": "unmask_count",
-            },
-            output_bindings={
-                "tokens": "tokens",
-                "batch_input_ids": "batch_input_ids",
-            },
-            needs_reference=True,
-        )
-    )
-
     def export_one(
         name,
         module,
@@ -268,7 +228,8 @@ def main() -> int:
         reference_tensors=None,
         reference_name=None,
         reference_policy: ReferencePolicy = "tensor",
-        reference_module=None,
+        compare_dispatch_args=(),
+        compare_dispatch_kwargs=(),
     ):
         set_module_checkpoint_dtypes(
             module,
@@ -285,26 +246,28 @@ def main() -> int:
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
         tensor_file = _tensor_file_name(cls_name)
-        reference_source = "reference"
-        if reference_module is not None:
-            loader_fields.append(func_name)
-            loader_sources.append(
-                render_reference_loader(
-                    field=func_name,
-                    module_path=reference_module,
-                )
-            )
-            reference_source = f"_load_{func_name}()"
+        reference_dispatch_imports.append(
+            f"from {MODEL_PACKAGE}.dispatch.{func_name} import {name} as _dispatch_{func_name}"
+        )
         reference_functions.append(
-            render_exported_reference_function(
-                prog,
+            render_streaming_compare_function(
                 name=func_name,
-                reference_source=reference_source,
+                dispatch_source=f"_dispatch_{func_name}",
                 tensors=reference_tensors if reference_tensors is not None else "model_tensors()",
                 frame_name=reference_name if reference_name is not None else func_name,
                 policy=reference_policy,
-                input_bindings=reference_input_bindings,
-                output_bindings=reference_output_bindings,
+                input_bindings=reference_input_bindings
+                if reference_input_bindings is not None
+                else {
+                    spec.arg.name: spec.arg.name
+                    for spec in prog.graph_signature.input_specs
+                    if spec.kind == InputKind.USER_INPUT
+                },
+                output_bindings=reference_output_bindings
+                if reference_output_bindings is not None
+                else {name: name for name in graph_output_names(prog.graph_module.graph)},
+                dispatch_args=tuple(compare_dispatch_args),
+                dispatch_kwargs=tuple(compare_dispatch_kwargs),
             )
         )
 
@@ -425,7 +388,6 @@ def main() -> int:
         model.audio_heads.float(),
         args=(torch.zeros(B, S, H, device="cuda"),),
         weight_prefix="audio_heads.",
-        reference_module="audio_heads",
         reference_input_bindings={"input": "audio_head.input"},
         reference_output_bindings={"linear": "audio_head.linear"},
         reference_tensors="model_tensors()",
@@ -480,11 +442,8 @@ def main() -> int:
     (output_dir / "reference.py").write_text(
         render_reference_module(
             model_package="models.exported_omnivoice",
-            model_imports=["from omnivoice.models.omnivoice import OmniVoice"],
-            model_type="OmniVoice",
             reference_functions=reference_functions,
-            loader_fields=loader_fields,
-            loader_sources=loader_sources,
+            dispatch_imports=reference_dispatch_imports,
         )
     )
     print("  reference.py written")

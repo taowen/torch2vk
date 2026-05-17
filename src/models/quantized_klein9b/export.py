@@ -6,7 +6,6 @@ Run from project root:
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Any, cast
@@ -22,7 +21,6 @@ from models.quantized_klein9b.custom_shaders import (
     KLEIN9B_CAPTURE_QWEN3_CTX_F16,
     KLEIN9B_EULER_UPDATE_F16,
 )
-from models.quantized_klein9b.export_gguf import REPO_ID
 from models.quantized_klein9b.model_sources import resolve_model_dirs
 from models.quantized_klein9b.pytorch_modules import (
     DoubleStreamBlock,
@@ -47,13 +45,12 @@ from torch2vk.export import (
     generate_tensor_class_source,
     module_floating_dtype,
     rename_shader_variant,
-    ReferencePolicy,
     render_model_dispatch_module,
     write_shader_file,
 )
 from torch2vk.export.reference_codegen import (
-    render_exported_reference_function,
     render_reference_module,
+    render_streaming_compare_function,
 )
 from torch2vk.export.graph import graph_output_names
 from torch2vk.export.tensor_codegen import layer_workspace_keep_fields, render_tensor_module
@@ -526,6 +523,7 @@ def main() -> int:
         write_generated_shader(custom_variant)
 
     reference_functions: list[str] = []
+    reference_dispatch_imports: list[str] = []
 
     def export_one(
         *,
@@ -544,8 +542,6 @@ def main() -> int:
         shape_symbol_axes: dict[str, dict[int, str]] | None = None,
         parameters_source: str = "",
         arguments_source: str = "",
-        reference_name: str | None = None,
-        reference_policy: ReferencePolicy | None = None,
         extra_dispatch_functions: str = "",
         dynamic_shapes: dict[str, Any] | tuple[Any, ...] | list[Any] | None = None,
         strict: bool = False,
@@ -566,18 +562,6 @@ def main() -> int:
         output_names = tuple(graph_output_names(prog.graph_module.graph))
         shape_symbol_exprs = _shape_symbol_exprs(prog, shape_symbol_axes or {})
         func_name = dispatch_name.removeprefix("run_")
-        if reference_name is not None and reference_policy is not None:
-            reference_functions.append(
-                render_exported_reference_function(
-                    prog,
-                    name=func_name,
-                    reference_source="reference",
-                    tensors=tensor_expr,
-                    frame_name=reference_name,
-                    policy=reference_policy,
-                )
-            )
-
         tensor_ctx = generate_tensor_class_source(
             prog,
             class_name=tensor_class,
@@ -870,6 +854,88 @@ def main() -> int:
         flux_final_layer_output_names,
         ("pred",),
     )
+    reference_dispatch_imports.extend(
+        (
+            "from models.quantized_klein9b.dispatch.flux_prologue import run_flux_prologue as _dispatch_flux_prologue",
+            "from models.quantized_klein9b.dispatch.flux_double_block import run_flux_double_block as _dispatch_flux_double_block",
+            "from models.quantized_klein9b.dispatch.flux_single_block import run_flux_single_block as _dispatch_flux_single_block",
+            "from models.quantized_klein9b.dispatch.flux_final_layer import run_flux_final_layer as _dispatch_flux_final_layer",
+        )
+    )
+    reference_functions.extend(
+        (
+            render_streaming_compare_function(
+                name="flux_prologue",
+                dispatch_source="_dispatch_flux_prologue",
+                tensors="model_tensors().flux_prologue",
+                frame_name="klein9b.flux.compare.{step:04d}.prologue",
+                policy="q4_tensor",
+                input_bindings={
+                    "x": "x",
+                    "x_ids": "x_ids",
+                    "timesteps": "timesteps",
+                    "ctx": "ctx",
+                    "ctx_ids": "ctx_ids",
+                },
+                output_bindings=flux_prologue_outputs,
+            ),
+            render_streaming_compare_function(
+                name="flux_double_block",
+                dispatch_source="_dispatch_flux_double_block",
+                tensors="model_tensors().flux_double_blocks[layer_idx]",
+                frame_name="klein9b.flux.compare.{step:04d}.double_block.{layer_idx}",
+                policy="q4_tensor",
+                input_bindings={
+                    "img": "img",
+                    "txt": "txt",
+                    "pe": "pe",
+                    "pe_ctx": "pe_ctx",
+                    "img_mod1_shift": "img_mod1_shift",
+                    "img_mod1_scale": "img_mod1_scale",
+                    "img_mod1_gate": "img_mod1_gate",
+                    "img_mod2_shift": "img_mod2_shift",
+                    "img_mod2_scale": "img_mod2_scale",
+                    "img_mod2_gate": "img_mod2_gate",
+                    "txt_mod1_shift": "txt_mod1_shift",
+                    "txt_mod1_scale": "txt_mod1_scale",
+                    "txt_mod1_gate": "txt_mod1_gate",
+                    "txt_mod2_shift": "txt_mod2_shift",
+                    "txt_mod2_scale": "txt_mod2_scale",
+                    "txt_mod2_gate": "txt_mod2_gate",
+                },
+                output_bindings=flux_double_block_outputs,
+                dispatch_args=("layer_idx",),
+            ),
+            render_streaming_compare_function(
+                name="flux_single_block",
+                dispatch_source="_dispatch_flux_single_block",
+                tensors="model_tensors().flux_single_blocks[layer_idx]",
+                frame_name="klein9b.flux.compare.{step:04d}.single_block.{layer_idx}",
+                policy="q4_tensor",
+                input_bindings={
+                    "hidden_states": "hidden_states",
+                    "pe": "pe",
+                    "mod_shift": "mod_shift",
+                    "mod_scale": "mod_scale",
+                    "mod_gate": "mod_gate",
+                },
+                output_bindings=flux_single_block_outputs,
+                dispatch_args=("layer_idx",),
+            ),
+            render_streaming_compare_function(
+                name="flux_final_layer",
+                dispatch_source="_dispatch_flux_final_layer",
+                tensors="model_tensors().flux_final_layer",
+                frame_name="klein9b.flux.compare.{step:04d}.final_layer",
+                policy="q4_tensor",
+                input_bindings={
+                    "hidden_states": "hidden_states",
+                    "vec": "vec",
+                },
+                output_bindings=flux_final_layer_outputs,
+            ),
+        )
+    )
     export_one(
         dispatch_name="run_flux",
         tensor_file="flux",
@@ -891,8 +957,6 @@ def main() -> int:
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
             DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
         },
-        reference_name="klein9b.flux",
-        reference_policy="q4_tensor",
     )
     export_one(
         dispatch_name="run_ae_decode",
@@ -960,25 +1024,12 @@ def create_rope_table(
     (output_dir / "reference.py").write_text(
         render_reference_module(
             model_package=MODEL_PACKAGE,
-            model_imports=["from models.quantized_klein9b.pytorch_modules import Flux2"],
-            model_type="Flux2",
             reference_functions=reference_functions,
-            loader_fields=[],
-            loader_sources=[],
+            dispatch_imports=reference_dispatch_imports,
         ),
         encoding="utf-8",
     )
 
-    manifest = {
-        "repo_id": REPO_ID,
-        "image_seq_len": DEFAULT_IMAGE_SEQ_LEN,
-        "latent_height": DEFAULT_LATENT_HEIGHT,
-        "latent_width": DEFAULT_LATENT_WIDTH,
-        "text_seq_len": DEFAULT_TEXT_SEQ_LEN,
-        "num_text_layers": text_layers,
-        "generated_by": "models.quantized_klein9b.export",
-    }
-    (output_dir / "export_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"  {shader_file_count} shader files written")
     print(f"  tensors/ written ({count_python_modules(tensors_dir)} files)")
     print(f"  dispatch/ written ({count_python_modules(dispatch_dir)} files)")

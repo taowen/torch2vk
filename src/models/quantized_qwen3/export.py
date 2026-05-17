@@ -33,12 +33,9 @@ from torch2vk.export import (
     inject_kv_cache,
     module_floating_dtype,
     rename_shader_variant,
-    render_exported_reference_function,
     render_model_dispatch_module,
-    render_reference_module,
     write_shader_file,
 )
-from torch2vk.export.reference_codegen import render_reference_function
 from torch2vk.export.shaders.lm_head_q6_k_argmax_partial_f16 import (
     LM_HEAD_Q6_K_ARGMAX_PARTIAL_F16,
 )
@@ -161,18 +158,6 @@ def main() -> int:
     for variant in custom_shader_variants:
         write_generated_shader(variant)
 
-    reference_functions: list[str] = []
-    reference_functions.append(render_reference_function(
-        name="token_select",
-        reference_source="reference",
-        tensors="model_tensors()",
-        frame_name="{name}",
-        policy="token",
-        input_bindings={"logits": "logits", "eos_token_ids": "eos_token_ids"},
-        output_bindings={"next_token": "next_token", "done": "done"},
-        needs_reference=True,
-    ))
-
     def export_one(
         name: str,
         module: torch.nn.Module,
@@ -181,8 +166,6 @@ def main() -> int:
         *,
         weight_prefix: str = "",
         kv_inject: KVCacheInjectHint | None = None,
-        reference_tensors: str | None = None,
-        reference_name: str | None = None,
         quantization_config: Q4KMQuantizationConfig | None = None,
         shape_exprs: dict[int, str] | None = None,
     ) -> None:
@@ -199,13 +182,6 @@ def main() -> int:
         cls_name = _to_class_name(name)
         func_name = name.removeprefix("run_")
         tensor_file = _tensor_file_name(cls_name)
-        reference_functions.append(render_exported_reference_function(
-            prog,
-            name=func_name,
-            reference_source="reference",
-            tensors=reference_tensors if reference_tensors is not None else f"model_tensors().{func_name}",
-            frame_name=reference_name if reference_name is not None else func_name,
-        ))
 
         tensor_src = generate_tensor_class_source(
             prog,
@@ -296,8 +272,6 @@ def main() -> int:
         },
         weight_prefix="model.layers.0.",
         kv_inject=KVCacheInjectHint(phase="prefill", max_seq_len=max_seq),
-        reference_tensors="model_tensors().text_layers[layer_idx]",
-        reference_name="qwen3.prefill.layer.{layer_idx}",
         quantization_config=q4_k_m_config,
         shape_exprs=layer_shape_exprs,
     )
@@ -329,8 +303,6 @@ def main() -> int:
         },
         weight_prefix="model.layers.0.",
         kv_inject=KVCacheInjectHint(phase="decode", max_seq_len=max_seq),
-        reference_tensors="model_tensors().decode_layers[layer_idx]",
-        reference_name="qwen3.decode.{step:04d}.layer.{layer_idx}",
         quantization_config=q4_k_m_config,
         shape_exprs=decode_shape_exprs,
     )
@@ -356,17 +328,6 @@ def main() -> int:
     (tensors_dir / "rope.py").write_text(_render_template("rope.py.j2"))
     (tensors_dir / "model.py").write_text(_render_template("model.py.j2", model_package=MODEL_PACKAGE))
 
-    (output_dir / "reference.py").write_text(
-        render_reference_module(
-            model_package=MODEL_PACKAGE,
-            model_imports=["from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM"],
-            model_type="Qwen3ForCausalLM",
-            reference_functions=reference_functions,
-            loader_fields=[],
-            loader_sources=[],
-        )
-    )
-
     manifest = {
         "repo_id": REPO_ID,
         "prompt": DEFAULT_PROMPT,
@@ -377,7 +338,6 @@ def main() -> int:
     print(f"\n  {shader_file_count} shader files written")
     print(f"  tensors/ written ({count_python_modules(tensors_dir)} files)")
     print(f"  dispatch/ written ({count_python_modules(dispatch_dir)} files)")
-    print("  reference.py written")
     print("\nDone!")
     return 0
 

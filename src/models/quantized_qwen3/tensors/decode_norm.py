@@ -52,7 +52,7 @@ def create_decode_norm(
     mul_1: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> DecodeNormTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('mul_1',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'mul_1'}))
     tensors = DecodeNormTensors(
         p_weight=_bind_tensor(
             p_weight,

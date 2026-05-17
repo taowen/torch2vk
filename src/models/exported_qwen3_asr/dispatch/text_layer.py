@@ -110,5 +110,9 @@ def run_text_layer(rt: RuntimeSession, layer_idx: int) -> None:
     rt.release_layer_workspace(
         tensors,
         layer=tensors.add_7.layer or "",
-        keep=(tensors.add_7,),
+        keep=(
+            tensors.add_7,
+            tensors.index_copy,
+            tensors.index_copy_1,
+        ),
     )

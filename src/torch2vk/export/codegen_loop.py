@@ -631,7 +631,10 @@ def generate_looped_tensor_class_sources(
 
 def _flatten_args(args) -> list:
     result = []
-    if isinstance(args, (list, tuple)):
+    if isinstance(args, dict):
+        for item in args.values():
+            result.extend(_flatten_args(item))
+    elif isinstance(args, (list, tuple)):
         for item in args:
             result.extend(_flatten_args(item))
     else:
@@ -696,6 +699,7 @@ def _render_layer_class(
         fields=fields,
         output_const=output_const,
         output_name_source=repr(output_name),
+        output_names=(output_name,),
         signature=_tensor_factory_signature(
             function_name,
             class_name,
@@ -787,6 +791,7 @@ def _render_parent_class(
         extra_fields=(f"layers: list[{layer_class_name}]",),
         output_const=output_const,
         output_name_source=repr(output_name),
+        output_names=(output_name,),
         signature=_tensor_factory_signature(
             function_name,
             class_name,

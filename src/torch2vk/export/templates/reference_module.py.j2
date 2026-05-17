@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Protocol
-
 import numpy as np
 import torch
 
-{{ model_imports_source }}
+{{ dispatch_imports_source }}
 from {{ model_package }}.tensors.model import model_tensors
 from torch2vk.runtime.compare import as_numpy_array
 from torch2vk.runtime.logical import ComparePolicy
-from torch2vk.runtime.pytorch_debug import compare_expected
 from torch2vk.runtime.session import RuntimeSession
+from torch2vk.runtime.streaming_compare import compare_vulkan_stage
 
 
 ReferenceInput = np.ndarray | torch.Tensor | int
@@ -26,118 +24,10 @@ _COMPARE_POLICIES = {
 }
 
 
-class ArrayReference(Protocol):
-    def execute(self, inputs: dict[str, np.ndarray]) -> ReferenceExpected: ...
-
-
-_MODEL: {{ model_type }} | None = None
-{% for loader in loaders %}
-_{{ loader.field }}_reference: torch.nn.Module | None = None
-{% endfor %}
-
-
-def set_model(model: {{ model_type }}) -> None:
-    global _MODEL
-    _MODEL = model
-    _clear_cached_references()
-
-
-def _clear_cached_references() -> None:
-{% if loaders %}
-{% for loader in loaders %}
-    global _{{ loader.field }}_reference
-    _{{ loader.field }}_reference = None
-{% endfor %}
-{% else %}
-    pass
-{% endif %}
-
-
-def _require_model() -> {{ model_type }}:
-    if _MODEL is None:
-        raise RuntimeError("reference.set_model(model) must be called before exported references are used")
-    return _MODEL
-
-
-{{ loaders_source }}
-
-def _execute_and_compare(
-    rt: RuntimeSession,
-    *,
-    name: str,
-    reference: ArrayReference | torch.nn.Module,
-    tensors: object,
-    output_bindings: dict[str, str],
-    policy: ComparePolicy | dict[str, ComparePolicy],
-    inputs: dict[str, ReferenceInput],
-) -> ReferenceExpected:
-    expected = _execute_reference(
-        reference=reference,
-        inputs={key: _reference_input_array(value) for key, value in inputs.items()},
-        output_bindings=output_bindings,
-    )
-    compare_expected(
-        rt,
-        name=name,
-        tensors=tensors,
-        output_bindings=output_bindings,
-        expected=expected,
-        policy=policy,
-    )
-    return expected
-
-
-def _execute_reference(
-    *,
-    reference: ArrayReference | torch.nn.Module,
-    inputs: dict[str, np.ndarray],
-    output_bindings: dict[str, str],
-) -> ReferenceExpected:
-    if isinstance(reference, torch.nn.Module):
-        float_dtype = _module_float_dtype(reference)
-        args = [
-            _reference_arg(value, float_dtype)
-            for value in inputs.values()
-        ]
-        with torch.no_grad():
-            output = reference(*args)
-        if isinstance(output, tuple):
-            if len(output) != 1:
-                raise RuntimeError(f"reference module returned {len(output)} outputs")
-            output = output[0]
-        return {_single_output_name(output_bindings): output}
-    return reference.execute(inputs)
-
-
-def _reference_input_array(value: ReferenceInput) -> np.ndarray:
+def _reference_int(value: ReferenceInput) -> int:
     if isinstance(value, int):
-        return np.asarray([value], dtype=np.int64)
-    return as_numpy_array(value)
-
-
-def _reference_arg(value: np.ndarray, float_dtype: torch.dtype | None) -> torch.Tensor:
-    tensor = torch.from_numpy(np.ascontiguousarray(value)).cuda()
-    if float_dtype is not None and tensor.is_floating_point():
-        return tensor.to(dtype=float_dtype)
-    return tensor
-
-
-def _module_float_dtype(module: torch.nn.Module) -> torch.dtype | None:
-    for parameter in module.parameters(recurse=True):
-        if parameter.is_floating_point():
-            return parameter.dtype
-    for buffer in module.buffers(recurse=True):
-        if buffer.is_floating_point():
-            return buffer.dtype
-    return None
-
-
-def _single_output_name(output_bindings: dict[str, str]) -> str:
-    if len(output_bindings) != 1:
-        raise RuntimeError(
-            f"module reference requires exactly one output binding, got {sorted(output_bindings)}"
-        )
-    return next(iter(output_bindings))
+        return value
+    return int(as_numpy_array(value).reshape(-1)[0])
 
 
 def _policy(policy: str | dict[str, str]) -> ComparePolicy | dict[str, ComparePolicy]:

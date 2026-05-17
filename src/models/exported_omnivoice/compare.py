@@ -13,20 +13,17 @@ from transformers import AutoTokenizer
 from transformers.models.higgs_audio_v2_tokenizer import HiggsAudioV2TokenizerModel
 
 from models.exported_omnivoice import reference
-from models.exported_omnivoice.dispatch.audio_decode import run_audio_decode
-from models.exported_omnivoice.dispatch.audio_head import run_audio_head
-from models.exported_omnivoice.dispatch.llm_forward import run_llm_forward
 from models.exported_omnivoice.input_prep import DEFAULT_TEXT, prepare_omnivoice_inputs
 from models.exported_omnivoice.pytorch_modules import (
-    InputEmbedReference,
     AudioDecodeReference,
+    AudioHeadReference,
+    InputEmbedReference,
     LlmForwardReference,
     TokenScoreReference,
     TokenUpdateReference,
 )
 from models.exported_omnivoice.run import (
     _get_time_steps,
-    _run_input_embed,
     _run_rope_table,
     _run_token_score,
     _run_token_update,
@@ -35,10 +32,12 @@ from models.exported_omnivoice.tensors.model import create_model_tensors, model_
 from models.hf_cache import resolve_cached_model
 from models.optimized_omnivoice.pytorch.example import REPO_ID
 from omnivoice.models.omnivoice import OmniVoice, OmniVoiceConfig
+from torch2vk.runtime.compare import as_numpy_array
 from torch2vk.runtime.host_array import as_float16_attention_mask
-from torch2vk.runtime.logical import LogicalTensor
+from torch2vk.runtime.logical import ComparePolicy
 from torch2vk.runtime.session import RuntimeSession
 from torch2vk.runtime.shader_loader import make_shader_loader
+from torch2vk.runtime.streaming_compare import compare_vulkan_stage
 
 get_shader = make_shader_loader("models.exported_omnivoice.shaders")
 
@@ -47,6 +46,7 @@ get_shader = make_shader_loader("models.exported_omnivoice.shaders")
 class _OmniVoiceCompareState:
     input_embed: InputEmbedReference
     llm_forward: LlmForwardReference
+    audio_head: AudioHeadReference
     token_score: TokenScoreReference
     token_update: TokenUpdateReference
     audio_decode: AudioDecodeReference
@@ -57,18 +57,18 @@ def _build_compare_references(
     *,
     audio_tokenizer: HiggsAudioV2TokenizerModel,
 ) -> _OmniVoiceCompareState:
-    reference.set_model(model)
     return _OmniVoiceCompareState(
         input_embed=InputEmbedReference(model),
         llm_forward=LlmForwardReference(model),
+        audio_head=AudioHeadReference(model),
         token_score=TokenScoreReference(model),
         token_update=TokenUpdateReference(),
         audio_decode=AudioDecodeReference(audio_tokenizer),
     )
 
 
-def _vulkan_tensor(rt: RuntimeSession, tensor: LogicalTensor) -> torch.Tensor:
-    return torch.from_numpy(np.ascontiguousarray(rt.readback(tensor))).cuda()
+def _expected_array(expected: reference.ReferenceExpected, key: str) -> np.ndarray:
+    return np.ascontiguousarray(as_numpy_array(expected[key]))
 
 
 def _run_generation_step_with_compare(
@@ -78,69 +78,129 @@ def _run_generation_step_with_compare(
     unmask_count: int,
     rng_seed: int,
     audio_mask_id: int,
+    batch_input_ids: np.ndarray,
+    batch_audio_mask: np.ndarray,
+    attention_mask: np.ndarray,
+    tokens: np.ndarray,
+    cos: np.ndarray,
+    sin: np.ndarray,
     refs: _OmniVoiceCompareState,
-) -> None:
-    with rt.frame(f"omnivoice.step.{step:04d}"):
-        batch_input_ids = _vulkan_tensor(rt, model_tensors().batch_input_ids).long()
-        batch_audio_mask = _vulkan_tensor(rt, model_tensors().batch_audio_mask).to(torch.bool)
-        _run_input_embed(rt)
-        reference.run_input_embed(
-            rt,
-            refs.input_embed,
-            step=step,
-            input_ids=batch_input_ids,
-            audio_mask=batch_audio_mask,
-        )
-        hidden_states = _vulkan_tensor(rt, model_tensors().llm_forward.hidden_states).float()
+) -> tuple[np.ndarray, np.ndarray]:
+    embed_expected = refs.input_embed.execute(
+        {
+            "input_ids": batch_input_ids,
+            "audio_mask": batch_audio_mask,
+        }
+    )
+    embed_expected = reference.compare_input_embed(
+        rt,
+        step=step,
+        expected=embed_expected,
+        input_ids=batch_input_ids,
+        audio_mask=batch_audio_mask,
+    )
+    hidden_states = _expected_array(embed_expected, "hidden_states")
 
-        run_llm_forward(rt)
-        reference.run_llm_forward(
-            rt,
-            refs.llm_forward,
-            step=step,
-            hidden_states=hidden_states,
-            cos=_vulkan_tensor(rt, model_tensors().rope.cos).float(),
-            sin=_vulkan_tensor(rt, model_tensors().rope.sin).float(),
-            attention_mask=_vulkan_tensor(rt, model_tensors().attention_mask).float(),
-        )
-        llm_output = _vulkan_tensor(rt, model_tensors().llm_forward.mul_365).float()
+    llm_expected = refs.llm_forward.execute(
+        {
+            "hidden_states": hidden_states,
+            "cos": cos,
+            "sin": sin,
+            "attention_mask": attention_mask,
+        }
+    )
+    llm_expected = reference.compare_llm_forward(
+        rt,
+        step=step,
+        expected=llm_expected,
+        hidden_states=hidden_states,
+        cos=cos,
+        sin=sin,
+        attention_mask=attention_mask,
+    )
+    llm_output = _expected_array(llm_expected, "mul_365")
 
-        run_audio_head(rt)
-        reference.run_audio_head(
-            rt,
-            step=step,
-            input=llm_output,
-        )
-        logits = _vulkan_tensor(rt, model_tensors().audio_head.linear).float()
+    head_expected = refs.audio_head.execute({"input": llm_output})
+    head_expected = reference.compare_audio_head(
+        rt,
+        step=step,
+        expected=head_expected,
+        input=llm_output,
+    )
+    logits = _expected_array(head_expected, "linear")
 
-        step_index = torch.tensor([step], dtype=torch.int64, device="cuda")
-        tokens = _vulkan_tensor(rt, model_tensors().tokens).long()
-        _run_token_score(rt, step=step, rng_seed=rng_seed, audio_mask_id=audio_mask_id)
-        reference.run_token_score(
+    step_index = np.array([step], dtype=np.int64)
+    score_expected = refs.token_score.execute(
+        {
+            "logits": logits,
+            "tokens": tokens,
+            "audio_mask_id": np.array([audio_mask_id], dtype=np.int64),
+            "rng_seed": np.array([rng_seed], dtype=np.uint32),
+            "step_index": step_index,
+        }
+    )
+    compare_vulkan_stage(
+        rt,
+        name=f"omnivoice.step.{step:04d}.token_score",
+        run=lambda: _run_token_score(
             rt,
-            refs.token_score,
             step=step,
-            logits=logits,
-            tokens=tokens,
+            rng_seed=rng_seed,
             audio_mask_id=audio_mask_id,
-            rng_seed=np.array([rng_seed], dtype=np.uint32),
-            step_index=step_index,
-        )
-        candidate_tokens = _vulkan_tensor(rt, model_tensors().candidate_tokens).long()
-        candidate_scores = _vulkan_tensor(rt, model_tensors().candidate_scores).float()
+        ),
+        tensors=model_tensors(),
+        input_bindings={
+            "logits": "audio_head.linear",
+            "tokens": "tokens",
+        },
+        output_bindings={"candidate_scores": "candidate_scores"},
+        inputs={
+            "logits": logits,
+            "tokens": tokens,
+        },
+        expected=score_expected,
+        policy={"candidate_scores": ComparePolicy(kind="tensor", rtol=1e-2, atol=1.5)},
+    )
+    candidate_tokens = _expected_array(score_expected, "candidate_tokens")
+    candidate_scores = _expected_array(score_expected, "candidate_scores")
 
-        _run_token_update(rt, unmask_count=unmask_count)
-        unmask_count_t = torch.tensor([unmask_count], dtype=torch.uint32, device="cuda")
-        reference.run_token_update(
-            rt,
-            refs.token_update,
-            step=step,
-            tokens=tokens,
-            batch_input_ids=batch_input_ids,
-            candidate_tokens=candidate_tokens,
-            candidate_scores=candidate_scores,
-            unmask_count=unmask_count_t,
-        )
+    update_expected = refs.token_update.execute(
+        {
+            "tokens": tokens,
+            "batch_input_ids": batch_input_ids,
+            "candidate_tokens": candidate_tokens,
+            "candidate_scores": candidate_scores,
+            "unmask_count": np.array([unmask_count], dtype=np.uint32),
+        }
+    )
+    compare_vulkan_stage(
+        rt,
+        name=f"omnivoice.step.{step:04d}.token_update",
+        run=lambda: _run_token_update(rt, unmask_count=unmask_count),
+        tensors=model_tensors(),
+        input_bindings={
+            "tokens": "tokens",
+            "batch_input_ids": "batch_input_ids",
+            "candidate_tokens": "candidate_tokens",
+            "candidate_scores": "candidate_scores",
+        },
+        output_bindings={
+            "tokens": "tokens",
+            "batch_input_ids": "batch_input_ids",
+        },
+        inputs={
+            "tokens": tokens,
+            "batch_input_ids": batch_input_ids,
+            "candidate_tokens": candidate_tokens,
+            "candidate_scores": candidate_scores,
+        },
+        expected=update_expected,
+        policy=ComparePolicy(kind="token"),
+    )
+    return (
+        _expected_array(update_expected, "tokens").astype(np.int64, copy=False),
+        _expected_array(update_expected, "batch_input_ids").astype(np.int64, copy=False),
+    )
 
 
 def compare_generation_steps(
@@ -203,44 +263,48 @@ def compare_generation_steps(
         get_shader=get_shader,
     )
     try:
-        with rt.request(
-            state={
-                model_tensors().batch_input_ids: prepared.batch_input_ids,
-                model_tensors().batch_audio_mask: prepared.batch_audio_mask,
-                model_tensors().attention_mask: attention_mask,
-                model_tensors().tokens: tokens,
-            },
-        ):
+        with rt.request():
             _run_rope_table(rt, frame_name="omnivoice.rope")
+            cos = np.ascontiguousarray(rt.read_request_state(model_tensors().rope.cos))
+            sin = np.ascontiguousarray(rt.read_request_state(model_tensors().rope.sin))
 
-            timesteps = _get_time_steps(0.0, 1.0, num_steps, t_shift=0.1)
-            total_mask = prepared.target_len * config.num_audio_codebook
-            remaining = total_mask
-            for step in range(num_steps):
-                if step == num_steps - 1:
-                    unmask_count = remaining
-                else:
-                    unmask_count = min(
-                        math.ceil(total_mask * (timesteps[step + 1] - timesteps[step])),
-                        remaining,
-                    )
-                remaining -= int(unmask_count)
-                if unmask_count <= 0:
-                    continue
-                _run_generation_step_with_compare(
-                    rt,
-                    step=step,
-                    unmask_count=int(unmask_count),
-                    rng_seed=rng_seed,
-                    audio_mask_id=config.audio_mask_id,
-                    refs=refs,
+        batch_input_ids = np.ascontiguousarray(prepared.batch_input_ids, dtype=np.int64)
+        batch_audio_mask = np.ascontiguousarray(prepared.batch_audio_mask)
+        tokens = np.ascontiguousarray(tokens)
+        timesteps = _get_time_steps(0.0, 1.0, num_steps, t_shift=0.1)
+        total_mask = prepared.target_len * config.num_audio_codebook
+        remaining = total_mask
+        for step in range(num_steps):
+            if step == num_steps - 1:
+                unmask_count = remaining
+            else:
+                unmask_count = min(
+                    math.ceil(total_mask * (timesteps[step + 1] - timesteps[step])),
+                    remaining,
                 )
-            with rt.frame("omnivoice.audio_decode"):
-                run_audio_decode(rt)
-                reference.run_audio_decode(
-                    rt,
-                    refs.audio_decode,
-                    audio_codes=_vulkan_tensor(rt, model_tensors().tokens).long(),
-                )
+            remaining -= int(unmask_count)
+            if unmask_count <= 0:
+                continue
+            tokens, batch_input_ids = _run_generation_step_with_compare(
+                rt,
+                step=step,
+                unmask_count=int(unmask_count),
+                rng_seed=rng_seed,
+                audio_mask_id=config.audio_mask_id,
+                batch_input_ids=batch_input_ids,
+                batch_audio_mask=batch_audio_mask,
+                attention_mask=attention_mask,
+                tokens=tokens,
+                cos=cos,
+                sin=sin,
+                refs=refs,
+            )
+
+        audio_expected = refs.audio_decode.execute({"audio_codes": tokens})
+        audio_expected = reference.compare_audio_decode(
+            rt,
+            expected=audio_expected,
+            audio_codes=tokens,
+        )
     finally:
         rt.close()

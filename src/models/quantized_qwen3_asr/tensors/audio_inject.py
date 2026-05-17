@@ -42,7 +42,7 @@ def create_audio_inject(
     index_copy: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> AudioInjectTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('index_copy',)))
+    _validate_request_state_outputs(request_state_outputs, frozenset({'index_copy'}))
     tensors = AudioInjectTensors(
         audio_positions=_bind_tensor(
             audio_positions,

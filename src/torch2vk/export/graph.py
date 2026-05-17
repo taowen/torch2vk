@@ -133,6 +133,9 @@ def graph_output_names(graph: Graph) -> list[str]:
 def _collect_output_node_names(value, names: list[str]) -> None:
     if isinstance(value, Node):
         names.append(value.name)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _collect_output_node_names(item, names)
     elif isinstance(value, (list, tuple)):
         for item in value:
             _collect_output_node_names(item, names)
