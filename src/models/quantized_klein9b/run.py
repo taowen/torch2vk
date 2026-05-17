@@ -354,6 +354,7 @@ def _main_cli() -> None:
     parser.add_argument("--height", type=int, default=512)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num-steps", type=int, default=4)
+    parser.add_argument("--profile-dir", type=Path)
     args = parser.parse_args()
     main(
         prompt=args.prompt,
@@ -366,6 +367,7 @@ def _main_cli() -> None:
         height=args.height,
         seed=args.seed,
         num_steps=args.num_steps,
+        profile_dir=args.profile_dir,
     )
 
 

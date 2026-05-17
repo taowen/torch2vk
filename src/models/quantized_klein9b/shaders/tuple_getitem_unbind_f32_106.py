@@ -42,7 +42,7 @@ TUPLE_GETITEM_UNBIND_F32_106 = ShaderVariant(
                 PushConstantFieldSpec('N', PushConstantType.UINT32, 0, mul(mul(mul('O0', 'O1'), 'O2'), 'O3'), dynamic=False),
                 PushConstantFieldSpec('SELECT_DIM', PushConstantType.UINT32, 4, 'I0', dynamic=False),
                 PushConstantFieldSpec('INNER', PushConstantType.UINT32, 8, mul(mul(mul('I1', 'I2'), 'I3'), 'I4'), dynamic=False),
-                PushConstantFieldSpec('SELECTED', PushConstantType.UINT32, 12, 1, dynamic=False),
+                PushConstantFieldSpec('SELECTED', PushConstantType.UINT32, 12, 2, dynamic=False),
             ),
         ),
         params_buffer=None,

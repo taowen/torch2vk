@@ -63,6 +63,7 @@ class RuntimeProfiler:
         record: DispatchRecord,
         pipeline: "ComputePipeline",
         elapsed_wall_ns: int | None = None,
+        submit_throttle_wait_ns: int = 0,
     ) -> None:
         if not self.enabled:
             return
@@ -71,6 +72,7 @@ class RuntimeProfiler:
             pipeline=pipeline,
             phase="record",
             elapsed_wall_ns=elapsed_wall_ns,
+            submit_throttle_wait_ns=submit_throttle_wait_ns,
         )
         self._attach_profile_shader_source(row, pipeline)
         _attach_profile_compare_fields(row)
@@ -228,7 +230,11 @@ def _dispatch_record_row(
     pipeline: "ComputePipeline",
     phase: str,
     elapsed_wall_ns: int | None,
+    submit_throttle_wait_ns: int = 0,
 ) -> dict[str, Any]:
+    active_wall_ns = None
+    if elapsed_wall_ns is not None:
+        active_wall_ns = max(0, elapsed_wall_ns - submit_throttle_wait_ns)
     return {
         "phase": phase,
         "timing_kind": "eager_dispatch_wall_ns",
@@ -258,6 +264,8 @@ def _dispatch_record_row(
         "output_op": _output_op_name(record.logical_writes),
         "elapsed_ns": None,
         "elapsed_wall_ns": elapsed_wall_ns,
+        "active_wall_ns": active_wall_ns,
+        "submit_throttle_wait_ns": submit_throttle_wait_ns,
     }
 
 
@@ -315,16 +323,48 @@ def _record_summary(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
         for row in rows
         if row.get("elapsed_wall_ns") is not None
     ]
+    active_values = [
+        int(row["active_wall_ns"])
+        for row in rows
+        if row.get("active_wall_ns") is not None
+    ]
+    throttle_wait_values = [
+        int(row["submit_throttle_wait_ns"])
+        for row in rows
+        if row.get("submit_throttle_wait_ns") is not None
+    ]
     return {
         "timing_kind": "eager_dispatch_wall_ns",
         "dispatch_count": len(rows),
         "wall_elapsed_ns_total": sum(wall_values),
+        "active_wall_ns_total": sum(active_values),
+        "submit_throttle_wait_ns_total": sum(throttle_wait_values),
         "top_shaders_by_wall_ns": _top_groups(rows, key_field="shader", value_field="elapsed_wall_ns"),
+        "top_shaders_by_active_wall_ns": _top_groups(
+            rows,
+            key_field="shader",
+            value_field="active_wall_ns",
+        ),
+        "top_shaders_by_submit_throttle_wait_ns": _top_groups(
+            rows,
+            key_field="shader",
+            value_field="submit_throttle_wait_ns",
+        ),
         "top_frames_by_wall_ns": _top_groups(rows, key_field="frame", value_field="elapsed_wall_ns"),
+        "top_frames_by_active_wall_ns": _top_groups(
+            rows,
+            key_field="frame",
+            value_field="active_wall_ns",
+        ),
         "top_op_groups_by_wall_ns": _top_groups(
             rows,
             key_field="op_group",
             value_field="elapsed_wall_ns",
+        ),
+        "top_op_groups_by_active_wall_ns": _top_groups(
+            rows,
+            key_field="op_group",
+            value_field="active_wall_ns",
         ),
     }
 

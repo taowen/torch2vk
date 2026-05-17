@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import time
 from collections.abc import Callable, Sequence
 from _cffi_backend import _CDataBase
 from dataclasses import dataclass
@@ -97,6 +99,17 @@ _NUMPY_DTYPE_TO_SPEC: dict[np.dtype, str] = {
     if spec_dtype != "bfloat16"
 }
 _UPLOAD_STAGING_CHUNK_BYTES = 64 * 1024 * 1024
+_DEFAULT_MAX_PENDING_SUBMITS = 64
+
+
+def _configured_max_pending_submits() -> int:
+    raw = os.environ.get("TORCH2VK_MAX_PENDING_SUBMITS")
+    if raw is None or not raw.strip():
+        return _DEFAULT_MAX_PENDING_SUBMITS
+    value = int(raw)
+    if value <= 0:
+        raise ValueError(f"TORCH2VK_MAX_PENDING_SUBMITS must be positive, got {raw!r}")
+    return value
 
 
 @dataclass(slots=True)
@@ -191,6 +204,7 @@ class VulkanDevice:
             None,
         )
         self._pending_submits: list[_PendingCommandBufferSubmit] = []
+        self._max_pending_submits = _configured_max_pending_submits()
 
     @property
     def closed(self) -> bool:
@@ -647,8 +661,8 @@ class VulkanDevice:
         )
         self.memory_manager.note_queue_submit_completed(submit_point)
 
-    def submit_one_shot_async(self, command_buffer: object, *, cleanup: Callable[[], None]) -> None:
-        self.submit_command_buffer_async(
+    def submit_one_shot_async(self, command_buffer: object, *, cleanup: Callable[[], None]) -> int:
+        return self.submit_command_buffer_async(
             command_buffer,
             cleanup=cleanup,
             release_command_buffer=True,
@@ -663,8 +677,13 @@ class VulkanDevice:
         cleanup: Callable[[], None] | None = None,
         release_command_buffer: bool = False,
         destroy_fence: bool = False,
-    ) -> None:
+    ) -> int:
         self.require_open()
+        throttle_wait_ns = 0
+        if len(self._pending_submits) >= self._max_pending_submits:
+            wait_started_ns = time.perf_counter_ns()
+            self._wait_oldest_pending_submit()
+            throttle_wait_ns = time.perf_counter_ns() - wait_started_ns
         cleanup_fn = _noop if cleanup is None else cleanup
         submit_id = self.memory_manager.note_queue_submit_started()
         owns_fence = destroy_fence
@@ -699,21 +718,25 @@ class VulkanDevice:
                 destroy_fence=owns_fence,
             )
         )
+        return throttle_wait_ns
 
     def wait_pending_submits(self) -> None:
         self.require_open()
         while self._pending_submits:
-            submit = self._pending_submits[0]
-            wait_for_fence(device_handle=self.device, fence=submit.fence)
-            self._pending_submits.pop(0)
-            try:
-                if submit.release_command_buffer:
-                    self.free_command_buffer(submit.command_buffer)
-                submit.cleanup()
-            finally:
-                if submit.destroy_fence:
-                    vkDestroyFence(self.device, submit.fence, None)
-                self.memory_manager.note_queue_submit_completed(submit.submit_id)
+            self._wait_oldest_pending_submit()
+
+    def _wait_oldest_pending_submit(self) -> None:
+        submit = self._pending_submits[0]
+        wait_for_fence(device_handle=self.device, fence=submit.fence)
+        self._pending_submits.pop(0)
+        try:
+            if submit.release_command_buffer:
+                self.free_command_buffer(submit.command_buffer)
+            submit.cleanup()
+        finally:
+            if submit.destroy_fence:
+                vkDestroyFence(self.device, submit.fence, None)
+            self.memory_manager.note_queue_submit_completed(submit.submit_id)
 
 
 def _noop() -> None:

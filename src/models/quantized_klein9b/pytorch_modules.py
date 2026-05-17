@@ -33,68 +33,9 @@ FLUX_PROLOGUE_OUTPUT_NAMES = (
     "single_mod_gate",
 )
 
-FLUX_DOUBLE_BLOCK_OUTPUT_NAMES = (
-    "img_k_raw",
-    "txt_k_raw",
-    "img_k_rrms",
-    "txt_k_rrms",
-    "txt_q_unit",
-    "img_q_unit",
-    "txt_k_unit",
-    "img_k_unit",
-    "txt_q",
-    "img_q",
-    "txt_k",
-    "img_k",
-    "txt_v",
-    "img_v",
-    "q",
-    "k",
-    "v",
-    "pe_full",
-    "q_rope",
-    "k_rope",
-    "attn",
-    "txt_attn",
-    "img_attn",
-    "img_attn_proj",
-    "img_after_attn",
-    "img_mlp_in",
-    "img_mlp_hidden",
-    "img_mlp_act",
-    "img_mlp_out",
-    "img",
-    "txt_attn_proj",
-    "txt_after_attn",
-    "txt_mlp_in",
-    "txt_mlp_hidden",
-    "txt_mlp_act",
-    "txt_mlp_out",
-    "txt_mlp_gated",
-    "txt",
-)
+FLUX_DOUBLE_BLOCK_OUTPUT_NAMES = ("img", "txt")
 
-FLUX_SINGLE_BLOCK_OUTPUT_NAMES = (
-    "pre_norm",
-    "x_mod",
-    "linear1",
-    "q_raw",
-    "k_raw",
-    "v",
-    "q_unit",
-    "k_unit",
-    "q",
-    "k",
-    "q_rope",
-    "k_rope",
-    "attn",
-    "mlp",
-    "mlp_act",
-    "out_input",
-    "linear2",
-    "gated",
-    "hidden_states",
-)
+FLUX_SINGLE_BLOCK_OUTPUT_NAMES = ("hidden_states",)
 
 FLUX_FINAL_LAYER_OUTPUT_NAMES = ("pred",)
 
@@ -153,17 +94,6 @@ class FluxPeJoinModule(nn.Module):
 class EulerUpdateModule(nn.Module):
     def forward(self, x: Tensor, pred: Tensor, dt: Tensor) -> Tensor:
         return x + dt.view(1, 1, 1) * pred
-
-
-def _rms_norm_unit(x: Tensor, dtype: torch.dtype) -> Tensor:
-    x_float = x.float()
-    rrms = _rms_norm_rrms(x)
-    return (x_float * rrms).to(dtype=dtype)
-
-
-def _rms_norm_rrms(x: Tensor) -> Tensor:
-    x_float = x.float()
-    return torch.rsqrt(torch.mean(x_float**2, dim=-1, keepdim=True) + 1e-6)
 
 
 @dataclass
@@ -664,57 +594,6 @@ class SingleStreamBlock(nn.Module):
         attn = causal_attn_fn(q, k, v, num_txt_tokens, num_ref_tokens)
         return self._out(x, attn, mlp, mod_gate), cache
 
-    def forward_kv_extract_debug(
-        self,
-        x: Tensor,
-        pe: Tensor,
-        mod: tuple[Tensor, Tensor, Tensor],
-        num_txt_tokens: int,
-        num_ref_tokens: int,
-    ) -> dict[str, Tensor]:
-        mod_shift, mod_scale, mod_gate = mod
-        pre_norm = self.pre_norm(x)
-        x_mod = (1 + mod_scale) * pre_norm + mod_shift
-        linear1 = self.linear1(x_mod)
-        qkv, mlp = torch.split(
-            linear1,
-            [3 * self.hidden_size, self.mlp_hidden_dim * self.mlp_mult_factor],
-            dim=-1,
-        )
-        q_raw, k_raw, v = rearrange(qkv, "B L (K H D) -> K B H L D", K=3, H=self.num_heads)
-        q_unit = _rms_norm_unit(q_raw, v.dtype)
-        k_unit = _rms_norm_unit(k_raw, v.dtype)
-        q = q_unit * self.norm.query_norm.scale
-        k = k_unit * self.norm.key_norm.scale
-        q_rope, k_rope = apply_rope(q, k, pe)
-        attn = causal_attn_fn(q_rope, k_rope, v, num_txt_tokens, num_ref_tokens)
-        mlp_act = self.mlp_act(mlp)
-        out_input = torch.cat((attn, mlp_act), 2)
-        linear2 = self.linear2(out_input)
-        gated = mod_gate * linear2
-        hidden_states = x + gated
-        return {
-            "pre_norm": pre_norm,
-            "x_mod": x_mod,
-            "linear1": linear1,
-            "q_raw": q_raw,
-            "k_raw": k_raw,
-            "v": v,
-            "q_unit": q_unit,
-            "k_unit": k_unit,
-            "q": q,
-            "k": k,
-            "q_rope": q_rope,
-            "k_rope": k_rope,
-            "attn": attn,
-            "mlp": mlp,
-            "mlp_act": mlp_act,
-            "out_input": out_input,
-            "linear2": linear2,
-            "gated": gated,
-            "hidden_states": hidden_states,
-        }
-
     def forward_kv_cached(
         self,
         x: Tensor,
@@ -777,31 +656,6 @@ class DoubleStreamBlock(nn.Module):
         )
 
     def _prepare_qkv(self, img, txt, pe, pe_ctx, mod_img, mod_txt):
-        (
-            _img_q_unit,
-            _img_k_unit,
-            _txt_q_unit,
-            _txt_k_unit,
-            _img_k_raw,
-            _txt_k_raw,
-            _img_k_rrms,
-            _txt_k_rrms,
-            img_q,
-            img_k,
-            img_v,
-            txt_q,
-            txt_k,
-            txt_v,
-            pe_full,
-            num_txt_tokens,
-            mods,
-        ) = self._prepare_qkv_parts(img, txt, pe, pe_ctx, mod_img, mod_txt)
-        q = torch.cat((txt_q, img_q), dim=2)
-        k = torch.cat((txt_k, img_k), dim=2)
-        v = torch.cat((txt_v, img_v), dim=2)
-        return q, k, v, pe_full, num_txt_tokens, mods
-
-    def _prepare_qkv_parts(self, img, txt, pe, pe_ctx, mod_img, mod_txt):
         img_mod1, img_mod2 = mod_img
         txt_mod1, txt_mod2 = mod_txt
 
@@ -821,11 +675,7 @@ class DoubleStreamBlock(nn.Module):
             K=3,
             H=self.num_heads,
         )
-        img_q_unit = _rms_norm_unit(img_q_raw, img_v.dtype)
-        img_k_unit = _rms_norm_unit(img_k_raw, img_v.dtype)
-        img_k_rrms = _rms_norm_rrms(img_k_raw)
-        img_q = img_q_unit * self.img_attn.norm.query_norm.scale
-        img_k = img_k_unit * self.img_attn.norm.key_norm.scale
+        img_q, img_k = self.img_attn.norm(img_q_raw, img_k_raw, img_v)
 
         # prepare txt for attention
         txt_modulated = self.txt_norm1(txt)
@@ -838,11 +688,7 @@ class DoubleStreamBlock(nn.Module):
             K=3,
             H=self.num_heads,
         )
-        txt_q_unit = _rms_norm_unit(txt_q_raw, txt_v.dtype)
-        txt_k_unit = _rms_norm_unit(txt_k_raw, txt_v.dtype)
-        txt_k_rrms = _rms_norm_rrms(txt_k_raw)
-        txt_q = txt_q_unit * self.txt_attn.norm.query_norm.scale
-        txt_k = txt_k_unit * self.txt_attn.norm.key_norm.scale
+        txt_q, txt_k = self.txt_attn.norm(txt_q_raw, txt_k_raw, txt_v)
 
         num_txt_tokens = txt_q.shape[2]
         pe_full = torch.cat((pe_ctx, pe), dim=2)
@@ -858,25 +704,10 @@ class DoubleStreamBlock(nn.Module):
             txt_mod2_gate,
         )
 
-        return (
-            img_q_unit,
-            img_k_unit,
-            txt_q_unit,
-            txt_k_unit,
-            img_k_raw,
-            txt_k_raw,
-            img_k_rrms,
-            txt_k_rrms,
-            img_q,
-            img_k,
-            img_v,
-            txt_q,
-            txt_k,
-            txt_v,
-            pe_full,
-            num_txt_tokens,
-            mods,
-        )
+        q = torch.cat((txt_q, img_q), dim=2)
+        k = torch.cat((txt_k, img_k), dim=2)
+        v = torch.cat((txt_v, img_v), dim=2)
+        return q, k, v, pe_full, num_txt_tokens, mods
 
     def _apply_residuals(self, img, txt, img_attn, txt_attn, mods):
         (
@@ -926,115 +757,6 @@ class DoubleStreamBlock(nn.Module):
         txt_attn, img_attn = attn[:, :num_txt_tokens], attn[:, num_txt_tokens:]
         img, txt = self._apply_residuals(img, txt, img_attn, txt_attn, mods)
         return img, txt, cache
-
-    def forward_kv_extract_debug(
-        self,
-        img: Tensor,
-        txt: Tensor,
-        pe: Tensor,
-        pe_ctx: Tensor,
-        mod_img: tuple[tuple[Tensor, Tensor, Tensor], tuple[Tensor, Tensor, Tensor]],
-        mod_txt: tuple[tuple[Tensor, Tensor, Tensor], tuple[Tensor, Tensor, Tensor]],
-        num_ref_tokens: int,
-    ) -> dict[str, Tensor]:
-        (
-            img_q_unit,
-            img_k_unit,
-            txt_q_unit,
-            txt_k_unit,
-            img_k_raw,
-            txt_k_raw,
-            img_k_rrms,
-            txt_k_rrms,
-            img_q,
-            img_k,
-            img_v,
-            txt_q,
-            txt_k,
-            txt_v,
-            pe_full,
-            num_txt_tokens,
-            mods,
-        ) = self._prepare_qkv_parts(
-            img,
-            txt,
-            pe,
-            pe_ctx,
-            mod_img,
-            mod_txt,
-        )
-        q = torch.cat((txt_q, img_q), dim=2)
-        k = torch.cat((txt_k, img_k), dim=2)
-        v = torch.cat((txt_v, img_v), dim=2)
-        q_rope, k_rope = apply_rope(q, k, pe_full)
-        attn = causal_attn_fn(q_rope, k_rope, v, num_txt_tokens, num_ref_tokens)
-        txt_attn, img_attn = attn[:, :num_txt_tokens], attn[:, num_txt_tokens:]
-        (
-            img_mod1_gate,
-            img_mod2_shift,
-            img_mod2_scale,
-            img_mod2_gate,
-            txt_mod1_gate,
-            txt_mod2_shift,
-            txt_mod2_scale,
-            txt_mod2_gate,
-        ) = mods
-        img_attn_proj = self.img_attn.proj(img_attn)
-        img_after_attn = img + img_mod1_gate * img_attn_proj
-        img_mlp_in = (1 + img_mod2_scale) * self.img_norm2(img_after_attn) + img_mod2_shift
-        img_mlp_hidden = self.img_mlp[0](img_mlp_in)
-        img_mlp_act = self.img_mlp[1](img_mlp_hidden)
-        img_mlp_out = self.img_mlp[2](img_mlp_act)
-        img_out = img_after_attn + img_mod2_gate * img_mlp_out
-
-        txt_attn_proj = self.txt_attn.proj(txt_attn)
-        txt_after_attn = txt + txt_mod1_gate * txt_attn_proj
-        txt_mlp_in = (1 + txt_mod2_scale) * self.txt_norm2(txt_after_attn) + txt_mod2_shift
-        txt_mlp_hidden = self.txt_mlp[0](txt_mlp_in)
-        txt_mlp_act = self.txt_mlp[1](txt_mlp_hidden)
-        txt_mlp_out = self.txt_mlp[2](txt_mlp_act)
-        txt_mlp_gated = txt_mod2_gate * txt_mlp_out
-        txt_out = txt_after_attn + txt_mlp_gated
-        return {
-            "txt_q_unit": txt_q_unit,
-            "img_q_unit": img_q_unit,
-            "txt_k_unit": txt_k_unit,
-            "img_k_unit": img_k_unit,
-            "img_k_raw": img_k_raw,
-            "txt_k_raw": txt_k_raw,
-            "img_k_rrms": img_k_rrms,
-            "txt_k_rrms": txt_k_rrms,
-            "txt_q": txt_q,
-            "img_q": img_q,
-            "txt_k": txt_k,
-            "img_k": img_k,
-            "txt_v": txt_v,
-            "img_v": img_v,
-            "q": q,
-            "k": k,
-            "v": v,
-            "pe_full": pe_full,
-            "q_rope": q_rope,
-            "k_rope": k_rope,
-            "attn": attn,
-            "txt_attn": txt_attn,
-            "img_attn": img_attn,
-            "img_attn_proj": img_attn_proj,
-            "img_after_attn": img_after_attn,
-            "img_mlp_in": img_mlp_in,
-            "img_mlp_hidden": img_mlp_hidden,
-            "img_mlp_act": img_mlp_act,
-            "img_mlp_out": img_mlp_out,
-            "img": img_out,
-            "txt_attn_proj": txt_attn_proj,
-            "txt_after_attn": txt_after_attn,
-            "txt_mlp_in": txt_mlp_in,
-            "txt_mlp_hidden": txt_mlp_hidden,
-            "txt_mlp_act": txt_mlp_act,
-            "txt_mlp_out": txt_mlp_out,
-            "txt_mlp_gated": txt_mlp_gated,
-            "txt": txt_out,
-        }
 
     def forward_kv_cached(
         self,
@@ -1292,7 +1014,7 @@ class FluxDoubleBlockModule(DoubleStreamBlock):
             (txt_mod1_shift, txt_mod1_scale, txt_mod1_gate),
             (txt_mod2_shift, txt_mod2_scale, txt_mod2_gate),
         )
-        outputs = self.forward_kv_extract_debug(
+        img, txt, _cache = self.forward_kv_extract(
             img,
             txt,
             pe,
@@ -1301,7 +1023,7 @@ class FluxDoubleBlockModule(DoubleStreamBlock):
             txt_mod,
             num_ref_tokens=0,
         )
-        return tuple(outputs[name] for name in FLUX_DOUBLE_BLOCK_OUTPUT_NAMES)
+        return img, txt
 
 
 class FluxSingleBlockModule(SingleStreamBlock):
@@ -1328,14 +1050,14 @@ class FluxSingleBlockModule(SingleStreamBlock):
         mod_scale: Tensor,
         mod_gate: Tensor,
     ) -> tuple[Tensor, ...]:
-        outputs = self.forward_kv_extract_debug(
+        hidden_states, _cache = self.forward_kv_extract(
             hidden_states,
             pe,
             (mod_shift, mod_scale, mod_gate),
             self.text_seq_len,
             num_ref_tokens=0,
         )
-        return tuple(outputs[name] for name in FLUX_SINGLE_BLOCK_OUTPUT_NAMES)
+        return (hidden_states,)
 
 
 class FluxFinalLayerModule(nn.Module):

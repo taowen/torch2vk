@@ -34,8 +34,8 @@ class FluxSingleBlockTensors:
     mod_shift: LogicalTensor
     mod_scale: LogicalTensor
     mod_gate: LogicalTensor
-    layer_norm: LogicalTensor
     add: LogicalTensor
+    layer_norm: LogicalTensor
     mul: LogicalTensor
     add_1: LogicalTensor
     linear: LogicalTensor
@@ -47,23 +47,23 @@ class FluxSingleBlockTensors:
     getitem_3: LogicalTensor
     getitem_4: LogicalTensor
     to: LogicalTensor
-    to_1: LogicalTensor
     pow_1: LogicalTensor
     mean: LogicalTensor
     add_2: LogicalTensor
     rsqrt: LogicalTensor
     mul_1: LogicalTensor
+    to_1: LogicalTensor
+    mul_2: LogicalTensor
     to_2: LogicalTensor
-    to_3: LogicalTensor
-    to_4: LogicalTensor
     pow_2: LogicalTensor
     mean_1: LogicalTensor
     add_3: LogicalTensor
     rsqrt_1: LogicalTensor
-    mul_2: LogicalTensor
-    to_5: LogicalTensor
     mul_3: LogicalTensor
+    to_3: LogicalTensor
     mul_4: LogicalTensor
+    to_4: LogicalTensor
+    to_5: LogicalTensor
     to_6: LogicalTensor
     reshape_1: LogicalTensor
     to_7: LogicalTensor
@@ -86,8 +86,6 @@ class FluxSingleBlockTensors:
     type_as: LogicalTensor
     reshape_4: LogicalTensor
     type_as_1: LogicalTensor
-    slice_1: LogicalTensor
-    slice_2: LogicalTensor
     slice_3: LogicalTensor
     slice_4: LogicalTensor
     slice_5: LogicalTensor
@@ -95,12 +93,14 @@ class FluxSingleBlockTensors:
     slice_7: LogicalTensor
     slice_8: LogicalTensor
     slice_9: LogicalTensor
+    slice_10: LogicalTensor
+    slice_11: LogicalTensor
     cat: LogicalTensor
     cat_1: LogicalTensor
     cat_2: LogicalTensor
     scaled_dot_product_attention: LogicalTensor
-    slice_10: LogicalTensor
-    slice_11: LogicalTensor
+    slice_12: LogicalTensor
+    slice_13: LogicalTensor
     scaled_dot_product_attention_1: LogicalTensor
     cat_3: LogicalTensor
     permute_1: LogicalTensor
@@ -115,7 +115,7 @@ class FluxSingleBlockTensors:
     add_6: LogicalTensor
 
 
-FLUX_SINGLE_BLOCK_OUTPUT: str = 'layer_norm'
+FLUX_SINGLE_BLOCK_OUTPUT: str = 'add_6'
 
 
 def create_flux_single_block(
@@ -133,8 +133,8 @@ def create_flux_single_block(
     mod_shift: LogicalTensor | None = None,
     mod_scale: LogicalTensor | None = None,
     mod_gate: LogicalTensor | None = None,
-    layer_norm: LogicalTensor | None = None,
     add: LogicalTensor | None = None,
+    layer_norm: LogicalTensor | None = None,
     mul: LogicalTensor | None = None,
     add_1: LogicalTensor | None = None,
     linear: LogicalTensor | None = None,
@@ -146,23 +146,23 @@ def create_flux_single_block(
     getitem_3: LogicalTensor | None = None,
     getitem_4: LogicalTensor | None = None,
     to: LogicalTensor | None = None,
-    to_1: LogicalTensor | None = None,
     pow_1: LogicalTensor | None = None,
     mean: LogicalTensor | None = None,
     add_2: LogicalTensor | None = None,
     rsqrt: LogicalTensor | None = None,
     mul_1: LogicalTensor | None = None,
+    to_1: LogicalTensor | None = None,
+    mul_2: LogicalTensor | None = None,
     to_2: LogicalTensor | None = None,
-    to_3: LogicalTensor | None = None,
-    to_4: LogicalTensor | None = None,
     pow_2: LogicalTensor | None = None,
     mean_1: LogicalTensor | None = None,
     add_3: LogicalTensor | None = None,
     rsqrt_1: LogicalTensor | None = None,
-    mul_2: LogicalTensor | None = None,
-    to_5: LogicalTensor | None = None,
     mul_3: LogicalTensor | None = None,
+    to_3: LogicalTensor | None = None,
     mul_4: LogicalTensor | None = None,
+    to_4: LogicalTensor | None = None,
+    to_5: LogicalTensor | None = None,
     to_6: LogicalTensor | None = None,
     reshape_1: LogicalTensor | None = None,
     to_7: LogicalTensor | None = None,
@@ -185,8 +185,6 @@ def create_flux_single_block(
     type_as: LogicalTensor | None = None,
     reshape_4: LogicalTensor | None = None,
     type_as_1: LogicalTensor | None = None,
-    slice_1: LogicalTensor | None = None,
-    slice_2: LogicalTensor | None = None,
     slice_3: LogicalTensor | None = None,
     slice_4: LogicalTensor | None = None,
     slice_5: LogicalTensor | None = None,
@@ -194,12 +192,14 @@ def create_flux_single_block(
     slice_7: LogicalTensor | None = None,
     slice_8: LogicalTensor | None = None,
     slice_9: LogicalTensor | None = None,
+    slice_10: LogicalTensor | None = None,
+    slice_11: LogicalTensor | None = None,
     cat: LogicalTensor | None = None,
     cat_1: LogicalTensor | None = None,
     cat_2: LogicalTensor | None = None,
     scaled_dot_product_attention: LogicalTensor | None = None,
-    slice_10: LogicalTensor | None = None,
-    slice_11: LogicalTensor | None = None,
+    slice_12: LogicalTensor | None = None,
+    slice_13: LogicalTensor | None = None,
     scaled_dot_product_attention_1: LogicalTensor | None = None,
     cat_3: LogicalTensor | None = None,
     permute_1: LogicalTensor | None = None,
@@ -214,7 +214,7 @@ def create_flux_single_block(
     add_6: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> FluxSingleBlockTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset(('layer_norm', 'add_1', 'linear', 'to_1', 'to_4', 'getitem_4', 'to_2', 'to_5', 'to_6', 'to_7', 'type_as', 'type_as_1', 'reshape_5', 'getitem_1', 'mul_9', 'cat_4', 'linear_1', 'mul_10', 'add_6')))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('add_6',)))
     tensors = FluxSingleBlockTensors(
         p_linear1_weight=_bind_tensor(
             p_linear1_weight,
@@ -351,21 +351,6 @@ def create_flux_single_block(
                 request_state='mod_gate' in request_state_outputs,
             ),
         ),
-        layer_norm=_bind_tensor(
-            layer_norm,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='layer_norm',
-                layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, text_seq_len + image_seq_len, 4096)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='layer_norm' in request_state_outputs,
-            ),
-        ),
         add=_bind_tensor(
             add,
             _declare_tensor(
@@ -379,6 +364,21 @@ def create_flux_single_block(
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
                 request_state='add' in request_state_outputs,
+            ),
+        ),
+        layer_norm=_bind_tensor(
+            layer_norm,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='layer_norm',
+                layer=prefix,
+                spec=TensorSpec(dtype='float32', shape=(1, text_seq_len + image_seq_len, 4096)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='layer_norm' in request_state_outputs,
             ),
         ),
         mul=_bind_tensor(
@@ -546,21 +546,6 @@ def create_flux_single_block(
                 request_state='to' in request_state_outputs,
             ),
         ),
-        to_1=_bind_tensor(
-            to_1,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='to_1',
-                layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len + image_seq_len, 128)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='to_1' in request_state_outputs,
-            ),
-        ),
         pow_1=_bind_tensor(
             pow_1,
             _declare_tensor(
@@ -636,6 +621,36 @@ def create_flux_single_block(
                 request_state='mul_1' in request_state_outputs,
             ),
         ),
+        to_1=_bind_tensor(
+            to_1,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='to_1',
+                layer=prefix,
+                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len + image_seq_len, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='to_1' in request_state_outputs,
+            ),
+        ),
+        mul_2=_bind_tensor(
+            mul_2,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='mul_2',
+                layer=prefix,
+                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len + image_seq_len, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='mul_2' in request_state_outputs,
+            ),
+        ),
         to_2=_bind_tensor(
             to_2,
             _declare_tensor(
@@ -649,36 +664,6 @@ def create_flux_single_block(
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
                 request_state='to_2' in request_state_outputs,
-            ),
-        ),
-        to_3=_bind_tensor(
-            to_3,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='to_3',
-                layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len + image_seq_len, 128)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='to_3' in request_state_outputs,
-            ),
-        ),
-        to_4=_bind_tensor(
-            to_4,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='to_4',
-                layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len + image_seq_len, 128)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='to_4' in request_state_outputs,
             ),
         ),
         pow_2=_bind_tensor(
@@ -741,36 +726,6 @@ def create_flux_single_block(
                 request_state='rsqrt_1' in request_state_outputs,
             ),
         ),
-        mul_2=_bind_tensor(
-            mul_2,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='mul_2',
-                layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len + image_seq_len, 128)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='mul_2' in request_state_outputs,
-            ),
-        ),
-        to_5=_bind_tensor(
-            to_5,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='to_5',
-                layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len + image_seq_len, 128)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='to_5' in request_state_outputs,
-            ),
-        ),
         mul_3=_bind_tensor(
             mul_3,
             _declare_tensor(
@@ -786,6 +741,21 @@ def create_flux_single_block(
                 request_state='mul_3' in request_state_outputs,
             ),
         ),
+        to_3=_bind_tensor(
+            to_3,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='to_3',
+                layer=prefix,
+                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len + image_seq_len, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='to_3' in request_state_outputs,
+            ),
+        ),
         mul_4=_bind_tensor(
             mul_4,
             _declare_tensor(
@@ -799,6 +769,36 @@ def create_flux_single_block(
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
                 request_state='mul_4' in request_state_outputs,
+            ),
+        ),
+        to_4=_bind_tensor(
+            to_4,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='to_4',
+                layer=prefix,
+                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len + image_seq_len, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='to_4' in request_state_outputs,
+            ),
+        ),
+        to_5=_bind_tensor(
+            to_5,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='to_5',
+                layer=prefix,
+                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len + image_seq_len, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='to_5' in request_state_outputs,
             ),
         ),
         to_6=_bind_tensor(
@@ -1131,36 +1131,6 @@ def create_flux_single_block(
                 request_state='type_as_1' in request_state_outputs,
             ),
         ),
-        slice_1=_bind_tensor(
-            slice_1,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='slice_1',
-                layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len, 128)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='slice_1' in request_state_outputs,
-            ),
-        ),
-        slice_2=_bind_tensor(
-            slice_2,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='slice_2',
-                layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, 0, 128)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='slice_2' in request_state_outputs,
-            ),
-        ),
         slice_3=_bind_tensor(
             slice_3,
             _declare_tensor(
@@ -1168,7 +1138,7 @@ def create_flux_single_block(
                 checkpoint_key=None,
                 reference_key='slice_3',
                 layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, image_seq_len, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1183,7 +1153,7 @@ def create_flux_single_block(
                 checkpoint_key=None,
                 reference_key='slice_4',
                 layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, 32, 0, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1198,7 +1168,7 @@ def create_flux_single_block(
                 checkpoint_key=None,
                 reference_key='slice_5',
                 layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, 32, image_seq_len, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1213,7 +1183,7 @@ def create_flux_single_block(
                 checkpoint_key=None,
                 reference_key='slice_6',
                 layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, 0, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1228,7 +1198,7 @@ def create_flux_single_block(
                 checkpoint_key=None,
                 reference_key='slice_7',
                 layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, 0, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1243,7 +1213,7 @@ def create_flux_single_block(
                 checkpoint_key=None,
                 reference_key='slice_8',
                 layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, image_seq_len, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, 32, 0, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
@@ -1258,12 +1228,42 @@ def create_flux_single_block(
                 checkpoint_key=None,
                 reference_key='slice_9',
                 layer=prefix,
-                spec=TensorSpec(dtype='float32', shape=(1, 32, image_seq_len, 128)),
+                spec=TensorSpec(dtype='float32', shape=(1, 32, 0, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
                 request_state='slice_9' in request_state_outputs,
+            ),
+        ),
+        slice_10=_bind_tensor(
+            slice_10,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='slice_10',
+                layer=prefix,
+                spec=TensorSpec(dtype='float32', shape=(1, 32, image_seq_len, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='slice_10' in request_state_outputs,
+            ),
+        ),
+        slice_11=_bind_tensor(
+            slice_11,
+            _declare_tensor(
+                checkpoint=None,
+                checkpoint_key=None,
+                reference_key='slice_11',
+                layer=prefix,
+                spec=TensorSpec(dtype='float32', shape=(1, 32, image_seq_len, 128)),
+                layout=CONTIGUOUS_LAYOUT,
+                role=TensorRole.ACTIVATION,
+                memory=MemoryClass.FRAME_WORKSPACE,
+                lifetime=TensorLifetime.FRAME,
+                request_state='slice_11' in request_state_outputs,
             ),
         ),
         cat=_bind_tensor(
@@ -1326,34 +1326,34 @@ def create_flux_single_block(
                 request_state='scaled_dot_product_attention' in request_state_outputs,
             ),
         ),
-        slice_10=_bind_tensor(
-            slice_10,
+        slice_12=_bind_tensor(
+            slice_12,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='slice_10',
+                reference_key='slice_12',
                 layer=prefix,
                 spec=TensorSpec(dtype='float32', shape=(1, 32, text_seq_len, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='slice_10' in request_state_outputs,
+                request_state='slice_12' in request_state_outputs,
             ),
         ),
-        slice_11=_bind_tensor(
-            slice_11,
+        slice_13=_bind_tensor(
+            slice_13,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='slice_11',
+                reference_key='slice_13',
                 layer=prefix,
                 spec=TensorSpec(dtype='float32', shape=(1, 32, image_seq_len, 128)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='slice_11' in request_state_outputs,
+                request_state='slice_13' in request_state_outputs,
             ),
         ),
         scaled_dot_product_attention_1=_bind_tensor(
@@ -1540,14 +1540,14 @@ def create_flux_single_block(
     bind_logical_tensor_names(tensors, prefix)
     _bind_alias_source(tensors.getitem, tensors.reshape)
     _bind_alias_source(tensors.getitem_2, tensors.to)
-    _bind_alias_source(tensors.to, tensors.to_1)
-    _bind_alias_source(tensors.mul_1, tensors.to_2)
-    _bind_alias_source(tensors.getitem_3, tensors.to_3)
-    _bind_alias_source(tensors.to_3, tensors.to_4)
-    _bind_alias_source(tensors.mul_2, tensors.to_5)
-    _bind_alias_source(tensors.mul_3, tensors.to_6)
+    _bind_alias_source(tensors.mul_1, tensors.to_1)
+    _bind_alias_source(tensors.getitem_3, tensors.to_2)
+    _bind_alias_source(tensors.mul_3, tensors.to_3)
+    _bind_alias_source(tensors.mul_2, tensors.to_4)
+    _bind_alias_source(tensors.mul_4, tensors.to_5)
+    _bind_alias_source(tensors.to_4, tensors.to_6)
     _bind_alias_source(tensors.to_6, tensors.reshape_1)
-    _bind_alias_source(tensors.mul_4, tensors.to_7)
+    _bind_alias_source(tensors.to_5, tensors.to_7)
     _bind_alias_source(tensors.to_7, tensors.reshape_2)
     _bind_alias_source(tensors.add_4, tensors.reshape_3)
     _bind_alias_source(tensors.reshape_3, tensors.type_as)

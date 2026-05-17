@@ -96,7 +96,7 @@ def compare_flux_double_block(
         run=lambda: _dispatch_flux_double_block(rt, layer_idx),
         tensors=model_tensors().flux_double_blocks[layer_idx],
         input_bindings={'img': 'img', 'txt': 'txt', 'pe': 'pe', 'pe_ctx': 'pe_ctx', 'img_mod1_shift': 'img_mod1_shift', 'img_mod1_scale': 'img_mod1_scale', 'img_mod1_gate': 'img_mod1_gate', 'img_mod2_shift': 'img_mod2_shift', 'img_mod2_scale': 'img_mod2_scale', 'img_mod2_gate': 'img_mod2_gate', 'txt_mod1_shift': 'txt_mod1_shift', 'txt_mod1_scale': 'txt_mod1_scale', 'txt_mod1_gate': 'txt_mod1_gate', 'txt_mod2_shift': 'txt_mod2_shift', 'txt_mod2_scale': 'txt_mod2_scale', 'txt_mod2_gate': 'txt_mod2_gate'},
-        output_bindings={'img': 'add_15', 'txt': 'add_19'},
+        output_bindings={'img': 'add_13', 'txt': 'add_17'},
         policy=_policy('q8_tensor'),
         inputs={
             "img": img,

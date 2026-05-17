@@ -215,6 +215,7 @@ class DispatchTensorSnapshot:
     tensor: str
     shape: tuple[int, ...]
     dtype: str
+    descriptor_buffer_id: int
     descriptor_offset: int
     descriptor_nbytes: int
     version: int

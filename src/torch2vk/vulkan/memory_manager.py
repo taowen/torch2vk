@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -68,6 +69,7 @@ def _invalidate_mapped_memory_ranges_proc() -> _VkInvalidateMappedMemoryRanges:
 
 _vk_flush_mapped_memory_ranges = _flush_mapped_memory_ranges_proc()
 _vk_invalidate_mapped_memory_ranges = _invalidate_mapped_memory_ranges_proc()
+_DEFAULT_TOTAL_LIVE_LIMIT_BYTES = 18 * 1024 * 1024 * 1024
 
 
 def _align_up(value: int, alignment: int) -> int:
@@ -78,6 +80,51 @@ def _align_up(value: int, alignment: int) -> int:
 
 def _slice_for_spec(*, spec: TensorSpec, allocation: BufferAllocation) -> BufferSlice:
     return BufferSlice(allocation=allocation, offset=allocation.offset, nbytes=tensor_nbytes(spec))
+
+
+def _configured_memory_limit_bytes() -> int:
+    value = os.environ.get("TORCH2VK_MEMORY_LIMIT_BYTES")
+    if value is not None and value.strip():
+        return _parse_memory_limit(value, "TORCH2VK_MEMORY_LIMIT_BYTES")
+    value = os.environ.get("TORCH2VK_MEMORY_LIMIT_GB")
+    if value is not None and value.strip():
+        gb = float(value)
+        if gb <= 0:
+            raise ValueError(f"TORCH2VK_MEMORY_LIMIT_GB must be positive, got {value!r}")
+        return int(gb * 1024 * 1024 * 1024)
+    return _DEFAULT_TOTAL_LIVE_LIMIT_BYTES
+
+
+def _parse_memory_limit(value: str, env_name: str) -> int:
+    stripped = value.strip().lower().replace("_", "")
+    multipliers = (
+        ("gib", 1024**3),
+        ("gb", 1024**3),
+        ("mib", 1024**2),
+        ("mb", 1024**2),
+        ("kib", 1024),
+        ("kb", 1024),
+        ("b", 1),
+    )
+    for suffix, multiplier in multipliers:
+        if stripped.endswith(suffix):
+            number = stripped[: -len(suffix)]
+            break
+    else:
+        number = stripped
+        multiplier = 1
+    try:
+        parsed = int(float(number) * multiplier)
+    except ValueError as exc:
+        raise ValueError(f"{env_name} must be a byte count or value like 24GB") from exc
+    if parsed <= 0:
+        raise ValueError(f"{env_name} must be positive, got {value!r}")
+    return parsed
+
+
+def _format_bytes(value: int) -> str:
+    gib = value / 1024 / 1024 / 1024
+    return f"{gib:.2f} GiB"
 
 
 @dataclass(frozen=True, slots=True)
@@ -383,6 +430,13 @@ class _HostRingSegment:
     cursor: int = 0
 
 
+@dataclass(frozen=True, slots=True)
+class _PendingTemporaryRecycle:
+    spec: TensorSpec
+    allocation: BufferAllocation
+    submit_id: int
+
+
 class HostRing:
     """Owns host-visible ring allocations for upload/readback staging."""
 
@@ -560,13 +614,18 @@ class TemporaryTensorPool:
         allocate_device_local: Callable[[int], BufferAllocation],
         note_reuse: Callable[[BufferAllocation], None],
         note_recycle: Callable[[BufferAllocation], None],
+        last_submitted_submit_id: Callable[[], int],
+        last_completed_submit_id: Callable[[], int],
     ) -> None:
         self._allocate_device_local = allocate_device_local
         self._note_reuse = note_reuse
         self._note_recycle = note_recycle
+        self._last_submitted_submit_id = last_submitted_submit_id
+        self._last_completed_submit_id = last_completed_submit_id
         self._free_exact: dict[tuple[str, tuple[int, ...]], list[BufferAllocation]] = defaultdict(list)
         self._free_size_class: dict[tuple[str, int], list[BufferAllocation]] = defaultdict(list)
         self._recycled_spec_by_allocation_id: dict[int, tuple[str, tuple[int, ...]]] = {}
+        self._pending_recycle: list[_PendingTemporaryRecycle] = []
         self._closed = False
 
     @staticmethod
@@ -583,6 +642,7 @@ class TemporaryTensorPool:
     ) -> tuple[BufferSlice, BufferAllocation]:
         if self._closed:
             raise RuntimeError("TemporaryTensorPool is closed")
+        self._reclaim_completed()
         if allocate is not None:
             return allocate(spec, label)
         exact_key = (spec.dtype, tuple(int(dim) for dim in spec.shape))
@@ -619,8 +679,19 @@ class TemporaryTensorPool:
         if self._closed:
             allocation.close()
             return
-        self._note_recycle(allocation)
-        self.reclaim(spec=spec, allocation=allocation)
+        self._reclaim_completed()
+        submit_id = self._last_submitted_submit_id()
+        if submit_id <= self._last_completed_submit_id():
+            self._note_recycle(allocation)
+            self.reclaim(spec=spec, allocation=allocation)
+            return
+        self._pending_recycle.append(
+            _PendingTemporaryRecycle(
+                spec=spec,
+                allocation=allocation,
+                submit_id=submit_id,
+            )
+        )
 
     def _remove_from_size_class(self, *, dtype: str, allocation: BufferAllocation) -> None:
         class_key = (dtype, self._size_class(allocation.size))
@@ -642,6 +713,17 @@ class TemporaryTensorPool:
         self._free_size_class[class_key].append(allocation)
         self._recycled_spec_by_allocation_id[id(allocation)] = exact_key
 
+    def _reclaim_completed(self) -> None:
+        completed_submit_id = self._last_completed_submit_id()
+        kept: list[_PendingTemporaryRecycle] = []
+        for item in self._pending_recycle:
+            if item.submit_id > completed_submit_id:
+                kept.append(item)
+                continue
+            self._note_recycle(item.allocation)
+            self.reclaim(spec=item.spec, allocation=item.allocation)
+        self._pending_recycle = kept
+
     def close(self) -> None:
         if self._closed:
             return
@@ -649,6 +731,7 @@ class TemporaryTensorPool:
         self.release_cached()
 
     def release_cached(self) -> None:
+        self._reclaim_completed()
         closed_ids: set[int] = set()
         for bucket in self._free_exact.values():
             while bucket:
@@ -658,6 +741,13 @@ class TemporaryTensorPool:
                     continue
                 closed_ids.add(allocation_id)
                 allocation.close()
+        while self._pending_recycle:
+            item = self._pending_recycle.pop()
+            allocation_id = id(item.allocation)
+            if allocation_id in closed_ids:
+                continue
+            closed_ids.add(allocation_id)
+            item.allocation.close()
         self._free_exact.clear()
         self._free_size_class.clear()
         self._recycled_spec_by_allocation_id.clear()
@@ -701,9 +791,12 @@ class MemoryManager:
             allocate_device_local=self.allocate_device_local_buffer,
             note_reuse=lambda allocation: self._note_allocation_reused("device_local", allocation.size),
             note_recycle=lambda allocation: self._note_allocation_recycled("device_local", allocation.size),
+            last_submitted_submit_id=lambda: self._last_submitted_submit_id,
+            last_completed_submit_id=lambda: self._last_completed_submit_id,
         )
         self._allocation_stats = MemoryAllocationStats()
         self._allocation_epoch = 0
+        self._total_live_limit_bytes = _configured_memory_limit_bytes()
         self._closed = False
 
     def note_queue_submit_started(self) -> int:
@@ -722,6 +815,17 @@ class MemoryManager:
     def _note_allocation(self, pool: str, allocation: BufferAllocation) -> BufferAllocation:
         previous_reserved = _stats_reserved_bytes(self._allocation_stats, pool)
         stats_with_reserved = self._stats_with_reserved_bytes(self._allocation_stats)
+        if stats_with_reserved.total_reserved_bytes() > self._total_live_limit_bytes:
+            allocation.close()
+            if pool == "device_local":
+                self.device_local_arena.release_empty_chunks()
+            self._allocation_stats = self._stats_with_reserved_bytes(self._allocation_stats)
+            raise MemoryError(
+                "Torch2VK memory cap exceeded after Vulkan allocation: "
+                f"pool={pool}, reserved={_format_bytes(stats_with_reserved.total_reserved_bytes())}, "
+                f"cap={_format_bytes(self._total_live_limit_bytes)}. "
+                "Set TORCH2VK_MEMORY_LIMIT_GB to change the cap."
+            )
         reserved_grew = _stats_reserved_bytes(stats_with_reserved, pool) > previous_reserved
         if allocation.vk_allocation or reserved_grew:
             self._allocation_epoch += 1
@@ -747,6 +851,7 @@ class MemoryManager:
         self._allocation_stats = self._stats_with_reserved_bytes(self._allocation_stats)
 
     def _note_allocation_reused(self, pool: str, size: int) -> None:
+        self._ensure_live_limit(pool=pool, size=size)
         self._allocation_stats = _stats_add_live_bytes(
             self._allocation_stats,
             pool=pool,
@@ -790,6 +895,21 @@ class MemoryManager:
             ),
         ))
 
+    def _ensure_live_limit(self, *, pool: str, size: int) -> None:
+        if size < 0:
+            raise ValueError(f"Allocation size must be non-negative, got {size}")
+        next_live = self._allocation_stats.total_live_bytes() + size
+        if next_live <= self._total_live_limit_bytes:
+            return
+        raise MemoryError(
+            "Torch2VK memory cap exceeded before Vulkan allocation: "
+            f"pool={pool}, request={_format_bytes(size)}, "
+            f"live={_format_bytes(self._allocation_stats.total_live_bytes())}, "
+            f"reserved={_format_bytes(self._allocation_stats.total_reserved_bytes())}, "
+            f"cap={_format_bytes(self._total_live_limit_bytes)}. "
+            "Set TORCH2VK_MEMORY_LIMIT_GB to change the cap."
+        )
+
     def allocate_device_local_buffer(
         self,
         size: int,
@@ -797,6 +917,7 @@ class MemoryManager:
         usage_flags: int | None = None,
         memory_priority: float | None = None,
     ) -> BufferAllocation:
+        self._ensure_live_limit(pool="device_local", size=size)
         resolved_usage_flags = (
             (
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
@@ -824,6 +945,7 @@ class MemoryManager:
         return self._note_allocation("device_local", allocation)
 
     def allocate_host_upload_buffer(self, size: int, *, usage_flags: int | None = None) -> BufferAllocation:
+        self._ensure_live_limit(pool="host_upload", size=size)
         resolved_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT if usage_flags is None else int(usage_flags)
         if resolved_usage_flags <= 0:
             raise ValueError(f"Host-upload usage_flags must be positive, got {resolved_usage_flags}")
@@ -831,6 +953,7 @@ class MemoryManager:
         return self._note_allocation("host_upload", allocation)
 
     def allocate_host_readback_buffer(self, size: int, *, usage_flags: int | None = None) -> BufferAllocation:
+        self._ensure_live_limit(pool="host_readback", size=size)
         resolved_usage_flags = VK_BUFFER_USAGE_TRANSFER_DST_BIT if usage_flags is None else int(usage_flags)
         if resolved_usage_flags <= 0:
             raise ValueError(f"Host-readback usage_flags must be positive, got {resolved_usage_flags}")
@@ -838,6 +961,7 @@ class MemoryManager:
         return self._note_allocation("host_readback", allocation)
 
     def allocate_host_visible_buffer(self, size: int, *, usage_flags: int | None = None) -> BufferAllocation:
+        self._ensure_live_limit(pool="host_visible", size=size)
         resolved_usage_flags = (
             (
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT

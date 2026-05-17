@@ -111,8 +111,9 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
     index = len(rt._dispatch_records)
     pipeline = rt._pipeline_for_variant(variant)
     dispatch_started_ns = time.perf_counter_ns()
+    submit_throttle_wait_ns = 0
     try:
-        pipeline.dispatch(
+        submit_throttle_wait_ns = pipeline.dispatch(
             buffers=[view for _, view in descriptor_views],
             group_count_x=dispatch_size[0],
             group_count_y=dispatch_size[1],
@@ -157,6 +158,7 @@ def dispatch(rt: RuntimeSession, variant: ShaderVariant, **arguments: object) ->
         record=record,
         pipeline=pipeline,
         elapsed_wall_ns=elapsed_wall_ns,
+        submit_throttle_wait_ns=submit_throttle_wait_ns,
     )
     for field in contract.output_fields:
         tensor = tensors[field.name]

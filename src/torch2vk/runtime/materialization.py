@@ -481,14 +481,13 @@ def _release_frame_tensor_allocation(
     with tensor.runtime_write_scope():
         tensor.buffer = None
         tensor.descriptor_nbytes = None
-    remaining: list[tuple[LogicalTensor, BufferAllocation]] = []
     found = False
-    for existing_tensor, existing_allocation in rt._frame_allocations:
+    for index in range(len(rt._frame_allocations) - 1, -1, -1):
+        existing_tensor, existing_allocation = rt._frame_allocations[index]
         if existing_tensor is tensor and existing_allocation is allocation:
             found = True
+            del rt._frame_allocations[index]
             continue
-        remaining.append((existing_tensor, existing_allocation))
-    rt._frame_allocations = remaining
     if not found:
         return
     rt.device.memory_manager.temporary_tensor_pool.recycle(
@@ -547,6 +546,7 @@ def record_tensor_snapshot(field: TensorFieldSpec, tensor: LogicalTensor) -> Dis
         tensor=tensor.name,
         shape=concrete_shape(tensor.spec),
         dtype=tensor.spec.dtype,
+        descriptor_buffer_id=id(tensor.buffer.allocation.buffer),
         descriptor_offset=tensor.buffer.offset,
         descriptor_nbytes=tensor.descriptor_nbytes or 0,
         version=tensor.version,
