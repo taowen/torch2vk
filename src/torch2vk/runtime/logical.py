@@ -112,6 +112,8 @@ class LogicalTensor:
     _version: int = field(default=0, init=False, repr=False)
     _writer: DispatchWriter | None = field(default=None, init=False, repr=False)
     _alias_source: LogicalTensor | None = field(default=None, init=False, repr=False)
+    _alias_byte_offset: int = field(default=0, init=False, repr=False)
+    _alias_nbytes: int | None = field(default=None, init=False, repr=False)
 
     def __setattr__(self, name: str, value: object) -> None:
         if name == "spec" and hasattr(self, "_runtime_writable"):
@@ -175,6 +177,31 @@ class LogicalTensor:
     def alias_source(self, value: LogicalTensor | None) -> None:
         self._require_runtime_writable("alias_source")
         self._alias_source = value
+        if value is None:
+            self._alias_byte_offset = 0
+            self._alias_nbytes = None
+
+    @property
+    def alias_byte_offset(self) -> int:
+        return self._alias_byte_offset
+
+    @alias_byte_offset.setter
+    def alias_byte_offset(self, value: int) -> None:
+        self._require_runtime_writable("alias_byte_offset")
+        if value < 0:
+            raise ValueError(f"{self.name} alias byte offset must be non-negative, got {value}")
+        self._alias_byte_offset = value
+
+    @property
+    def alias_nbytes(self) -> int | None:
+        return self._alias_nbytes
+
+    @alias_nbytes.setter
+    def alias_nbytes(self, value: int | None) -> None:
+        self._require_runtime_writable("alias_nbytes")
+        if value is not None and value <= 0:
+            raise ValueError(f"{self.name} alias nbytes must be positive, got {value}")
+        self._alias_nbytes = value
 
     def validate_declaration(self) -> None:
         self.fill_missing_declaration_defaults()
@@ -254,18 +281,39 @@ def bind_logical_tensor_names(root: object, prefix: str = "", *, overwrite: bool
     bind(root, prefix)
 
 
-def bind_logical_tensor_alias(src: LogicalTensor, dst: LogicalTensor) -> None:
+def bind_logical_tensor_alias(
+    src: LogicalTensor,
+    dst: LogicalTensor,
+    *,
+    byte_offset: int = 0,
+    nbytes: int | None = None,
+) -> None:
     src.validate_declaration()
     dst.validate_declaration()
     src_nbytes = tensor_nbytes(src.spec)
     dst_nbytes = tensor_nbytes(dst.spec)
-    if src_nbytes != dst_nbytes:
+    if nbytes is None and byte_offset == 0 and src_nbytes != dst_nbytes:
         raise ValueError(
             f"{dst.name} cannot alias {src.name}: byte size differs "
             f"({dst_nbytes} != {src_nbytes})"
         )
+    view_nbytes = dst_nbytes if nbytes is None else nbytes
+    if view_nbytes != dst_nbytes:
+        raise ValueError(
+            f"{dst.name} cannot alias {src.name}: view byte size differs from dst "
+            f"({view_nbytes} != {dst_nbytes})"
+        )
+    if byte_offset < 0:
+        raise ValueError(f"{dst.name} cannot alias {src.name}: byte_offset must be non-negative")
+    if byte_offset + view_nbytes > src_nbytes:
+        raise ValueError(
+            f"{dst.name} cannot alias {src.name}: byte range "
+            f"[{byte_offset}, {byte_offset + view_nbytes}) exceeds source size {src_nbytes}"
+        )
     with dst.runtime_write_scope():
         dst.alias_source = src
+        dst.alias_byte_offset = byte_offset
+        dst.alias_nbytes = view_nbytes
 
 
 def collect_named_logical_tensors(root: object) -> dict[str, LogicalTensor]:

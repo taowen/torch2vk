@@ -3072,8 +3072,23 @@ def create_flux_prologue(
     _bind_alias_source(tensors.exp, tensors.unsqueeze_1)
     _bind_alias_source(tensors.cat, tensors.to_1)
     _bind_alias_source(tensors.linear_2, tensors.unsqueeze_2)
+    _bind_alias_source(tensors.unsqueeze_2, tensors.getitem, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_2, tensors.getitem_1, byte_offset=16384, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_2, tensors.getitem_2, byte_offset=32768, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_2, tensors.getitem_3, byte_offset=49152, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_2, tensors.getitem_4, byte_offset=65536, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_2, tensors.getitem_5, byte_offset=81920, nbytes=16384)
     _bind_alias_source(tensors.linear_3, tensors.unsqueeze_3)
+    _bind_alias_source(tensors.unsqueeze_3, tensors.getitem_6, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_3, tensors.getitem_7, byte_offset=16384, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_3, tensors.getitem_8, byte_offset=32768, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_3, tensors.getitem_9, byte_offset=49152, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_3, tensors.getitem_10, byte_offset=65536, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_3, tensors.getitem_11, byte_offset=81920, nbytes=16384)
     _bind_alias_source(tensors.linear_4, tensors.unsqueeze_4)
+    _bind_alias_source(tensors.unsqueeze_4, tensors.getitem_12, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_4, tensors.getitem_13, byte_offset=16384, nbytes=16384)
+    _bind_alias_source(tensors.unsqueeze_4, tensors.getitem_14, byte_offset=32768, nbytes=16384)
     _bind_alias_source(tensors.stack, tensors.reshape)
     _bind_alias_source(tensors.reshape, tensors.to_2)
     _bind_alias_source(tensors.stack_1, tensors.reshape_1)
@@ -3211,8 +3226,14 @@ def _bind_tensor(
     return bound
 
 
-def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
-    bind_logical_tensor_alias(src, dst)
+def _bind_alias_source(
+    src: LogicalTensor,
+    dst: LogicalTensor,
+    *,
+    byte_offset: int = 0,
+    nbytes: int | None = None,
+) -> None:
+    bind_logical_tensor_alias(src, dst, byte_offset=byte_offset, nbytes=nbytes)
 
 
 def _validate_request_state_outputs(

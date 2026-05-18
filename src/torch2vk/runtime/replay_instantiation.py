@@ -170,7 +170,9 @@ def instantiate_replay_template(
             )
             descriptor_rebindable = replay_descriptor_rebindable(descriptor_tensor)
             if not has_live_buffer(descriptor_tensor):
-                if descriptor_tensor.memory is MemoryClass.MODEL_WEIGHT:
+                if descriptor_tensor.alias_source is not None:
+                    rt._materialize_read(descriptor_tensor)
+                elif descriptor_tensor.memory is MemoryClass.MODEL_WEIGHT:
                     rt._materialize_weight(descriptor_tensor)
                 elif descriptor_tensor.memory is MemoryClass.SESSION_TENSOR:
                     raise RuntimeError(

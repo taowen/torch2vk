@@ -313,6 +313,8 @@ def create_flux_final_layer(
         ),
     )
     bind_logical_tensor_names(tensors, prefix)
+    _bind_alias_source(tensors.linear, tensors.getitem, nbytes=16384)
+    _bind_alias_source(tensors.linear, tensors.getitem_1, byte_offset=16384, nbytes=16384)
     _bind_alias_source(tensors.getitem, tensors.unsqueeze)
     _bind_alias_source(tensors.getitem_1, tensors.unsqueeze_1)
     return tensors
@@ -434,8 +436,14 @@ def _bind_tensor(
     return bound
 
 
-def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
-    bind_logical_tensor_alias(src, dst)
+def _bind_alias_source(
+    src: LogicalTensor,
+    dst: LogicalTensor,
+    *,
+    byte_offset: int = 0,
+    nbytes: int | None = None,
+) -> None:
+    bind_logical_tensor_alias(src, dst, byte_offset=byte_offset, nbytes=nbytes)
 
 
 def _validate_request_state_outputs(

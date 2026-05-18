@@ -30,6 +30,7 @@ from torch2vk.export.shaders.linear_nobias_quantized import (
     make_linear_nobias_q6_k_variant,
     make_linear_nobias_q8_0_variant,
 )
+from torch2vk.export.shaders.tuple_getitem import tuple_getitem_alias
 from torch2vk.quantize import Q4KMQuantizationConfig
 from torch2vk.quantize.gguf import _WeightDeclaration
 from torch2vk.runtime.shader import IOKind, ShaderContract, ShaderVariant
@@ -40,6 +41,8 @@ from torch2vk.runtime.shader import PushConstantInput, PushConstantType
 class _AliasOp:
     src: str
     dst: str
+    byte_offset: int = 0
+    nbytes: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,7 +172,15 @@ def generate_dispatch_source(
     lines.extend(_generate_dataclass(graph, sig, class_name))
     lines.append("")
     lines.append("")
-    lines.extend(_generate_dispatch_function(graph, class_name, function_name, node_variants))
+    lines.extend(
+        _generate_dispatch_function(
+            graph,
+            class_name,
+            function_name,
+            node_variants,
+            activation_dtype=registry.activation_dtype,
+        )
+    )
     lines.append("")
 
     return "\n".join(lines)
@@ -187,7 +198,11 @@ def _resolve_all_variants(
         if node.op != "call_function":
             continue
         target = str(node.target)
-        if target in SKIP_OPS or is_alias_op(node):
+        if (
+            target in SKIP_OPS
+            or is_alias_op(node)
+            or tuple_getitem_alias(node, registry.activation_dtype) is not None
+        ):
             continue
         shader = _resolve_variant(
             node,
@@ -484,6 +499,8 @@ def _generate_dispatch_function(
     class_name: str,
     function_name: str,
     node_variants: dict[str, ShaderVariant],
+    *,
+    activation_dtype: str,
 ) -> list[str]:
     lines: list[str] = []
     lines.append(
@@ -497,7 +514,7 @@ def _generate_dispatch_function(
         if target in SKIP_OPS:
             continue
 
-        if is_alias_op(node):
+        if is_alias_op(node) or tuple_getitem_alias(node, activation_dtype) is not None:
             continue
 
         shader = node_variants.get(node.name)
@@ -536,8 +553,14 @@ def _generate_static_dispatch_function(
     *,
     q6_variant_op_names: frozenset[str] = frozenset(),
     escaped_output_names: tuple[str, ...] | None = None,
+    activation_dtype: str = "float16",
 ) -> tuple[list[str], dict[str, str]]:
-    ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
+    ops = _collect_ops(
+        graph,
+        node_variants,
+        q6_variant_op_names=q6_variant_op_names,
+        activation_dtype=activation_dtype,
+    )
     output_names = list(escaped_output_names or tuple(graph_output_names(graph)))
     ops = _prune_dead_ops(ops, output_names)
 
@@ -632,6 +655,7 @@ def _collect_ops(
     node_variants: dict[str, ShaderVariant],
     *,
     q6_variant_op_names: frozenset[str] = frozenset(),
+    activation_dtype: str = "float16",
 ) -> list[_Op]:
     ops: list[_Op] = []
     seen_variants: dict[str, ShaderVariant] = {}
@@ -647,6 +671,17 @@ def _collect_ops(
             inputs = node_input_names(node)
             src = inputs[0] if inputs else "???"
             ops.append(_AliasOp(src=src, dst=node.name))
+            continue
+        tuple_alias = tuple_getitem_alias(node, activation_dtype)
+        if tuple_alias is not None:
+            ops.append(
+                _AliasOp(
+                    src=tuple_alias.src,
+                    dst=node.name,
+                    byte_offset=tuple_alias.byte_offset,
+                    nbytes=tuple_alias.nbytes,
+                )
+            )
             continue
 
         shader = node_variants.get(node.name)
@@ -890,8 +925,14 @@ def generate_dispatch_function_source(
         node_variants,
         q6_variant_op_names=q6_variant_op_names,
         escaped_output_names=escaped_output_names,
+        activation_dtype=registry.activation_dtype,
     )
-    all_ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
+    all_ops = _collect_ops(
+        graph,
+        node_variants,
+        q6_variant_op_names=q6_variant_op_names,
+        activation_dtype=registry.activation_dtype,
+    )
     output_names = list(escaped_output_names or tuple(graph_output_names(graph)))
     live_ops = _prune_dead_ops(all_ops, output_names)
     used_variants: dict[str, ShaderVariant] = {}

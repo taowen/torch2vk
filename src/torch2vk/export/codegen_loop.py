@@ -33,6 +33,7 @@ from torch2vk.export.tensor_codegen import (
     TensorClassContext,
     _TensorKind,
     _TensorMeta,
+    _alias_binding_line,
     _q4_k_m_config_from_quantization,
     _shape_parameter_names,
     _shape_dim_names,
@@ -313,7 +314,12 @@ def generate_looped_dispatch_function_source(
         parameter_map=parameter_map,
         quantization_config=quantization_config,
     )
-    all_ops = _collect_ops(graph, node_variants, q6_variant_op_names=q6_variant_op_names)
+    all_ops = _collect_ops(
+        graph,
+        node_variants,
+        q6_variant_op_names=q6_variant_op_names,
+        activation_dtype=registry.activation_dtype,
+    )
     output_names = graph_output_names(graph)
     live_ops = _prune_dead_ops(all_ops, output_names)
 
@@ -523,7 +529,7 @@ def generate_looped_tensor_class_sources(
                 )
 
     # Prune dead tensors using full graph
-    all_ops = _collect_ops(graph, node_variants)
+    all_ops = _collect_ops(graph, node_variants, activation_dtype=registry.activation_dtype)
     output_names = graph_output_names(graph)
     live_ops = _prune_dead_ops(all_ops, output_names)
     live_tensors = set(output_names)
@@ -855,7 +861,7 @@ def _loop_alias_binding_lines(
 
     for op in analysis.pre_ops:
         if isinstance(op, _AliasOp):
-            lines.append(f"    _bind_alias_source(tensors.{op.src}, tensors.{op.dst})")
+            lines.append(_loop_alias_binding_line("    ", f"tensors.{op.src}", f"tensors.{op.dst}", op))
 
     layer_aliases = [op for op in analysis.layer_ops if isinstance(op, _AliasOp)]
     post_aliases = [op for op in analysis.post_ops if isinstance(op, _AliasOp)]
@@ -866,8 +872,12 @@ def _loop_alias_binding_lines(
         if layer_aliases:
             for op in layer_aliases:
                 lines.append(
-                    "        _bind_alias_source("
-                    f"{tensor_ref(op.src, True)}, {tensor_ref(op.dst, True)})"
+                    _loop_alias_binding_line(
+                        "        ",
+                        tensor_ref(op.src, True),
+                        tensor_ref(op.dst, True),
+                        op,
+                    )
                 )
         else:
             lines.append("        pass")
@@ -880,6 +890,10 @@ def _loop_alias_binding_lines(
             if classification.get(op.src, "").startswith("layer.")
             else f"tensors.{op.src}"
         )
-        lines.append(f"    _bind_alias_source({src}, tensors.{op.dst})")
+        lines.append(_loop_alias_binding_line("    ", src, f"tensors.{op.dst}", op))
 
     return lines
+
+
+def _loop_alias_binding_line(indent: str, src: str, dst: str, alias: _AliasOp) -> str:
+    return indent + _alias_binding_line(src, dst, alias).lstrip()

@@ -101,9 +101,21 @@ def materialize_read(rt: RuntimeSession, tensor: LogicalTensor) -> None:
         materialize_read(rt, source)
         if source.buffer is None:
             raise RuntimeError(f"{tensor.name} alias source {source.name} is not materialized")
+        alias_nbytes = tensor.alias_nbytes or tensor_nbytes(tensor.spec)
+        source_descriptor_nbytes = source.descriptor_nbytes or source.buffer.nbytes
+        if tensor.alias_byte_offset + alias_nbytes > source_descriptor_nbytes:
+            raise RuntimeError(
+                f"{tensor.name} alias range "
+                f"[{tensor.alias_byte_offset}, {tensor.alias_byte_offset + alias_nbytes}) "
+                f"exceeds {source.name} descriptor size {source_descriptor_nbytes}"
+            )
         with tensor.runtime_write_scope():
-            tensor.buffer = source.buffer
-            tensor.descriptor_nbytes = source.descriptor_nbytes
+            tensor.buffer = BufferSlice(
+                allocation=source.buffer.allocation,
+                offset=source.buffer.offset + tensor.alias_byte_offset,
+                nbytes=alias_nbytes,
+            )
+            tensor.descriptor_nbytes = alias_nbytes
             tensor.version = source.version
             tensor.writer = source.writer
         return

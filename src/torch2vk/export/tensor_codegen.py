@@ -107,7 +107,7 @@ def render_tensor_class(
 ) -> TensorClassContext:
     if alias_binding_lines is None:
         alias_binding_lines = [
-            f"    _bind_alias_source(tensors.{alias.src}, tensors.{alias.dst})"
+            _alias_binding_line(f"tensors.{alias.src}", f"tensors.{alias.dst}", alias)
             for alias in alias_ops
         ]
     return {
@@ -127,6 +127,15 @@ def render_tensor_class(
         "uses_request_state_outputs": uses_request_state_outputs,
         "layered": "layer_idx: int" in signature,
     }
+
+
+def _alias_binding_line(src: str, dst: str, alias: _AliasOp) -> str:
+    args = [src, dst]
+    if alias.byte_offset != 0:
+        args.append(f"byte_offset={alias.byte_offset}")
+    if alias.nbytes is not None:
+        args.append(f"nbytes={alias.nbytes}")
+    return f"    _bind_alias_source({', '.join(args)})"
 
 
 def _tensor_factory_signature(
@@ -215,7 +224,7 @@ def generate_tensor_class_source(
         parameter_map=param_map,
         quantization_config=quantization_config,
     )
-    ops = _collect_ops(graph, node_variants)
+    ops = _collect_ops(graph, node_variants, activation_dtype=registry.activation_dtype)
     output_names = graph_output_names(graph)
     if not output_names:
         output_names = [output_name] if output_name else []

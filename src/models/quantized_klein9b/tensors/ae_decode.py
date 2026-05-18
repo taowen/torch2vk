@@ -5459,8 +5459,14 @@ def _bind_tensor(
     return bound
 
 
-def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
-    bind_logical_tensor_alias(src, dst)
+def _bind_alias_source(
+    src: LogicalTensor,
+    dst: LogicalTensor,
+    *,
+    byte_offset: int = 0,
+    nbytes: int | None = None,
+) -> None:
+    bind_logical_tensor_alias(src, dst, byte_offset=byte_offset, nbytes=nbytes)
 
 
 def _validate_request_state_outputs(

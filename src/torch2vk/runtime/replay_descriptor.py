@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from torch2vk.runtime.logical import LogicalTensor, MemoryClass
+from torch2vk.vulkan.types import tensor_nbytes
 
 
 def canonical_replay_descriptor_tensor(
@@ -16,10 +17,13 @@ def canonical_replay_descriptor_tensor(
         return tensor
     alias_source = tensor.alias_source
     if alias_source is not None:
-        return canonical_replay_descriptor_tensor(
-            tensor=alias_source,
-            logical_tensors=logical_tensors,
-        )
+        alias_nbytes = tensor.alias_nbytes or tensor_nbytes(tensor.spec)
+        if tensor.alias_byte_offset == 0 and alias_nbytes == tensor_nbytes(alias_source.spec):
+            return canonical_replay_descriptor_tensor(
+                tensor=alias_source,
+                logical_tensors=logical_tensors,
+            )
+        return tensor
     alias_owner = _live_non_frame_alias_owner(tensor, logical_tensors)
     if alias_owner is not None:
         return alias_owner

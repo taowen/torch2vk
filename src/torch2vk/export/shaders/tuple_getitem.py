@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from torch.fx import Node
 
 from torch2vk.export.shaders._factory import (
@@ -8,6 +10,7 @@ from torch2vk.export.shaders._factory import (
     activation_requirements,
     node_input_shape,
     node_output_shape,
+    node_storage_dtype,
     product_expr,
 )
 from torch2vk.runtime.shader import (
@@ -22,6 +25,7 @@ from torch2vk.runtime.shader import (
     ceil_div,
     mul,
 )
+from torch2vk.vulkan.types import dtype_nbytes
 
 _SOURCE = """\
 #version 450
@@ -59,10 +63,44 @@ void main() {
 """
 
 
+@dataclass(frozen=True, slots=True)
+class TupleGetitemAlias:
+    src: str
+    byte_offset: int
+    nbytes: int
+
+
+def tuple_getitem_alias(
+    node: Node,
+    activation_dtype: str = "float32",
+) -> TupleGetitemAlias | None:
+    source_node, tuple_index = _tuple_getitem_args(node)
+    if source_node is None or tuple_index is None:
+        return None
+    target = str(source_node.target)
+    if target == "aten.chunk.default":
+        return _chunk_getitem_alias(
+            node,
+            source_node=source_node,
+            tuple_index=tuple_index,
+            activation_dtype=activation_dtype,
+        )
+    if target == "aten.split_with_sizes.default":
+        return _split_getitem_alias(
+            node,
+            source_node=source_node,
+            tuple_index=tuple_index,
+            activation_dtype=activation_dtype,
+        )
+    return None
+
+
 def make_tuple_getitem_variant(
     node: Node,
     activation_dtype: str = "float32",
 ) -> ShaderVariant | None:
+    if tuple_getitem_alias(node, activation_dtype) is not None:
+        return None
     source_node, tuple_index = _tuple_getitem_args(node)
     if source_node is None or tuple_index is None:
         return None
@@ -132,6 +170,36 @@ def _make_chunk_getitem_variant(
     )
 
 
+def _chunk_getitem_alias(
+    node: Node,
+    *,
+    source_node: Node,
+    tuple_index: int,
+    activation_dtype: str,
+) -> TupleGetitemAlias | None:
+    input_shape = node_input_shape(source_node, 0)
+    if not input_shape:
+        return None
+    chunks = source_node.args[1] if len(source_node.args) > 1 else None
+    dim = source_node.args[2] if len(source_node.args) > 2 else 0
+    if not isinstance(chunks, int) or not isinstance(dim, int):
+        return None
+    if dim < 0:
+        dim += len(input_shape)
+    if tuple_index < 0 or tuple_index >= chunks or dim < 0 or dim >= len(input_shape):
+        return None
+    full = input_shape[dim]
+    base, extra = divmod(full, chunks)
+    sizes = tuple(base + 1 if i < extra else base for i in range(chunks))
+    return _tuple_slice_alias(
+        node,
+        source_node=source_node,
+        dim=dim,
+        start=sum(sizes[:tuple_index]),
+        activation_dtype=activation_dtype,
+    )
+
+
 def _make_split_getitem_variant(
     node: Node,
     *,
@@ -163,6 +231,74 @@ def _make_split_getitem_variant(
         dim=dim,
         start=sum(sizes[:tuple_index]),
         activation_dtype=activation_dtype,
+    )
+
+
+def _split_getitem_alias(
+    node: Node,
+    *,
+    source_node: Node,
+    tuple_index: int,
+    activation_dtype: str,
+) -> TupleGetitemAlias | None:
+    input_shape = node_input_shape(source_node, 0)
+    if not input_shape:
+        return None
+    split_sizes = source_node.args[1] if len(source_node.args) > 1 else None
+    dim = source_node.args[2] if len(source_node.args) > 2 else 0
+    if not isinstance(split_sizes, (list, tuple)) or not isinstance(dim, int):
+        return None
+    sizes: list[int] = []
+    for size in split_sizes:
+        if not isinstance(size, int):
+            return None
+        sizes.append(size)
+    if dim < 0:
+        dim += len(input_shape)
+    if tuple_index < 0 or tuple_index >= len(sizes) or dim < 0 or dim >= len(input_shape):
+        return None
+    return _tuple_slice_alias(
+        node,
+        source_node=source_node,
+        dim=dim,
+        start=sum(sizes[:tuple_index]),
+        activation_dtype=activation_dtype,
+    )
+
+
+def _tuple_slice_alias(
+    node: Node,
+    *,
+    source_node: Node,
+    dim: int,
+    start: int,
+    activation_dtype: str,
+) -> TupleGetitemAlias | None:
+    input_node = source_node.args[0] if source_node.args else None
+    if not isinstance(input_node, Node):
+        return None
+    input_shape = node_input_shape(source_node, 0)
+    output_shape = node_output_shape(node)
+    if not input_shape or not output_shape:
+        return None
+    if dim < 0 or dim >= len(input_shape):
+        return None
+    outer = 1
+    for size in input_shape[:dim]:
+        outer *= size
+    if outer != 1:
+        return None
+    inner = 1
+    for size in input_shape[dim + 1 :]:
+        inner *= size
+    output_elements = 1
+    for size in output_shape:
+        output_elements *= size
+    element_nbytes = dtype_nbytes(node_storage_dtype(input_node, activation_dtype))
+    return TupleGetitemAlias(
+        src=input_node.name,
+        byte_offset=start * inner * element_nbytes,
+        nbytes=output_elements * element_nbytes,
     )
 
 
