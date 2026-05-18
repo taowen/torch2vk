@@ -37,7 +37,7 @@ def create_lm_head(
                 checkpoint=None,
                 checkpoint_key='thinker.lm_head.weight',
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='bfloat16', shape=(151936, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.WEIGHT,

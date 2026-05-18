@@ -169,17 +169,17 @@ def create_model_tensors(
             cache_position=text_layers_list[0].cache_position if layer_idx > 0 else None,
         )
         text_layers_list.append(layer_tensors)
-        text_hidden = layer_tensors.add_7
+        text_hidden = layer_tensors.add_3
     text_layers = tuple(text_layers_list)
 
     text_norm = create_text_norm(
         "spike.text.norm",
         sequence_length=prompt_length,
-        hidden_states=text_layers[-1].add_7,
+        hidden_states=text_layers[-1].add_3,
     )
     prefill_lm_head_input = _activation_tensor(
         "float16",
-        (1, 1, int(text_norm.mul_1.spec.shape[-1])),
+        (1, 1, int(text_norm.rms_norm.spec.shape[-1])),
     )
     lm_head = create_lm_head(
         "spike.text.lm_head",
@@ -218,13 +218,13 @@ def create_model_tensors(
             position_embeddings_1=decode_rope.sin,
         )
         decode_layers_list.append(layer_tensors)
-        decode_hidden = layer_tensors.add_7
+        decode_hidden = layer_tensors.add_3
     decode_layers = tuple(decode_layers_list)
 
     decode_norm = create_decode_norm(
         "spike.decode.norm",
         p_weight=text_norm.p_weight,
-        hidden_states=decode_layers[-1].add_7,
+        hidden_states=decode_layers[-1].add_3,
     )
 
     eos_token_ids = _session_tensor("int64", (eos_token_count,))

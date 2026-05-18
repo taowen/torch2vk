@@ -40,7 +40,7 @@ def create_lm_head(
                 checkpoint=None,
                 checkpoint_key='lm_head.weight',
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec('lm_head.weight', dtype='float32', shape=(151936, 1024)),
                 layout=_quantized_weight_layout('lm_head.weight', dtype='float32', shape=(151936, 1024)),
                 role=TensorRole.WEIGHT,
@@ -54,6 +54,8 @@ def create_lm_head(
     return tensors
 
 
+_F16_TENSOR_NAMES = frozenset(())
+_F16_TENSOR_PREFIXES = ()
 _Q6_TENSOR_NAMES = frozenset(('lm_head.weight', 'model.layers.0.mlp.down_proj.weight', 'model.layers.0.self_attn.v_proj.weight', 'model.layers.1.mlp.down_proj.weight', 'model.layers.1.self_attn.v_proj.weight', 'model.layers.11.mlp.down_proj.weight', 'model.layers.11.self_attn.v_proj.weight', 'model.layers.14.mlp.down_proj.weight', 'model.layers.14.self_attn.v_proj.weight', 'model.layers.17.mlp.down_proj.weight', 'model.layers.17.self_attn.v_proj.weight', 'model.layers.2.mlp.down_proj.weight', 'model.layers.2.self_attn.v_proj.weight', 'model.layers.20.mlp.down_proj.weight', 'model.layers.20.self_attn.v_proj.weight', 'model.layers.23.mlp.down_proj.weight', 'model.layers.23.self_attn.v_proj.weight', 'model.layers.24.mlp.down_proj.weight', 'model.layers.24.self_attn.v_proj.weight', 'model.layers.25.mlp.down_proj.weight', 'model.layers.25.self_attn.v_proj.weight', 'model.layers.26.mlp.down_proj.weight', 'model.layers.26.self_attn.v_proj.weight', 'model.layers.27.mlp.down_proj.weight', 'model.layers.27.self_attn.v_proj.weight', 'model.layers.5.mlp.down_proj.weight', 'model.layers.5.self_attn.v_proj.weight', 'model.layers.8.mlp.down_proj.weight', 'model.layers.8.self_attn.v_proj.weight'))
 _Q6_TENSOR_PREFIXES = ()
 _Q8_TENSOR_NAMES = frozenset(())
@@ -61,19 +63,22 @@ _Q8_TENSOR_PREFIXES = ()
 
 
 def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorSpec:
+    force_f16 = checkpoint_key in _F16_TENSOR_NAMES or checkpoint_key.startswith(_F16_TENSOR_PREFIXES)
+    if force_f16:
+        return TensorSpec(dtype="float16", shape=shape)
     if dtype not in ("float32", "float16", "bfloat16"):
         return TensorSpec(dtype=dtype, shape=shape)
-    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
     force_q8 = checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES)
+    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
+    if force_q8 and len(shape) >= 2:
+        n, k = _quantized_matrix_shape(shape)
+        padded_k = _round_up(k, 32)
+        return TensorSpec(dtype="uint16", shape=(n, padded_k // 32 * 17))
     if force_q6 and len(shape) >= 2:
         n, k = _quantized_matrix_shape(shape)
         if k % 256 != 0:
             raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
         return TensorSpec(dtype="uint16", shape=(n, k // 256 * 105))
-    if force_q8 and len(shape) >= 2:
-        n, k = _quantized_matrix_shape(shape)
-        padded_k = _round_up(k, 32)
-        return TensorSpec(dtype="uint16", shape=(n, padded_k // 32 * 17))
     if len(shape) != 2:
         return TensorSpec(dtype=dtype, shape=shape)
     n, k = shape
@@ -85,18 +90,21 @@ def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int,
 
 
 def _quantized_weight_layout(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorLayout:
+    force_f16 = checkpoint_key in _F16_TENSOR_NAMES or checkpoint_key.startswith(_F16_TENSOR_PREFIXES)
+    if force_f16:
+        return CONTIGUOUS_LAYOUT
     if dtype not in ("float32", "float16", "bfloat16"):
         return CONTIGUOUS_LAYOUT
-    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
     force_q8 = checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES)
+    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
+    if force_q8 and len(shape) >= 2:
+        _, k = _quantized_matrix_shape(shape)
+        return q8_0_halfwords_layout(logical_k=k)
     if force_q6 and len(shape) >= 2:
         _, k = _quantized_matrix_shape(shape)
         if k % 256 != 0:
             raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
         return q6_k_halfwords_layout(logical_k=k)
-    if force_q8 and len(shape) >= 2:
-        _, k = _quantized_matrix_shape(shape)
-        return q8_0_halfwords_layout(logical_k=k)
     if len(shape) != 2:
         return CONTIGUOUS_LAYOUT
     _, k = shape

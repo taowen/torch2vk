@@ -118,7 +118,7 @@ def _run_generation_step_with_compare(
         sin=sin,
         attention_mask=attention_mask,
     )
-    llm_output = _expected_array(llm_expected, "mul_365")
+    llm_output = _expected_array(llm_expected, "rms_norm_112")
 
     head_expected = refs.audio_head.execute({"input": llm_output})
     head_expected = reference.compare_audio_head(

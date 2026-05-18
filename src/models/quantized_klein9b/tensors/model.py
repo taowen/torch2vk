@@ -80,8 +80,8 @@ class QuantizedKlein9BTensors:
 
 _MODEL_TENSORS: QuantizedKlein9BTensors | None = None
 FLUX_PROLOGUE_OUTPUTS: dict[str, str] = {'img': 'linear_5', 'txt': 'linear_6', 'pe_x': 'unsqueeze_5', 'pe_ctx': 'unsqueeze_6', 'vec': 'linear_1', 'img_mod1_shift': 'getitem', 'img_mod1_scale': 'getitem_1', 'img_mod1_gate': 'getitem_2', 'img_mod2_shift': 'getitem_3', 'img_mod2_scale': 'getitem_4', 'img_mod2_gate': 'getitem_5', 'txt_mod1_shift': 'getitem_6', 'txt_mod1_scale': 'getitem_7', 'txt_mod1_gate': 'getitem_8', 'txt_mod2_shift': 'getitem_9', 'txt_mod2_scale': 'getitem_10', 'txt_mod2_gate': 'getitem_11', 'single_mod_shift': 'getitem_12', 'single_mod_scale': 'getitem_13', 'single_mod_gate': 'getitem_14'}
-FLUX_DOUBLE_BLOCK_OUTPUTS: dict[str, str] = {'img': 'add_13', 'txt': 'add_17'}
-FLUX_SINGLE_BLOCK_OUTPUTS: dict[str, str] = {'hidden_states': 'add_6'}
+FLUX_DOUBLE_BLOCK_OUTPUTS: dict[str, str] = {'img': 'add_9', 'txt': 'add_13'}
+FLUX_SINGLE_BLOCK_OUTPUTS: dict[str, str] = {'hidden_states': 'add_4'}
 FLUX_FINAL_LAYER_OUTPUTS: dict[str, str] = {'pred': 'linear_1'}
 
 

@@ -117,7 +117,7 @@ def create_encoder_layer(
     add_2: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> EncoderLayerTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'add_2'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('add_2',)))
     tensors = EncoderLayerTensors(
         p_audio_tower_layers_0_self_attn_k_proj_weight=_bind_tensor(
             p_audio_tower_layers_0_self_attn_k_proj_weight,
@@ -805,7 +805,7 @@ def create_audio_encoder(
     linear_110: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> AudioEncoderTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'linear_110'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('linear_110',)))
     tensors = AudioEncoderTensors(
         p_audio_tower_ln_post_weight=_bind_tensor(
             p_audio_tower_ln_post_weight,
@@ -813,7 +813,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.ln_post.weight",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.ln_post.weight", dtype='float32', shape=(896,)),
                 layout=_quantized_weight_layout("thinker.audio_tower.ln_post.weight", dtype='float32', shape=(896,)),
                 role=TensorRole.WEIGHT,
@@ -828,7 +828,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.ln_post.bias",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.ln_post.bias", dtype='float32', shape=(896,)),
                 layout=_quantized_weight_layout("thinker.audio_tower.ln_post.bias", dtype='float32', shape=(896,)),
                 role=TensorRole.WEIGHT,
@@ -843,7 +843,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d1.weight",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.conv2d1.weight", dtype='float32', shape=(480, 1, 3, 3)),
                 layout=_quantized_weight_layout("thinker.audio_tower.conv2d1.weight", dtype='float32', shape=(480, 1, 3, 3)),
                 role=TensorRole.WEIGHT,
@@ -858,7 +858,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d1.bias",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.conv2d1.bias", dtype='float32', shape=(480,)),
                 layout=_quantized_weight_layout("thinker.audio_tower.conv2d1.bias", dtype='float32', shape=(480,)),
                 role=TensorRole.WEIGHT,
@@ -873,7 +873,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d2.weight",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.conv2d2.weight", dtype='float32', shape=(480, 480, 3, 3)),
                 layout=_quantized_weight_layout("thinker.audio_tower.conv2d2.weight", dtype='float32', shape=(480, 480, 3, 3)),
                 role=TensorRole.WEIGHT,
@@ -888,7 +888,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d2.bias",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.conv2d2.bias", dtype='float32', shape=(480,)),
                 layout=_quantized_weight_layout("thinker.audio_tower.conv2d2.bias", dtype='float32', shape=(480,)),
                 role=TensorRole.WEIGHT,
@@ -903,7 +903,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d3.weight",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.conv2d3.weight", dtype='float32', shape=(480, 480, 3, 3)),
                 layout=_quantized_weight_layout("thinker.audio_tower.conv2d3.weight", dtype='float32', shape=(480, 480, 3, 3)),
                 role=TensorRole.WEIGHT,
@@ -918,7 +918,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv2d3.bias",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.conv2d3.bias", dtype='float32', shape=(480,)),
                 layout=_quantized_weight_layout("thinker.audio_tower.conv2d3.bias", dtype='float32', shape=(480,)),
                 role=TensorRole.WEIGHT,
@@ -933,7 +933,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.conv_out.weight",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.conv_out.weight", dtype='float32', shape=(896, 7680)),
                 layout=_quantized_weight_layout("thinker.audio_tower.conv_out.weight", dtype='float32', shape=(896, 7680)),
                 role=TensorRole.WEIGHT,
@@ -948,7 +948,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.proj1.weight",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.proj1.weight", dtype='float32', shape=(896, 896)),
                 layout=_quantized_weight_layout("thinker.audio_tower.proj1.weight", dtype='float32', shape=(896, 896)),
                 role=TensorRole.WEIGHT,
@@ -963,7 +963,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.proj1.bias",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.proj1.bias", dtype='float32', shape=(896,)),
                 layout=_quantized_weight_layout("thinker.audio_tower.proj1.bias", dtype='float32', shape=(896,)),
                 role=TensorRole.WEIGHT,
@@ -978,7 +978,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.proj2.weight",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.proj2.weight", dtype='float32', shape=(1024, 896)),
                 layout=_quantized_weight_layout("thinker.audio_tower.proj2.weight", dtype='float32', shape=(1024, 896)),
                 role=TensorRole.WEIGHT,
@@ -993,7 +993,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key="thinker.audio_tower.proj2.bias",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=_quantized_weight_spec("thinker.audio_tower.proj2.bias", dtype='float32', shape=(1024,)),
                 layout=_quantized_weight_layout("thinker.audio_tower.proj2.bias", dtype='float32', shape=(1024,)),
                 role=TensorRole.WEIGHT,
@@ -1008,7 +1008,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 1, 128, 100)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -1023,7 +1023,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 13, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -1038,7 +1038,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='int64', shape=(audio_sequence_length,)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -1053,7 +1053,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(1, 1, audio_sequence_length, audio_sequence_length)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -1068,7 +1068,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='conv2d',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 480, 64, 50)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1083,7 +1083,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='gelu',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 480, 64, 50)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1098,7 +1098,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='conv2d_1',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 480, 32, 25)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1113,7 +1113,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='gelu_1',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 480, 32, 25)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1128,7 +1128,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='conv2d_2',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 480, 16, 13)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1143,7 +1143,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='gelu_2',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 480, 16, 13)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1158,7 +1158,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='reshape',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 7680, 13)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1173,7 +1173,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='transpose',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 13, 7680)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1188,7 +1188,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 13, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1203,7 +1203,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='add',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count, 13, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1218,7 +1218,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='reshape_1',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_chunk_count * 13, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1233,7 +1233,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='index_select',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1248,7 +1248,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='layer_norm_36',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1263,7 +1263,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_109',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1278,7 +1278,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='gelu_21',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_sequence_length, 896)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1293,7 +1293,7 @@ def create_audio_encoder(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear_110',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -1321,6 +1321,8 @@ def create_audio_encoder(
     return tensors
 
 
+_F16_TENSOR_NAMES = frozenset(())
+_F16_TENSOR_PREFIXES = ()
 _Q6_TENSOR_NAMES = frozenset(('thinker.lm_head.weight', 'thinker.model.layers.0.mlp.down_proj.weight', 'thinker.model.layers.0.self_attn.v_proj.weight', 'thinker.model.layers.1.mlp.down_proj.weight', 'thinker.model.layers.1.self_attn.v_proj.weight', 'thinker.model.layers.11.mlp.down_proj.weight', 'thinker.model.layers.11.self_attn.v_proj.weight', 'thinker.model.layers.14.mlp.down_proj.weight', 'thinker.model.layers.14.self_attn.v_proj.weight', 'thinker.model.layers.17.mlp.down_proj.weight', 'thinker.model.layers.17.self_attn.v_proj.weight', 'thinker.model.layers.2.mlp.down_proj.weight', 'thinker.model.layers.2.self_attn.v_proj.weight', 'thinker.model.layers.20.mlp.down_proj.weight', 'thinker.model.layers.20.self_attn.v_proj.weight', 'thinker.model.layers.23.mlp.down_proj.weight', 'thinker.model.layers.23.self_attn.v_proj.weight', 'thinker.model.layers.24.mlp.down_proj.weight', 'thinker.model.layers.24.self_attn.v_proj.weight', 'thinker.model.layers.25.mlp.down_proj.weight', 'thinker.model.layers.25.self_attn.v_proj.weight', 'thinker.model.layers.26.mlp.down_proj.weight', 'thinker.model.layers.26.self_attn.v_proj.weight', 'thinker.model.layers.27.mlp.down_proj.weight', 'thinker.model.layers.27.self_attn.v_proj.weight', 'thinker.model.layers.5.mlp.down_proj.weight', 'thinker.model.layers.5.self_attn.v_proj.weight', 'thinker.model.layers.8.mlp.down_proj.weight', 'thinker.model.layers.8.self_attn.v_proj.weight'))
 _Q6_TENSOR_PREFIXES = ()
 _Q8_TENSOR_NAMES = frozenset(('thinker.model.embed_tokens.weight',))
@@ -1328,19 +1330,22 @@ _Q8_TENSOR_PREFIXES = ('thinker.audio_tower.',)
 
 
 def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorSpec:
+    force_f16 = checkpoint_key in _F16_TENSOR_NAMES or checkpoint_key.startswith(_F16_TENSOR_PREFIXES)
+    if force_f16:
+        return TensorSpec(dtype="float16", shape=shape)
     if dtype not in ("float32", "float16", "bfloat16"):
         return TensorSpec(dtype=dtype, shape=shape)
-    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
     force_q8 = checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES)
+    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
+    if force_q8 and len(shape) >= 2:
+        n, k = _quantized_matrix_shape(shape)
+        padded_k = _round_up(k, 32)
+        return TensorSpec(dtype="uint16", shape=(n, padded_k // 32 * 17))
     if force_q6 and len(shape) >= 2:
         n, k = _quantized_matrix_shape(shape)
         if k % 256 != 0:
             raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
         return TensorSpec(dtype="uint16", shape=(n, k // 256 * 105))
-    if force_q8 and len(shape) >= 2:
-        n, k = _quantized_matrix_shape(shape)
-        padded_k = _round_up(k, 32)
-        return TensorSpec(dtype="uint16", shape=(n, padded_k // 32 * 17))
     if len(shape) != 2:
         return TensorSpec(dtype=dtype, shape=shape)
     n, k = shape
@@ -1352,18 +1357,21 @@ def _quantized_weight_spec(checkpoint_key: str, *, dtype: str, shape: tuple[int,
 
 
 def _quantized_weight_layout(checkpoint_key: str, *, dtype: str, shape: tuple[int, ...]) -> TensorLayout:
+    force_f16 = checkpoint_key in _F16_TENSOR_NAMES or checkpoint_key.startswith(_F16_TENSOR_PREFIXES)
+    if force_f16:
+        return CONTIGUOUS_LAYOUT
     if dtype not in ("float32", "float16", "bfloat16"):
         return CONTIGUOUS_LAYOUT
-    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
     force_q8 = checkpoint_key in _Q8_TENSOR_NAMES or checkpoint_key.startswith(_Q8_TENSOR_PREFIXES)
+    force_q6 = checkpoint_key in _Q6_TENSOR_NAMES or checkpoint_key.startswith(_Q6_TENSOR_PREFIXES)
+    if force_q8 and len(shape) >= 2:
+        _, k = _quantized_matrix_shape(shape)
+        return q8_0_halfwords_layout(logical_k=k)
     if force_q6 and len(shape) >= 2:
         _, k = _quantized_matrix_shape(shape)
         if k % 256 != 0:
             raise ValueError(f"Q6_K tensor {checkpoint_key} requires K to be divisible by 256, got {k}")
         return q6_k_halfwords_layout(logical_k=k)
-    if force_q8 and len(shape) >= 2:
-        _, k = _quantized_matrix_shape(shape)
-        return q8_0_halfwords_layout(logical_k=k)
     if len(shape) != 2:
         return CONTIGUOUS_LAYOUT
     _, k = shape

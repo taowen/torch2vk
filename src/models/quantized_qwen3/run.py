@@ -135,7 +135,7 @@ def _run_prefill(rt: RuntimeSession, *, rope_theta: float) -> None:
         run_text_norm(rt)
         SLICE_LAST_TOKEN_F16(
             rt,
-            x=tensors.text_norm.mul_1,
+            x=tensors.text_norm.rms_norm,
             output=tensors.prefill_lm_head_input,
         )
         _run_lm_head_select(rt, x=tensors.prefill_lm_head_input)
@@ -170,7 +170,7 @@ def _run_decode_step(
         for layer_idx in range(len(tensors.decode_layers)):
             run_decode_layer(rt, layer_idx, cache_position=cache_position)
         run_decode_norm(rt)
-        _run_lm_head_select(rt, x=tensors.decode_norm.mul_1)
+        _run_lm_head_select(rt, x=tensors.decode_norm.rms_norm)
         QWEN3_TOKEN_STORE_EOS(
             rt,
             next_token=tensors.next_token,

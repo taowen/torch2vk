@@ -84,7 +84,7 @@ def _slice_prefill_lm_head_input(rt: RuntimeSession) -> None:
     tensors = model_tensors()
     SLICE_LAST_TOKEN_F16(
         rt,
-        x=tensors.text_norm.mul_1,
+        x=tensors.text_norm.rms_norm,
         output=tensors.prefill_lm_head_input,
     )
 
@@ -369,7 +369,7 @@ def _compare_prefill_lm_head_input(
         name="spike.text.prefill_lm_head_input",
         run=lambda: _slice_prefill_lm_head_input(rt),
         tensors=model_tensors(),
-        input_bindings={"x": "text_norm.mul_1"},
+        input_bindings={"x": "text_norm.rms_norm"},
         output_bindings={"prefill_lm_head_input": "prefill_lm_head_input"},
         inputs={"x": hidden_states},
         expected=expected,
@@ -432,23 +432,23 @@ def _run_decode_step_with_compare(
             key_cache=key_caches[layer_idx],
             value_cache=value_caches[layer_idx],
         )
-        ref_hidden = _expected_array(layer_expected, "add_7")
+        ref_hidden = _expected_array(layer_expected, "add_3")
         key_caches[layer_idx] = _expected_array(layer_expected, "index_copy")
         value_caches[layer_idx] = _expected_array(layer_expected, "index_copy_1")
 
-    norm_expected = _module_expected(refs.norm, "mul_1", ref_hidden)
+    norm_expected = _module_expected(refs.norm, "rms_norm", ref_hidden)
     norm_expected = reference.compare_decode_norm(
         rt,
         step=step,
         expected=norm_expected,
         hidden_states=ref_hidden,
     )
-    ref_hidden = _expected_array(norm_expected, "mul_1")
+    ref_hidden = _expected_array(norm_expected, "rms_norm")
     select_expected = _compare_lm_head_select(
         rt,
         frame_name=f"spike.decode.{step:04d}.token_select",
         x=ref_hidden,
-        x_field="decode_norm.mul_1",
+        x_field="decode_norm.rms_norm",
         eos_token_ids=eos_token_ids,
         refs=refs,
     )
@@ -653,18 +653,18 @@ def compare_decode_steps(
                 key_cache=key_caches[layer_idx],
                 value_cache=value_caches[layer_idx],
             )
-            ref_hidden = _expected_array(layer_expected, "add_7")
+            ref_hidden = _expected_array(layer_expected, "add_3")
             key_caches[layer_idx] = _expected_array(layer_expected, "index_copy")
             value_caches[layer_idx] = _expected_array(layer_expected, "index_copy_1")
             if layer_idx % 7 == 6:
                 print(f"    layer {layer_idx} done")
-        norm_expected = _module_expected(compare_refs.norm, "mul_1", ref_hidden)
+        norm_expected = _module_expected(compare_refs.norm, "rms_norm", ref_hidden)
         norm_expected = reference.compare_text_norm(
             rt,
             expected=norm_expected,
             hidden_states=ref_hidden,
         )
-        ref_hidden = _expected_array(norm_expected, "mul_1")
+        ref_hidden = _expected_array(norm_expected, "rms_norm")
         lm_head_input = _compare_prefill_lm_head_input(rt, hidden_states=ref_hidden)
         select_expected = _compare_lm_head_select(
             rt,

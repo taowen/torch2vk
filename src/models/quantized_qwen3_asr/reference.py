@@ -130,7 +130,7 @@ def compare_text_layer(
         run=lambda: _dispatch_text_layer(rt, layer_idx),
         tensors=model_tensors().text_layers[layer_idx],
         input_bindings={'hidden_states': 'hidden_states', 'position_embeddings_0': 'position_embeddings_0', 'position_embeddings_1': 'position_embeddings_1', 'cache_position': 'cache_position', 'key_cache': 'index_copy', 'value_cache': 'index_copy_1'},
-        output_bindings={'add_7': 'add_7', 'index_copy': 'index_copy', 'index_copy_1': 'index_copy_1'},
+        output_bindings={'add_3': 'add_3', 'index_copy': 'index_copy', 'index_copy_1': 'index_copy_1'},
         policy=_policy('q4_tensor'),
         inputs={
             "hidden_states": hidden_states,
@@ -155,7 +155,7 @@ def compare_text_norm(
         run=lambda: _dispatch_text_norm(rt),
         tensors=model_tensors().text_norm,
         input_bindings={'hidden_states': 'hidden_states'},
-        output_bindings={'mul_1': 'mul_1'},
+        output_bindings={'rms_norm': 'rms_norm'},
         policy=_policy('tensor'),
         inputs={
             "hidden_states": hidden_states,
@@ -203,7 +203,7 @@ def compare_decode_layer(
         run=lambda: _dispatch_decode_layer(rt, layer_idx, cache_position=_reference_int(cache_position)),
         tensors=model_tensors().decode_layers[layer_idx],
         input_bindings={'hidden_states': 'hidden_states', 'position_embeddings_0': 'position_embeddings_0', 'position_embeddings_1': 'position_embeddings_1', 'key_cache': 'index_copy', 'value_cache': 'index_copy_1'},
-        output_bindings={'add_7': 'add_7', 'index_copy': 'index_copy', 'index_copy_1': 'index_copy_1'},
+        output_bindings={'add_3': 'add_3', 'index_copy': 'index_copy', 'index_copy_1': 'index_copy_1'},
         policy=_policy('q4_tensor'),
         inputs={
             "hidden_states": hidden_states,
@@ -228,7 +228,7 @@ def compare_decode_norm(
         run=lambda: _dispatch_decode_norm(rt),
         tensors=model_tensors().decode_norm,
         input_bindings={'hidden_states': 'hidden_states'},
-        output_bindings={'mul_1': 'mul_1'},
+        output_bindings={'rms_norm': 'rms_norm'},
         policy=_policy('tensor'),
         inputs={
             "hidden_states": hidden_states,

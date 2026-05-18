@@ -31,6 +31,7 @@ from torch2vk.export import (
     cast_floating_tensors,
     export_submodule,
     module_floating_dtype,
+    patch_rms_norm_modules,
 )
 from torch2vk.export.graph import graph_output_names, inject_kv_cache
 from torch2vk.export.shaders.lm_head_q6_k_argmax_partial_f16 import (
@@ -225,6 +226,7 @@ def main() -> int:
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
+    patch_rms_norm_modules(model)
     ac = config.thinker_config.audio_config
     at = model.thinker.audio_tower
     q4_k_m_config = qwen3_asr_q4_k_m_config(shapes["num_hidden_layers"])
@@ -488,7 +490,7 @@ def main() -> int:
                    "value_cache": "index_copy_1",
                },
                reference_output_bindings={
-                   "add_7": "add_7",
+                   "add_3": "add_3",
                    "index_copy": "index_copy",
                    "index_copy_1": "index_copy_1",
                },
@@ -528,7 +530,7 @@ def main() -> int:
                    "value_cache": "index_copy_1",
                },
                reference_output_bindings={
-                   "add_7": "add_7",
+                   "add_3": "add_3",
                    "index_copy": "index_copy",
                    "index_copy_1": "index_copy_1",
                },

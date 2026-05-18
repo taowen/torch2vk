@@ -83,7 +83,7 @@ def create_model_tensors(*, target_len: int) -> QuantizedOmniVoiceTensors:
     )
     audio_head = create_audio_head(
         "omnivoice.audio_head",
-        input=llm_forward.mul_365,
+        input=llm_forward.rms_norm_112,
     )
     audio_decode = create_audio_decode(
         "omnivoice.audio_decode",

@@ -28,6 +28,7 @@ from torch2vk.export.reference_codegen import (
     render_reference_module,
     render_streaming_compare_function,
 )
+from torch2vk.export.rms_norm import patch_rms_norm_modules
 from torch2vk.export.tensor_codegen import (
     TensorClassContext,
     generate_tensor_class_source,
@@ -62,6 +63,7 @@ __all__ = [
     "generate_tensor_class_source",
     "generate_weight_tensor_class_source",
     "module_floating_dtype",
+    "patch_rms_norm_modules",
     "rename_shader_variant",
     "render_reference_module",
     "render_streaming_compare_function",

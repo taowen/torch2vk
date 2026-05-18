@@ -37,7 +37,7 @@ def create_audio_head(
     linear: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> AudioHeadTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'linear'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('linear',)))
     tensors = AudioHeadTensors(
         p_weight=_bind_tensor(
             p_weight,
@@ -45,7 +45,7 @@ def create_audio_head(
                 checkpoint=None,
                 checkpoint_key="audio_heads.weight",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float32', shape=(8200, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.WEIGHT,
@@ -60,7 +60,7 @@ def create_audio_head(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -75,7 +75,7 @@ def create_audio_head(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='linear',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(2, 85, 8200)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,

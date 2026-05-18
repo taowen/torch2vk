@@ -96,7 +96,7 @@ def compare_flux_double_block(
         run=lambda: _dispatch_flux_double_block(rt, layer_idx),
         tensors=model_tensors().flux_double_blocks[layer_idx],
         input_bindings={'img': 'img', 'txt': 'txt', 'pe': 'pe', 'pe_ctx': 'pe_ctx', 'img_mod1_shift': 'img_mod1_shift', 'img_mod1_scale': 'img_mod1_scale', 'img_mod1_gate': 'img_mod1_gate', 'img_mod2_shift': 'img_mod2_shift', 'img_mod2_scale': 'img_mod2_scale', 'img_mod2_gate': 'img_mod2_gate', 'txt_mod1_shift': 'txt_mod1_shift', 'txt_mod1_scale': 'txt_mod1_scale', 'txt_mod1_gate': 'txt_mod1_gate', 'txt_mod2_shift': 'txt_mod2_shift', 'txt_mod2_scale': 'txt_mod2_scale', 'txt_mod2_gate': 'txt_mod2_gate'},
-        output_bindings={'img': 'add_13', 'txt': 'add_17'},
+        output_bindings={'img': 'add_9', 'txt': 'add_13'},
         policy=_policy('q8_tensor'),
         inputs={
             "img": img,
@@ -137,7 +137,7 @@ def compare_flux_single_block(
         run=lambda: _dispatch_flux_single_block(rt, layer_idx),
         tensors=model_tensors().flux_single_blocks[layer_idx],
         input_bindings={'hidden_states': 'hidden_states', 'pe': 'pe', 'mod_shift': 'mod_shift', 'mod_scale': 'mod_scale', 'mod_gate': 'mod_gate'},
-        output_bindings={'hidden_states': 'add_6'},
+        output_bindings={'hidden_states': 'add_4'},
         policy=_policy('q8_tensor'),
         inputs={
             "hidden_states": hidden_states,

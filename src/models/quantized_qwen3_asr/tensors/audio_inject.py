@@ -42,7 +42,7 @@ def create_audio_inject(
     index_copy: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> AudioInjectTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'index_copy'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('index_copy',)))
     tensors = AudioInjectTensors(
         audio_positions=_bind_tensor(
             audio_positions,
@@ -50,7 +50,7 @@ def create_audio_inject(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='int64', shape=(audio_sequence_length,)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -65,7 +65,7 @@ def create_audio_inject(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(audio_sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -80,7 +80,7 @@ def create_audio_inject(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='unsqueeze',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(1, audio_sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
@@ -95,7 +95,7 @@ def create_audio_inject(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='index_copy',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(1, sequence_length, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,

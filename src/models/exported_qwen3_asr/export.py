@@ -30,6 +30,7 @@ from torch2vk.export import (
     cast_floating_tensors,
     export_submodule,
     module_floating_dtype,
+    patch_rms_norm_modules,
     read_checkpoint_dtypes,
     set_module_checkpoint_dtypes,
 )
@@ -224,6 +225,7 @@ def main() -> int:
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
+    patch_rms_norm_modules(model)
     checkpoint_dtypes = read_checkpoint_dtypes(resolve_cached_model(REPO_ID))
     ac = config.thinker_config.audio_config
     at = model.thinker.audio_tower
@@ -466,7 +468,7 @@ def main() -> int:
                    "value_cache": "index_copy_1",
                },
                reference_output_bindings={
-                   "add_7": "add_7",
+                   "add_3": "add_3",
                    "index_copy": "index_copy",
                    "index_copy_1": "index_copy_1",
                },
@@ -500,7 +502,7 @@ def main() -> int:
                    "value_cache": "index_copy_1",
                },
                reference_output_bindings={
-                   "add_7": "add_7",
+                   "add_3": "add_3",
                    "index_copy": "index_copy",
                    "index_copy_1": "index_copy_1",
                },

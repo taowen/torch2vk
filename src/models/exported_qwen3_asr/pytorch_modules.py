@@ -299,7 +299,7 @@ class TextLayerReference:
                 prefill=self.prefill,
             )
         return {
-            "add_7": output,
+            "add_3": output,
             "index_copy": updated_key_cache,
             "index_copy_1": updated_value_cache,
         }

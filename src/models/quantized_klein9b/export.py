@@ -239,7 +239,7 @@ def main() -> int:
         export_activation_dtype: torch.dtype | None = None,
         semantic_output_names: tuple[str, ...] = (),
         runtime_output_semantics: tuple[str, ...] = (),
-    ) -> tuple[str, ...]:
+    ) -> dict[str, str]:
         module = module.to(dtype=export_weight_dtype)
         registry = (
             DEFAULT_REGISTRY.with_activation_dtype(_torch_dtype_name(export_activation_dtype))
@@ -254,14 +254,14 @@ def main() -> int:
             strict=strict,
         )
         output_names = tuple(graph_output_names(prog.graph_module.graph))
+        semantic_outputs = (
+            _output_map(dispatch_name, output_names, semantic_output_names)
+            if semantic_output_names
+            else {}
+        )
         escaped_output_names = output_names
         if runtime_output_semantics:
-            output_by_semantic = _output_map(
-                dispatch_name,
-                output_names,
-                semantic_output_names,
-            )
-            escaped_output_names = tuple(output_by_semantic[name] for name in runtime_output_semantics)
+            escaped_output_names = tuple(semantic_outputs[name] for name in runtime_output_semantics)
         shape_symbol_exprs = _shape_symbol_exprs(prog, shape_symbol_axes or {})
         func_name = dispatch_name.removeprefix("run_")
         tensor_ctx = generate_tensor_class_source(
@@ -322,7 +322,7 @@ def main() -> int:
             encoding="utf-8",
         )
         print(f"  {dispatch_name}: {len(used_variants)} shaders")
-        return output_names
+        return semantic_outputs
 
     print("Exporting FLUX.2 Klein 9B Vulkan modules...")
     flux_params = Klein9BParams()
@@ -409,7 +409,7 @@ def main() -> int:
         export_activation_dtype=torch.float32,
         shape_exprs={DEFAULT_TEXT_SEQ_LEN: "sequence_length"},
     )
-    flux_prologue_output_names = export_one(
+    flux_prologue_outputs = export_one(
         dispatch_name="run_flux_prologue",
         tensor_file="flux_prologue",
         tensor_class="FluxPrologueTensors",
@@ -431,8 +431,9 @@ def main() -> int:
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
             DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
         },
+        semantic_output_names=FLUX_PROLOGUE_OUTPUT_NAMES,
     )
-    flux_double_block_output_names = export_one(
+    flux_double_block_outputs = export_one(
         dispatch_name="run_flux_double_block",
         tensor_file="flux_double_block",
         tensor_class="FluxDoubleBlockTensors",
@@ -533,7 +534,7 @@ def main() -> int:
             DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
         },
     )
-    flux_single_block_output_names = export_one(
+    flux_single_block_outputs = export_one(
         dispatch_name="run_flux_single_block",
         tensor_file="flux_single_block",
         tensor_class="FluxSingleBlockTensors",
@@ -575,7 +576,7 @@ def main() -> int:
         semantic_output_names=FLUX_SINGLE_BLOCK_OUTPUT_NAMES,
         runtime_output_semantics=("hidden_states",),
     )
-    flux_final_layer_output_names = export_one(
+    flux_final_layer_outputs = export_one(
         dispatch_name="run_flux_final_layer",
         tensor_file="flux_final_layer",
         tensor_class="FluxFinalLayerTensors",
@@ -594,6 +595,7 @@ def main() -> int:
         checkpoint="flux/model.gguf",
         quantization_config=flux_config,
         export_activation_dtype=torch.float32,
+        semantic_output_names=FLUX_FINAL_LAYER_OUTPUT_NAMES,
         shape_exprs={
             DEFAULT_TEXT_SEQ_LEN + DEFAULT_IMAGE_SEQ_LEN: "text_seq_len + image_seq_len",
             DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
@@ -615,26 +617,6 @@ def main() -> int:
         checkpoint="flux/model.gguf",
         export_activation_dtype=torch.float32,
         shape_exprs={DEFAULT_IMAGE_SEQ_LEN: "image_seq_len"},
-    )
-    flux_prologue_outputs = _output_map(
-        "flux_prologue",
-        flux_prologue_output_names,
-        FLUX_PROLOGUE_OUTPUT_NAMES,
-    )
-    flux_double_block_outputs = _output_map(
-        "flux_double_block",
-        flux_double_block_output_names,
-        FLUX_DOUBLE_BLOCK_OUTPUT_NAMES,
-    )
-    flux_single_block_outputs = _output_map(
-        "flux_single_block",
-        flux_single_block_output_names,
-        FLUX_SINGLE_BLOCK_OUTPUT_NAMES,
-    )
-    flux_final_layer_outputs = _output_map(
-        "flux_final_layer",
-        flux_final_layer_output_names,
-        FLUX_FINAL_LAYER_OUTPUT_NAMES,
     )
     reference_dispatch_imports.extend(
         (

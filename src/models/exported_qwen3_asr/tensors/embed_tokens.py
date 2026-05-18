@@ -37,7 +37,7 @@ def create_embed_tokens(
     embedding: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> EmbedTokensTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'embedding'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('embedding',)))
     tensors = EmbedTokensTensors(
         p_weight=_bind_tensor(
             p_weight,
@@ -45,7 +45,7 @@ def create_embed_tokens(
                 checkpoint=None,
                 checkpoint_key="thinker.model.embed_tokens.weight",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='bfloat16', shape=(151936, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.WEIGHT,
@@ -60,7 +60,7 @@ def create_embed_tokens(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='int64', shape=(1, 151)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -75,7 +75,7 @@ def create_embed_tokens(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key='embedding',
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(1, 151, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,

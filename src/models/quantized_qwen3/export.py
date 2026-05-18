@@ -32,6 +32,7 @@ from torch2vk.export import (
     generate_weight_tensor_class_source,
     inject_kv_cache,
     module_floating_dtype,
+    patch_rms_norm_modules,
     rename_shader_variant,
     render_model_dispatch_module,
     write_shader_file,
@@ -132,6 +133,7 @@ def main() -> int:
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
+    patch_rms_norm_modules(model)
     q4_k_m_config = qwen3_q4_k_m_config(shapes["num_hidden_layers"])
 
     custom_shader_variants = (

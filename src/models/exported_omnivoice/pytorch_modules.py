@@ -262,7 +262,7 @@ class LlmForwardReference:
                 torch_tensor(inputs, "sin").float(),
                 torch_tensor(inputs, "attention_mask").float(),
             ).float()
-        return {"mul_365": output}
+        return {"rms_norm_112": output}
 
 
 class AudioHeadReference:

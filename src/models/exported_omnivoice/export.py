@@ -37,6 +37,7 @@ from torch2vk.export import (
     cast_floating_tensors,
     export_submodule,
     module_floating_dtype,
+    patch_rms_norm_modules,
     read_checkpoint_dtypes,
     set_module_checkpoint_dtypes,
 )
@@ -154,6 +155,7 @@ def main() -> int:
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
+    patch_rms_norm_modules(model)
     checkpoint_dtypes = read_checkpoint_dtypes(resolve_cached_model(REPO_ID))
     audio_tokenizer_dir = resolve_cached_model(REPO_ID) / "audio_tokenizer"
     audio_tokenizer_checkpoint_dtypes = read_checkpoint_dtypes(audio_tokenizer_dir)
@@ -370,7 +372,7 @@ def main() -> int:
             "sin": "rope.sin",
             "attention_mask": "attention_mask",
         },
-        reference_output_bindings={"mul_365": "llm_forward.mul_365"},
+        reference_output_bindings={"rms_norm_112": "llm_forward.rms_norm_112"},
         reference_tensors="model_tensors()",
         reference_name="omnivoice.step.{step:04d}.llm_forward",
     )

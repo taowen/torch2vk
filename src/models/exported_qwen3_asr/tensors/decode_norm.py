@@ -10,7 +10,6 @@ from torch2vk.runtime.logical import (
     MemoryClass,
     TensorLifetime,
     TensorRole,
-    bind_logical_tensor_alias,
     bind_logical_tensor_names,
 )
 from torch2vk.vulkan.types import (
@@ -24,17 +23,10 @@ from torch2vk.vulkan.types import (
 class DecodeNormTensors:
     p_weight: LogicalTensor
     hidden_states: LogicalTensor
-    to: LogicalTensor
-    pow_1: LogicalTensor
-    mean: LogicalTensor
-    add: LogicalTensor
-    rsqrt: LogicalTensor
-    mul: LogicalTensor
-    to_1: LogicalTensor
-    mul_1: LogicalTensor
+    rms_norm: LogicalTensor
 
 
-DECODE_NORM_OUTPUT: str = 'mul_1'
+DECODE_NORM_OUTPUT: str = 'rms_norm'
 
 
 def create_decode_norm(
@@ -42,17 +34,10 @@ def create_decode_norm(
     *,
     p_weight: LogicalTensor | None = None,
     hidden_states: LogicalTensor | None = None,
-    to: LogicalTensor | None = None,
-    pow_1: LogicalTensor | None = None,
-    mean: LogicalTensor | None = None,
-    add: LogicalTensor | None = None,
-    rsqrt: LogicalTensor | None = None,
-    mul: LogicalTensor | None = None,
-    to_1: LogicalTensor | None = None,
-    mul_1: LogicalTensor | None = None,
+    rms_norm: LogicalTensor | None = None,
     request_state_outputs: Collection[str] = frozenset(),
 ) -> DecodeNormTensors:
-    _validate_request_state_outputs(request_state_outputs, frozenset({'mul_1'}))
+    _validate_request_state_outputs(request_state_outputs, frozenset(('rms_norm',)))
     tensors = DecodeNormTensors(
         p_weight=_bind_tensor(
             p_weight,
@@ -60,7 +45,7 @@ def create_decode_norm(
                 checkpoint=None,
                 checkpoint_key="thinker.model.norm.weight",
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='bfloat16', shape=(1024,)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.WEIGHT,
@@ -75,7 +60,7 @@ def create_decode_norm(
                 checkpoint=None,
                 checkpoint_key=None,
                 reference_key=None,
-                layer=None,
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.INPUT,
@@ -84,130 +69,23 @@ def create_decode_norm(
                 request_state='hidden_states' in request_state_outputs,
             ),
         ),
-        to=_bind_tensor(
-            to,
+        rms_norm=_bind_tensor(
+            rms_norm,
             _declare_tensor(
                 checkpoint=None,
                 checkpoint_key=None,
-                reference_key='to',
-                layer=None,
+                reference_key='rms_norm',
+                layer=prefix,
                 spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
                 layout=CONTIGUOUS_LAYOUT,
                 role=TensorRole.ACTIVATION,
                 memory=MemoryClass.FRAME_WORKSPACE,
                 lifetime=TensorLifetime.FRAME,
-                request_state='to' in request_state_outputs,
-            ),
-        ),
-        pow_1=_bind_tensor(
-            pow_1,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='pow_1',
-                layer=None,
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 1024)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='pow_1' in request_state_outputs,
-            ),
-        ),
-        mean=_bind_tensor(
-            mean,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='mean',
-                layer=None,
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='mean' in request_state_outputs,
-            ),
-        ),
-        add=_bind_tensor(
-            add,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='add',
-                layer=None,
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='add' in request_state_outputs,
-            ),
-        ),
-        rsqrt=_bind_tensor(
-            rsqrt,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='rsqrt',
-                layer=None,
-                spec=TensorSpec(dtype='float32', shape=(1, 1, 1)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='rsqrt' in request_state_outputs,
-            ),
-        ),
-        mul=_bind_tensor(
-            mul,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='mul',
-                layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='mul' in request_state_outputs,
-            ),
-        ),
-        to_1=_bind_tensor(
-            to_1,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='to_1',
-                layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='to_1' in request_state_outputs,
-            ),
-        ),
-        mul_1=_bind_tensor(
-            mul_1,
-            _declare_tensor(
-                checkpoint=None,
-                checkpoint_key=None,
-                reference_key='mul_1',
-                layer=None,
-                spec=TensorSpec(dtype='float16', shape=(1, 1, 1024)),
-                layout=CONTIGUOUS_LAYOUT,
-                role=TensorRole.ACTIVATION,
-                memory=MemoryClass.FRAME_WORKSPACE,
-                lifetime=TensorLifetime.FRAME,
-                request_state='mul_1' in request_state_outputs,
+                request_state='rms_norm' in request_state_outputs,
             ),
         ),
     )
     bind_logical_tensor_names(tensors, prefix)
-    _bind_alias_source(tensors.hidden_states, tensors.to)
-    _bind_alias_source(tensors.mul, tensors.to_1)
     return tensors
 
 
@@ -252,10 +130,6 @@ def _bind_tensor(
         tensor_name = tensor.name or "<declared>"
         raise ValueError(f"{bound_name} spec {bound.spec} does not match {tensor_name} spec {tensor.spec}")
     return bound
-
-
-def _bind_alias_source(src: LogicalTensor, dst: LogicalTensor) -> None:
-    bind_logical_tensor_alias(src, dst)
 
 
 def _validate_request_state_outputs(

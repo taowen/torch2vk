@@ -61,6 +61,7 @@ from torch2vk.export.shaders.qwen3_token_store import (
     QWEN3_TOKEN_STORE_EOS,
 )
 from torch2vk.export.shaders.reciprocal_f32 import make_reciprocal_variant
+from torch2vk.export.shaders.rms_norm_f32 import make_rms_norm_variant
 from torch2vk.export.shaders.rsqrt_f32 import make_rsqrt_variant
 from torch2vk.export.shaders.sdpa_f32 import make_sdpa_variant
 from torch2vk.export.shaders.select_int import make_select_variant
@@ -122,6 +123,7 @@ __all__ = [
     "QWEN3_TOKEN_STORE",
     "QWEN3_TOKEN_STORE_EOS",
     "make_reciprocal_variant",
+    "make_rms_norm_variant",
     "make_rsqrt_variant",
     "make_sdpa_variant",
     "make_select_variant",

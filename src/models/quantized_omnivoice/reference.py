@@ -77,7 +77,7 @@ def compare_llm_forward(
         run=lambda: _dispatch_llm_forward(rt),
         tensors=model_tensors(),
         input_bindings={'hidden_states': 'llm_forward.hidden_states', 'cos': 'rope.cos', 'sin': 'rope.sin', 'attention_mask': 'attention_mask'},
-        output_bindings={'mul_365': 'llm_forward.mul_365'},
+        output_bindings={'rms_norm_112': 'llm_forward.rms_norm_112'},
         policy=_policy('q4_tensor'),
         inputs={
             "hidden_states": hidden_states,

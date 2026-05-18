@@ -50,6 +50,7 @@ from torch2vk.export import (
     generate_looped_tensor_class_sources,
     generate_tensor_class_source,
     module_floating_dtype,
+    patch_rms_norm_modules,
     rename_shader_variant,
     render_model_dispatch_module,
     render_reference_module,
@@ -135,6 +136,7 @@ def main() -> int:
 
     print("Loading model and computing shapes...")
     model, config, shapes = _load_model_and_shapes()
+    patch_rms_norm_modules(model)
     audio_tokenizer = cast(
         HiggsAudioV2TokenizerModel,
         HiggsAudioV2TokenizerModel.from_pretrained(
@@ -349,7 +351,7 @@ def main() -> int:
                 "sin": "rope.sin",
                 "attention_mask": "attention_mask",
             },
-            reference_output_bindings={"mul_365": "llm_forward.mul_365"},
+            reference_output_bindings={"rms_norm_112": "llm_forward.rms_norm_112"},
             reference_tensors="model_tensors()",
             reference_name="omnivoice.step.{step:04d}.llm_forward",
             reference_policy="q4_tensor",
