@@ -539,10 +539,7 @@ def main() -> int:
         tensor_class="FluxSingleBlockTensors",
         create_function="create_flux_single_block",
         tensor_expr="model_tensors().flux_single_blocks[layer_idx]",
-        module=FluxSingleBlockModule(
-            cast(SingleStreamBlock, flux_model.single_blocks[0]),
-            text_seq_len=DEFAULT_TEXT_SEQ_LEN,
-        ),
+        module=FluxSingleBlockModule(cast(SingleStreamBlock, flux_model.single_blocks[0])),
         args=(
             torch.zeros(
                 1,
@@ -725,29 +722,6 @@ def main() -> int:
                 output_bindings=flux_final_layer_outputs,
             ),
         )
-    )
-    export_one(
-        dispatch_name="run_flux",
-        tensor_file="flux",
-        tensor_class="FluxTensors",
-        create_function="create_flux",
-        tensor_expr="model_tensors().flux",
-        module=flux_model,
-        args=(
-            torch.zeros(1, DEFAULT_IMAGE_SEQ_LEN, flux_params.in_channels, device="meta"),
-            torch.zeros(1, DEFAULT_IMAGE_SEQ_LEN, 4, dtype=torch.long, device="meta"),
-            torch.zeros(1, device="meta"),
-            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, flux_params.context_in_dim, device="meta"),
-            torch.zeros(1, DEFAULT_TEXT_SEQ_LEN, 4, dtype=torch.long, device="meta"),
-            torch.zeros(1, device="meta"),
-        ),
-        checkpoint="flux/model.gguf",
-        quantization_config=flux_config,
-        export_activation_dtype=torch.float32,
-        shape_exprs={
-            DEFAULT_IMAGE_SEQ_LEN: "image_seq_len",
-            DEFAULT_TEXT_SEQ_LEN: "text_seq_len",
-        },
     )
     export_one(
         dispatch_name="run_ae_entry",

@@ -16,7 +16,6 @@ from {{ model_package }}.tensors.euler_update import (
     EulerUpdateTensors,
     create_euler_update,
 )
-from {{ model_package }}.tensors.flux import FLUX_OUTPUT, FluxTensors, create_flux
 from {{ model_package }}.tensors.flux_double_block import (
     FluxDoubleBlockTensors,
     create_flux_double_block,
@@ -71,7 +70,6 @@ class QuantizedKlein9BTensors:
     flux_pe: LogicalTensor
     flux_join: FluxJoinTensors
     flux_pe_join: FluxPeJoinTensors
-    flux: FluxTensors
     flux_prologue: FluxPrologueTensors
     flux_double_blocks: tuple[FluxDoubleBlockTensors, ...]
     flux_single_blocks: tuple[FluxSingleBlockTensors, ...]
@@ -143,14 +141,6 @@ def create_model_tensors(
     flux_pe = _frame_workspace_tensor(
         "float32",
         (1, 1, text_seq_len + image_seq_len, 64, 2, 2),
-    )
-    flux = create_flux(
-        "klein9b.flux",
-        image_seq_len=image_seq_len,
-        text_seq_len=text_seq_len,
-        x=latent_tokens,
-        ctx=ctx,
-        request_state_outputs=frozenset((FLUX_OUTPUT,)),
     )
     flux_prologue = create_flux_prologue(
         "klein9b.flux.prologue",
@@ -272,7 +262,6 @@ def create_model_tensors(
         flux_pe=flux_pe,
         flux_join=flux_join,
         flux_pe_join=flux_pe_join,
-        flux=flux,
         flux_prologue=flux_prologue,
         flux_double_blocks=flux_double_blocks,
         flux_single_blocks=flux_single_blocks,
@@ -288,11 +277,6 @@ def model_tensors() -> QuantizedKlein9BTensors:
     if _MODEL_TENSORS is None:
         raise RuntimeError("create_model_tensors() must be called before model_tensors()")
     return _MODEL_TENSORS
-
-
-def flux_output(tensors: QuantizedKlein9BTensors | None = None) -> LogicalTensor:
-    resolved = model_tensors() if tensors is None else tensors
-    return getattr(resolved.flux, FLUX_OUTPUT)
 
 
 def image_output(tensors: QuantizedKlein9BTensors | None = None) -> LogicalTensor:

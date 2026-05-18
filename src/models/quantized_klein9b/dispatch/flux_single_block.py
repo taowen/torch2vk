@@ -4,14 +4,12 @@ from __future__ import annotations
 
 from models.quantized_klein9b.tensors.model import model_tensors
 from models.quantized_klein9b.shaders.add_broadcast_inner import ADD_BROADCAST_INNER
-from models.quantized_klein9b.shaders.add_f32_42 import ADD_F32_42
+from models.quantized_klein9b.shaders.add_f32_35 import ADD_F32_35
 from models.quantized_klein9b.shaders.add_scalar_13 import ADD_SCALAR_13
 from models.quantized_klein9b.shaders.add_scalar_17 import ADD_SCALAR_17
-from models.quantized_klein9b.shaders.cat_2_f32_41 import CAT_2_F32_41
 from models.quantized_klein9b.shaders.flux_single_block_add_f32 import FLUX_SINGLE_BLOCK_ADD_F32
 from models.quantized_klein9b.shaders.flux_single_block_add_scalar import FLUX_SINGLE_BLOCK_ADD_SCALAR
 from models.quantized_klein9b.shaders.flux_single_block_cat_2_f32 import FLUX_SINGLE_BLOCK_CAT_2_F32
-from models.quantized_klein9b.shaders.flux_single_block_cat_3_f32 import FLUX_SINGLE_BLOCK_CAT_3_F32
 from models.quantized_klein9b.shaders.flux_single_block_mean_dim_f32 import FLUX_SINGLE_BLOCK_MEAN_DIM_F32
 from models.quantized_klein9b.shaders.flux_single_block_mul_broadcast import FLUX_SINGLE_BLOCK_MUL_BROADCAST
 from models.quantized_klein9b.shaders.flux_single_block_mul_broadcast_18 import FLUX_SINGLE_BLOCK_MUL_BROADCAST_18
@@ -21,7 +19,6 @@ from models.quantized_klein9b.shaders.flux_single_block_mul_f32 import FLUX_SING
 from models.quantized_klein9b.shaders.flux_single_block_pow_scalar_f32 import FLUX_SINGLE_BLOCK_POW_SCALAR_F32
 from models.quantized_klein9b.shaders.flux_single_block_rsqrt_f32 import FLUX_SINGLE_BLOCK_RSQRT_F32
 from models.quantized_klein9b.shaders.flux_single_block_silu_f32 import FLUX_SINGLE_BLOCK_SILU_F32
-from models.quantized_klein9b.shaders.flux_single_block_slice_f32 import FLUX_SINGLE_BLOCK_SLICE_F32
 from models.quantized_klein9b.shaders.layer_norm_nonew_noneb_f32 import LAYER_NORM_NONEW_NONEB_F32
 from models.quantized_klein9b.shaders.linear_nobias_q8_0_f32_act_f32 import LINEAR_NOBIAS_Q8_0_F32_ACT_F32
 from models.quantized_klein9b.shaders.mul_broadcast_15 import MUL_BROADCAST_15
@@ -36,12 +33,8 @@ from models.quantized_klein9b.shaders.select_float32_21 import SELECT_FLOAT32_21
 from models.quantized_klein9b.shaders.select_float32_22 import SELECT_FLOAT32_22
 from models.quantized_klein9b.shaders.select_float32_26 import SELECT_FLOAT32_26
 from models.quantized_klein9b.shaders.select_float32_27 import SELECT_FLOAT32_27
-from models.quantized_klein9b.shaders.slice_f32_30 import SLICE_F32_30
-from models.quantized_klein9b.shaders.slice_f32_31 import SLICE_F32_31
-from models.quantized_klein9b.shaders.slice_f32_32 import SLICE_F32_32
-from models.quantized_klein9b.shaders.slice_f32_36 import SLICE_F32_36
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32 import TUPLE_GETITEM_SLICE_F32
-from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_38 import TUPLE_GETITEM_SLICE_F32_38
+from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_31 import TUPLE_GETITEM_SLICE_F32_31
 from models.quantized_klein9b.shaders.tuple_getitem_slice_f32_6 import TUPLE_GETITEM_SLICE_F32_6
 from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32 import TUPLE_GETITEM_UNBIND_F32
 from models.quantized_klein9b.shaders.tuple_getitem_unbind_f32_10 import TUPLE_GETITEM_UNBIND_F32_10
@@ -121,60 +114,28 @@ def _run_flux_single_block_with_tensors(rt: RuntimeSession, tensors: FluxSingleB
     FLUX_SINGLE_BLOCK_ADD_F32(rt, x=tensors.mul_7, y=tensors.mul_8, output=tensors.add_5)
     rt.release_frame_workspace(tensors.mul_7)
     rt.release_frame_workspace(tensors.mul_8)
-    SLICE_F32_30(rt, x=tensors.type_as, output=tensors.slice_3)
-    FLUX_SINGLE_BLOCK_SLICE_F32(rt, x=tensors.type_as, output=tensors.slice_4)
-    FLUX_SINGLE_BLOCK_SLICE_F32(rt, x=tensors.type_as, output=tensors.slice_5)
+    SDPA_F32(rt, q=tensors.type_as, k=tensors.type_as_1, v=tensors.getitem_4, output=tensors.scaled_dot_product_attention)
     rt.release_frame_workspace(tensors.add_4)
-    SLICE_F32_31(rt, x=tensors.type_as_1, output=tensors.slice_6)
-    SLICE_F32_32(rt, x=tensors.getitem_4, output=tensors.slice_7)
-    FLUX_SINGLE_BLOCK_SLICE_F32(rt, x=tensors.type_as_1, output=tensors.slice_8)
-    FLUX_SINGLE_BLOCK_SLICE_F32(rt, x=tensors.getitem_4, output=tensors.slice_9)
-    FLUX_SINGLE_BLOCK_SLICE_F32(rt, x=tensors.type_as_1, output=tensors.slice_10)
     rt.release_frame_workspace(tensors.add_5)
-    FLUX_SINGLE_BLOCK_SLICE_F32(rt, x=tensors.getitem_4, output=tensors.slice_11)
     rt.release_frame_workspace(tensors.getitem_4)
-    FLUX_SINGLE_BLOCK_CAT_2_F32(rt, x0=tensors.slice_3, x1=tensors.slice_5, output=tensors.cat)
-    rt.release_frame_workspace(tensors.slice_3)
-    rt.release_frame_workspace(tensors.slice_5)
-    FLUX_SINGLE_BLOCK_CAT_3_F32(rt, x0=tensors.slice_6, x1=tensors.slice_8, x2=tensors.slice_10, output=tensors.cat_1)
-    rt.release_frame_workspace(tensors.slice_10)
-    rt.release_frame_workspace(tensors.slice_6)
-    FLUX_SINGLE_BLOCK_CAT_3_F32(rt, x0=tensors.slice_7, x1=tensors.slice_9, x2=tensors.slice_11, output=tensors.cat_2)
-    rt.release_frame_workspace(tensors.slice_11)
-    rt.release_frame_workspace(tensors.slice_7)
-    SDPA_F32(rt, q=tensors.cat, k=tensors.cat_1, v=tensors.cat_2, output=tensors.scaled_dot_product_attention)
-    rt.release_frame_workspace(tensors.cat)
-    rt.release_frame_workspace(tensors.cat_1)
-    rt.release_frame_workspace(tensors.cat_2)
-    SLICE_F32_36(rt, x=tensors.scaled_dot_product_attention, output=tensors.slice_12)
-    FLUX_SINGLE_BLOCK_SLICE_F32(rt, x=tensors.scaled_dot_product_attention, output=tensors.slice_13)
+    PERMUTE_F32_7EBE673EB3(rt, x=tensors.scaled_dot_product_attention, output=tensors.permute_1)
     rt.release_frame_workspace(tensors.scaled_dot_product_attention)
-    SDPA_F32(rt, q=tensors.slice_4, k=tensors.slice_8, v=tensors.slice_9, output=tensors.scaled_dot_product_attention_1)
-    rt.release_frame_workspace(tensors.slice_4)
-    rt.release_frame_workspace(tensors.slice_8)
-    rt.release_frame_workspace(tensors.slice_9)
-    FLUX_SINGLE_BLOCK_CAT_3_F32(rt, x0=tensors.slice_12, x1=tensors.scaled_dot_product_attention_1, x2=tensors.slice_13, output=tensors.cat_3)
-    rt.release_frame_workspace(tensors.scaled_dot_product_attention_1)
-    rt.release_frame_workspace(tensors.slice_12)
-    rt.release_frame_workspace(tensors.slice_13)
-    PERMUTE_F32_7EBE673EB3(rt, x=tensors.cat_3, output=tensors.permute_1)
-    rt.release_frame_workspace(tensors.cat_3)
     TUPLE_GETITEM_SLICE_F32(rt, x=tensors.getitem_1, output=tensors.getitem_5)
-    TUPLE_GETITEM_SLICE_F32_38(rt, x=tensors.getitem_1, output=tensors.getitem_6)
+    TUPLE_GETITEM_SLICE_F32_31(rt, x=tensors.getitem_1, output=tensors.getitem_6)
     rt.release_frame_workspace(tensors.getitem_1)
     FLUX_SINGLE_BLOCK_SILU_F32(rt, x=tensors.getitem_5, output=tensors.silu)
     rt.release_frame_workspace(tensors.getitem_5)
     FLUX_SINGLE_BLOCK_MUL_F32(rt, x=tensors.silu, y=tensors.getitem_6, output=tensors.mul_9)
     rt.release_frame_workspace(tensors.getitem_6)
     rt.release_frame_workspace(tensors.silu)
-    CAT_2_F32_41(rt, x0=tensors.reshape_5, x1=tensors.mul_9, output=tensors.cat_4)
+    FLUX_SINGLE_BLOCK_CAT_2_F32(rt, x0=tensors.reshape_5, x1=tensors.mul_9, output=tensors.cat)
     rt.release_frame_workspace(tensors.mul_9)
     rt.release_frame_workspace(tensors.permute_1)
-    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat_4, weight=tensors.p_linear2_weight, output=tensors.linear_1)
-    rt.release_frame_workspace(tensors.cat_4)
+    LINEAR_NOBIAS_Q8_0_F32_ACT_F32(rt, x=tensors.cat, weight=tensors.p_linear2_weight, output=tensors.linear_1)
+    rt.release_frame_workspace(tensors.cat)
     FLUX_SINGLE_BLOCK_MUL_BROADCAST(rt, x=tensors.mod_gate, y=tensors.linear_1, output=tensors.mul_10)
     rt.release_frame_workspace(tensors.linear_1)
-    ADD_F32_42(rt, x=tensors.hidden_states, y=tensors.mul_10, output=tensors.add_6)
+    ADD_F32_35(rt, x=tensors.hidden_states, y=tensors.mul_10, output=tensors.add_6)
     rt.release_frame_workspace(tensors.mul_10)
 
 

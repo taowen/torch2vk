@@ -208,14 +208,13 @@ class FluxStreamingReference:
                 "txt_mod2_scale": double_block_mod_txt[1][1],
                 "txt_mod2_gate": double_block_mod_txt[1][2],
             }
-            img_hidden, txt_hidden, _cache = block.forward_kv_extract(
+            img_hidden, txt_hidden = block.forward_block(
                 img_hidden,
                 txt_hidden,
                 pe_x,
                 pe_ctx,
                 double_block_mod_img,
                 double_block_mod_txt,
-                num_ref_tokens=0,
             )
             block_outputs = {"img": img_hidden, "txt": txt_hidden}
             if stage_callback is not None:
@@ -247,12 +246,10 @@ class FluxStreamingReference:
                 "mod_scale": single_block_mod[1],
                 "mod_gate": single_block_mod[2],
             }
-            img_hidden, _cache = block.forward_kv_extract(
+            img_hidden = block.forward_block(
                 img_hidden,
                 pe,
                 single_block_mod,
-                num_txt_tokens,
-                num_ref_tokens=0,
             )
             block_outputs = {"hidden_states": img_hidden}
             if stage_callback is not None:

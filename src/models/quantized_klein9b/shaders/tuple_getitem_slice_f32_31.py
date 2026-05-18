@@ -1,4 +1,4 @@
-"""Generated shader: flux_double_block_slice_f32."""
+"""Generated shader: tuple_getitem_slice_f32_31."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from torch2vk.runtime.shader import (
 )
 
 
-FLUX_DOUBLE_BLOCK_SLICE_F32 = ShaderVariant(
-    name='flux_double_block_slice_f32',
+TUPLE_GETITEM_SLICE_F32_31 = ShaderVariant(
+    name='tuple_getitem_slice_f32_31',
     family='export',
     contract=ShaderContract(
-        class_name='ExportSliceProgram',
-        shader_name='flux_double_block_slice_f32',
+        class_name='ExportTupleGetitemSliceProgram',
+        shader_name='tuple_getitem_slice_f32_31',
         fields=(
             TensorFieldSpec(
                 name='x',
@@ -40,9 +40,9 @@ FLUX_DOUBLE_BLOCK_SLICE_F32 = ShaderVariant(
             size=16,
             fields=(
                 PushConstantFieldSpec('N_OUT', PushConstantType.UINT32, 0, mul(mul('O0', 'O1'), 'O2'), dynamic=False),
-                PushConstantFieldSpec('IN_STRIDE', PushConstantType.UINT32, 4, mul('I1', 'I2'), dynamic=False),
-                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 8, mul('O1', 'O2'), dynamic=False),
-                PushConstantFieldSpec('OFFSET', PushConstantType.UINT32, 12, 0, dynamic=False),
+                PushConstantFieldSpec('IN_STRIDE', PushConstantType.UINT32, 4, mul('I2', 1), dynamic=False),
+                PushConstantFieldSpec('OUT_STRIDE', PushConstantType.UINT32, 8, mul('O2', 1), dynamic=False),
+                PushConstantFieldSpec('OFFSET', PushConstantType.UINT32, 12, mul(12288, 1), dynamic=False),
             ),
         ),
         params_buffer=None,
